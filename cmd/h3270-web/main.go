@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/h3270/h3270-go/internal/config"
-	"github.com/h3270/h3270-go/internal/host"
-	"github.com/h3270/h3270-go/internal/render"
-	"github.com/h3270/h3270-go/internal/session"
+	"github.com/jnnngs/h3270/internal/config"
+	"github.com/jnnngs/h3270/internal/host"
+	"github.com/jnnngs/h3270/internal/render"
+	"github.com/jnnngs/h3270/internal/session"
 )
 
 type App struct {

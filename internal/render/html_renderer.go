@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/h3270/h3270-go/internal/host"
+	"github.com/jnnngs/h3270/internal/host"
 )
 
 type HtmlRenderer struct{}
