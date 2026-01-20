@@ -1,0 +1,50 @@
+(function () {
+  "use strict";
+
+  var themes = [
+    { id: "theme-classic", name: "Classic 3270" },
+    { id: "theme-modern", name: "Super Modern 3270" },
+    { id: "theme-minimal", name: "Minimal 3270" },
+    { id: "theme-slick", name: "Slick 3270" },
+    { id: "theme-not3270", name: "Not 3270" }
+  ];
+
+  function applyTheme(themeId) {
+    var body = document.body;
+    themes.forEach(function (theme) {
+      body.classList.remove(theme.id);
+    });
+    body.classList.add(themeId);
+    localStorage.setItem("h3270.theme", themeId);
+  }
+
+  function getStoredTheme() {
+    return localStorage.getItem("h3270.theme") || "theme-classic";
+  }
+
+  function initThemeSelector() {
+    var select = document.getElementById("theme-select");
+    if (!select) {
+      applyTheme(getStoredTheme());
+      return;
+    }
+
+    select.innerHTML = "";
+    themes.forEach(function (theme) {
+      var opt = document.createElement("option");
+      opt.value = theme.id;
+      opt.textContent = theme.name;
+      select.appendChild(opt);
+    });
+
+    var current = getStoredTheme();
+    select.value = current;
+    applyTheme(current);
+
+    select.addEventListener("change", function () {
+      applyTheme(select.value);
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", initThemeSelector);
+})();

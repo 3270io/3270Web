@@ -3,20 +3,33 @@
 <head>
     <title>h3270 - Connect</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div align="center" style="margin-top: 50px;">
-        <h1>h3270 - Connect to Host</h1>
-        <form action="/connect" method="post" style="border: 1px solid #ccc; padding: 20px; display: inline-block;">
-            <p>
-                <label>Hostname / IP:</label><br>
-                <input type="text" name="hostname" value="mock" style="width: 200px;">
-            </p>
-            <p>
-                <input type="submit" value="Connect">
-            </p>
-            <p style="font-size: small; color: gray;">Use "mock" for demo mode.</p>
-        </form>
+    <div class="page-wrap">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h1>h3270</h1>
+                    <div class="subtle">Connect to a TN3270 host</div>
+                </div>
+                <div class="toolbar">
+                    <label for="theme-select">Theme</label>
+                    <select id="theme-select"></select>
+                </div>
+            </div>
+            <form action="/connect" method="post" class="stack">
+                <div>
+                    <label>Hostname / IP</label>
+                    <input type="text" name="hostname" value="localhost:3270">
+                    <div class="subtle">Use <strong>mock</strong> for demo mode.</div>
+                </div>
+                <div class="split">
+                    <button type="submit">Connect</button>
+                    <button type="button" onclick="document.querySelector('input[name=hostname]').value='mock'">Use Demo Host</button>
+                </div>
+            </form>
+        </div>
     </div>
 </body>
 </html>

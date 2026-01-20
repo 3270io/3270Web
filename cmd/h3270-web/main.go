@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jnnngs/h3270/internal/assets"
 	"github.com/jnnngs/h3270/internal/config"
 	"github.com/jnnngs/h3270/internal/host"
 	"github.com/jnnngs/h3270/internal/render"
@@ -37,6 +39,9 @@ func main() {
 	}
 
 	r := gin.Default()
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Printf("Warning: could not set trusted proxies: %v", err)
+	}
 	r.LoadHTMLGlob("web/templates/*")
 	r.Static("/static", "web/static")
 
@@ -126,6 +131,7 @@ func (app *App) SubmitHandler(c *gin.Context) {
 	}
 
 	key := c.PostForm("key")
+	log.Printf("Submit: raw key=%q", key)
 
 	if s.Host.GetScreen().IsFormatted {
 		// 1. Update fields from form data
@@ -147,8 +153,9 @@ func (app *App) SubmitHandler(c *gin.Context) {
 	// 3. Send action key
 	actionKey := "Enter"
 	if key != "" {
-		actionKey = key
+		actionKey = normalizeKey(key)
 	}
+	log.Printf("Submit: normalized key=%q", actionKey)
 
 	if err := s.Host.SendKey(actionKey); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("SendKey failed: %v", err)})
@@ -260,6 +267,10 @@ func resolveS3270Path(execPath string) string {
 		return local
 	}
 
+	if embedded, err := assets.ExtractS3270(); err == nil {
+		return embedded
+	}
+
 	return filepath.Join("/usr/local/bin", "s3270")
 }
 
@@ -349,6 +360,76 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 	}
 
 	return sb.String()
+}
+
+func normalizeKey(key string) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return "Enter"
+	}
+
+	upper := strings.ToUpper(trimmed)
+	lower := strings.ToLower(trimmed)
+
+	if strings.HasPrefix(upper, "PF") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil {
+			if n >= 1 && n <= 24 {
+				return fmt.Sprintf("PF(%d)", n)
+			}
+		}
+	}
+	if strings.HasPrefix(upper, "PA") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil {
+			if n >= 1 && n <= 3 {
+				return fmt.Sprintf("PA(%d)", n)
+			}
+		}
+	}
+
+	switch lower {
+	case "enter":
+		return "Enter"
+	case "tab":
+		return "Tab"
+	case "backtab":
+		return "BackTab"
+	case "clear":
+		return "Clear"
+	case "reset":
+		return "Reset"
+	case "eraseeof", "erase_eof":
+		return "EraseEOF"
+	case "eraseinput", "erase_input":
+		return "EraseInput"
+	case "dup":
+		return "Dup"
+	case "fieldmark", "field_mark":
+		return "FieldMark"
+	case "sysreq", "sys_req":
+		return "SysReq"
+	case "attn":
+		return "Attn"
+	case "newline", "new_line":
+		return "Newline"
+	case "backspace":
+		return "BackSpace"
+	case "delete":
+		return "Delete"
+	case "insert":
+		return "Insert"
+	case "home":
+		return "Home"
+	case "up":
+		return "Up"
+	case "down":
+		return "Down"
+	case "left":
+		return "Left"
+	case "right":
+		return "Right"
+	}
+
+	return trimmed
 }
 
 func writeRule(sb *strings.Builder, selector, bg, fg string) {

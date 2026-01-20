@@ -65,57 +65,67 @@
       return "";
     }
     var key = event.key;
-    if (!key || key[0] !== "F") {
-      return "";
-    }
-    var n = parseInt(key.substring(1), 10);
-    if (isNaN(n)) {
-      return "";
-    }
-    if (n >= 1 && n <= 12) {
-      if (event.shiftKey) {
-        n += 12;
+    if (key && key[0] === "F") {
+      var n = parseInt(key.substring(1), 10);
+      if (!isNaN(n)) {
+        if (n >= 1 && n <= 12) {
+          if (event.shiftKey) {
+            n += 12;
+          }
+          return "PF" + n;
+        }
+        if (n >= 13 && n <= 24) {
+          return "PF" + n;
+        }
       }
-      return "PF" + n;
     }
-    if (n >= 13 && n <= 24) {
-      return "PF" + n;
+
+    var code = event.keyCode || event.which;
+    if (code >= 112 && code <= 123) {
+      var idx = code - 111;
+      if (event.shiftKey) {
+        idx += 12;
+      }
+      return "PF" + idx;
     }
+
     return "";
   }
 
   function mapSpecialKey(event) {
-    if (event.key === "Enter") {
+    var code = event.keyCode || event.which;
+
+    if (event.key === "Enter" || code === 13) {
       return specialKeys.Enter;
     }
-    if (event.key === "Tab") {
+    if (event.key === "Tab" || code === 9) {
       return event.shiftKey ? specialKeys.BackTab : specialKeys.Tab;
     }
-    if (event.key === "Backspace") {
+    if (event.key === "Backspace" || code === 8) {
       return specialKeys.BackSpace;
     }
-    if (event.key === "Delete") {
+    if (event.key === "Delete" || code === 46) {
       return specialKeys.Delete;
     }
-    if (event.key === "Insert") {
+    if (event.key === "Insert" || code === 45) {
       return specialKeys.Insert;
     }
-    if (event.key === "Home") {
+    if (event.key === "Home" || code === 36) {
       return specialKeys.Home;
     }
-    if (event.key === "ArrowUp") {
+    if (event.key === "ArrowUp" || code === 38) {
       return specialKeys.Up;
     }
-    if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown" || code === 40) {
       return specialKeys.Down;
     }
-    if (event.key === "ArrowLeft") {
+    if (event.key === "ArrowLeft" || code === 37) {
       return specialKeys.Left;
     }
-    if (event.key === "ArrowRight") {
+    if (event.key === "ArrowRight" || code === 39) {
       return specialKeys.Right;
     }
-    if (event.key === "Escape") {
+    if (event.key === "Escape" || code === 27) {
       return specialKeys.Clear;
     }
     return "";
@@ -125,13 +135,13 @@
     if (!event.altKey || event.ctrlKey || event.metaKey) {
       return "";
     }
-    if (event.key === "F1") {
+    if (event.key === "F1" || event.keyCode === 112) {
       return specialKeys.PA1;
     }
-    if (event.key === "F2") {
+    if (event.key === "F2" || event.keyCode === 113) {
       return specialKeys.PA2;
     }
-    if (event.key === "F3") {
+    if (event.key === "F3" || event.keyCode === 114) {
       return specialKeys.PA3;
     }
     return "";
@@ -234,9 +244,13 @@
   };
 
   window.installKeyHandler = function (formId) {
-    window.addEventListener("keydown", function (event) {
-      handleKeyDownEvent(event, formId);
-    });
+    window.addEventListener(
+      "keydown",
+      function (event) {
+        handleKeyDownEvent(event, formId);
+      },
+      true
+    );
   };
 
   window.renderKeypad = function (containerId) {

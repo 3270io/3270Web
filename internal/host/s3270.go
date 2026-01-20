@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -124,8 +126,88 @@ func (h *S3270) SendKey(key string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	_, _, err := h.doCommandLocked(key)
-	return err
+	if key == "" {
+		key = "Enter"
+	}
+
+	data, status, err := h.doCommandLocked(key)
+	log.Printf("s3270: cmd=%q status=%q", key, status)
+	if err == nil && !isS3270Error(status, data) {
+		if isAidKey(key) {
+			return h.waitUnlockLocked()
+		}
+		return nil
+	}
+
+	keySpec := keyToKeySpec(key)
+	if keySpec != "" {
+		fallback := fmt.Sprintf("Key(%s)", keySpec)
+		data, status, err = h.doCommandLocked(fallback)
+		log.Printf("s3270: cmd=%q status=%q", fallback, status)
+		if err == nil && !isS3270Error(status, data) {
+			if isAidKey(key) {
+				return h.waitUnlockLocked()
+			}
+			return nil
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+	if isS3270Error(status, data) {
+		return fmt.Errorf("s3270 error: %s", status)
+	}
+	return nil
+}
+
+func isAidKey(key string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(key))
+	return upper == "ENTER" || strings.HasPrefix(upper, "PF(") || strings.HasPrefix(upper, "PA(") || upper == "CLEAR" || upper == "SYSREQ" || upper == "ATTN"
+}
+
+func (h *S3270) waitUnlockLocked() error {
+	_, status, err := h.doCommandLocked("Wait(Unlock)")
+	log.Printf("s3270: cmd=%q status=%q", "Wait(Unlock)", status)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func isS3270Error(status string, data []string) bool {
+	if strings.HasPrefix(status, "E ") {
+		return true
+	}
+	for _, line := range data {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "error") {
+			return true
+		}
+	}
+	return false
+}
+
+func keyToKeySpec(key string) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return "Enter"
+	}
+
+	upper := strings.ToUpper(trimmed)
+	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
+		if n, err := strconv.Atoi(inner); err == nil {
+			return fmt.Sprintf("PF%d", n)
+		}
+	}
+	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
+		if n, err := strconv.Atoi(inner); err == nil {
+			return fmt.Sprintf("PA%d", n)
+		}
+	}
+
+	return trimmed
 }
 
 func (h *S3270) SubmitScreen() error {

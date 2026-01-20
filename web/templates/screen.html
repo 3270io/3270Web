@@ -5,38 +5,33 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/keyboard.js"></script>
+    <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div align="center">
-        <form action="/prefs" method="post" style="margin: 10px 0;">
-            <label>Colorscheme:</label>
-            <select name="colorscheme">
-                {{ range .ColorSchemes }}
-                <option value="{{ .Name }}" {{ if eq .Name $.SelectedColorScheme }}selected{{ end }}>{{ .Name }}</option>
-                {{ end }}
-            </select>
-            <label style="margin-left: 10px;">Font:</label>
-            <select name="font">
-                {{ range .Fonts }}
-                <option value="{{ .Name }}" {{ if eq .Name $.SelectedFont }}selected{{ end }}>{{ if .Description }}{{ .Description }}{{ else }}{{ .Name }}{{ end }}</option>
-                {{ end }}
-            </select>
-            <label style="margin-left: 10px;">
-                <input type="checkbox" name="keypad" {{ if .UseKeypad }}checked{{ end }}> Keypad
-            </label>
-            <button type="submit" style="margin-left: 10px;">Apply</button>
-        </form>
+    <div class="page-wrap">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h2>h3270</h2>
+                    <div class="subtle">Connected session</div>
+                </div>
+                <div class="toolbar">
+                    <label for="theme-select">Theme</label>
+                    <select id="theme-select"></select>
+                </div>
+            </div>
+            <div class="toolbar" style="margin-bottom: 16px;">
+                <a href="/disconnect">Disconnect</a>
+            </div>
 
-        <!-- Screen Content Rendered by Go -->
-        <div class="screen-container" style="display: inline-block; border: 1px solid #999; padding: 5px;">
-            {{ .ScreenContent }}
-        </div>
-        
-        {{ if .UseKeypad }}
-        <div id="keypad" class="controls" style="margin-top: 10px;"></div>
-        {{ end }}
-        <div style="margin-top: 10px;">
-            <a href="/disconnect" style="color: red;">Disconnect</a>
+            <div class="stack">
+                <div class="screen-container">
+                    {{ .ScreenContent }}
+                </div>
+                {{ if .UseKeypad }}
+                <div id="keypad" class="controls"></div>
+                {{ end }}
+            </div>
         </div>
     </div>
 </body>
