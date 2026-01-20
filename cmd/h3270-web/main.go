@@ -5,6 +5,9 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -229,10 +232,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	if hostname == "mock" || hostname == "demo" {
 		h, err = host.NewMockHost("webapp/WEB-INF/dump/advantis.dump")
 	} else {
-		execPath := "./s3270-bin/s3270-linux"
-		if app.Config.ExecPath != "" && app.Config.ExecPath != "/usr/local/bin" {
-			execPath = app.Config.ExecPath + "/s3270"
-		}
+		execPath := resolveS3270Path(app.Config.ExecPath)
 		args := buildS3270Args(app.Config.S3270Options, hostname)
 		h = host.NewS3270(execPath, args...)
 	}
@@ -248,6 +248,31 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	app.applyDefaultPrefs(sess)
 	setSessionCookie(c, "h3270_session", sess.ID)
 	return nil
+}
+
+func resolveS3270Path(execPath string) string {
+	if execPath != "" && execPath != "/usr/local/bin" {
+		return filepath.Join(execPath, s3270BinaryName())
+	}
+
+	local := filepath.Join(".", "s3270-bin", s3270BinaryName())
+	if fileExists(local) {
+		return local
+	}
+
+	return filepath.Join("/usr/local/bin", "s3270")
+}
+
+func s3270BinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "s3270.exe"
+	}
+	return "s3270"
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {

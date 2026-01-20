@@ -1,0 +1,240 @@
+package host
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+var (
+	statusPattern = regexp.MustCompile(
+		`^[ULE] [FU] [PU] (?:C\([^)]*\)|N) [ILCN] [2-5] [0-9]+ [0-9]+ ([0-9]+) ([0-9]+) 0x0 (?:[0-9.]+|-)$`,
+	)
+	formattedTokenPattern = regexp.MustCompile(`SF\([^)]*\)|[0-9a-fA-F]{2}`)
+	saPattern             = regexp.MustCompile(`SA\(..=..\)`)
+)
+
+type decodeState struct {
+	fieldStartX    int
+	fieldStartY    int
+	fieldStartCode byte
+	color          int
+	extHighlight   int
+	width          int
+}
+
+// NewScreenFromDump parses an s3270 dump file (data lines + status + ok).
+func NewScreenFromDump(r io.Reader) (*Screen, error) {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var lines []string
+	var status string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data:") {
+			lines = append(lines, line)
+			continue
+		}
+		if statusPattern.MatchString(line) {
+			status = line
+			continue
+		}
+		if strings.TrimSpace(line) == "ok" {
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	s := &Screen{IsFormatted: true}
+	if err := s.Update(status, lines); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// Update refreshes the screen using a status line and buffer data lines.
+func (s *Screen) Update(status string, lines []string) error {
+	s.Status = status
+
+	if status == "" {
+		s.IsFormatted = true
+	} else if len(status) >= 3 && status[2] == 'F' {
+		s.IsFormatted = true
+	} else {
+		s.IsFormatted = false
+	}
+
+	if err := s.updateBuffer(lines); err != nil {
+		return err
+	}
+
+	for _, f := range s.Fields {
+		f.Focused = false
+	}
+
+	if status != "" {
+		if match := statusPattern.FindStringSubmatch(status); len(match) == 3 {
+			row, _ := strconv.Atoi(match[1])
+			col, _ := strconv.Atoi(match[2])
+			s.CursorY = row
+			s.CursorX = col
+			if f := s.GetInputFieldAt(s.CursorX, s.CursorY); f != nil {
+				f.Focused = true
+			}
+		} else {
+			s.CursorX = 0
+			s.CursorY = 0
+		}
+	}
+
+	return nil
+}
+
+func (s *Screen) updateBuffer(lines []string) error {
+	s.Height = len(lines)
+	if s.Height == 0 {
+		s.Width = 0
+		s.Buffer = nil
+		s.Fields = nil
+		return nil
+	}
+
+	s.Buffer = make([][]rune, s.Height)
+	s.Fields = nil
+
+	state := &decodeState{
+		fieldStartX:    0,
+		fieldStartY:    0,
+		fieldStartCode: 0xe0,
+		color:          AttrColDefault,
+		extHighlight:   AttrEhDefault,
+		width:          s.Width,
+	}
+
+	width := 0
+	for y, line := range lines {
+		state.width = width
+		row, err := decodeLine(line, y, s.IsFormatted, s, state)
+		if err != nil {
+			return err
+		}
+		if len(row) > width {
+			width = len(row)
+		}
+		s.Buffer[y] = row
+	}
+	s.Width = width
+
+	if state.fieldStartX >= 0 && s.Width > 0 && s.Height > 0 {
+		endX := s.Width - 1
+		endY := s.Height - 1
+		if endX >= 0 && endY >= 0 {
+			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+		}
+	}
+
+	return nil
+}
+
+func decodeLine(line string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
+	if strings.HasPrefix(line, "data:") {
+		line = strings.TrimSpace(line[len("data:"):])
+	}
+
+	line = saPattern.ReplaceAllString(line, "")
+	tokens := formattedTokenPattern.FindAllString(line, -1)
+
+	var result []rune
+	index := 0
+
+	for _, token := range tokens {
+		if strings.HasPrefix(token, "SF(") {
+			if !formatted {
+				return nil, fmt.Errorf("format information in unformatted screen")
+			}
+
+			result = append(result, ' ')
+
+			if state.fieldStartX != -1 {
+				endX := index - 1
+				endY := y
+				if endX < 0 {
+					if state.width > 0 {
+						endX = state.width - 1
+						endY = y - 1
+					} else {
+						endX = 0
+						endY = y - 1
+					}
+				}
+				if endY >= 0 {
+					s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+				}
+			}
+
+			inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
+			startCode := state.fieldStartCode
+			color := AttrColDefault
+			extHighlight := AttrEhDefault
+
+			attrs := strings.Split(inner, ",")
+			for _, attr := range attrs {
+				parts := strings.SplitN(attr, "=", 2)
+				if len(parts) != 2 {
+					continue
+				}
+				key := strings.TrimSpace(parts[0])
+				val := strings.TrimSpace(parts[1])
+
+				switch key {
+				case "c0":
+					if b, err := parseHexByte(val); err == nil {
+						startCode = b
+					}
+				case "41":
+					if b, err := parseHexByte(val); err == nil {
+						extHighlight = int(b)
+					}
+				case "42":
+					if b, err := parseHexByte(val); err == nil {
+						color = int(b)
+					}
+				}
+			}
+
+			state.fieldStartX = index + 1
+			state.fieldStartY = y
+			state.fieldStartCode = startCode
+			state.color = color
+			state.extHighlight = extHighlight
+		} else {
+			b, err := parseHexByte(token)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, rune(b))
+		}
+		index++
+	}
+
+	if state.fieldStartX == index && state.fieldStartY == y {
+		state.fieldStartX = 0
+		state.fieldStartY = y + 1
+	}
+
+	return result, nil
+}
+
+func parseHexByte(s string) (byte, error) {
+	v, err := strconv.ParseUint(s, 16, 8)
+	if err != nil {
+		return 0, err
+	}
+	return byte(v), nil
+}
