@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>h3270</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
+    <script src="/static/keyboard.js"></script>
+    <script>
+        function sendKey(key) {
+            // Find the form. The renderer puts it first or with id screen-ID
+            var form = document.querySelector("form.h3270-form");
+            if (!form && document.forms.length > 0) {
+                form = document.forms[0];
+            }
+            if (form) {
+                form.key.value = key;
+                form.submit();
+            }
+        }
+    </script>
+</head>
+<body>
+    <div align="center">
+        <form action="/prefs" method="post" style="margin: 10px 0;">
+            <label>Colorscheme:</label>
+            <select name="colorscheme">
+                {{ range .ColorSchemes }}
+                <option value="{{ .Name }}" {{ if eq .Name $.SelectedColorScheme }}selected{{ end }}>{{ .Name }}</option>
+                {{ end }}
+            </select>
+            <label style="margin-left: 10px;">Font:</label>
+            <select name="font">
+                {{ range .Fonts }}
+                <option value="{{ .Name }}" {{ if eq .Name $.SelectedFont }}selected{{ end }}>{{ if .Description }}{{ .Description }}{{ else }}{{ .Name }}{{ end }}</option>
+                {{ end }}
+            </select>
+            <label style="margin-left: 10px;">
+                <input type="checkbox" name="keypad" {{ if .UseKeypad }}checked{{ end }}> Keypad
+            </label>
+            <button type="submit" style="margin-left: 10px;">Apply</button>
+        </form>
+
+        <!-- Screen Content Rendered by Go -->
+        <div class="screen-container" style="display: inline-block; border: 1px solid #999; padding: 5px;">
+            {{ .ScreenContent }}
+        </div>
+        
+        {{ if .UseKeypad }}
+        <div class="controls" style="margin-top: 10px;">
+            <button onclick="sendKey('Enter')">Enter</button>
+            <button onclick="sendKey('Clear')">Clear</button>
+            <button onclick="sendKey('PF1')">PF1</button>
+            <button onclick="sendKey('PF2')">PF2</button>
+            <button onclick="sendKey('PF3')">PF3</button>
+            <button onclick="sendKey('PF4')">PF4</button>
+            <button onclick="sendKey('PF5')">PF5</button>
+            <button onclick="sendKey('PF6')">PF6</button>
+            <button onclick="sendKey('PF7')">PF7</button>
+            <button onclick="sendKey('PF8')">PF8</button>
+            <!-- ... -->
+        </div>
+        {{ end }}
+        <div style="margin-top: 10px;">
+            <a href="/disconnect" style="color: red;">Disconnect</a>
+        </div>
+    </div>
+</body>
+</html>
