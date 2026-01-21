@@ -8,9 +8,11 @@ import (
 
 //go:generate go-bindata -pkg assets -o bindata.go -prefix ../../s3270-bin ../../s3270-bin/s3270.exe
 
+const embeddedS3270Name = "s3270.exe"
+
 // ExtractS3270 writes the embedded s3270 binary to a temp location and returns the path.
 func ExtractS3270() (string, error) {
-	data, err := Asset("s3270.exe")
+	data, err := Asset(embeddedS3270Name)
 	if err != nil {
 		return "", fmt.Errorf("embedded binary not found: %w", err)
 	}
@@ -20,7 +22,7 @@ func ExtractS3270() (string, error) {
 		return "", err
 	}
 
-	outPath := filepath.Join(cacheDir, "s3270.exe")
+	outPath := filepath.Join(cacheDir, embeddedS3270Name)
 	if info, err := os.Stat(outPath); err == nil && info.Size() == int64(len(data)) {
 		return outPath, nil
 	}

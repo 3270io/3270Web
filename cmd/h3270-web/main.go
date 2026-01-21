@@ -503,6 +503,7 @@ func resolveS3270Path(execPath string) string {
 	}
 
 	if runtime.GOOS == "windows" {
+		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
 		if embedded, err := assets.ExtractS3270(); err == nil {
 			return embedded
 		}
