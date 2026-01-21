@@ -15,6 +15,7 @@ const (
 	metOfficeFeedURL = "https://www.metoffice.gov.uk/public/data/PWSCache/WarningsRSS/Region/UK"
 	ncscFeedURL      = "https://www.ncsc.gov.uk/api/1/services/v1/all-rss-feed.xml"
 	bbcFeedURL       = "https://feeds.bbci.co.uk/news/rss.xml"
+	app2ScreenWidth  = 80
 )
 
 var app2FeedSelectionScreen = go3270.Screen{
@@ -145,8 +146,8 @@ func displayDetails(conn net.Conn, item *gofeed.Item) {
 	if desc == "" {
 		desc = item.Title
 	}
-	descRows := len(desc) / 80
-	if len(desc)%80 != 0 {
+	descRows := len(desc) / app2ScreenWidth
+	if len(desc)%app2ScreenWidth != 0 {
 		descRows++
 	}
 	if descRows < 1 {
@@ -157,8 +158,8 @@ func displayDetails(conn net.Conn, item *gofeed.Item) {
 	detailsScreen[0] = go3270.Field{Row: 0, Col: 0, Content: "Title: " + item.Title, Intense: true}
 
 	for i := 0; i < descRows; i++ {
-		startIdx := i * 79
-		endIdx := startIdx + 79
+		startIdx := i * app2ScreenWidth
+		endIdx := startIdx + app2ScreenWidth
 		if startIdx >= len(desc) {
 			break
 		}

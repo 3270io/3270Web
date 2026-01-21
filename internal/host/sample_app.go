@@ -17,6 +17,8 @@ type GoSampleAppHost struct {
 	client *S3270
 }
 
+const sampleAppClientNotStarted = "sample app client not started"
+
 func NewGoSampleAppHost(appID string, port int, execPath string, args []string) (*GoSampleAppHost, error) {
 	if appID == "" {
 		return nil, fmt.Errorf("missing sample app id")
@@ -73,7 +75,7 @@ func (h *GoSampleAppHost) IsConnected() bool {
 
 func (h *GoSampleAppHost) UpdateScreen() error {
 	if h.client == nil {
-		return fmt.Errorf("sample app client not started")
+		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.UpdateScreen()
 }
@@ -87,21 +89,21 @@ func (h *GoSampleAppHost) GetScreen() *Screen {
 
 func (h *GoSampleAppHost) SendKey(key string) error {
 	if h.client == nil {
-		return fmt.Errorf("sample app client not started")
+		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.SendKey(key)
 }
 
 func (h *GoSampleAppHost) SubmitScreen() error {
 	if h.client == nil {
-		return fmt.Errorf("sample app client not started")
+		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.SubmitScreen()
 }
 
 func (h *GoSampleAppHost) SubmitUnformatted(data string) error {
 	if h.client == nil {
-		return fmt.Errorf("sample app client not started")
+		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.SubmitUnformatted(data)
 }
