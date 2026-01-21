@@ -585,7 +585,7 @@ func parseSampleAppHost(hostname string) (string, bool) {
 	if !strings.HasPrefix(trimmed, sampleAppPrefix) {
 		return "", false
 	}
-	id := strings.TrimSpace(strings.TrimPrefix(trimmed, sampleAppPrefix))
+	id := strings.TrimPrefix(trimmed, sampleAppPrefix)
 	if id == "" {
 		return "", false
 	}
@@ -605,35 +605,38 @@ func resolveSampleDumpPath(file string) string {
 	if file == "" {
 		return ""
 	}
-	repoRoot := findRepoRoot()
+	workingDir, err := os.Getwd()
+	if err != nil {
+		log.Printf("Warning: unable to resolve working directory: %v", err)
+		workingDir = "."
+	}
+	repoRoot := findRepoRoot(workingDir)
+	base := workingDir
+	if repoRoot != "" {
+		// Prefer repo root so dump lookup works when tests run from subdirectories.
+		base = repoRoot
+	}
 	for _, dir := range sampleAppDumpDirs {
+		var candidates []string
 		if filepath.IsAbs(dir) {
-			path := filepath.Join(dir, file)
+			candidates = append(candidates, filepath.Join(dir, file))
+		} else if base != "" {
+			candidates = append(candidates, filepath.Join(base, dir, file))
+		}
+		for _, path := range candidates {
 			if fileExists(path) {
 				return path
-			}
-			continue
-		}
-		path := filepath.Join(dir, file)
-		if fileExists(path) {
-			return path
-		}
-		if repoRoot != "" {
-			rootPath := filepath.Join(repoRoot, dir, file)
-			if fileExists(rootPath) {
-				return rootPath
 			}
 		}
 	}
 	return ""
 }
 
-func findRepoRoot() string {
-	cwd, err := os.Getwd()
-	if err != nil {
+func findRepoRoot(workingDir string) string {
+	dir := workingDir
+	if dir == "" {
 		return ""
 	}
-	dir := cwd
 	for {
 		if fileExists(filepath.Join(dir, "go.mod")) {
 			return dir
