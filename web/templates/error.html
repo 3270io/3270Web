@@ -3,12 +3,17 @@
 <head>
     <title>3270Web - Error</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div align="center" style="margin-top: 50px;">
+    <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+    <div align="center" style="margin-top: 50px; position: relative; z-index: 1;">
         <h1 style="color: red;">Error</h1>
         <p>{{ .Error }}</p>
         <p><a href="/">Back to Home</a></p>
     </div>
+    <script src="/static/background.js" defer></script>
 </body>
 </html>
