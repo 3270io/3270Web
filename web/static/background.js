@@ -11,11 +11,20 @@
     return;
   }
 
-  var overlay = canvas.closest(".bg-overlay") || canvas.parentElement;
+  var overlay = canvas.closest(".bg-overlay");
+  if (!overlay && canvas.parentElement && canvas.parentElement.classList) {
+    if (canvas.parentElement.classList.contains("bg-overlay")) {
+      overlay = canvas.parentElement;
+    }
+  }
   var storageKey = "3270Web.bgAnimation";
   var themeKey = "3270Web.theme";
   var textFont = "'Cascadia Mono', 'Consolas', 'Courier New', monospace";
   var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$*+-";
+  var PIXEL_AREA_DIVISOR = 20000;
+  var CARD_AREA_DIVISOR = 80000;
+  var CHAR_AREA_DIVISOR = 12000;
+  var MAX_DELTA_SECONDS = 0.05;
 
   var themeConfigs = {
     "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
@@ -102,12 +111,12 @@
 
   function desiredCount(area) {
     if (state.mode === "pixels") {
-      return clamp(Math.round(area / 20000 * state.density), 25, 140);
+      return clamp(Math.round(area / PIXEL_AREA_DIVISOR * state.density), 25, 140);
     }
     if (state.mode === "punchcards") {
-      return clamp(Math.round(area / 80000 * state.density), 6, 26);
+      return clamp(Math.round(area / CARD_AREA_DIVISOR * state.density), 6, 26);
     }
-    return clamp(Math.round(area / 12000 * state.density), 20, 160);
+    return clamp(Math.round(area / CHAR_AREA_DIVISOR * state.density), 20, 160);
   }
 
   function newCharacter() {
@@ -251,7 +260,7 @@
     if (!state.lastTime) {
       state.lastTime = timestamp;
     }
-    var delta = Math.min((timestamp - state.lastTime) / 1000, 0.05);
+    var delta = Math.min((timestamp - state.lastTime) / 1000, MAX_DELTA_SECONDS);
     state.lastTime = timestamp;
     if (state.running) {
       if (state.mode === "pixels") {
