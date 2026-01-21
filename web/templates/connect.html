@@ -98,8 +98,11 @@
             }
             if (startButton && hostInput && appSelect && portSelect) {
                 startButton.addEventListener("click", () => {
-                    const appId = appSelect.value;
-                    const port = portSelect.value;
+                    const appId = (appSelect.value || "").replace(/[^a-zA-Z0-9_-]/g, "");
+                    const port = (portSelect.value || "").replace(/[^0-9]/g, "");
+                    if (!appId || !port) {
+                        return;
+                    }
                     hostInput.value = `sampleapp:${appId}:${port}`;
                     hideModal();
                     if (hostInput.form) {
