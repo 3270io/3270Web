@@ -21,14 +21,12 @@
                     <select id="theme-select"></select>
                 </div>
             </div>
-            <form action="/connect" method="post" class="stack">
-                <div>
-                    <label>Hostname / IP</label>
-                    <input type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input>
-                </div>
-                <div class="split">
+            <form action="/connect" method="post">
+                <fieldset class="connect-row">
+                    <label for="hostname-input">Hostname / IP</label>
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input>
                     <button type="submit">Connect</button>
-                </div>
+                </fieldset>
             </form>
         </div>
     </div>

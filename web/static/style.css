@@ -243,6 +243,46 @@ pre, pre input, textarea {
   gap: 16px;
 }
 
+.connect-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  margin: 0;
+}
+
+.connect-row label {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  min-width: 120px;
+}
+
+.connect-row input {
+  flex: 1;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.connect-row button {
+  white-space: nowrap;
+  padding: 10px 16px;
+}
+
+@media (max-width: 640px) {
+  .connect-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connect-row label {
+    min-width: 0;
+  }
+}
+
 .split {
   display: grid;
   gap: 16px;
