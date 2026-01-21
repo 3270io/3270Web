@@ -1,5 +1,5 @@
 services:
-  h3270-web:
+  3270Web:
     build: .
     image: ghcr.io/jnnngs/3270Web:local
     ports:
