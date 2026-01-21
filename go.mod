@@ -1,4 +1,4 @@
-module github.com/jnnngs/h3270
+module github.com/jnnngs/3270Web
 
 go 1.25.0
 

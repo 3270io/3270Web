@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . ./
-RUN go build -trimpath -ldflags "-s -w" -o /out/h3270-web ./cmd/h3270-web
+RUN go build -trimpath -ldflags "-s -w" -o /out/3270Web ./cmd/3270Web
 
 FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
@@ -22,10 +22,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates s3270 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /out/h3270-web /usr/local/bin/h3270-web
+COPY --from=build /out/3270Web /usr/local/bin/3270Web
 COPY web/ ./web/
 #COPY webapp/ ./webapp/
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/h3270-web"]
+ENTRYPOINT ["/usr/local/bin/3270Web"]

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jnnngs/h3270/internal/host"
+	"github.com/jnnngs/3270Web/internal/host"
 )
 
 // Session represents a user session.
