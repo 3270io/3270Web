@@ -121,6 +121,19 @@ body.theme-not3270 {
   align-items: center;
 }
 
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.status-text {
+  color: var(--fg);
+}
+
 .workflow-form {
   display: flex;
   flex-wrap: wrap;
@@ -134,7 +147,7 @@ body.theme-not3270 {
   border-radius: 50%;
   background-color: #ff4d4d;
   box-shadow: 0 0 10px rgba(255, 77, 77, 0.7);
-  animation: pulse-red 1s infinite;
+  animation: pulse 1s infinite;
 }
 
 .playing-indicator {
@@ -144,19 +157,10 @@ body.theme-not3270 {
   border-bottom: 8px solid transparent;
   border-left: 14px solid #39ff14;
   filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.7));
-  animation: pulse-green 1s infinite;
+  animation: pulse 1s infinite;
 }
 
-@keyframes pulse-red {
-  0%, 50% {
-    opacity: 1;
-  }
-  51%, 100% {
-    opacity: 0.35;
-  }
-}
-
-@keyframes pulse-green {
+@keyframes pulse {
   0%, 50% {
     opacity: 1;
   }

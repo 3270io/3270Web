@@ -585,11 +585,7 @@ func workflowFileFromRequest(c *gin.Context) (io.ReadCloser, error) {
 	if !errors.Is(err, http.ErrMissingFile) {
 		return nil, err
 	}
-	f, err := os.Open(filepath.Join(".", "workflow.json"))
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
+	return nil, errors.New("workflow file is required")
 }
 
 func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, error) {
@@ -658,9 +654,9 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	if s == nil || workflow == nil {
 		return
 	}
-	for _, step := range workflow.Steps {
+	for i, step := range workflow.Steps {
 		if err := app.applyWorkflowStep(s, step); err != nil {
-			log.Printf("workflow step failed: %v", err)
+			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
 			return
 		}
 		if delay := workflowStepDelay(workflow, step); delay > 0 {
@@ -737,7 +733,17 @@ func workflowDelay(delay *session.WorkflowDelayRange) time.Duration {
 	if delay.Min <= 0 && delay.Max <= 0 {
 		return 0
 	}
-	return time.Duration(delay.Min*float64(time.Second))
+	min := delay.Min
+	max := delay.Max
+	if max < min {
+		max = min
+	}
+	if max == min {
+		return time.Duration(min * float64(time.Second))
+	}
+	span := max - min
+	value := min + (span / 2)
+	return time.Duration(value * float64(time.Second))
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {
