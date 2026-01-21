@@ -150,13 +150,6 @@ body.theme-not3270 {
   align-items: center;
   justify-content: center;
   padding: 48px 20px;
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.page-wrap > * {
-  pointer-events: auto;
 }
 
 .card {
@@ -166,6 +159,8 @@ body.theme-not3270 {
   border-radius: 16px;
   padding: 28px;
   box-shadow: var(--shadow);
+  position: relative;
+  z-index: 1;
 }
 
 .card-header {

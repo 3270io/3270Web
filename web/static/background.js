@@ -21,10 +21,12 @@
   var themeKey = "3270Web.theme";
   var textFont = "'Cascadia Mono', 'Consolas', 'Courier New', monospace";
   var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$*+-";
+  // Divisors keep animation density balanced across common viewport sizes.
   var PIXEL_AREA_DIVISOR = 20000;
   var CARD_AREA_DIVISOR = 80000;
   var CHAR_AREA_DIVISOR = 12000;
   var MAX_DELTA_SECONDS = 0.05;
+  var TOGGLE_KEYS = [" ", "Enter"];
 
   var themeConfigs = {
     "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
@@ -103,10 +105,13 @@
     state.colors = readColors();
   }
 
-  function toggleRunning() {
+  function toggleBackgroundAnimation() {
     state.running = !state.running;
     document.body.classList.toggle("bg-paused", !state.running);
     localStorage.setItem(storageKey, state.running ? "on" : "off");
+    if (overlay) {
+      overlay.setAttribute("aria-pressed", state.running ? "true" : "false");
+    }
   }
 
   function desiredCount(area) {
@@ -279,6 +284,9 @@
     applyThemeConfig(getCurrentTheme());
     state.running = localStorage.getItem(storageKey) !== "off";
     document.body.classList.toggle("bg-paused", !state.running);
+    if (overlay) {
+      overlay.setAttribute("aria-pressed", state.running ? "true" : "false");
+    }
     requestAnimationFrame(renderFrame);
   }
 
@@ -287,7 +295,13 @@
   if (overlay) {
     overlay.addEventListener("click", function (event) {
       if (event.target === overlay || event.target === canvas) {
-        toggleRunning();
+        toggleBackgroundAnimation();
+      }
+    });
+    overlay.addEventListener("keydown", function (event) {
+      if (TOGGLE_KEYS.indexOf(event.key) !== -1) {
+        event.preventDefault();
+        toggleBackgroundAnimation();
       }
     });
   }
