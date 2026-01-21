@@ -502,8 +502,14 @@ func resolveS3270Path(execPath string) string {
 		return local
 	}
 
-	if embedded, err := assets.ExtractS3270(); err == nil {
-		return embedded
+	if runtime.GOOS == "windows" {
+		if embedded, err := assets.ExtractS3270(); err == nil {
+			return embedded
+		}
+	}
+
+	if path, err := exec.LookPath(s3270BinaryName()); err == nil {
+		return path
 	}
 
 	return filepath.Join("/usr/local/bin", "s3270")

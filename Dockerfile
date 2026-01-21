@@ -19,7 +19,7 @@ FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates s3270 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/h3270-web /usr/local/bin/h3270-web
