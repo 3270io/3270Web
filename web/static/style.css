@@ -21,6 +21,7 @@ body {
   --accent-2: #7cff3b;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  --error-bg: rgba(255, 120, 120, 0.15);
 }
 
 body.theme-classic {
@@ -133,7 +134,7 @@ body.theme-not3270 {
   padding: 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255, 120, 120, 0.15);
+  background: var(--error-bg);
   color: var(--fg);
   margin-bottom: 16px;
 }

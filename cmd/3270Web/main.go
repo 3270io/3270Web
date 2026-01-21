@@ -162,22 +162,25 @@ func (app *App) HomeHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
+	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
 	if app.Config.TargetHost.Value != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, app.Config.TargetHost.Value); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", app.Config.TargetHost.Value, err)
-			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(strings.TrimSpace(app.Config.TargetHost.Value)))
+			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(targetHost))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	app.renderConnectPage(c, http.StatusOK, app.Config.TargetHost.Value, "")
+	app.renderConnectPage(c, http.StatusOK, targetHost, "")
 }
 
 func (app *App) ConnectHandler(c *gin.Context) {
-	hostname := strings.TrimSpace(c.PostForm("hostname"))
+	hostname := c.PostForm("hostname")
 	if app.Config.TargetHost.Value != "" {
-		hostname = app.Config.TargetHost.Value
+		hostname = strings.TrimSpace(app.Config.TargetHost.Value)
+	} else {
+		hostname = strings.TrimSpace(hostname)
 	}
 	if hostname == "" {
 		app.renderConnectPage(c, http.StatusBadRequest, hostname, connectErrorMessage(hostname))
