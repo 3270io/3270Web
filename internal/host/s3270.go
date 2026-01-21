@@ -203,12 +203,18 @@ func isAidKey(key string) bool {
 }
 
 func (h *S3270) waitUnlockLocked() error {
-	_, status, err := h.doCommandLocked("Wait(Unlock)")
-	log.Printf("s3270: cmd=%q status=%q", "Wait(Unlock)", status)
+	cmd := h.WaitUnlockCommand()
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (h *S3270) WaitUnlockCommand() string {
+	const waitUnlockTimeoutSeconds = 10
+	return fmt.Sprintf("Wait(Unlock,%d)", waitUnlockTimeoutSeconds)
 }
 
 func isS3270Error(status string, data []string) bool {

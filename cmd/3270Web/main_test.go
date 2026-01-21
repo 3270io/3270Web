@@ -132,3 +132,10 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 		t.Fatalf("expected submit command, got %v", mockHost.Commands)
 	}
 }
+
+func TestS3270WaitUnlockUsesTimeout(t *testing.T) {
+	s := &host.S3270{}
+	if got := s.WaitUnlockCommand(); got != "Wait(Unlock,10)" {
+		t.Fatalf("expected wait unlock command with timeout, got %q", got)
+	}
+}
