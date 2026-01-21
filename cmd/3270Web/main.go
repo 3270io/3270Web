@@ -681,6 +681,7 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 		s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
 	}
 	s.Playback.Active = true
+	s.Playback.PendingInput = false
 	for i, step := range workflow.Steps {
 		if err := app.applyWorkflowStep(s, step); err != nil {
 			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
@@ -700,23 +701,37 @@ func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep)
 	case "Connect":
 		return nil
 	case "Disconnect":
-		if s.Host != nil {
-			return s.Host.Stop()
-		}
-		return nil
+		return app.disconnectWorkflow(s)
 	case "FillString":
-		return applyWorkflowFill(s, step)
+		return app.applyWorkflowFill(s, step)
 	case "PressEnter":
-		return s.Host.SendKey("Enter")
+		return app.applyWorkflowKey(s, "Enter")
 	default:
 		if strings.HasPrefix(step.Type, "Press") {
-			return s.Host.SendKey(strings.TrimPrefix(step.Type, "Press"))
+			return app.applyWorkflowKey(s, strings.TrimPrefix(step.Type, "Press"))
 		}
 		return nil
 	}
 }
 
-func applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
+func (app *App) disconnectWorkflow(s *session.Session) error {
+	if s != nil && s.Playback != nil {
+		s.Playback.PendingInput = false
+	}
+	if s != nil && s.Host != nil {
+		return s.Host.Stop()
+	}
+	return nil
+}
+
+func (app *App) applyWorkflowKey(s *session.Session, key string) error {
+	if err := submitWorkflowPendingInput(s); err != nil {
+		return err
+	}
+	return s.Host.SendKey(key)
+}
+
+func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
 	if s == nil || s.Host == nil || step.Coordinates == nil {
 		return nil
 	}
@@ -738,9 +753,24 @@ func applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
 		return nil
 	}
 	field.SetValue(step.Text)
+	if s.Playback != nil {
+		s.Playback.PendingInput = true
+	}
+	return nil
+}
+
+func submitWorkflowPendingInput(s *session.Session) error {
+	if s == nil || s.Host == nil || s.Playback == nil || !s.Playback.PendingInput {
+		return nil
+	}
+	screen := s.Host.GetScreen()
+	if screen == nil || !screen.IsFormatted {
+		return nil
+	}
 	if err := s.Host.SubmitScreen(); err != nil {
 		return err
 	}
+	s.Playback.PendingInput = false
 	return nil
 }
 
