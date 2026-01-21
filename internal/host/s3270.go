@@ -123,6 +123,18 @@ func (h *S3270) GetScreen() *Screen {
 }
 
 func (h *S3270) SendKey(key string) error {
+	if err := h.sendKeyOnce(key); err != nil {
+		if !h.IsConnected() {
+			if restartErr := h.Start(); restartErr == nil {
+				return h.sendKeyOnce(key)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (h *S3270) sendKeyOnce(key string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

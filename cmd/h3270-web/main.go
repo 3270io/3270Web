@@ -371,17 +371,40 @@ func normalizeKey(key string) string {
 	upper := strings.ToUpper(trimmed)
 	lower := strings.ToLower(trimmed)
 
+	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
+		if n, err := strconv.Atoi(inner); err == nil {
+			if n >= 1 && n <= 24 {
+				return fmt.Sprintf("PF(%d)", n)
+			}
+		}
+	}
+	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
+		if n, err := strconv.Atoi(inner); err == nil {
+			if n >= 1 && n <= 3 {
+				return fmt.Sprintf("PA(%d)", n)
+			}
+		}
+	}
 	if strings.HasPrefix(upper, "PF") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil {
 			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF%d", n)
+				return fmt.Sprintf("PF(%d)", n)
 			}
 		}
 	}
 	if strings.HasPrefix(upper, "PA") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil {
 			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA%d", n)
+				return fmt.Sprintf("PA(%d)", n)
+			}
+		}
+	}
+	if strings.HasPrefix(upper, "F") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "F")); err == nil {
+			if n >= 1 && n <= 24 {
+				return fmt.Sprintf("PF(%d)", n)
 			}
 		}
 	}
