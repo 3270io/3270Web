@@ -163,10 +163,10 @@ func (app *App) HomeHandler(c *gin.Context) {
 		return
 	}
 	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
-	if app.Config.TargetHost.Value != "" && app.Config.TargetHost.AutoConnect {
-		if err := app.connectToHost(c, app.Config.TargetHost.Value); err != nil {
-			log.Printf("Auto-connect failed for %q: %v", app.Config.TargetHost.Value, err)
-			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(targetHost))
+	if targetHost != "" && app.Config.TargetHost.AutoConnect {
+		if err := app.connectToHost(c, targetHost); err != nil {
+			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
+			app.renderConnectPage(c, http.StatusBadGateway, targetHost, connectErrorMessage(targetHost))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
