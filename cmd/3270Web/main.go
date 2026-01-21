@@ -166,7 +166,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
-			app.renderConnectPage(c, http.StatusBadGateway, targetHost, connectErrorMessage(targetHost))
+			app.renderConnectPage(c, http.StatusServiceUnavailable, targetHost, connectErrorMessage(targetHost))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
@@ -189,7 +189,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 
 	if err := app.connectToHost(c, hostname); err != nil {
 		log.Printf("Connect failed for %q: %v", hostname, err)
-		app.renderConnectPage(c, http.StatusBadGateway, hostname, connectErrorMessage(hostname))
+		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname))
 		return
 	}
 	c.Redirect(http.StatusFound, "/screen")
