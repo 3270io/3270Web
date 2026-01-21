@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/jnnngs/3270Web/internal/session"
 	"strings"
 	"testing"
 )
@@ -68,12 +69,22 @@ func TestAvailableSampleApps(t *testing.T) {
 	}
 }
 
-func TestConnectErrorMessage(t *testing.T) {
-	if got := connectErrorMessage(""); got == "" {
-		t.Fatalf("expected connectErrorMessage to return guidance for empty hostname")
+func TestWorkflowTargetHost(t *testing.T) {
+	sessionHost := &session.Session{TargetHost: "localhost", TargetPort: 3270}
+	workflow := &WorkflowConfig{Host: "example.com", Port: 992}
+	got, err := workflowTargetHost(sessionHost, workflow)
+	if err != nil {
+		t.Fatalf("expected workflow host, got error %v", err)
 	}
-	message := connectErrorMessage("host.example:3270")
-	if !strings.Contains(message, "host.example:3270") {
-		t.Fatalf("expected hostname to be included in connectErrorMessage, got %q", message)
+	if got != "example.com:992" {
+		t.Fatalf("expected example.com:992, got %q", got)
+	}
+
+	fallback, err := workflowTargetHost(sessionHost, &WorkflowConfig{})
+	if err != nil {
+		t.Fatalf("expected session host fallback, got error %v", err)
+	}
+	if fallback != "localhost:3270" {
+		t.Fatalf("expected localhost:3270, got %q", fallback)
 	}
 }

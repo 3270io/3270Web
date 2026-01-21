@@ -189,6 +189,54 @@ body.theme-not3270 {
   align-items: center;
 }
 
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.status-text {
+  color: var(--fg);
+}
+
+.workflow-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.recording-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #ff4d4d;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.7);
+  animation: pulse 1s infinite;
+}
+
+.playing-indicator {
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 14px solid #39ff14;
+  filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.7));
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0.35;
+  }
+}
+
 .toolbar label {
   font-size: 0.85rem;
   color: var(--fg-muted);

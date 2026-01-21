@@ -1,10 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -88,6 +92,7 @@ func main() {
 	r.POST("/record/start", app.RecordStartHandler)
 	r.POST("/record/stop", app.RecordStopHandler)
 	r.GET("/record/download", app.RecordDownloadHandler)
+	r.POST("/workflow/play", app.PlayWorkflowHandler)
 
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
@@ -241,6 +246,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"ThemeCSS":            template.CSS(themeCSS),
 		"RecordingActive":     s.Recording != nil && s.Recording.Active,
 		"RecordingFile":       recordingFileName(s),
+		"PlaybackActive":      s.Playback != nil && s.Playback.Active,
 		"SampleAppName":       sampleAppName,
 		"SampleAppPort":       sampleAppPort,
 	})
@@ -312,6 +318,10 @@ func (app *App) RecordStartHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
+	if s.Playback != nil && s.Playback.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
 	host := s.TargetHost
 	port := s.TargetPort
 	if port == 0 {
@@ -358,6 +368,35 @@ func (app *App) RecordDownloadHandler(c *gin.Context) {
 	}
 	name := filepath.Base(s.Recording.FilePath)
 	c.FileAttachment(s.Recording.FilePath, name)
+}
+
+func (app *App) PlayWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Playback != nil && s.Playback.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	workflow, err := loadWorkflowConfig(c)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
+		return
+	}
+	hostname, err := workflowTargetHost(s, workflow)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
+		return
+	}
+	if err := app.resetSessionHost(s, hostname); err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
+		return
+	}
+	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
+	go app.playWorkflow(s, workflow)
+	c.Redirect(http.StatusFound, "/screen")
 }
 
 func (app *App) PrefsHandler(c *gin.Context) {
@@ -535,6 +574,209 @@ func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func loadWorkflowConfig(c *gin.Context) (*WorkflowConfig, error) {
+	file, err := workflowFileFromRequest(c)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	payload, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) == 0 {
+		return nil, errors.New("workflow file is empty")
+	}
+	var workflow WorkflowConfig
+	if err := json.Unmarshal(payload, &workflow); err != nil {
+		return nil, err
+	}
+	if len(workflow.Steps) == 0 {
+		return nil, errors.New("workflow contains no steps")
+	}
+	return &workflow, nil
+}
+
+func workflowFileFromRequest(c *gin.Context) (io.ReadCloser, error) {
+	file, err := c.FormFile("workflow")
+	if err == nil {
+		return file.Open()
+	}
+	if !errors.Is(err, http.ErrMissingFile) {
+		return nil, err
+	}
+	return nil, errors.New("workflow file is required")
+}
+
+func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, error) {
+	if workflow != nil && workflow.Host != "" {
+		host := workflow.Host
+		if workflow.Port > 0 {
+			host = fmt.Sprintf("%s:%d", host, workflow.Port)
+		}
+		return host, nil
+	}
+	if s != nil && s.TargetHost != "" {
+		host := s.TargetHost
+		if s.TargetPort > 0 {
+			host = fmt.Sprintf("%s:%d", host, s.TargetPort)
+		}
+		return host, nil
+	}
+	return "", errors.New("workflow host not provided")
+}
+
+func (app *App) resetSessionHost(s *session.Session, hostname string) error {
+	if s == nil {
+		return errors.New("missing session")
+	}
+	if s.Host != nil {
+		_ = s.Host.Stop()
+	}
+	hostName, port := parseHostPort(hostname)
+	if hostName == "" {
+		return errors.New("invalid host")
+	}
+	var h host.Host
+	var err error
+	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
+		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
+			return fmt.Errorf("invalid sample app port %d", samplePort)
+		}
+		execPath := resolveS3270Path(app.Config.ExecPath)
+		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
+	} else if hostname == "mock" || hostname == "demo" {
+		execPath := resolveS3270Path(app.Config.ExecPath)
+		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
+	} else {
+		execPath := resolveS3270Path(app.Config.ExecPath)
+		args := buildS3270Args(app.Config.S3270Options, hostname)
+		h = host.NewS3270(execPath, args...)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create host: %w", err)
+	}
+	if err := h.Start(); err != nil {
+		return fmt.Errorf("failed to start host connection: %w", err)
+	}
+	s.Host = h
+	s.TargetHost = hostName
+	s.TargetPort = port
+	return nil
+}
+
+func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
+	defer func() {
+		if s != nil && s.Playback != nil {
+			s.Playback.Active = false
+			s.Playback = nil
+		}
+	}()
+	if s == nil || workflow == nil {
+		return
+	}
+	if s.Playback == nil {
+		s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
+	}
+	s.Playback.Active = true
+	for i, step := range workflow.Steps {
+		if err := app.applyWorkflowStep(s, step); err != nil {
+			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
+			return
+		}
+		if delay := workflowStepDelay(workflow, step); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
+}
+
+func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
+	if s == nil || s.Host == nil {
+		return nil
+	}
+	switch step.Type {
+	case "Connect":
+		return nil
+	case "Disconnect":
+		if s.Host != nil {
+			return s.Host.Stop()
+		}
+		return nil
+	case "FillString":
+		return applyWorkflowFill(s, step)
+	case "PressEnter":
+		return s.Host.SendKey("Enter")
+	default:
+		if strings.HasPrefix(step.Type, "Press") {
+			return s.Host.SendKey(strings.TrimPrefix(step.Type, "Press"))
+		}
+		return nil
+	}
+}
+
+func applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
+	if s == nil || s.Host == nil || step.Coordinates == nil {
+		return nil
+	}
+	if err := s.Host.UpdateScreen(); err != nil {
+		return err
+	}
+	screen := s.Host.GetScreen()
+	if screen == nil {
+		return nil
+	}
+	// Workflow coordinates are 1-based, so convert to 0-based indices.
+	row := step.Coordinates.Row - 1
+	col := step.Coordinates.Column - 1
+	if row < 0 || col < 0 {
+		return nil
+	}
+	field := screen.GetInputFieldAt(col, row)
+	if field == nil {
+		return nil
+	}
+	field.SetValue(step.Text)
+	if err := s.Host.SubmitScreen(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func workflowStepDelay(workflow *WorkflowConfig, step session.WorkflowStep) time.Duration {
+	if step.StepDelay != nil {
+		return workflowDelay(step.StepDelay)
+	}
+	if workflow != nil && workflow.EveryStepDelay != nil {
+		return workflowDelay(workflow.EveryStepDelay)
+	}
+	return 0
+}
+
+func workflowDelay(delay *session.WorkflowDelayRange) time.Duration {
+	if delay == nil {
+		return 0
+	}
+	if delay.Min <= 0 && delay.Max <= 0 {
+		return 0
+	}
+	min := delay.Min
+	max := delay.Max
+	if max < min {
+		max = min
+	}
+	if max == min {
+		return time.Duration(min * float64(time.Second))
+	}
+	span := max - min
+	const precision = int64(1000000)
+	n, err := rand.Int(rand.Reader, big.NewInt(precision))
+	if err != nil {
+		return time.Duration(min * float64(time.Second))
+	}
+	value := min + (span * float64(n.Int64()) / float64(precision))
+	return time.Duration(value * float64(time.Second))
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {

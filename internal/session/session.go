@@ -18,6 +18,7 @@ type Session struct {
 	TargetHost string
 	TargetPort int
 	Recording  *WorkflowRecording
+	Playback   *WorkflowPlayback
 }
 
 type Preferences struct {
@@ -52,6 +53,11 @@ type WorkflowRecording struct {
 	Steps          []WorkflowStep
 	FilePath       string
 	StartedAt      time.Time
+}
+
+type WorkflowPlayback struct {
+	Active    bool
+	StartedAt time.Time
 }
 
 // Manager manages sessions.

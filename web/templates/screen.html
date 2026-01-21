@@ -27,6 +27,10 @@
             <div class="toolbar" style="margin-bottom: 16px;">
                 <a href="/disconnect">Disconnect</a>
                 {{ if .RecordingActive }}
+                <span class="status-indicator">
+                    <span class="recording-indicator" aria-hidden="true"></span>
+                    <span class="status-text">REC</span>
+                </span>
                 <form action="/record/stop" method="post">
                     <button type="submit">Stop Recording</button>
                 </form>
@@ -35,9 +39,19 @@
                     <button type="submit">Start Recording</button>
                 </form>
                 {{ end }}
+                {{ if .PlaybackActive }}
+                <span class="status-indicator">
+                    <span class="playing-indicator" aria-hidden="true"></span>
+                    <span class="status-text">PLAY</span>
+                </span>
+                {{ end }}
                 {{ if .RecordingFile }}
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
+                <form action="/workflow/play" method="post" enctype="multipart/form-data" class="workflow-form">
+                    <input type="file" name="workflow" accept=".json" required>
+                    <button type="submit">Load workflow and Play</button>
+                </form>
             </div>
             {{ if .SampleAppName }}
             <div class="sample-status">
