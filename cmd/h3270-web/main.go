@@ -377,6 +377,11 @@ func recordActionKey(s *session.Session, key string) {
 	if s == nil || s.Recording == nil || !s.Recording.Active {
 		return
 	}
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" || strings.EqualFold(trimmed, "enter") {
+		s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{Type: "PressEnter"})
+		return
+	}
 	if step := workflowStepForKey(key); step != nil {
 		s.Recording.Steps = append(s.Recording.Steps, *step)
 	}
