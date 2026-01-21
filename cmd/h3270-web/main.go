@@ -589,9 +589,6 @@ func fileExists(path string) bool {
 func availableSampleApps() []SampleAppOption {
 	options := make([]SampleAppOption, 0, len(sampleAppConfigs))
 	for _, app := range sampleAppConfigs {
-		if resolveSampleDumpPath(app.DumpFile) == "" {
-			continue
-		}
 		options = append(options, SampleAppOption{
 			ID:       app.ID,
 			Name:     app.Name,
@@ -718,9 +715,6 @@ func newSampleAppHost(id string) (host.Host, error) {
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
 	dumpPath := resolveSampleDumpPath(cfg.DumpFile)
-	if dumpPath == "" {
-		return nil, fmt.Errorf("sample app %q dump not found", id)
-	}
 	return host.NewMockHost(dumpPath)
 }
 
