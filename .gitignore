@@ -1,7 +1,7 @@
 # Binaries
-3270Web
-3270Web.exe
-*.exe
+#3270Web
+#3270Web.exe
+#*.exe
 
 # Go workspace file
 go.work
