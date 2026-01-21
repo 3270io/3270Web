@@ -1,16 +1,13 @@
 package main
 
-import (
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestParseSampleAppHost(t *testing.T) {
 	tests := []struct {
-		input   string
-		wantID  string
+		input    string
+		wantID   string
 		wantPort int
-		wantOK  bool
+		wantOK   bool
 	}{
 		{input: "sampleapp:app1", wantID: "app1", wantPort: 0, wantOK: true},
 		{input: " sampleapp:app2 ", wantID: "app2", wantPort: 0, wantOK: true},
@@ -41,16 +38,12 @@ func TestSampleAppHostname(t *testing.T) {
 	}
 }
 
-func TestResolveSampleDumpPath(t *testing.T) {
-	path := resolveSampleDumpPath("advantis.dump")
-	if path == "" {
-		t.Fatal("expected sample dump path")
+func TestSampleAppPort(t *testing.T) {
+	if got := sampleAppPort(0); got != defaultSampleAppPort {
+		t.Fatalf("expected default port %d, got %d", defaultSampleAppPort, got)
 	}
-	if filepath.Base(path) != "advantis.dump" {
-		t.Fatalf("expected advantis.dump, got %q", filepath.Base(path))
-	}
-	if got := resolveSampleDumpPath("missing.dump"); got != "" {
-		t.Fatalf("expected empty path, got %q", got)
+	if got := sampleAppPort(5555); got != 5555 {
+		t.Fatalf("expected port 5555, got %d", got)
 	}
 }
 

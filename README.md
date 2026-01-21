@@ -41,6 +41,9 @@ The Docker image installs the `s3270` package so it is available at `/usr/bin/s3
 
 The output matches the 3270Connect workflow format.
 
+## Sample applications
+Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.
+
 ## Configuration
 The app loads `webapp/WEB-INF/3270Web-config.xml` if present. If missing, defaults are used.
 
