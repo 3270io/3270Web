@@ -214,6 +214,7 @@ func (h *S3270) waitUnlockLocked() error {
 	return nil
 }
 
+// waitUnlockCommand returns a bounded Wait(Unlock) command to avoid indefinite hangs.
 func (h *S3270) waitUnlockCommand() string {
 	return fmt.Sprintf("Wait(Unlock,%d)", waitUnlockTimeoutSeconds)
 }
