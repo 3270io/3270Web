@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -88,6 +90,7 @@ func main() {
 	r.POST("/record/start", app.RecordStartHandler)
 	r.POST("/record/stop", app.RecordStopHandler)
 	r.GET("/record/download", app.RecordDownloadHandler)
+	r.POST("/workflow/play", app.PlayWorkflowHandler)
 
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
@@ -221,6 +224,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"ThemeCSS":            template.CSS(themeCSS),
 		"RecordingActive":     s.Recording != nil && s.Recording.Active,
 		"RecordingFile":       recordingFileName(s),
+		"PlaybackActive":      s.Playback != nil && s.Playback.Active,
 		"SampleAppName":       sampleAppName,
 		"SampleAppPort":       sampleAppPort,
 	})
