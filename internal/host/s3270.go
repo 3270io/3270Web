@@ -14,8 +14,9 @@ import (
 
 // S3270 implements the Host interface using the s3270 subprocess.
 type S3270 struct {
-	ExecPath string
-	Args     []string
+	ExecPath   string
+	Args       []string
+	TargetHost string
 
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
@@ -31,10 +32,15 @@ type S3270 struct {
 
 // NewS3270 creates a new S3270 host instance.
 func NewS3270(execPath string, args ...string) *S3270 {
+	targetHost := ""
+	if len(args) > 0 {
+		targetHost = args[len(args)-1]
+	}
 	return &S3270{
-		ExecPath: execPath,
-		Args:     args,
-		screen:   &Screen{},
+		ExecPath:   execPath,
+		Args:       args,
+		TargetHost: targetHost,
+		screen:     &Screen{},
 	}
 }
 
@@ -109,6 +115,12 @@ func (h *S3270) UpdateScreen() error {
 		if err != nil {
 			return err
 		}
+		if isDisconnectedStatus(status) {
+			if err := h.reconnectLocked(); err != nil {
+				return err
+			}
+			continue
+		}
 		if len(lines) > 0 && strings.HasPrefix(lines[0], "data: Keyboard locked") {
 			time.Sleep(100 * time.Millisecond)
 			continue
@@ -144,6 +156,12 @@ func (h *S3270) sendKeyOnce(key string) error {
 
 	data, status, err := h.doCommandLocked(key)
 	log.Printf("s3270: cmd=%q status=%q", key, status)
+	if err == nil && isDisconnectedStatus(status) {
+		if err := h.reconnectLocked(); err != nil {
+			return err
+		}
+		return nil
+	}
 	if err == nil && !isS3270Error(status, data) {
 		if isAidKey(key) {
 			return h.waitUnlockLocked()
@@ -156,6 +174,12 @@ func (h *S3270) sendKeyOnce(key string) error {
 		fallback := fmt.Sprintf("Key(%s)", keySpec)
 		data, status, err = h.doCommandLocked(fallback)
 		log.Printf("s3270: cmd=%q status=%q", fallback, status)
+		if err == nil && isDisconnectedStatus(status) {
+			if err := h.reconnectLocked(); err != nil {
+				return err
+			}
+			return nil
+		}
 		if err == nil && !isS3270Error(status, data) {
 			if isAidKey(key) {
 				return h.waitUnlockLocked()
@@ -195,6 +219,14 @@ func isS3270Error(status string, data []string) bool {
 		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "error") {
 			return true
 		}
+	}
+	return false
+}
+
+func isDisconnectedStatus(status string) bool {
+	parts := strings.Fields(status)
+	if len(parts) >= 4 {
+		return parts[3] == "N"
 	}
 	return false
 }
@@ -372,4 +404,14 @@ func (h *S3270) waitFormattedLocked() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("formatted screen not ready")
+}
+
+func (h *S3270) reconnectLocked() error {
+	if h.TargetHost == "" {
+		return fmt.Errorf("target host not set")
+	}
+	if _, _, err := h.doCommandLocked(fmt.Sprintf("Connect(%s)", h.TargetHost)); err != nil {
+		return err
+	}
+	return h.waitFormattedLocked()
 }
