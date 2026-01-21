@@ -715,6 +715,9 @@ func newSampleAppHost(id string) (host.Host, error) {
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
 	dumpPath := resolveSampleDumpPath(cfg.DumpFile)
+	if dumpPath == "" {
+		log.Printf("Warning: sample app %q dump not found; using empty screen", id)
+	}
 	return host.NewMockHost(dumpPath)
 }
 
