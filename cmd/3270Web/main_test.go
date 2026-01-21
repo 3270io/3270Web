@@ -53,3 +53,21 @@ func TestResolveSampleDumpPath(t *testing.T) {
 		t.Fatalf("expected empty path, got %q", got)
 	}
 }
+
+func TestAvailableSampleApps(t *testing.T) {
+	options := availableSampleApps()
+	if len(options) != len(sampleAppConfigs) {
+		t.Fatalf("expected %d sample apps, got %d", len(sampleAppConfigs), len(options))
+	}
+	for i, option := range options {
+		if option.ID != sampleAppConfigs[i].ID {
+			t.Fatalf("expected option %d to have id %q, got %q", i, sampleAppConfigs[i].ID, option.ID)
+		}
+		if option.Name != sampleAppConfigs[i].Name {
+			t.Fatalf("expected option %d to have name %q, got %q", i, sampleAppConfigs[i].Name, option.Name)
+		}
+		if option.Hostname != sampleAppHostname(sampleAppConfigs[i].ID) {
+			t.Fatalf("expected option %d to have hostname %q, got %q", i, sampleAppHostname(sampleAppConfigs[i].ID), option.Hostname)
+		}
+	}
+}
