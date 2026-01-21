@@ -374,14 +374,14 @@ func normalizeKey(key string) string {
 	if strings.HasPrefix(upper, "PF") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil {
 			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n)
+				return fmt.Sprintf("PF%d", n)
 			}
 		}
 	}
 	if strings.HasPrefix(upper, "PA") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil {
 			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA(%d)", n)
+				return fmt.Sprintf("PA%d", n)
 			}
 		}
 	}

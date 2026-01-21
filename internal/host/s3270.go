@@ -163,7 +163,7 @@ func (h *S3270) SendKey(key string) error {
 
 func isAidKey(key string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(key))
-	return upper == "ENTER" || strings.HasPrefix(upper, "PF(") || strings.HasPrefix(upper, "PA(") || upper == "CLEAR" || upper == "SYSREQ" || upper == "ATTN"
+	return upper == "ENTER" || strings.HasPrefix(upper, "PF") || strings.HasPrefix(upper, "PA") || upper == "CLEAR" || upper == "SYSREQ" || upper == "ATTN"
 }
 
 func (h *S3270) waitUnlockLocked() error {
