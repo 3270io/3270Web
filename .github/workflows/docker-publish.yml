@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/jnnngs/3270web
+          images: ghcr.io/jnnngs/3270Web
           tags: |
             type=raw,value=latest
             type=sha

@@ -29,7 +29,7 @@
       form = document.getElementById(formId) || document.forms[formId];
     }
     if (!form) {
-      form = document.querySelector("form.h3270-form");
+      form = document.querySelector("form.web3270-form");
     }
     if (!form && document.forms.length > 0) {
       form = document.forms[0];
@@ -184,7 +184,7 @@
     if (!pos) {
       return null;
     }
-    var inputs = document.querySelectorAll("input.h3270-input, input.h3270-input-intensified, input.h3270-input-hidden");
+    var inputs = document.querySelectorAll("input.web3270-input, input.web3270-input-intensified, input.web3270-input-hidden");
     var best = null;
     var bestDy = null;
     for (var i = 0; i < inputs.length; i++) {
@@ -262,7 +262,7 @@
   function createButton(key, label) {
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "h3270-key";
+    btn.className = "web3270-key";
     btn.dataset.key = key;
     btn.textContent = label || key;
     btn.addEventListener("click", function () {
@@ -282,14 +282,14 @@
     container.innerHTML = "";
 
     var pfBlock = document.createElement("div");
-    pfBlock.className = "h3270-keypad-row";
+    pfBlock.className = "web3270-keypad-row";
     for (var i = 1; i <= 24; i++) {
       pfBlock.appendChild(createButton("PF" + i, "PF" + i));
     }
     container.appendChild(pfBlock);
 
     var paBlock = document.createElement("div");
-    paBlock.className = "h3270-keypad-row";
+    paBlock.className = "web3270-keypad-row";
     paBlock.appendChild(createButton("PA1", "PA1"));
     paBlock.appendChild(createButton("PA2", "PA2"));
     paBlock.appendChild(createButton("PA3", "PA3"));
@@ -318,7 +318,7 @@
       "Right"
     ];
     var commonBlock = document.createElement("div");
-    commonBlock.className = "h3270-keypad-row";
+    commonBlock.className = "web3270-keypad-row";
     common.forEach(function (key) {
       commonBlock.appendChild(createButton(key, key));
     });
