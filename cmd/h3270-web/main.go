@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -55,9 +56,16 @@ func main() {
 	r.GET("/disconnect", app.DisconnectHandler)
 
 	log.Println("Starting server on :8080")
+	if runtime.GOOS == "windows" {
+		go openBrowser("http://localhost:8080/")
+	}
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func openBrowser(url string) {
+	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 }
 
 func (app *App) HomeHandler(c *gin.Context) {

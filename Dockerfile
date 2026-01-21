@@ -15,7 +15,7 @@ RUN go mod download
 COPY . ./
 RUN go build -trimpath -ldflags "-s -w" -o /out/h3270-web ./cmd/h3270-web
 
-FROM public.ecr.aws/docker/library/ubuntu:24.04-minimal AS runtime
+FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
 
 RUN apt-get update \
