@@ -165,7 +165,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if app.Config.TargetHost.Value != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, app.Config.TargetHost.Value); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", app.Config.TargetHost.Value, err)
-			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(app.Config.TargetHost.Value))
+			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(strings.TrimSpace(app.Config.TargetHost.Value)))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
@@ -193,11 +193,10 @@ func (app *App) ConnectHandler(c *gin.Context) {
 }
 
 func connectErrorMessage(hostname string) string {
-	trimmed := strings.TrimSpace(hostname)
-	if trimmed == "" {
+	if hostname == "" {
 		return "Please enter a hostname or IP address to connect."
 	}
-	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", trimmed)
+	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
 }
 
 func (app *App) ScreenHandler(c *gin.Context) {
