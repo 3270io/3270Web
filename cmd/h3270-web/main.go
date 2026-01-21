@@ -40,6 +40,30 @@ type WorkflowConfig struct {
 	Steps           []session.WorkflowStep      `json:"Steps"`
 }
 
+type SampleAppConfig struct {
+	ID       string
+	Name     string
+	DumpFile string
+}
+
+type SampleAppOption struct {
+	ID       string
+	Name     string
+	Hostname string
+}
+
+const sampleAppPrefix = "sampleapp:"
+
+var sampleAppConfigs = []SampleAppConfig{
+	{ID: "app1", Name: "Sample App 1", DumpFile: "advantis.dump"},
+	{ID: "app2", Name: "Sample App 2", DumpFile: "locis.dump"},
+}
+
+var sampleAppDumpDirs = []string{
+	filepath.Join("webapp", "WEB-INF", "dump"),
+	filepath.Join("old_java_app", "webapp", "WEB-INF", "dump"),
+}
+
 func main() {
 	cfg, err := config.Load("webapp/WEB-INF/h3270-config.xml")
 	if err != nil {
@@ -123,7 +147,14 @@ func (app *App) HomeHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	c.HTML(http.StatusOK, "connect.html", gin.H{})
+	defaultHost := "localhost:3270"
+	if app.Config.TargetHost.Value != "" {
+		defaultHost = app.Config.TargetHost.Value
+	}
+	c.HTML(http.StatusOK, "connect.html", gin.H{
+		"DefaultHost": defaultHost,
+		"SampleApps":  availableSampleApps(),
+	})
 }
 
 func (app *App) ConnectHandler(c *gin.Context) {
@@ -470,8 +501,10 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	var h host.Host
 	var err error
 
-	if hostname == "mock" || hostname == "demo" {
-		h, err = host.NewMockHost("webapp/WEB-INF/dump/advantis.dump")
+	if sampleID, ok := parseSampleAppHost(hostname); ok {
+		h, err = newSampleAppHost(sampleID)
+	} else if hostname == "mock" || hostname == "demo" {
+		h, err = newSampleAppHost("app1")
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		args := buildS3270Args(app.Config.S3270Options, hostname)
@@ -526,6 +559,103 @@ func s3270BinaryName() string {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func availableSampleApps() []SampleAppOption {
+	options := make([]SampleAppOption, 0, len(sampleAppConfigs))
+	for _, app := range sampleAppConfigs {
+		if resolveSampleDumpPath(app.DumpFile) == "" {
+			continue
+		}
+		options = append(options, SampleAppOption{
+			ID:       app.ID,
+			Name:     app.Name,
+			Hostname: sampleAppHostname(app.ID),
+		})
+	}
+	return options
+}
+
+func sampleAppHostname(id string) string {
+	return sampleAppPrefix + id
+}
+
+func parseSampleAppHost(hostname string) (string, bool) {
+	trimmed := strings.TrimSpace(hostname)
+	if !strings.HasPrefix(trimmed, sampleAppPrefix) {
+		return "", false
+	}
+	id := strings.TrimSpace(strings.TrimPrefix(trimmed, sampleAppPrefix))
+	if id == "" {
+		return "", false
+	}
+	return id, true
+}
+
+func sampleAppConfig(id string) (SampleAppConfig, bool) {
+	for _, cfg := range sampleAppConfigs {
+		if cfg.ID == id {
+			return cfg, true
+		}
+	}
+	return SampleAppConfig{}, false
+}
+
+func resolveSampleDumpPath(file string) string {
+	if file == "" {
+		return ""
+	}
+	repoRoot := findRepoRoot()
+	for _, dir := range sampleAppDumpDirs {
+		if filepath.IsAbs(dir) {
+			path := filepath.Join(dir, file)
+			if fileExists(path) {
+				return path
+			}
+			continue
+		}
+		path := filepath.Join(dir, file)
+		if fileExists(path) {
+			return path
+		}
+		if repoRoot != "" {
+			rootPath := filepath.Join(repoRoot, dir, file)
+			if fileExists(rootPath) {
+				return rootPath
+			}
+		}
+	}
+	return ""
+}
+
+func findRepoRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	dir := cwd
+	for {
+		if fileExists(filepath.Join(dir, "go.mod")) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func newSampleAppHost(id string) (host.Host, error) {
+	cfg, ok := sampleAppConfig(id)
+	if !ok {
+		return nil, fmt.Errorf("unknown sample app %q", id)
+	}
+	dumpPath := resolveSampleDumpPath(cfg.DumpFile)
+	if dumpPath == "" {
+		return nil, fmt.Errorf("sample app %q dump not found", id)
+	}
+	return host.NewMockHost(dumpPath)
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {

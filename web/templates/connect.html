@@ -21,9 +21,22 @@
             <form action="/connect" method="post" class="stack">
                 <div>
                     <label>Hostname / IP</label>
-                    <input type="text" name="hostname" value="localhost:3270">
-                    <div class="subtle">Use <strong>mock</strong> for demo mode.</div>
+                    <input type="text" name="hostname" value="{{ .DefaultHost }}">
+                    <div class="subtle">Use <strong>mock</strong> for demo mode or pick a sample app.</div>
                 </div>
+                {{ if .SampleApps }}
+                <div>
+                    <label>Sample Applications</label>
+                    <div class="sample-apps">
+                        {{ range .SampleApps }}
+                        <button type="button" class="sample-app" onclick="document.querySelector('input[name=hostname]').value='{{ .Hostname }}'">
+                            <span class="sample-app-title">{{ .Name }}</span>
+                            <span class="subtle">{{ .Hostname }}</span>
+                        </button>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ end }}
                 <div class="split">
                     <button type="submit">Connect</button>
                     <button type="button" onclick="document.querySelector('input[name=hostname]').value='mock'">Use Demo Host</button>
