@@ -56,8 +56,9 @@ type WorkflowRecording struct {
 }
 
 type WorkflowPlayback struct {
-	Active    bool
-	StartedAt time.Time
+	Active       bool
+	PendingInput bool
+	StartedAt    time.Time
 }
 
 // Manager manages sessions.

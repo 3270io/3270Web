@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/jnnngs/3270Web/internal/session"
-	"strings"
 	"testing"
+
+	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 func TestParseSampleAppHost(t *testing.T) {
@@ -86,5 +87,48 @@ func TestWorkflowTargetHost(t *testing.T) {
 	}
 	if fallback != "localhost:3270" {
 		t.Fatalf("expected localhost:3270, got %q", fallback)
+	}
+}
+
+func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	screen := mockHost.GetScreen()
+	screen.Fields = []*host.Field{
+		{
+			Screen:   screen,
+			StartX:   0,
+			StartY:   0,
+			EndX:     4,
+			EndY:     0,
+			Changed:  false,
+			FieldCode: 0,
+		},
+	}
+	screen.IsFormatted = true
+	screen.Width = 80
+	screen.Height = 24
+
+	sess := &session.Session{Host: mockHost, Playback: &session.WorkflowPlayback{Active: true}}
+	step := session.WorkflowStep{
+		Type: "FillString",
+		Coordinates: &session.WorkflowCoordinates{
+			Row:    1,
+			Column: 1,
+		},
+		Text: "HELLO",
+	}
+	app := &App{}
+	if err := app.applyWorkflowFill(sess, step); err != nil {
+		t.Fatalf("applyWorkflowFill failed: %v", err)
+	}
+	if err := submitWorkflowPendingInput(sess); err != nil {
+		t.Fatalf("submitWorkflowPendingInput failed: %v", err)
+	}
+
+	if len(mockHost.Commands) != 1 || mockHost.Commands[0] != "submit" {
+		t.Fatalf("expected submit command, got %v", mockHost.Commands)
 	}
 }
