@@ -14,6 +14,9 @@
                     <div class="subtle">Connect to a TN3270 host</div>
                 </div>
                 <div class="toolbar">
+                    {{ if .SampleApps }}
+                    <button type="button" data-open-sample-modal>Start Sample App</button>
+                    {{ end }}
                     <label for="theme-select">Theme</label>
                     <select id="theme-select"></select>
                 </div>
@@ -23,17 +26,6 @@
                     <label>Hostname / IP</label>
                     <input type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input>
                 </div>
-                {{ if .SampleApps }}
-                <div>
-                    <label>Sample Applications</label>
-                    <div class="sample-apps">
-                        <button type="button" class="sample-app" data-open-sample-modal>
-                            <span class="sample-app-title">Start Example App</span>
-                            <span class="subtle">Choose a sample app and port</span>
-                        </button>
-                    </div>
-                </div>
-                {{ end }}
                 <div class="split">
                     <button type="submit">Connect</button>
                 </div>
@@ -44,7 +36,7 @@
     <div class="modal-backdrop" data-sample-modal hidden>
         <div class="modal">
             <div class="modal-header">
-                <h3>Start Example App</h3>
+                <h3>Start Sample App</h3>
                 <button type="button" class="modal-close" data-sample-close>Close</button>
             </div>
             <div class="stack">
@@ -60,7 +52,7 @@
                     <option value="{{ . }}">{{ . }}</option>
                     {{ end }}
                 </select>
-                <button type="button" data-sample-start>Start Example App</button>
+                <button type="button" data-sample-start>Start Sample App</button>
             </div>
         </div>
     </div>
