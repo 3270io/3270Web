@@ -220,29 +220,29 @@ func (r *HtmlRenderer) getFormName(id string) string {
 
 func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builder) {
 	sb.WriteString(`<script type="text/javascript">` + "\n")
+	sb.WriteString("  window.addEventListener(\"DOMContentLoaded\", function () {\n")
 	fn := r.getFormName(id)
-	sb.WriteString(fmt.Sprintf(`  installKeyHandler('%s');`+"\n", fn))
+	sb.WriteString(fmt.Sprintf(`    installKeyHandler('%s');`+"\n", fn))
 	if !s.IsFormatted {
-		sb.WriteString(fmt.Sprintf(`  document.forms["%s"].field.focus()`+"\n", fn))
-		sb.WriteString("</script>\n")
-		return
-	}
+		sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field.focus()`+"\n", fn))
+	} else {
+		var focused *host.Field
+		for _, f := range s.Fields {
+			if f.Focused {
+				focused = f
+				break
+			}
+		}
 
-	var focused *host.Field
-	for _, f := range s.Fields {
-		if f.Focused {
-			focused = f
-			break
+		if focused != nil {
+			suffix := ""
+			if focused.IsMultiline() {
+				suffix = "_0"
+			}
+			sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field_%d_%d%s.focus()`+"\n",
+				fn, focused.StartX, focused.StartY, suffix))
 		}
 	}
-
-	if focused != nil {
-		suffix := ""
-		if focused.IsMultiline() {
-			suffix = "_0"
-		}
-		sb.WriteString(fmt.Sprintf(`  document.forms["%s"].field_%d_%d%s.focus()`+"\n",
-			fn, focused.StartX, focused.StartY, suffix))
-	}
+	sb.WriteString("  });\n")
 	sb.WriteString("</script>\n")
 }
