@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/jnnngs/h3270/internal/host"
+	"github.com/jnnngs/3270Web/internal/host"
 )
 
 type HtmlRenderer struct{}
@@ -18,7 +18,7 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	var sb strings.Builder
 	formName := r.getFormName(id)
 
-	sb.WriteString(fmt.Sprintf(`<form id="%s" name="%s" action="%s" method="post" class="h3270-form">`, formName, formName, actionURL))
+	sb.WriteString(fmt.Sprintf(`<form id="%s" name="%s" action="%s" method="post" class="renderer-form">`, formName, formName, actionURL))
 	sb.WriteString("\n")
 
 	if s.IsFormatted {
@@ -89,7 +89,7 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 	}
 
 	text := s.Text()
-	sb.WriteString(fmt.Sprintf(`<textarea name="field" class="h3270-unformatted" rows="%d" cols="%d">`, rows, cols))
+	sb.WriteString(fmt.Sprintf(`<textarea name="field" class="unformatted" rows="%d" cols="%d">`, rows, cols))
 	sb.WriteString(html.EscapeString(text))
 	sb.WriteString("</textarea>")
 }
@@ -140,11 +140,11 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		name += fmt.Sprintf("_%d", lineNum)
 	}
 
-	class := "h3270-input"
+	class := "color-input"
 	if f.IsIntensified() {
-		class = "h3270-input-intensified"
+		class = "color-input-intensified"
 	} else if f.IsHidden() {
-		class = "h3270-input-hidden"
+		class = "color-input-hidden"
 	}
 
 	val = strings.Trim(val, "\x00 _")
@@ -166,28 +166,28 @@ func (r *HtmlRenderer) needSpan(f *host.Field) bool {
 func (r *HtmlRenderer) protectedFieldClass(f *host.Field) string {
 	var classes []string
 	if f.IsIntensified() {
-		classes = append(classes, "h3270-intensified")
+		classes = append(classes, "color-intensified")
 	} else if f.IsHidden() {
-		classes = append(classes, "h3270-hidden")
+		classes = append(classes, "color-hidden")
 	}
 
 	if f.Color != host.AttrColDefault {
 		c := ""
 		switch f.Color {
 		case host.AttrColBlue:
-			c = "h3270-color-blue"
+			c = "color-blue"
 		case host.AttrColRed:
-			c = "h3270-color-red"
+			c = "color-red"
 		case host.AttrColPink:
-			c = "h3270-color-pink"
+			c = "color-pink"
 		case host.AttrColGreen:
-			c = "h3270-color-green"
+			c = "color-green"
 		case host.AttrColTurquoise:
-			c = "h3270-color-turquoise"
+			c = "color-turquoise"
 		case host.AttrColYellow:
-			c = "h3270-color-yellow"
+			c = "color-yellow"
 		case host.AttrColWhite:
-			c = "h3270-color-white"
+			c = "color-white"
 		}
 		if c != "" {
 			classes = append(classes, c)
@@ -198,11 +198,11 @@ func (r *HtmlRenderer) protectedFieldClass(f *host.Field) string {
 		h := ""
 		switch f.ExtendedHighlight {
 		case host.AttrEhBlink:
-			h = "h3270-highlight-blink"
+			h = "highlight-blink"
 		case host.AttrEhRevVideo:
-			h = "h3270-highlight-rev-video"
+			h = "highlight-rev-video"
 		case host.AttrEhUnderscore:
-			h = "h3270-highlight-underscore"
+			h = "highlight-underscore"
 		}
 		if h != "" {
 			classes = append(classes, h)

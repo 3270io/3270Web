@@ -1,4 +1,4 @@
-# h3270
+# 3270Web
 
 Web-based 3270 terminal interface in Go with session recording to a 3270Connect-compatible workflow.
 
@@ -15,7 +15,7 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 
 ## Run locally
 ```bash
-go run ./cmd/h3270-web
+go run ./cmd/3270Web
 ```
 Then open http://localhost:8080
 
@@ -23,12 +23,12 @@ Then open http://localhost:8080
 ```powershell
 .\scripts\build-windows.ps1
 ```
-This produces `h3270-web.exe` in the repo root.
+This produces `3270Web.exe` in the repo root.
 
 ## Docker
 ```bash
-docker build -t h3270 .
-docker run -p 8080:8080 h3270
+docker build -t 3270web .
+docker run -p 8080:8080 3270web
 ```
 The Docker image installs the `s3270` package so it is available at `/usr/bin/s3270`.
 
@@ -41,8 +41,11 @@ The Docker image installs the `s3270` package so it is available at `/usr/bin/s3
 
 The output matches the 3270Connect workflow format.
 
+## Sample applications
+Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.
+
 ## Configuration
-The app loads `webapp/WEB-INF/h3270-config.xml` if present. If missing, defaults are used.
+The app loads `webapp/WEB-INF/3270Web-config.xml` if present. If missing, defaults are used.
 
 ## GitHub Actions
 A workflow is included to build and push images to GHCR on pushes to `main`.

@@ -160,7 +160,8 @@ pre, pre input, textarea {
   color: var(--fg);
 }
 
-.h3270-form {
+.h3270-form,
+.renderer-form {
   background-color: var(--bg);
   color: var(--fg);
 }
@@ -175,29 +176,38 @@ pre, pre input, textarea {
 
 .h3270-input,
 .h3270-input-intensified,
-.h3270-intensified {
+.h3270-intensified,
+.color-input,
+.color-input-intensified,
+.color-intensified {
   background-color: var(--bg);
 }
 
-.h3270-input {
+.h3270-input,
+.color-input {
   color: var(--accent);
 }
 
-.h3270-input-intensified {
+.h3270-input-intensified,
+.color-input-intensified {
   color: var(--accent-2);
 }
 
-.h3270-intensified {
+.h3270-intensified,
+.color-intensified {
   color: var(--accent-2);
 }
 
 .h3270-input-hidden,
-.h3270-hidden {
+.h3270-hidden,
+.color-input-hidden,
+.color-hidden {
   color: var(--bg);
   background-color: var(--bg);
 }
 
-.h3270-unformatted {
+.h3270-unformatted,
+.unformatted {
   background-color: var(--bg);
   color: var(--fg);
   border: 1px solid var(--border);
@@ -239,4 +249,72 @@ pre, pre input, textarea {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-                     
+.sample-apps {
+  display: grid;
+  gap: 12px;
+}
+
+.sample-app {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.sample-app-title {
+  font-weight: 600;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(420px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.modal-close {
+  padding: 6px 10px;
+}
+
+.sample-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}

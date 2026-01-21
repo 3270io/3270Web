@@ -15,11 +15,11 @@
       body.classList.remove(theme.id);
     });
     body.classList.add(themeId);
-    localStorage.setItem("h3270.theme", themeId);
+    localStorage.setItem("3270Web.theme", themeId);
   }
 
   function getStoredTheme() {
-    return localStorage.getItem("h3270.theme") || "theme-classic";
+    return localStorage.getItem("3270Web.theme") || "theme-classic";
   }
 
   function initThemeSelector() {

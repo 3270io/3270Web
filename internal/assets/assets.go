@@ -17,7 +17,7 @@ func ExtractS3270() (string, error) {
 		return "", fmt.Errorf("embedded binary not found: %w", err)
 	}
 
-	cacheDir := filepath.Join(os.TempDir(), "h3270")
+	cacheDir := filepath.Join(os.TempDir(), "3270Web")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}

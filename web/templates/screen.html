@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>h3270</title>
+    <title>3270Web</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/keyboard.js?v=5"></script>
@@ -12,7 +12,7 @@
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h2>h3270</h2>
+                    <h2>3270Web</h2>
                     <div class="subtle">Connected session</div>
                 </div>
                 <div class="toolbar">
@@ -35,6 +35,12 @@
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
             </div>
+            {{ if .SampleAppName }}
+            <div class="sample-status">
+                <span class="sample-app-title">{{ .SampleAppName }}</span>
+                <span class="subtle">Running on port {{ .SampleAppPort }}</span>
+            </div>
+            {{ end }}
 
             <div class="stack">
                 <div class="screen-container">
