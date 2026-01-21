@@ -118,6 +118,9 @@ func parseHostPort(hostname string) (string, int) {
 	if id, samplePort, ok := parseSampleAppHost(host); ok {
 		host = sampleAppHostname(id)
 		if samplePort > 0 {
+			if !isAllowedSampleAppPort(samplePort) {
+				return "", port
+			}
 			port = samplePort
 		}
 		return host, port
@@ -158,10 +161,11 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if app.Config.TargetHost.Value != "" {
 		defaultHost = app.Config.TargetHost.Value
 	}
+	samplePorts := allowedSampleAppPorts()
 	c.HTML(http.StatusOK, "connect.html", gin.H{
 		"DefaultHost": defaultHost,
 		"SampleApps":  availableSampleApps(),
-		"SamplePorts": []int{3270, 3271, 3272, 3273, 3274},
+		"SamplePorts": samplePorts,
 	})
 }
 
@@ -610,17 +614,24 @@ func parseSampleAppHost(hostname string) (string, int, bool) {
 	if id == "" {
 		return "", 0, false
 	}
-	port := 0
-	if idx := strings.LastIndex(id, ":"); idx != -1 {
-		if n, err := strconv.Atoi(id[idx+1:]); err == nil {
-			port = n
-			id = id[:idx]
-		}
-	}
-	if id == "" {
+	parts := strings.Split(id, ":")
+	if len(parts) > 2 {
 		return "", 0, false
 	}
-	return id, port, true
+	if parts[0] == "" {
+		return "", 0, false
+	}
+	if len(parts) == 2 {
+		if parts[1] == "" {
+			return "", 0, false
+		}
+		port, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return "", 0, false
+		}
+		return parts[0], port, true
+	}
+	return parts[0], 0, true
 }
 
 func sampleAppConfig(id string) (SampleAppConfig, bool) {
@@ -630,6 +641,27 @@ func sampleAppConfig(id string) (SampleAppConfig, bool) {
 		}
 	}
 	return SampleAppConfig{}, false
+}
+
+var allowedSampleAppPortsList = []int{3270, 3271, 3272, 3273, 3274}
+
+var allowedSampleAppPortSet = buildAllowedSampleAppPortSet()
+
+func buildAllowedSampleAppPortSet() map[int]struct{} {
+	ports := make(map[int]struct{}, len(allowedSampleAppPortsList))
+	for _, port := range allowedSampleAppPortsList {
+		ports[port] = struct{}{}
+	}
+	return ports
+}
+
+func allowedSampleAppPorts() []int {
+	return allowedSampleAppPortsList
+}
+
+func isAllowedSampleAppPort(port int) bool {
+	_, ok := allowedSampleAppPortSet[port]
+	return ok
 }
 
 func resolveSampleDumpPath(file string) string {

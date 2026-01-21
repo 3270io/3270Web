@@ -96,14 +96,21 @@
                     }
                 });
             }
+            const allowedAppIds = appSelect
+                ? new Set(Array.from(appSelect.options).map((option) => option.value))
+                : null;
+            const allowedPorts = portSelect
+                ? new Set(Array.from(portSelect.options).map((option) => Number(option.value)))
+                : null;
+
             if (startButton && hostInput && appSelect && portSelect) {
                 startButton.addEventListener("click", () => {
-                    const appId = (appSelect.value || "").replace(/[^a-zA-Z0-9_-]/g, "");
-                    const port = (portSelect.value || "").replace(/[^0-9]/g, "");
-                    if (!appId || !port) {
+                    const appId = appSelect.value || "";
+                    const port = Number(portSelect.value || 0);
+                    if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
                         return;
                     }
-                    hostInput.value = `sampleapp:${appId}:${port}`;
+                    hostInput.value = "sampleapp:" + appId + ":" + port;
                     hideModal();
                     if (hostInput.form) {
                         hostInput.form.submit();

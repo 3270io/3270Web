@@ -15,7 +15,8 @@ func TestParseSampleAppHost(t *testing.T) {
 		{input: "sampleapp:app1", wantID: "app1", wantPort: 0, wantOK: true},
 		{input: " sampleapp:app2 ", wantID: "app2", wantPort: 0, wantOK: true},
 		{input: "sampleapp:app1:5555", wantID: "app1", wantPort: 5555, wantOK: true},
-		{input: "sampleapp:app1:bad", wantID: "app1:bad", wantPort: 0, wantOK: true},
+		{input: "sampleapp:app1:bad", wantID: "", wantPort: 0, wantOK: false},
+		{input: "sampleapp:app1:", wantID: "", wantPort: 0, wantOK: false},
 		{input: "sampleapp:", wantID: "", wantPort: 0, wantOK: false},
 		{input: "mock", wantID: "", wantPort: 0, wantOK: false},
 	}
