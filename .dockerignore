@@ -8,4 +8,6 @@
 **/bin
 **/obj
 s3270-bin/*.exe
-old_java_app
+old_java_app/*
+!old_java_app/webapp/
+!old_java_app/webapp/**
