@@ -9,21 +9,27 @@ func TestParseSampleAppHost(t *testing.T) {
 	tests := []struct {
 		input   string
 		wantID  string
+		wantPort int
 		wantOK  bool
 	}{
-		{input: "sampleapp:app1", wantID: "app1", wantOK: true},
-		{input: " sampleapp:app2 ", wantID: "app2", wantOK: true},
-		{input: "sampleapp:", wantID: "", wantOK: false},
-		{input: "mock", wantID: "", wantOK: false},
+		{input: "sampleapp:app1", wantID: "app1", wantPort: 0, wantOK: true},
+		{input: " sampleapp:app2 ", wantID: "app2", wantPort: 0, wantOK: true},
+		{input: "sampleapp:app1:5555", wantID: "app1", wantPort: 5555, wantOK: true},
+		{input: "sampleapp:app1:bad", wantID: "app1:bad", wantPort: 0, wantOK: true},
+		{input: "sampleapp:", wantID: "", wantPort: 0, wantOK: false},
+		{input: "mock", wantID: "", wantPort: 0, wantOK: false},
 	}
 
 	for _, test := range tests {
-		gotID, gotOK := parseSampleAppHost(test.input)
+		gotID, gotPort, gotOK := parseSampleAppHost(test.input)
 		if gotOK != test.wantOK {
 			t.Fatalf("parseSampleAppHost(%q) ok=%v, want %v", test.input, gotOK, test.wantOK)
 		}
 		if gotID != test.wantID {
 			t.Fatalf("parseSampleAppHost(%q) id=%q, want %q", test.input, gotID, test.wantID)
+		}
+		if gotPort != test.wantPort {
+			t.Fatalf("parseSampleAppHost(%q) port=%d, want %d", test.input, gotPort, test.wantPort)
 		}
 	}
 }

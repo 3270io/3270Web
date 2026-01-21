@@ -115,6 +115,13 @@ func parseHostPort(hostname string) (string, int) {
 	if host == "" {
 		return "", port
 	}
+	if id, samplePort, ok := parseSampleAppHost(host); ok {
+		host = sampleAppHostname(id)
+		if samplePort > 0 {
+			port = samplePort
+		}
+		return host, port
+	}
 	if strings.Contains(host, ":") {
 		if h, p, err := net.SplitHostPort(host); err == nil {
 			host = h
@@ -154,6 +161,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "connect.html", gin.H{
 		"DefaultHost": defaultHost,
 		"SampleApps":  availableSampleApps(),
+		"SamplePorts": []int{3270, 3271, 3272, 3273, 3274},
 	})
 }
 
@@ -191,6 +199,17 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	themeCSS := app.buildThemeCSS(s.Prefs)
 
+	sampleAppName := ""
+	sampleAppPort := 0
+	if id, _, ok := parseSampleAppHost(s.TargetHost); ok {
+		if cfg, ok := sampleAppConfig(id); ok {
+			sampleAppName = cfg.Name
+			sampleAppPort = s.TargetPort
+			if sampleAppPort == 0 {
+				sampleAppPort = 3270
+			}
+		}
+	}
 	c.HTML(http.StatusOK, "screen.html", gin.H{
 		"ScreenContent":       template.HTML(rendered),
 		"SessionID":           s.ID,
@@ -202,6 +221,8 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"ThemeCSS":            template.CSS(themeCSS),
 		"RecordingActive":     s.Recording != nil && s.Recording.Active,
 		"RecordingFile":       recordingFileName(s),
+		"SampleAppName":       sampleAppName,
+		"SampleAppPort":       sampleAppPort,
 	})
 }
 
@@ -501,7 +522,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	var h host.Host
 	var err error
 
-	if sampleID, ok := parseSampleAppHost(hostname); ok {
+	if sampleID, _, ok := parseSampleAppHost(hostname); ok {
 		h, err = newSampleAppHost(sampleID)
 	} else if hostname == "mock" || hostname == "demo" {
 		h, err = newSampleAppHost("app1")
@@ -580,16 +601,26 @@ func sampleAppHostname(id string) string {
 	return sampleAppPrefix + id
 }
 
-func parseSampleAppHost(hostname string) (string, bool) {
+func parseSampleAppHost(hostname string) (string, int, bool) {
 	trimmed := strings.TrimSpace(hostname)
 	if !strings.HasPrefix(trimmed, sampleAppPrefix) {
-		return "", false
+		return "", 0, false
 	}
 	id := strings.TrimPrefix(trimmed, sampleAppPrefix)
 	if id == "" {
-		return "", false
+		return "", 0, false
 	}
-	return id, true
+	port := 0
+	if idx := strings.LastIndex(id, ":"); idx != -1 {
+		if n, err := strconv.Atoi(id[idx+1:]); err == nil {
+			port = n
+			id = id[:idx]
+		}
+	}
+	if id == "" {
+		return "", 0, false
+	}
+	return id, port, true
 }
 
 func sampleAppConfig(id string) (SampleAppConfig, bool) {

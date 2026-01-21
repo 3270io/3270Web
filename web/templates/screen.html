@@ -35,6 +35,12 @@
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
             </div>
+            {{ if .SampleAppName }}
+            <div class="sample-status">
+                <span class="sample-app-title">{{ .SampleAppName }}</span>
+                <span class="subtle">Running on port {{ .SampleAppPort }}</span>
+            </div>
+            {{ end }}
 
             <div class="stack">
                 <div class="screen-container">
