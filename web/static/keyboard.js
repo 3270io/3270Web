@@ -5,16 +5,10 @@
 
   var specialKeys = {
     Enter: "Enter",
-    Tab: "Tab",
-    BackTab: "BackTab",
     BackSpace: "BackSpace",
     Delete: "Delete",
     Insert: "Insert",
     Home: "Home",
-    Up: "Up",
-    Down: "Down",
-    Left: "Left",
-    Right: "Right",
     Clear: "Clear",
     Reset: "Reset",
     EraseEOF: "EraseEOF",
@@ -98,9 +92,6 @@
     if (event.key === "Enter" || code === 13) {
       return specialKeys.Enter;
     }
-    if (event.key === "Tab" || code === 9) {
-      return event.shiftKey ? specialKeys.BackTab : specialKeys.Tab;
-    }
     if (event.key === "Backspace" || code === 8) {
       return specialKeys.BackSpace;
     }
@@ -112,18 +103,6 @@
     }
     if (event.key === "Home" || code === 36) {
       return specialKeys.Home;
-    }
-    if (event.key === "ArrowUp" || code === 38) {
-      return specialKeys.Up;
-    }
-    if (event.key === "ArrowDown" || code === 40) {
-      return specialKeys.Down;
-    }
-    if (event.key === "ArrowLeft" || code === 37) {
-      return specialKeys.Left;
-    }
-    if (event.key === "ArrowRight" || code === 39) {
-      return specialKeys.Right;
     }
     if (event.key === "Escape" || code === 27) {
       return specialKeys.Clear;

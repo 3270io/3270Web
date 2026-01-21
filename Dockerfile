@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
 
+FROM public.ecr.aws/docker/library/node:20-alpine AS frontend-builder
+WORKDIR /frontend
+
 FROM golang:1.22-bookworm AS build
 WORKDIR /src
 
@@ -12,7 +15,7 @@ RUN go mod download
 COPY . ./
 RUN go build -trimpath -ldflags "-s -w" -o /out/h3270-web ./cmd/h3270-web
 
-FROM debian:bookworm-slim AS runtime
+FROM public.ecr.aws/docker/library/ubuntu:24.04-minimal AS runtime
 WORKDIR /app
 
 RUN apt-get update \
