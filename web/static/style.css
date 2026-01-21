@@ -239,4 +239,19 @@ pre, pre input, textarea {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-                     
+.sample-apps {
+  display: grid;
+  gap: 12px;
+}
+
+.sample-app {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.sample-app-title {
+  font-weight: 600;
+}

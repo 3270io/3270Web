@@ -21,15 +21,46 @@
             <form action="/connect" method="post" class="stack">
                 <div>
                     <label>Hostname / IP</label>
-                    <input type="text" name="hostname" value="localhost:3270">
-                    <div class="subtle">Use <strong>mock</strong> for demo mode.</div>
+                    <input type="text" name="hostname" value="{{ .DefaultHost }}">
+                    <div class="subtle">Use <strong>mock</strong> for demo mode or pick a sample app.</div>
                 </div>
+                {{ if .SampleApps }}
+                <div>
+                    <label>Sample Applications</label>
+                    <div class="sample-apps">
+                        {{ range .SampleApps }}
+                        <button type="button" class="sample-app" data-host="{{ .Hostname }}">
+                            <span class="sample-app-title">{{ .Name }}</span>
+                            <span class="subtle">{{ .Hostname }}</span>
+                        </button>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ end }}
                 <div class="split">
                     <button type="submit">Connect</button>
-                    <button type="button" onclick="document.querySelector('input[name=hostname]').value='mock'">Use Demo Host</button>
+                    <button type="button" data-demo-host>Use Demo Host</button>
                 </div>
             </form>
         </div>
     </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const hostInput = document.querySelector('input[name=hostname]');
+            document.querySelectorAll(".sample-app[data-host]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    if (hostInput) {
+                        hostInput.value = button.dataset.host;
+                    }
+                });
+            });
+            const demoButton = document.querySelector("[data-demo-host]");
+            if (demoButton && hostInput) {
+                demoButton.addEventListener("click", () => {
+                    hostInput.value = "mock";
+                });
+            }
+        });
+    </script>
 </body>
 </html>
