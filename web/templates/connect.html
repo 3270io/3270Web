@@ -21,45 +21,107 @@
             <form action="/connect" method="post" class="stack">
                 <div>
                     <label>Hostname / IP</label>
-                    <input type="text" name="hostname" value="{{ .DefaultHost }}">
-                    <div class="subtle">Use <strong>mock</strong> for demo mode or pick a sample app.</div>
+                    <input type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input>
                 </div>
                 {{ if .SampleApps }}
                 <div>
                     <label>Sample Applications</label>
                     <div class="sample-apps">
-                        {{ range .SampleApps }}
-                        <button type="button" class="sample-app" data-host="{{ .Hostname }}">
-                            <span class="sample-app-title">{{ .Name }}</span>
-                            <span class="subtle">{{ .Hostname }}</span>
+                        <button type="button" class="sample-app" data-open-sample-modal>
+                            <span class="sample-app-title">Start Example App</span>
+                            <span class="subtle">Choose a sample app and port</span>
                         </button>
-                        {{ end }}
                     </div>
                 </div>
                 {{ end }}
                 <div class="split">
                     <button type="submit">Connect</button>
-                    <button type="button" data-demo-host>Use Demo Host</button>
                 </div>
             </form>
         </div>
     </div>
+    {{ if .SampleApps }}
+    <div class="modal-backdrop" data-sample-modal hidden>
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Start Example App</h3>
+                <button type="button" class="modal-close" data-sample-close>Close</button>
+            </div>
+            <div class="stack">
+                <label for="sample-app-select">Sample application</label>
+                <select id="sample-app-select">
+                    {{ range .SampleApps }}
+                    <option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
+                </select>
+                <label for="sample-app-port">Port</label>
+                <select id="sample-app-port">
+                    {{ range .SamplePorts }}
+                    <option value="{{ . }}">{{ . }}</option>
+                    {{ end }}
+                </select>
+                <button type="button" data-sample-start>Start Example App</button>
+            </div>
+        </div>
+    </div>
+    {{ end }}
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const hostInput = document.querySelector('input[name=hostname]');
-            document.querySelectorAll(".sample-app[data-host]").forEach((button) => {
-                button.addEventListener("click", () => {
-                    if (hostInput) {
-                        hostInput.value = button.dataset.host;
-                    }
-                });
-            });
-            const demoButton = document.querySelector("[data-demo-host]");
-            if (demoButton && hostInput) {
-                demoButton.addEventListener("click", () => {
-                    hostInput.value = "mock";
+            const hostInput = document.querySelector("[data-host-input]");
+            const modal = document.querySelector("[data-sample-modal]");
+            const openModal = document.querySelector("[data-open-sample-modal]");
+            const closeModal = document.querySelector("[data-sample-close]");
+            const startButton = document.querySelector("[data-sample-start]");
+            const appSelect = document.querySelector("#sample-app-select");
+            const portSelect = document.querySelector("#sample-app-port");
+
+            const hideModal = () => {
+                if (modal) {
+                    modal.hidden = true;
+                }
+            };
+
+            if (openModal && modal) {
+                openModal.addEventListener("click", () => {
+                    modal.hidden = false;
                 });
             }
+            if (closeModal) {
+                closeModal.addEventListener("click", hideModal);
+            }
+            if (modal) {
+                modal.addEventListener("click", (event) => {
+                    if (event.target === modal) {
+                        hideModal();
+                    }
+                });
+            }
+            const allowedAppIds = appSelect
+                ? new Set(Array.from(appSelect.options).map((option) => option.value))
+                : null;
+            const allowedPorts = portSelect
+                ? new Set(Array.from(portSelect.options).map((option) => Number(option.value)))
+                : null;
+
+            if (startButton && hostInput && appSelect && portSelect) {
+                startButton.addEventListener("click", () => {
+                    const appId = appSelect.value || "";
+                    const port = Number(portSelect.value || 0);
+                    if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
+                        return;
+                    }
+                    hostInput.value = "sampleapp:" + appId + ":" + port;
+                    hideModal();
+                    if (hostInput.form) {
+                        hostInput.form.submit();
+                    }
+                });
+            }
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape" && modal && !modal.hidden) {
+                    hideModal();
+                }
+            });
         });
     </script>
 </body>
