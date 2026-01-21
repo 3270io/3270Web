@@ -18,8 +18,11 @@
     });
     body.classList.add(themeId);
     localStorage.setItem("3270Web.theme", themeId);
-    if (typeof window.updateBackgroundTheme === "function") {
-      window.updateBackgroundTheme(themeId);
+    if (
+      window.ThreeSeventyWeb &&
+      typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function"
+    ) {
+      window.ThreeSeventyWeb.updateBackgroundTheme(themeId);
     }
     document.dispatchEvent(new CustomEvent("themechange", { detail: themeId }));
   }

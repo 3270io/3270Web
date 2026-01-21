@@ -210,6 +210,13 @@ body.theme-not3270 {
   color: var(--accent);
 }
 
+.error-page {
+  margin-top: 50px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
 label, select, button, input {
   color: var(--fg);
   background-color: var(--panel-2);

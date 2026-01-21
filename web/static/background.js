@@ -288,7 +288,8 @@
     requestAnimationFrame(renderFrame);
   }
 
-  window.updateBackgroundTheme = applyThemeConfig;
+  window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+  window.ThreeSeventyWeb.updateBackgroundTheme = applyThemeConfig;
 
   if (overlay) {
     overlay.addEventListener("click", function (event) {
