@@ -1,0 +1,47 @@
+{
+  "Host": "localhost",
+  "Port": 3270,
+  "EveryStepDelay": {
+    "Min": 0.1,
+    "Max": 0.3
+  },
+  "OutputFilePath": "output.html",
+  "RampUpBatchSize": 50,
+  "RampUpDelay": 1.5,
+  "EndOfTaskDelay": {
+    "Min": 60,
+    "Max": 120
+  },
+  "Steps": [
+    {
+      "Type": "Connect"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": {
+        "Row": 5,
+        "Column": 21
+      },
+      "Text": "123"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": {
+        "Row": 6,
+        "Column": 21
+      },
+      "Text": "456"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": {
+        "Row": 7,
+        "Column": 21
+      },
+      "Text": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+    },
+    {
+      "Type": "Disconnect"
+    }
+  ]
+}
