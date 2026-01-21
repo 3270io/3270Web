@@ -217,6 +217,11 @@ body.theme-not3270 {
   z-index: 1;
 }
 
+.error-title {
+  color: #ff5858;
+  margin: 0 0 12px;
+}
+
 label, select, button, input {
   color: var(--fg);
   background-color: var(--panel-2);

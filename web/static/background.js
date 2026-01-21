@@ -19,12 +19,36 @@
   var themeKey = "3270Web.theme";
   var textFont = "'Cascadia Mono', 'Consolas', 'Courier New', monospace";
   var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$*+-";
-  // Divisors keep animation density balanced across common viewport sizes.
+  // Divisors keep animation density balanced around a ~1200x700 viewport.
   var PIXEL_AREA_DIVISOR = 20000;
   var CARD_AREA_DIVISOR = 80000;
   var CHAR_AREA_DIVISOR = 12000;
   var MAX_DELTA_SECONDS = 0.05;
   var TOGGLE_KEYS = [" ", "Enter"];
+  var MIN_CHAR_SIZE = 12;
+  var CHAR_SIZE_RANGE = 18;
+  var CHAR_MIN_LIFE = 0.6;
+  var CHAR_LIFE_RANGE = 1.8;
+  var CHAR_DRIFT_RANGE = 12;
+  var MIN_PIXEL_SIZE = 2;
+  var PIXEL_SIZE_RANGE = 4;
+  var PIXEL_SPEED_RANGE = 18;
+  var PIXEL_MIN_ALPHA = 0.15;
+  var PIXEL_ALPHA_RANGE = 0.35;
+  var CARD_MIN_WIDTH = 120;
+  var CARD_WIDTH_RANGE = 140;
+  var CARD_MIN_HEIGHT = 60;
+  var CARD_HEIGHT_RANGE = 60;
+  var CARD_COLUMNS = 8;
+  var CARD_ROWS = 3;
+  var HOLE_THRESHOLD = 0.4;
+  var HOLE_MIN_RADIUS = 4;
+  var HOLE_RADIUS_RANGE = 2;
+  var CARD_MIN_SPEED = 12;
+  var CARD_SPEED_RANGE = 24;
+  var CARD_MIN_ALPHA = 0.18;
+  var CARD_ALPHA_RANGE = 0.15;
+  var CARD_RESET_PADDING = 40;
 
   var themeConfigs = {
     "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
@@ -123,43 +147,43 @@
   }
 
   function newCharacter() {
-    var size = 12 + Math.random() * 18;
+    var size = MIN_CHAR_SIZE + Math.random() * CHAR_SIZE_RANGE;
     return {
       x: Math.random() * state.width,
       y: Math.random() * state.height,
       size: size,
       char: chars[Math.floor(Math.random() * chars.length)],
-      life: 0.6 + Math.random() * 1.8,
+      life: CHAR_MIN_LIFE + Math.random() * CHAR_LIFE_RANGE,
       maxLife: 0,
-      drift: (Math.random() - 0.5) * 12
+      drift: (Math.random() - 0.5) * CHAR_DRIFT_RANGE
     };
   }
 
   function newPixel() {
-    var size = 2 + Math.random() * 4;
+    var size = MIN_PIXEL_SIZE + Math.random() * PIXEL_SIZE_RANGE;
     return {
       x: Math.random() * state.width,
       y: Math.random() * state.height,
       size: size,
-      vx: (Math.random() - 0.5) * 18,
-      vy: (Math.random() - 0.5) * 18,
-      alpha: 0.15 + Math.random() * 0.35
+      vx: (Math.random() - 0.5) * PIXEL_SPEED_RANGE,
+      vy: (Math.random() - 0.5) * PIXEL_SPEED_RANGE,
+      alpha: PIXEL_MIN_ALPHA + Math.random() * PIXEL_ALPHA_RANGE
     };
   }
 
   function newCard() {
-    var width = 120 + Math.random() * 140;
-    var height = 60 + Math.random() * 60;
-    var columns = 8;
-    var rows = 3;
+    var width = CARD_MIN_WIDTH + Math.random() * CARD_WIDTH_RANGE;
+    var height = CARD_MIN_HEIGHT + Math.random() * CARD_HEIGHT_RANGE;
+    var columns = CARD_COLUMNS;
+    var rows = CARD_ROWS;
     var holes = [];
     for (var r = 0; r < rows; r++) {
       for (var c = 0; c < columns; c++) {
-        if (Math.random() > 0.4) {
+        if (Math.random() > HOLE_THRESHOLD) {
           holes.push({
             x: ((c + 1) / (columns + 1)) * width,
             y: ((r + 1) / (rows + 1)) * height,
-            r: 4 + Math.random() * 2
+            r: HOLE_MIN_RADIUS + Math.random() * HOLE_RADIUS_RANGE
           });
         }
       }
@@ -169,8 +193,8 @@
       y: Math.random() * state.height,
       width: width,
       height: height,
-      speed: 12 + Math.random() * 24,
-      alpha: 0.18 + Math.random() * 0.15,
+      speed: CARD_MIN_SPEED + Math.random() * CARD_SPEED_RANGE,
+      alpha: CARD_MIN_ALPHA + Math.random() * CARD_ALPHA_RANGE,
       holes: holes
     };
   }
@@ -239,7 +263,7 @@
       var item = state.items[i];
       item.y += item.speed * delta * state.speed;
       if (item.y > state.height + item.height) {
-        item.y = -item.height - Math.random() * 40;
+        item.y = -item.height - Math.random() * CARD_RESET_PADDING;
         item.x = Math.random() * state.width;
       }
       ctx.globalAlpha = item.alpha;
