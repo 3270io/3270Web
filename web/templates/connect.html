@@ -31,11 +31,11 @@
                 <span>{{ .ConnectError }}</span>
             </div>
             {{ end }}
-            <form action="/connect" method="post">
+            <form action="/connect" method="post" id="connect-form">
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP</label>
-                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input>
-                    <button type="submit">Connect</button>
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required placeholder="hostname:port">
+                    <button type="submit" id="connect-btn">Connect</button>
                 </fieldset>
             </form>
         </div>
@@ -74,6 +74,22 @@
             const startButton = document.querySelector("[data-sample-start]");
             const appSelect = document.querySelector("#sample-app-select");
             const portSelect = document.querySelector("#sample-app-port");
+            const connectForm = document.getElementById("connect-form");
+            const connectBtn = document.getElementById("connect-btn");
+
+            const setLoading = () => {
+                if (connectBtn) {
+                    connectBtn.style.width = `${connectBtn.offsetWidth}px`;
+                    connectBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Connecting...';
+                    connectBtn.setAttribute('aria-busy', 'true');
+                }
+            };
+
+            if (connectForm) {
+                connectForm.addEventListener("submit", (e) => {
+                    setLoading();
+                });
+            }
 
             const hideModal = () => {
                 if (modal) {
@@ -113,6 +129,7 @@
                     hostInput.value = "sampleapp:" + appId + ":" + port;
                     hideModal();
                     if (hostInput.form) {
+                        setLoading();
                         hostInput.form.submit();
                     }
                 });
