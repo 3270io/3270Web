@@ -126,6 +126,22 @@ body.theme-not3270 {
   color: var(--fg-muted);
 }
 
+.alert {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 120, 120, 0.15);
+  color: var(--fg);
+  margin-bottom: 16px;
+}
+
+.alert strong {
+  color: var(--accent);
+}
+
 label, select, button, input {
   color: var(--fg);
   background-color: var(--panel-2);

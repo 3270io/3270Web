@@ -21,6 +21,12 @@
                     <select id="theme-select"></select>
                 </div>
             </div>
+            {{ if .ConnectError }}
+            <div class="alert">
+                <strong>Connection error</strong>
+                <span>{{ .ConnectError }}</span>
+            </div>
+            {{ end }}
             <form action="/connect" method="post">
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP</label>

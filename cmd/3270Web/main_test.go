@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseSampleAppHost(t *testing.T) {
 	tests := []struct {
@@ -62,5 +65,15 @@ func TestAvailableSampleApps(t *testing.T) {
 		if option.Hostname != sampleAppHostname(sampleAppConfigs[i].ID) {
 			t.Fatalf("expected option %d to have hostname %q, got %q", i, sampleAppHostname(sampleAppConfigs[i].ID), option.Hostname)
 		}
+	}
+}
+
+func TestConnectErrorMessage(t *testing.T) {
+	if got := connectErrorMessage(""); got == "" {
+		t.Fatalf("expected connectErrorMessage to return guidance for empty hostname")
+	}
+	message := connectErrorMessage("host.example:3270")
+	if !strings.Contains(message, "host.example:3270") {
+		t.Fatalf("expected hostname to be included in connectErrorMessage, got %q", message)
 	}
 }

@@ -139,6 +139,23 @@ func recordingFileName(s *session.Session) string {
 	return filepath.Base(s.Recording.FilePath)
 }
 
+func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
+	defaultHost := strings.TrimSpace(hostname)
+	if app.Config.TargetHost.Value != "" {
+		defaultHost = app.Config.TargetHost.Value
+	}
+	if defaultHost == "" {
+		defaultHost = "localhost:3270"
+	}
+	samplePorts := allowedSampleAppPorts()
+	c.HTML(status, "connect.html", gin.H{
+		"DefaultHost":  defaultHost,
+		"SampleApps":   availableSampleApps(),
+		"SamplePorts":  samplePorts,
+		"ConnectError": connectError,
+	})
+}
+
 func (app *App) HomeHandler(c *gin.Context) {
 	// Check session
 	if s := app.getSession(c); s != nil {
@@ -147,39 +164,40 @@ func (app *App) HomeHandler(c *gin.Context) {
 	}
 	if app.Config.TargetHost.Value != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, app.Config.TargetHost.Value); err != nil {
-			c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": err.Error()})
+			log.Printf("Auto-connect failed for %q: %v", app.Config.TargetHost.Value, err)
+			app.renderConnectPage(c, http.StatusBadGateway, app.Config.TargetHost.Value, connectErrorMessage(app.Config.TargetHost.Value))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	defaultHost := "localhost:3270"
-	if app.Config.TargetHost.Value != "" {
-		defaultHost = app.Config.TargetHost.Value
-	}
-	samplePorts := allowedSampleAppPorts()
-	c.HTML(http.StatusOK, "connect.html", gin.H{
-		"DefaultHost": defaultHost,
-		"SampleApps":  availableSampleApps(),
-		"SamplePorts": samplePorts,
-	})
+	app.renderConnectPage(c, http.StatusOK, app.Config.TargetHost.Value, "")
 }
 
 func (app *App) ConnectHandler(c *gin.Context) {
-	hostname := c.PostForm("hostname")
+	hostname := strings.TrimSpace(c.PostForm("hostname"))
 	if app.Config.TargetHost.Value != "" {
 		hostname = app.Config.TargetHost.Value
 	}
 	if hostname == "" {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": "Missing hostname"})
+		app.renderConnectPage(c, http.StatusBadRequest, hostname, connectErrorMessage(hostname))
 		return
 	}
 
 	if err := app.connectToHost(c, hostname); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": err.Error()})
+		log.Printf("Connect failed for %q: %v", hostname, err)
+		app.renderConnectPage(c, http.StatusBadGateway, hostname, connectErrorMessage(hostname))
 		return
 	}
 	c.Redirect(http.StatusFound, "/screen")
+}
+
+func connectErrorMessage(hostname string) string {
+	trimmed := strings.TrimSpace(hostname)
+	if trimmed == "" {
+		return "Please enter a hostname or IP address to connect."
+	}
+	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", trimmed)
 }
 
 func (app *App) ScreenHandler(c *gin.Context) {
