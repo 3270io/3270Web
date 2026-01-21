@@ -1,9 +1,9 @@
 package main
 
 import (
-	"testing"
-
 	"github.com/jnnngs/3270Web/internal/session"
+	"strings"
+	"testing"
 )
 
 func TestParseSampleAppHost(t *testing.T) {

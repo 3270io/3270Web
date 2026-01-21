@@ -3,6 +3,8 @@
 
   var themes = [
     { id: "theme-classic", name: "Classic 3270" },
+    { id: "theme-dark", name: "Dark Mode" },
+    { id: "theme-light", name: "Light Mode" },
     { id: "theme-modern", name: "Super Modern 3270" },
     { id: "theme-minimal", name: "Minimal 3270" },
     { id: "theme-slick", name: "Slick 3270" },
@@ -16,6 +18,13 @@
     });
     body.classList.add(themeId);
     localStorage.setItem("3270Web.theme", themeId);
+    if (
+      window.ThreeSeventyWeb &&
+      typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function"
+    ) {
+      window.ThreeSeventyWeb.updateBackgroundTheme(themeId);
+    }
+    document.dispatchEvent(new CustomEvent("themechange", { detail: themeId }));
   }
 
   function getStoredTheme() {
