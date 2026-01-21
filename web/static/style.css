@@ -42,7 +42,7 @@ body {
 
 body.bg-paused .bg-overlay::before,
 body.bg-paused .bg-overlay canvas {
-  opacity: 0.15;
+  opacity: 0.05;
 }
 
 :root {

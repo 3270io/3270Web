@@ -11,11 +11,9 @@
     return;
   }
 
-  var overlay = canvas.closest(".bg-overlay");
-  if (!overlay && canvas.parentElement && canvas.parentElement.classList) {
-    if (canvas.parentElement.classList.contains("bg-overlay")) {
-      overlay = canvas.parentElement;
-    }
+  var overlay = canvas.parentElement;
+  if (overlay && overlay.classList && !overlay.classList.contains("bg-overlay")) {
+    overlay = null;
   }
   var storageKey = "3270Web.bgAnimation";
   var themeKey = "3270Web.theme";
@@ -299,7 +297,7 @@
       }
     });
     overlay.addEventListener("keydown", function (event) {
-      if (TOGGLE_KEYS.indexOf(event.key) !== -1) {
+      if (TOGGLE_KEYS.includes(event.key)) {
         event.preventDefault();
         toggleBackgroundAnimation();
       }
