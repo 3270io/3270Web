@@ -30,6 +30,8 @@ type S3270 struct {
 	mu     sync.Mutex // Protects command execution
 }
 
+const waitUnlockTimeoutSeconds = 10
+
 // NewS3270 creates a new S3270 host instance.
 func NewS3270(execPath string, args ...string) *S3270 {
 	targetHost := ""
@@ -203,7 +205,7 @@ func isAidKey(key string) bool {
 }
 
 func (h *S3270) waitUnlockLocked() error {
-	cmd := h.WaitUnlockCommand()
+	cmd := h.waitUnlockCommand()
 	_, status, err := h.doCommandLocked(cmd)
 	log.Printf("s3270: cmd=%q status=%q", cmd, status)
 	if err != nil {
@@ -212,8 +214,7 @@ func (h *S3270) waitUnlockLocked() error {
 	return nil
 }
 
-func (h *S3270) WaitUnlockCommand() string {
-	const waitUnlockTimeoutSeconds = 10
+func (h *S3270) waitUnlockCommand() string {
 	return fmt.Sprintf("Wait(Unlock,%d)", waitUnlockTimeoutSeconds)
 }
 
