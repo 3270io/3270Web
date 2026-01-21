@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/jnnngs/3270Web/internal/session"
+)
 
 func TestParseSampleAppHost(t *testing.T) {
 	tests := []struct {
@@ -62,5 +66,25 @@ func TestAvailableSampleApps(t *testing.T) {
 		if option.Hostname != sampleAppHostname(sampleAppConfigs[i].ID) {
 			t.Fatalf("expected option %d to have hostname %q, got %q", i, sampleAppHostname(sampleAppConfigs[i].ID), option.Hostname)
 		}
+	}
+}
+
+func TestWorkflowTargetHost(t *testing.T) {
+	sessionHost := &session.Session{TargetHost: "localhost", TargetPort: 3270}
+	workflow := &WorkflowConfig{Host: "example.com", Port: 992}
+	got, err := workflowTargetHost(sessionHost, workflow)
+	if err != nil {
+		t.Fatalf("expected workflow host, got error %v", err)
+	}
+	if got != "example.com:992" {
+		t.Fatalf("expected example.com:992, got %q", got)
+	}
+
+	fallback, err := workflowTargetHost(sessionHost, &WorkflowConfig{})
+	if err != nil {
+		t.Fatalf("expected session host fallback, got error %v", err)
+	}
+	if fallback != "localhost:3270" {
+		t.Fatalf("expected localhost:3270, got %q", fallback)
 	}
 }
