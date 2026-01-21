@@ -15,12 +15,43 @@ type Session struct {
 	Host       host.Host
 	LastAccess time.Time
 	Prefs      Preferences
+	TargetHost string
+	TargetPort int
+	Recording  *WorkflowRecording
 }
 
 type Preferences struct {
 	ColorScheme string
 	FontName    string
 	UseKeypad   bool
+}
+
+type WorkflowCoordinates struct {
+	Row    int `json:"Row"`
+	Column int `json:"Column"`
+	Length int `json:"Length,omitempty"`
+}
+
+type WorkflowDelayRange struct {
+	Min float64 `json:"Min,omitempty"`
+	Max float64 `json:"Max,omitempty"`
+}
+
+type WorkflowStep struct {
+	Type        string               `json:"Type"`
+	Coordinates *WorkflowCoordinates `json:"Coordinates,omitempty"`
+	Text        string               `json:"Text,omitempty"`
+	StepDelay   *WorkflowDelayRange  `json:"StepDelay,omitempty"`
+}
+
+type WorkflowRecording struct {
+	Active         bool
+	Host           string
+	Port           int
+	OutputFilePath string
+	Steps          []WorkflowStep
+	FilePath       string
+	StartedAt      time.Time
 }
 
 // Manager manages sessions.

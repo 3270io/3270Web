@@ -22,6 +22,18 @@
             </div>
             <div class="toolbar" style="margin-bottom: 16px;">
                 <a href="/disconnect">Disconnect</a>
+                {{ if .RecordingActive }}
+                <form action="/record/stop" method="post">
+                    <button type="submit">Stop Recording</button>
+                </form>
+                {{ else }}
+                <form action="/record/start" method="post">
+                    <button type="submit">Start Recording</button>
+                </form>
+                {{ end }}
+                {{ if .RecordingFile }}
+                <a href="/record/download">Download {{ .RecordingFile }}</a>
+                {{ end }}
             </div>
 
             <div class="stack">

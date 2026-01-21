@@ -24,7 +24,7 @@ RUN apt-get update \
 
 COPY --from=build /out/h3270-web /usr/local/bin/h3270-web
 COPY web/ ./web/
-COPY webapp/ ./webapp/
+#COPY webapp/ ./webapp/
 
 EXPOSE 8080
 

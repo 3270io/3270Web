@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -11,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/h3270/internal/assets"
@@ -24,6 +27,17 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
+}
+
+type WorkflowConfig struct {
+	Host            string                      `json:"Host"`
+	Port            int                         `json:"Port"`
+	EveryStepDelay  *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
+	OutputFilePath  string                      `json:"OutputFilePath,omitempty"`
+	RampUpBatchSize int                         `json:"RampUpBatchSize,omitempty"`
+	RampUpDelay     float64                     `json:"RampUpDelay,omitempty"`
+	EndOfTaskDelay  *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
+	Steps           []session.WorkflowStep      `json:"Steps"`
 }
 
 func main() {
@@ -51,6 +65,9 @@ func main() {
 	r.GET("/screen", app.ScreenHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/prefs", app.PrefsHandler)
+	r.POST("/record/start", app.RecordStartHandler)
+	r.POST("/record/stop", app.RecordStopHandler)
+	r.GET("/record/download", app.RecordDownloadHandler)
 
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
@@ -66,6 +83,30 @@ func main() {
 
 func openBrowser(url string) {
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+}
+
+func parseHostPort(hostname string) (string, int) {
+	host := strings.TrimSpace(hostname)
+	port := 3270
+	if host == "" {
+		return "", port
+	}
+	if strings.Contains(host, ":") {
+		if h, p, err := net.SplitHostPort(host); err == nil {
+			host = h
+			if n, err := strconv.Atoi(p); err == nil {
+				port = n
+			}
+		}
+	}
+	return host, port
+}
+
+func recordingFileName(s *session.Session) string {
+	if s == nil || s.Recording == nil || s.Recording.FilePath == "" {
+		return ""
+	}
+	return filepath.Base(s.Recording.FilePath)
 }
 
 func (app *App) HomeHandler(c *gin.Context) {
@@ -128,6 +169,8 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"SelectedFont":        s.Prefs.FontName,
 		"UseKeypad":           s.Prefs.UseKeypad,
 		"ThemeCSS":            template.CSS(themeCSS),
+		"RecordingActive":     s.Recording != nil && s.Recording.Active,
+		"RecordingFile":       recordingFileName(s),
 	})
 }
 
@@ -144,6 +187,9 @@ func (app *App) SubmitHandler(c *gin.Context) {
 	if s.Host.GetScreen().IsFormatted {
 		// 1. Update fields from form data
 		app.updateFields(c, s)
+		if s.Recording != nil && s.Recording.Active {
+			recordFieldUpdates(s)
+		}
 
 		// 2. Submit changes to host
 		if err := s.Host.SubmitScreen(); err != nil {
@@ -164,6 +210,9 @@ func (app *App) SubmitHandler(c *gin.Context) {
 		actionKey = normalizeKey(key)
 	}
 	log.Printf("Submit: normalized key=%q", actionKey)
+	if s.Recording != nil && s.Recording.Active {
+		recordActionKey(s, actionKey)
+	}
 
 	if err := s.Host.SendKey(actionKey); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("SendKey failed: %v", err)})
@@ -179,6 +228,64 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	}
 	setSessionCookie(c, "h3270_session", "")
 	c.Redirect(http.StatusFound, "/")
+}
+
+func (app *App) RecordStartHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Recording != nil && s.Recording.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	host := s.TargetHost
+	port := s.TargetPort
+	if port == 0 {
+		port = 3270
+	}
+	s.Recording = &session.WorkflowRecording{
+		Active:         true,
+		Host:           host,
+		Port:           port,
+		OutputFilePath: "output.html",
+		Steps:          []session.WorkflowStep{{Type: "Connect"}},
+		StartedAt:      time.Now(),
+	}
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) RecordStopHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Recording == nil || !s.Recording.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{Type: "Disconnect"})
+	workflow := buildWorkflowConfig(s)
+	path := filepath.Join(".", "workflow.json")
+	if err := writeWorkflowFile(path, workflow); err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Record stop failed: %v", err)})
+		return
+	}
+	s.Recording.Active = false
+	s.Recording.FilePath = path
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) RecordDownloadHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil || s.Recording == nil || s.Recording.FilePath == "" {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	name := filepath.Base(s.Recording.FilePath)
+	c.FileAttachment(s.Recording.FilePath, name)
 }
 
 func (app *App) PrefsHandler(c *gin.Context) {
@@ -228,6 +335,114 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 	}
 }
 
+func recordFieldUpdates(s *session.Session) {
+	if s == nil || s.Recording == nil || !s.Recording.Active {
+		return
+	}
+	screen := s.Host.GetScreen()
+	for _, f := range screen.Fields {
+		if f.IsProtected() || !f.Changed {
+			continue
+		}
+		lines := f.GetValueLines()
+		if !f.IsMultiline() {
+			text := ""
+			if len(lines) > 0 {
+				text = lines[0]
+			}
+			s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{
+				Type: "FillString",
+				Coordinates: &session.WorkflowCoordinates{
+					Row:    f.StartY + 1,
+					Column: f.StartX + 1,
+				},
+				Text: text,
+			})
+			continue
+		}
+		for i, line := range lines {
+			s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{
+				Type: "FillString",
+				Coordinates: &session.WorkflowCoordinates{
+					Row:    f.StartY + 1 + i,
+					Column: f.StartX + 1,
+				},
+				Text: line,
+			})
+		}
+	}
+}
+
+func recordActionKey(s *session.Session, key string) {
+	if s == nil || s.Recording == nil || !s.Recording.Active {
+		return
+	}
+	if step := workflowStepForKey(key); step != nil {
+		s.Recording.Steps = append(s.Recording.Steps, *step)
+	}
+}
+
+func workflowStepForKey(key string) *session.WorkflowStep {
+	upper := strings.ToUpper(strings.TrimSpace(key))
+	if upper == "" {
+		return nil
+	}
+	if upper == "ENTER" {
+		return &session.WorkflowStep{Type: "PressEnter"}
+	}
+	if upper == "TAB" {
+		return &session.WorkflowStep{Type: "PressTab"}
+	}
+	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+			return &session.WorkflowStep{Type: fmt.Sprintf("PressPF%d", n)}
+		}
+	}
+	if strings.HasPrefix(upper, "PF") {
+		inner := strings.TrimPrefix(upper, "PF")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+			return &session.WorkflowStep{Type: fmt.Sprintf("PressPF%d", n)}
+		}
+	}
+	return nil
+}
+
+func buildWorkflowConfig(s *session.Session) *WorkflowConfig {
+	if s == nil || s.Recording == nil {
+		return &WorkflowConfig{}
+	}
+	host := s.Recording.Host
+	port := s.Recording.Port
+	if host == "" {
+		host = s.TargetHost
+	}
+	if port == 0 {
+		port = s.TargetPort
+	}
+	if port == 0 {
+		port = 3270
+	}
+	return &WorkflowConfig{
+		Host:            host,
+		Port:            port,
+		EveryStepDelay:  &session.WorkflowDelayRange{Min: 0.1, Max: 0.3},
+		OutputFilePath:  s.Recording.OutputFilePath,
+		RampUpBatchSize: 50,
+		RampUpDelay:     1.5,
+		EndOfTaskDelay:  &session.WorkflowDelayRange{Min: 60, Max: 120},
+		Steps:           s.Recording.Steps,
+	}
+}
+
+func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
+	data, err := json.MarshalIndent(workflow, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
 func (app *App) getSession(c *gin.Context) *session.Session {
 	id, err := c.Cookie("h3270_session")
 	if err != nil {
@@ -260,6 +475,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	}
 
 	sess := app.SessionManager.CreateSession(h)
+	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	app.applyDefaultPrefs(sess)
 	setSessionCookie(c, "h3270_session", sess.ID)
 	return nil
