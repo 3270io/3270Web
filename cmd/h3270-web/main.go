@@ -502,8 +502,15 @@ func resolveS3270Path(execPath string) string {
 		return local
 	}
 
-	if embedded, err := assets.ExtractS3270(); err == nil {
-		return embedded
+	if runtime.GOOS == "windows" {
+		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
+		if embedded, err := assets.ExtractS3270(); err == nil {
+			return embedded
+		}
+	}
+
+	if path, err := exec.LookPath(s3270BinaryName()); err == nil {
+		return path
 	}
 
 	return filepath.Join("/usr/local/bin", "s3270")
