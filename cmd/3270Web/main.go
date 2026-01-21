@@ -1,12 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -372,7 +374,7 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
-	s.Playback = &session.WorkflowPlayback{Active: true, StartedAt: time.Now()}
+	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
 	go app.playWorkflow(s, workflow)
 	c.Redirect(http.StatusFound, "/screen")
 }
@@ -649,11 +651,16 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	defer func() {
 		if s != nil && s.Playback != nil {
 			s.Playback.Active = false
+			s.Playback = nil
 		}
 	}()
 	if s == nil || workflow == nil {
 		return
 	}
+	if s.Playback == nil {
+		s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
+	}
+	s.Playback.Active = true
 	for i, step := range workflow.Steps {
 		if err := app.applyWorkflowStep(s, step); err != nil {
 			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
@@ -700,6 +707,7 @@ func applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
 	if screen == nil {
 		return nil
 	}
+	// Workflow coordinates are 1-based, so convert to 0-based indices.
 	row := step.Coordinates.Row - 1
 	col := step.Coordinates.Column - 1
 	if row < 0 || col < 0 {
@@ -742,7 +750,12 @@ func workflowDelay(delay *session.WorkflowDelayRange) time.Duration {
 		return time.Duration(min * float64(time.Second))
 	}
 	span := max - min
-	value := min + (span / 2)
+	const precision = int64(1000000)
+	n, err := rand.Int(rand.Reader, big.NewInt(precision))
+	if err != nil {
+		return time.Duration(min * float64(time.Second))
+	}
+	value := min + (span * float64(n.Int64()) / float64(precision))
 	return time.Duration(value * float64(time.Second))
 }
 
