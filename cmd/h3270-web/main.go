@@ -316,6 +316,7 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 	for _, f := range screen.Fields {
 		if !f.IsProtected() {
 			fieldName := fmt.Sprintf("field_%d_%d", f.StartX, f.StartY)
+			original := f.GetValue()
 
 			if f.IsMultiline() {
 				var parts []string
@@ -326,10 +327,15 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 					// Input type text sends empty string if empty.
 					parts = append(parts, val)
 				}
-				f.SetValue(strings.Join(parts, "\n"))
+				newValue := strings.Join(parts, "\n")
+				if newValue != original {
+					f.SetValue(newValue)
+				}
 			} else {
 				val := c.PostForm(fieldName)
-				f.SetValue(val)
+				if val != original {
+					f.SetValue(val)
+				}
 			}
 		}
 	}
