@@ -1,8 +1,8 @@
 services:
-  h3270-web:
+  3270Web:
     build: .
-    image: ghcr.io/jnnngs/h3270:local
+    image: ghcr.io/jnnngs/3270Web:local
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - GIN_MODE=release
