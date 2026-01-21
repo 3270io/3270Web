@@ -41,9 +41,8 @@ type WorkflowConfig struct {
 }
 
 type SampleAppConfig struct {
-	ID       string
-	Name     string
-	DumpFile string
+	ID   string
+	Name string
 }
 
 type SampleAppOption struct {
@@ -55,14 +54,11 @@ type SampleAppOption struct {
 const sampleAppPrefix = "sampleapp:"
 
 var sampleAppConfigs = []SampleAppConfig{
-	{ID: "app1", Name: "Sample App 1", DumpFile: "advantis.dump"},
-	{ID: "app2", Name: "Sample App 2", DumpFile: "locis.dump"},
+	{ID: "app1", Name: "Sample App 1"},
+	{ID: "app2", Name: "Sample App 2"},
 }
 
-var sampleAppDumpDirs = []string{
-	filepath.Join("webapp", "WEB-INF", "dump"),
-	filepath.Join("old_java_app", "webapp", "WEB-INF", "dump"),
-}
+const defaultSampleAppPort = 3270
 
 func main() {
 	cfg, err := config.Load("webapp/WEB-INF/3270Web-config.xml")
@@ -526,10 +522,15 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	var h host.Host
 	var err error
 
-	if sampleID, _, ok := parseSampleAppHost(hostname); ok {
-		h, err = newSampleAppHost(sampleID)
+	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
+		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
+			return fmt.Errorf("invalid sample app port %d", samplePort)
+		}
+		execPath := resolveS3270Path(app.Config.ExecPath)
+		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
 	} else if hostname == "mock" || hostname == "demo" {
-		h, err = newSampleAppHost("app1")
+		execPath := resolveS3270Path(app.Config.ExecPath)
+		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		args := buildS3270Args(app.Config.S3270Options, hostname)
@@ -661,64 +662,22 @@ func isAllowedSampleAppPort(port int) bool {
 	return ok
 }
 
-func resolveSampleDumpPath(file string) string {
-	if file == "" {
-		return ""
+func sampleAppPort(port int) int {
+	if port <= 0 {
+		return defaultSampleAppPort
 	}
-	workingDir, err := os.Getwd()
-	if err != nil {
-		log.Printf("Warning: unable to resolve working directory: %v", err)
-		workingDir = "."
-	}
-	repoRoot := findRepoRoot(workingDir)
-	base := workingDir
-	if repoRoot != "" {
-		// Prefer repo root so dump lookup works when tests run from subdirectories.
-		base = repoRoot
-	}
-	for _, dir := range sampleAppDumpDirs {
-		var candidates []string
-		if filepath.IsAbs(dir) {
-			candidates = append(candidates, filepath.Join(dir, file))
-		} else if base != "" {
-			candidates = append(candidates, filepath.Join(base, dir, file))
-		}
-		for _, path := range candidates {
-			if fileExists(path) {
-				return path
-			}
-		}
-	}
-	return ""
+	return port
 }
 
-func findRepoRoot(workingDir string) string {
-	dir := workingDir
-	if dir == "" {
-		return ""
-	}
-	for {
-		if fileExists(filepath.Join(dir, "go.mod")) {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
-func newSampleAppHost(id string) (host.Host, error) {
+func newSampleAppHost(id string, port int, execPath string, opts config.S3270Options) (host.Host, error) {
 	cfg, ok := sampleAppConfig(id)
 	if !ok {
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
-	dumpPath := resolveSampleDumpPath(cfg.DumpFile)
-	if dumpPath == "" {
-		log.Printf("Warning: sample app %q dump not found; using empty screen", id)
-	}
-	return host.NewMockHost(dumpPath)
+	port = sampleAppPort(port)
+	target := fmt.Sprintf("localhost:%d", port)
+	args := buildS3270Args(opts, target)
+	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args)
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {
