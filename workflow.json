@@ -30,15 +30,13 @@
         "Row": 6,
         "Column": 21
       },
-      "Text": "456"
+      "Text": "123"
     },
     {
-      "Type": "FillString",
-      "Coordinates": {
-        "Row": 7,
-        "Column": 21
-      },
-      "Text": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+      "Type": "PressEnter"
+    },
+    {
+      "Type": "PressPF3"
     },
     {
       "Type": "Disconnect"

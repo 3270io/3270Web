@@ -316,7 +316,7 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 	for _, f := range screen.Fields {
 		if !f.IsProtected() {
 			fieldName := fmt.Sprintf("field_%d_%d", f.StartX, f.StartY)
-			original := f.GetValue()
+			original := normalizeInputValue(f.GetValue())
 
 			if f.IsMultiline() {
 				var parts []string
@@ -325,14 +325,14 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 					// Java trimmed spaces? We should check if Gin returns empty string for missing fields.
 					// If field is missing, it might mean user didn't change it or browser didn't send it?
 					// Input type text sends empty string if empty.
-					parts = append(parts, val)
+					parts = append(parts, normalizeInputValue(val))
 				}
 				newValue := strings.Join(parts, "\n")
 				if newValue != original {
 					f.SetValue(newValue)
 				}
 			} else {
-				val := c.PostForm(fieldName)
+				val := normalizeInputValue(c.PostForm(fieldName))
 				if val != original {
 					f.SetValue(val)
 				}
@@ -354,7 +354,7 @@ func recordFieldUpdates(s *session.Session) {
 		if !f.IsMultiline() {
 			text := ""
 			if len(lines) > 0 {
-				text = lines[0]
+				text = normalizeInputValue(lines[0])
 			}
 			s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{
 				Type: "FillString",
@@ -373,10 +373,21 @@ func recordFieldUpdates(s *session.Session) {
 					Row:    f.StartY + 1 + i,
 					Column: f.StartX + 1,
 				},
-				Text: line,
+				Text: normalizeInputValue(line),
 			})
 		}
 	}
+}
+
+func normalizeInputValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	parts := strings.Split(value, "\n")
+	for i, part := range parts {
+		parts[i] = strings.Trim(part, "\x00 _")
+	}
+	return strings.Join(parts, "\n")
 }
 
 func recordActionKey(s *session.Session, key string) {
