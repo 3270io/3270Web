@@ -10,7 +10,7 @@ import (
 
 const embeddedS3270Name = "s3270.exe"
 
-// ExtractS3270 writes the embedded s3270 binary to a temp location and returns the path.
+// ExtractS3270 writes the embedded Windows s3270 binary to a temp location and returns the path.
 func ExtractS3270() (string, error) {
 	data, err := Asset(embeddedS3270Name)
 	if err != nil {
