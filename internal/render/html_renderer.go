@@ -149,8 +149,14 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 
 	val = strings.Trim(val, "\x00 _")
 
-	sb.WriteString(fmt.Sprintf(`<input type="%s" name="%s" class="%s" value="%s" maxlength="%d" size="%d" />`,
-		inputType, name, class, html.EscapeString(val), width, width))
+	dataX := f.StartX
+	dataY := f.StartY
+	if lineNum > 0 {
+		dataY += lineNum
+	}
+
+	sb.WriteString(fmt.Sprintf(`<input type="%s" name="%s" class="%s" value="%s" maxlength="%d" size="%d" data-x="%d" data-y="%d" data-w="%d" />`,
+		inputType, name, class, html.EscapeString(val), width, width, dataX, dataY, width))
 }
 
 func (r *HtmlRenderer) needSpan(f *host.Field) bool {

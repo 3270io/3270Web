@@ -126,8 +126,115 @@
     return "";
   }
 
+  function isEditableTarget(target) {
+    if (!target || !target.tagName) {
+      return false;
+    }
+    var tag = target.tagName.toLowerCase();
+    if (tag === "textarea") {
+      return true;
+    }
+    if (tag !== "input") {
+      return false;
+    }
+    var type = (target.type || "").toLowerCase();
+    return type !== "button" && type !== "submit" && type !== "checkbox" && type !== "radio";
+  }
+
+  function isNativeNavKey(event) {
+    var code = event.keyCode || event.which;
+    if (event.key === "Tab" || code === 9) {
+      return true;
+    }
+    if (event.key === "ArrowUp" || code === 38) {
+      return true;
+    }
+    if (event.key === "ArrowDown" || code === 40) {
+      return true;
+    }
+    if (event.key === "ArrowLeft" || code === 37) {
+      return true;
+    }
+    if (event.key === "ArrowRight" || code === 39) {
+      return true;
+    }
+    if (event.key === "Backspace" || code === 8) {
+      return true;
+    }
+    if (event.key === "Delete" || code === 46) {
+      return true;
+    }
+    return false;
+  }
+
+  function getFieldPosition(el) {
+    if (!el || !el.dataset) {
+      return null;
+    }
+    var x = parseInt(el.dataset.x, 10);
+    var y = parseInt(el.dataset.y, 10);
+    if (isNaN(x) || isNaN(y)) {
+      return null;
+    }
+    return { x: x, y: y };
+  }
+
+  function findNearestField(current, direction) {
+    var pos = getFieldPosition(current);
+    if (!pos) {
+      return null;
+    }
+    var inputs = document.querySelectorAll("input.h3270-input, input.h3270-input-intensified, input.h3270-input-hidden");
+    var best = null;
+    var bestDy = null;
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      if (el === current) {
+        continue;
+      }
+      var p = getFieldPosition(el);
+      if (!p) {
+        continue;
+      }
+      var dy = p.y - pos.y;
+      if (direction === "up" && dy >= 0) {
+        continue;
+      }
+      if (direction === "down" && dy <= 0) {
+        continue;
+      }
+      var dx = Math.abs(p.x - pos.x);
+      var score = Math.abs(dy) * 1000 + dx;
+      if (bestDy === null || score < bestDy) {
+        bestDy = score;
+        best = el;
+      }
+    }
+    return best;
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
+      return;
+    }
+
+    if (isEditableTarget(event.target) && isNativeNavKey(event)) {
+      if (event.key === "ArrowUp" || event.keyCode === 38) {
+        var upField = findNearestField(event.target, "up");
+        if (upField) {
+          event.preventDefault();
+          upField.focus();
+        }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.keyCode === 40) {
+        var downField = findNearestField(event.target, "down");
+        if (downField) {
+          event.preventDefault();
+          downField.focus();
+        }
+        return;
+      }
       return;
     }
 
