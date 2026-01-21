@@ -337,6 +337,18 @@
       },
       true
     );
+    var form = findForm(formId);
+    if (form) {
+      form.addEventListener("submit", function () {
+        var keyInput = form.querySelector('input[name="key"]');
+        if (!keyInput) {
+          return;
+        }
+        if (!submitting || !keyInput.value) {
+          keyInput.value = specialKeys.Enter;
+        }
+      });
+    }
   };
 
   window.renderKeypad = function (containerId) {
