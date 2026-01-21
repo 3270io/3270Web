@@ -225,26 +225,23 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 	sb.WriteString(fmt.Sprintf(`    installKeyHandler('%s');`+"\n", fn))
 	if !s.IsFormatted {
 		sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field.focus()`+"\n", fn))
-		sb.WriteString("  });\n")
-		sb.WriteString("</script>\n")
-		return
-	}
-
-	var focused *host.Field
-	for _, f := range s.Fields {
-		if f.Focused {
-			focused = f
-			break
+	} else {
+		var focused *host.Field
+		for _, f := range s.Fields {
+			if f.Focused {
+				focused = f
+				break
+			}
 		}
-	}
 
-	if focused != nil {
-		suffix := ""
-		if focused.IsMultiline() {
-			suffix = "_0"
+		if focused != nil {
+			suffix := ""
+			if focused.IsMultiline() {
+				suffix = "_0"
+			}
+			sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field_%d_%d%s.focus()`+"\n",
+				fn, focused.StartX, focused.StartY, suffix))
 		}
-		sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field_%d_%d%s.focus()`+"\n",
-			fn, focused.StartX, focused.StartY, suffix))
 	}
 	sb.WriteString("  });\n")
 	sb.WriteString("</script>\n")
