@@ -29,7 +29,7 @@
       form = document.getElementById(formId) || document.forms[formId];
     }
     if (!form) {
-      form = document.querySelector("form.h3270-form");
+      form = document.querySelector("form.renderer-form");
     }
     if (!form && document.forms.length > 0) {
       form = document.forms[0];

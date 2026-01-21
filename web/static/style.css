@@ -160,7 +160,8 @@ pre, pre input, textarea {
   color: var(--fg);
 }
 
-.h3270-form {
+.h3270-form,
+.renderer-form {
   background-color: var(--bg);
   color: var(--fg);
 }
@@ -175,29 +176,38 @@ pre, pre input, textarea {
 
 .h3270-input,
 .h3270-input-intensified,
-.h3270-intensified {
+.h3270-intensified,
+.color-input,
+.color-input-intensified,
+.color-intensified {
   background-color: var(--bg);
 }
 
-.h3270-input {
+.h3270-input,
+.color-input {
   color: var(--accent);
 }
 
-.h3270-input-intensified {
+.h3270-input-intensified,
+.color-input-intensified {
   color: var(--accent-2);
 }
 
-.h3270-intensified {
+.h3270-intensified,
+.color-intensified {
   color: var(--accent-2);
 }
 
 .h3270-input-hidden,
-.h3270-hidden {
+.h3270-hidden,
+.color-input-hidden,
+.color-hidden {
   color: var(--bg);
   background-color: var(--bg);
 }
 
-.h3270-unformatted {
+.h3270-unformatted,
+.unformatted {
   background-color: var(--bg);
   color: var(--fg);
   border: 1px solid var(--border);

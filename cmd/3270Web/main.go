@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jnnngs/h3270/internal/assets"
-	"github.com/jnnngs/h3270/internal/config"
-	"github.com/jnnngs/h3270/internal/host"
-	"github.com/jnnngs/h3270/internal/render"
-	"github.com/jnnngs/h3270/internal/session"
+	"github.com/jnnngs/3270Web/internal/assets"
+	"github.com/jnnngs/3270Web/internal/config"
+	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/render"
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 type App struct {
@@ -65,7 +65,7 @@ var sampleAppDumpDirs = []string{
 }
 
 func main() {
-	cfg, err := config.Load("webapp/WEB-INF/h3270-config.xml")
+	cfg, err := config.Load("webapp/WEB-INF/3270Web-config.xml")
 	if err != nil {
 		log.Printf("Warning: Could not load config: %v", err)
 		cfg = &config.Config{ExecPath: "/usr/local/bin"}
@@ -282,7 +282,7 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	if s := app.getSession(c); s != nil {
 		app.SessionManager.RemoveSession(s.ID)
 	}
-	setSessionCookie(c, "h3270_session", "")
+	setSessionCookie(c, "3270Web_session", "")
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -511,7 +511,7 @@ func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {
-	id, err := c.Cookie("h3270_session")
+	id, err := c.Cookie("3270Web_session")
 	if err != nil {
 		return nil
 	}
@@ -546,7 +546,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	sess := app.SessionManager.CreateSession(h)
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	app.applyDefaultPrefs(sess)
-	setSessionCookie(c, "h3270_session", sess.ID)
+	setSessionCookie(c, "3270Web_session", sess.ID)
 	return nil
 }
 
@@ -787,14 +787,14 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 		sb.WriteString(fmt.Sprintf("pre, pre input, textarea { font-family: \"%s\", monospace; }\n", escapedFont))
 	}
 	if cs.Name != "" {
-		writeRule(&sb, ".h3270-form", cs.PNBg, cs.PNFg)
+		writeRule(&sb, ".renderer-form", cs.PNBg, cs.PNFg)
 		writeRule(&sb, "pre, pre input, textarea", cs.PNBg, cs.PNFg)
 		writeRule(&sb, ".screen-container", cs.PNBg, cs.PNFg)
-		writeRule(&sb, ".h3270-intensified", cs.PIBg, cs.PIFg)
-		writeRule(&sb, ".h3270-hidden", cs.PHBg, cs.PHFg)
-		writeRule(&sb, ".h3270-input", cs.UNBg, cs.UNFg)
-		writeRule(&sb, ".h3270-input-intensified", cs.UIBg, cs.UIFg)
-		writeRule(&sb, ".h3270-input-hidden", cs.UHBg, cs.UHFg)
+		writeRule(&sb, ".color-intensified", cs.PIBg, cs.PIFg)
+		writeRule(&sb, ".color-hidden", cs.PHBg, cs.PHFg)
+		writeRule(&sb, ".color-input", cs.UNBg, cs.UNFg)
+		writeRule(&sb, ".color-input-intensified", cs.UIBg, cs.UIFg)
+		writeRule(&sb, ".color-input-hidden", cs.UHBg, cs.UHFg)
 	}
 
 	return sb.String()

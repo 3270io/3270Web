@@ -1,5 +1,5 @@
 param(
-  [string]$Output = "h3270-web.exe"
+  [string]$Output = "3270Web.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +14,7 @@ try {
   $env:CGO_ENABLED = "0"
 
   Write-Host "Building Windows executable..."
-  go build -trimpath -ldflags "-s -w" -o $Output ./cmd/h3270-web
+  go build -trimpath -ldflags "-s -w" -o $Output ./cmd/3270Web
   Write-Host "Built: $Output"
 } finally {
   Pop-Location
