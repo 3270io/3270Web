@@ -138,12 +138,6 @@ input[type="text"] {
   width: 100%;
 }
 
-fieldset {
-  border: none;
-  margin: 0;
-  padding: 0;
-}
-
 button {
   cursor: pointer;
   background: linear-gradient(135deg, var(--panel-2), transparent);
@@ -257,6 +251,7 @@ pre, pre input, textarea {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--panel-2);
+  margin: 0;
 }
 
 .connect-row label {
@@ -268,6 +263,8 @@ pre, pre input, textarea {
 .connect-row input {
   flex: 1;
   background-color: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--fg);
 }
 
 .connect-row button {
