@@ -57,7 +57,7 @@
     "theme-modern": { mode: "pixels", density: 1, speed: 1 },
     "theme-minimal": { mode: "characters", density: 0.7, speed: 0.75 },
     "theme-slick": { mode: "pixels", density: 1.15, speed: 1.15 },
-    "theme-yorkshire": { mode: "characters", density: 0.95, speed: 0.9 },
+    "theme-yorkshire": { mode: "lines", density: 0.55, speed: 0.65 },
     "theme-not3270": { mode: "punchcards", density: 1.1, speed: 0.95 }
   };
 
@@ -200,6 +200,19 @@
     };
   }
 
+  function newLine() {
+    var size = 10 + Math.random() * 14;
+    return {
+      x: Math.random() * state.width,
+      y: Math.random() * state.height,
+      size: size,
+      char: chars[Math.floor(Math.random() * chars.length)],
+      life: CHAR_MIN_LIFE + Math.random() * CHAR_LIFE_RANGE,
+      maxLife: 0,
+      drift: (Math.random() - 0.5) * 8
+    };
+  }
+
   function updateCharacters(delta) {
     var target = desiredCount(state.width * state.height);
     while (state.items.length < target) {
@@ -221,6 +234,34 @@
       var progress = 1 - item.life / item.maxLife;
       var alpha = Math.sin(progress * Math.PI);
       ctx.globalAlpha = alpha * 0.65;
+      ctx.fillStyle = state.colors.accent || state.colors.fg;
+      ctx.font = item.size + "px " + textFont;
+      ctx.fillText(item.char, item.x, item.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function updateLines(delta) {
+    var target = desiredCount(state.width * state.height);
+    while (state.items.length < target) {
+      var next = newLine();
+      next.maxLife = next.life;
+      state.items.push(next);
+    }
+    ctx.clearRect(0, 0, state.width, state.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (var i = state.items.length - 1; i >= 0; i--) {
+      var item = state.items[i];
+      item.life -= delta * state.speed;
+      item.y += item.drift * delta * state.speed;
+      if (item.life <= 0) {
+        state.items.splice(i, 1);
+        continue;
+      }
+      var progress = 1 - item.life / item.maxLife;
+      var alpha = Math.sin(progress * Math.PI);
+      ctx.globalAlpha = alpha * 0.35;
       ctx.fillStyle = state.colors.accent || state.colors.fg;
       ctx.font = item.size + "px " + textFont;
       ctx.fillText(item.char, item.x, item.y);
@@ -295,6 +336,8 @@
         updatePixels(delta);
       } else if (state.mode === "punchcards") {
         updateCards(delta);
+      } else if (state.mode === "lines") {
+        updateLines(delta);
       } else {
         updateCharacters(delta);
       }
