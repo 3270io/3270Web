@@ -8,6 +8,7 @@
     { id: "theme-modern", name: "Super Modern 3270" },
     { id: "theme-minimal", name: "Minimal 3270" },
     { id: "theme-slick", name: "Slick 3270" },
+    { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
     { id: "theme-not3270", name: "Not 3270" }
   ];
 
