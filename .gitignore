@@ -1,6 +1,6 @@
 # Binaries
-3270Web
-3270Web.exe
+/3270Web
+/3270Web.exe
 *.exe
 
 # Go workspace file
@@ -31,5 +31,5 @@ vendor/
 workflow.json
 
 # Old binary names (backward compatibility during transition)
-h3270-web
-h3270-web.exe
+/h3270-web
+/h3270-web.exe
