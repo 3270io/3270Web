@@ -133,15 +133,15 @@ body.theme-slick {
 }
 
 body.theme-yorkshire {
-  --bg: #1a1208;
-  --panel: #24180c;
-  --panel-2: #2e1f10;
-  --border: #3a2816;
-  --fg: #ffcc66;
-  --fg-muted: #e0b162;
-  --accent: #ffb347;
-  --accent-2: #ffd27f;
-  --bg-overlay-opacity: 0.32;
+  --bg: #0a0f0a;
+  --panel: #0d140d;
+  --panel-2: #111a11;
+  --border: #1f3b1f;
+  --fg: #39ff14;
+  --fg-muted: #7fd36d;
+  --accent: #39ff14;
+  --accent-2: #7cff3b;
+  --bg-overlay-opacity: 0.35;
 }
 
 body.theme-not3270 {
