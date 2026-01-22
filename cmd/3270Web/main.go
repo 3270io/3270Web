@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -14,10 +15,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -102,13 +105,44 @@ func main() {
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
 
+	shutdownCh := make(chan struct{})
+	var shutdownOnce sync.Once
+	requestShutdown := func() {
+		shutdownOnce.Do(func() {
+			close(shutdownCh)
+		})
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	go func() {
+		<-sigCh
+		requestShutdown()
+	}()
+
 	addr := ":8080"
 	if runtime.GOOS == "windows" {
 		addr = "127.0.0.1:8080"
 		go openBrowser("http://localhost:8080/")
+		startTray(requestShutdown)
 	}
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
+	}
+
+	go func() {
+		<-shutdownCh
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("Shutdown failed: %v", err)
+		}
+	}()
+
 	log.Printf("Starting server on %s", addr)
-	if err := r.Run(addr); err != nil {
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }

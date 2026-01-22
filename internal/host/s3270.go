@@ -102,6 +102,7 @@ func (h *S3270) Stop() error {
 			h.cmd.Process.Kill()
 		}
 		h.cmd.Wait()
+		h.cmd = nil
 	}
 	return nil
 }
@@ -109,13 +110,13 @@ func (h *S3270) Stop() error {
 func (h *S3270) IsConnected() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.cmd != nil && h.cmd.ProcessState == nil
+	return h.cmd != nil && h.cmd.ProcessState == nil && h.stdin != nil
 }
 
 func (h *S3270) UpdateScreen() error {
 	if err := h.updateScreenOnce(); err != nil {
 		// If not connected, try to restart once
-		if !h.IsConnected() {
+		if !h.IsConnected() || isConnectionError(err) {
 			if restartErr := h.Start(); restartErr == nil {
 				return h.updateScreenOnce()
 			}
@@ -155,7 +156,7 @@ func (h *S3270) GetScreen() *Screen {
 
 func (h *S3270) SendKey(key string) error {
 	if err := h.sendKeyOnce(key); err != nil {
-		if !h.IsConnected() {
+		if !h.IsConnected() || isConnectionError(err) {
 			if restartErr := h.Start(); restartErr == nil {
 				return h.sendKeyOnce(key)
 			}
@@ -262,6 +263,17 @@ func isDisconnectedStatus(status string) bool {
 		return parts[3] == "N"
 	}
 	return false
+}
+
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not connected") ||
+		strings.Contains(msg, "terminated") ||
+		strings.Contains(msg, "no status received") ||
+		strings.Contains(msg, "timed out")
 }
 
 func keyToKeySpec(key string) string {
