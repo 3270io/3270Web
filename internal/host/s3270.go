@@ -224,7 +224,9 @@ func isAidKey(key string) bool {
 // isKeyboardUnlocked checks if the keyboard is unlocked based on the s3270 status line.
 // The first field in the status line indicates keyboard state: "U" = Unlocked, "L" = Locked.
 func isKeyboardUnlocked(status string) bool {
-	return strings.HasPrefix(status, "U ")
+	// Status format is space-separated fields, e.g., "U F P C(localhost) I 4 24 80 0 0 0x0 0.000"
+	// The first field is the keyboard state, followed by a space
+	return len(status) >= 2 && strings.HasPrefix(status, "U ")
 }
 
 func (h *S3270) waitUnlockLocked() error {

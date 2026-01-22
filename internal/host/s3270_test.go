@@ -39,6 +39,16 @@ func TestIsKeyboardUnlocked(t *testing.T) {
 			status:   "L F",
 			expected: false,
 		},
+		{
+			name:     "single character U",
+			status:   "U",
+			expected: false,
+		},
+		{
+			name:     "single character L",
+			status:   "L",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
