@@ -113,25 +113,26 @@ func (h *S3270) IsConnected() bool {
 }
 
 func (h *S3270) UpdateScreen() error {
+	if err := h.updateScreenOnce(); err != nil {
+		// If not connected, try to restart once
+		if !h.IsConnected() {
+			if restartErr := h.Start(); restartErr == nil {
+				return h.updateScreenOnce()
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (h *S3270) updateScreenOnce() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	for i := 0; i < 50; i++ {
 		lines, status, err := h.doCommandLocked("readbuffer ascii")
 		if err != nil {
-			// If not connected, try to reconnect once
-			if h.stdin == nil {
-				if reconnectErr := h.reconnectLocked(); reconnectErr != nil {
-					return err
-				}
-				// Retry the command after reconnecting
-				lines, status, err = h.doCommandLocked("readbuffer ascii")
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
+			return err
 		}
 		if isDisconnectedStatus(status) {
 			if err := h.reconnectLocked(); err != nil {
