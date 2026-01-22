@@ -218,6 +218,9 @@
   };
 
   const savePosition = () => {
+    if (modal.hidden) {
+      return;
+    }
     try {
       const rect = modal.getBoundingClientRect();
       const pos = { left: rect.left, top: rect.top };
@@ -228,6 +231,9 @@
   };
 
   const saveSize = () => {
+    if (modal.hidden) {
+      return;
+    }
     try {
       const size = { width: modal.offsetWidth, height: modal.offsetHeight };
       localStorage.setItem('workflowStatusModalSize', JSON.stringify(size));
@@ -244,8 +250,10 @@
         modal.style.top = `${pos.top}px`;
       }
       const size = JSON.parse(localStorage.getItem('workflowStatusModalSize') || 'null');
-      if (size && typeof size.width === 'number' && typeof size.height === 'number') {
+      if (size && typeof size.width === 'number' && size.width >= 40) {
         modal.style.width = `${size.width}px`;
+      }
+      if (size && typeof size.height === 'number' && size.height >= 40) {
         modal.style.height = `${size.height}px`;
       }
       const open = localStorage.getItem('workflowStatusModalOpen') === '1';
