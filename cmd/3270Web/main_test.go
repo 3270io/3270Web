@@ -133,7 +133,7 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 		t.Fatalf("submitWorkflowPendingInput failed: %v", err)
 	}
 
-	if len(mockHost.Commands) != 2 || mockHost.Commands[1] != "submit" {
-		t.Fatalf("expected submit command, got %v", mockHost.Commands)
+	if len(mockHost.Commands) != 2 || mockHost.Commands[0] != "write" || mockHost.Commands[1] != "submit" {
+		t.Fatalf("expected write then submit commands, got %v", mockHost.Commands)
 	}
 }
