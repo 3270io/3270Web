@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>3270Web</title>
+    <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
+    <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/keyboard.js?v=5" defer></script>
@@ -9,7 +11,7 @@
     <script src="/static/background.js" defer></script>
     <script src="/static/workflow.js" defer></script>
 </head>
-<body>
+<body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}">
     <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
@@ -42,7 +44,9 @@
                 {{ end }}
                 {{ if .PlaybackActive }}
                 <span class="status-indicator">
-                    {{ if .PlaybackPaused }}
+                    {{ if eq .PlaybackMode "debug" }}
+                    <span class="status-text">DEBUG</span>
+                    {{ else if .PlaybackPaused }}
                     <span class="paused-indicator" aria-hidden="true"></span>
                     <span class="status-text">PAUSE</span>
                     {{ else }}
@@ -50,6 +54,19 @@
                     <span class="status-text">PLAY</span>
                     {{ end }}
                 </span>
+                {{ if .PlaybackStep }}
+                <span class="status-indicator">
+                    <span class="status-text">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ if .PlaybackStepType }}: {{ .PlaybackStepType }}{{ end }}</span>
+                </span>
+                {{ end }}
+                {{ if eq .PlaybackMode "debug" }}
+                <form action="/workflow/step" method="post">
+                    <button type="submit">Step</button>
+                </form>
+                <form action="/workflow/stop" method="post">
+                    <button type="submit">Stop</button>
+                </form>
+                {{ else }}
                 <form action="/workflow/pause" method="post">
                     {{ if .PlaybackPaused }}
                     <button type="submit">Resume</button>
@@ -61,6 +78,11 @@
                     <button type="submit">Stop</button>
                 </form>
                 {{ end }}
+                {{ else if .PlaybackCompleted }}
+                <span class="status-indicator">
+                    <span class="status-text">COMPLETE</span>
+                </span>
+                {{ end }}
                 {{ if .RecordingFile }}
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
@@ -71,7 +93,10 @@
                         <strong>{{ .LoadedWorkflowName }}</strong>
                     </span>
                     <form action="/workflow/play" method="post" class="workflow-form">
-                        <button type="submit">Ready to Play</button>
+                        <button type="submit">Play</button>
+                    </form>
+                    <form action="/workflow/debug" method="post" class="workflow-form">
+                        <button type="submit">Debug</button>
                     </form>
                     <button type="button" data-modal-open>View recording</button>
                     <form action="/workflow/remove" method="post" class="workflow-form">
@@ -92,6 +117,23 @@
             </div>
             {{ end }}
 
+            {{ if .PlaybackActive }}
+            <div class="workflow-status-row" data-status-open role="button" tabindex="0">
+                <div>
+                    <strong>Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</strong>
+                    {{ if .PlaybackStepType }}<span class="subtle">{{ .PlaybackStepType }}</span>{{ end }}
+                </div>
+                <div class="workflow-status-meta">
+                    {{ if .PlaybackDelayRange }}
+                    <span>Delay: {{ .PlaybackDelayRange }}</span>
+                    {{ end }}
+                    {{ if .PlaybackDelayApplied }}
+                    <span>Applied: {{ .PlaybackDelayApplied }}</span>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
+
             <div class="stack">
                 <div class="screen-container">
                     {{ .ScreenContent }}
@@ -103,15 +145,15 @@
         </div>
     </div>
     {{ if .LoadedWorkflow }}
-    <div class="modal" data-modal hidden>
-        <div class="modal-backdrop" data-modal-close></div>
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
-            <div class="modal-header">
+    <div class="workflow-modal" data-modal hidden>
+        <div class="workflow-modal-backdrop" data-modal-close></div>
+        <div class="workflow-modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
+            <div class="workflow-modal-header">
                 <h3 id="workflow-modal-title">Loaded Recording</h3>
                 <button type="button" data-modal-close>Close</button>
             </div>
-            <div class="modal-body">
-                <div class="modal-meta">
+            <div class="workflow-modal-body">
+                <div class="workflow-modal-meta">
                     <span class="subtle">File</span>
                     <strong>{{ .LoadedWorkflowName }}</strong>
                     <span class="subtle">({{ .LoadedWorkflowSize }} bytes)</span>
@@ -121,5 +163,28 @@
         </div>
     </div>
     {{ end }}
+    <div class="workflow-status-modal" data-status-modal hidden>
+        <div class="workflow-status-header" data-status-drag>
+            <strong>Workflow status</strong>
+            <button type="button" data-status-close>Close</button>
+        </div>
+        <div class="workflow-status-body">
+            <div class="workflow-status-line">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</div>
+            {{ if .PlaybackStepType }}<div class="workflow-status-line">Type: {{ .PlaybackStepType }}</div>{{ end }}
+            {{ if .PlaybackDelayRange }}<div class="workflow-status-line">Delay range: {{ .PlaybackDelayRange }}</div>{{ end }}
+            {{ if .PlaybackDelayApplied }}<div class="workflow-status-line">Applied delay: {{ .PlaybackDelayApplied }}</div>{{ end }}
+            <div class="workflow-status-line subtle">Drag to move. Resize using the corner.</div>
+            {{ if .PlaybackEvents }}
+            <div class="workflow-status-events">
+                {{ range .PlaybackEvents }}
+                <div class="workflow-status-event">
+                    <span class="workflow-status-time">{{ .Time.Format "15:04:05" }}</span>
+                    <span>{{ .Message }}</span>
+                </div>
+                {{ end }}
+            </div>
+            {{ end }}
+        </div>
+    </div>
 </body>
 </html>

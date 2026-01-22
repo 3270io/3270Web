@@ -175,6 +175,18 @@ func (h *S3270) SendKey(key string) error {
 	return nil
 }
 
+func (h *S3270) WriteStringAt(row, col int, text string) error {
+	if err := h.writeStringAtOnce(row, col, text); err != nil {
+		if !h.IsConnected() || isConnectionError(err) {
+			if restartErr := h.Start(); restartErr == nil {
+				return h.writeStringAtOnce(row, col, text)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
 func (h *S3270) sendKeyOnce(key string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -222,6 +234,33 @@ func (h *S3270) sendKeyOnce(key string) error {
 	}
 	if isS3270Error(status, data) {
 		return fmt.Errorf("s3270 error: %s", status)
+	}
+	return nil
+}
+
+func (h *S3270) writeStringAtOnce(row, col int, text string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if text == "" {
+		return nil
+	}
+	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return err
+	}
+	for _, r := range []rune(text) {
+		keyCmd := fmt.Sprintf("key(0x%x)", r)
+		_, status, err = h.doCommandLocked(keyCmd)
+		log.Printf("s3270: cmd=%q status=%q", keyCmd, status)
+		if err != nil {
+			return err
+		}
+		if isDisconnectedStatus(status) {
+			return fmt.Errorf("not connected")
+		}
 	}
 	return nil
 }
@@ -282,7 +321,11 @@ func isConnectionError(err error) bool {
 	return strings.Contains(msg, "not connected") ||
 		strings.Contains(msg, "terminated") ||
 		strings.Contains(msg, "no status received") ||
-		strings.Contains(msg, "timed out")
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "pipe is being closed") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "pipe has been ended") ||
+		strings.Contains(msg, "closed pipe")
 }
 
 func keyToKeySpec(key string) string {
@@ -397,6 +440,7 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 
 	_, err := fmt.Fprintln(h.stdin, cmd)
 	if err != nil {
+		h.stdin = nil
 		return nil, "", err
 	}
 

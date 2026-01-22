@@ -133,7 +133,9 @@ func main() {
 	r.GET("/record/download", app.RecordDownloadHandler)
 	r.POST("/workflow/load", app.LoadWorkflowHandler)
 	r.POST("/workflow/play", app.PlayWorkflowHandler)
+	r.POST("/workflow/debug", app.DebugWorkflowHandler)
 	r.POST("/workflow/pause", app.PauseWorkflowHandler)
+	r.POST("/workflow/step", app.StepWorkflowHandler)
 	r.POST("/workflow/stop", app.StopWorkflowHandler)
 	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
 
@@ -420,6 +422,14 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"RecordingFile":         recordingFileName(s),
 		"PlaybackActive":        s.Playback != nil && s.Playback.Active,
 		"PlaybackPaused":        s.Playback != nil && s.Playback.Active && s.Playback.Paused,
+		"PlaybackCompleted":     !s.PlaybackCompletedAt.IsZero(),
+		"PlaybackMode":          playbackMode(s),
+		"PlaybackStep":          playbackStepIndex(s),
+		"PlaybackStepType":      playbackStepType(s),
+		"PlaybackStepTotal":     playbackStepTotal(s),
+		"PlaybackDelayRange":    playbackDelayRangeLabel(s),
+		"PlaybackDelayApplied":  playbackDelayAppliedLabel(s),
+		"PlaybackEvents":        playbackEvents(s),
 		"LoadedWorkflow":        s.LoadedWorkflow != nil,
 		"LoadedWorkflowName":    loadedWorkflowName(s),
 		"LoadedWorkflowPreview": loadedWorkflowPreview(s),
@@ -596,8 +606,58 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
-	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
+	s.PlaybackCompletedAt = time.Time{}
+	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now(), Mode: "play", TotalSteps: len(workflow.Steps)}
+	s.PlaybackEvents = nil
+	addPlaybackEvent(s, "Playback started (Play mode)")
 	go app.playWorkflow(s, workflow)
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) DebugWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Playback != nil && s.Playback.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	workflow, err := workflowFromSessionOrUpload(s, c)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
+		return
+	}
+	hostname, err := workflowTargetHost(s, workflow)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
+		return
+	}
+	if err := app.resetSessionHost(s, hostname); err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
+		return
+	}
+	s.PlaybackCompletedAt = time.Time{}
+	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now(), Mode: "debug", TotalSteps: len(workflow.Steps), Paused: true}
+	s.PlaybackEvents = nil
+	addPlaybackEvent(s, "Playback started (Debug mode)")
+	go app.playWorkflow(s, workflow)
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) StepWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Playback == nil || !s.Playback.Active || s.Playback.Mode != "debug" {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	s.Playback.StepRequested = true
+	addPlaybackEvent(s, "Step requested")
 	c.Redirect(http.StatusFound, "/screen")
 }
 
@@ -612,6 +672,11 @@ func (app *App) PauseWorkflowHandler(c *gin.Context) {
 		return
 	}
 	s.Playback.Paused = !s.Playback.Paused
+	if s.Playback.Paused {
+		addPlaybackEvent(s, "Playback paused")
+	} else {
+		addPlaybackEvent(s, "Playback resumed")
+	}
 	c.Redirect(http.StatusFound, "/screen")
 }
 
@@ -922,6 +987,81 @@ func loadedWorkflowSize(s *session.Session) int {
 	return len(s.LoadedWorkflow.Payload)
 }
 
+func playbackMode(s *session.Session) string {
+	if s == nil || s.Playback == nil {
+		return ""
+	}
+	return s.Playback.Mode
+}
+
+func playbackStepIndex(s *session.Session) int {
+	if s == nil || s.Playback == nil {
+		return 0
+	}
+	return s.Playback.CurrentStep
+}
+
+func playbackStepType(s *session.Session) string {
+	if s == nil || s.Playback == nil {
+		return ""
+	}
+	return s.Playback.CurrentStepType
+}
+
+func playbackStepTotal(s *session.Session) int {
+	if s == nil || s.Playback == nil {
+		return 0
+	}
+	return s.Playback.TotalSteps
+}
+
+func playbackDelayRangeLabel(s *session.Session) string {
+	if s == nil || s.Playback == nil {
+		return ""
+	}
+	if s.Playback.CurrentDelayMin <= 0 && s.Playback.CurrentDelayMax <= 0 {
+		return ""
+	}
+	min := s.Playback.CurrentDelayMin
+	max := s.Playback.CurrentDelayMax
+	if max < min {
+		max = min
+	}
+	if max == min {
+		return fmt.Sprintf("%.2fs", min)
+	}
+	return fmt.Sprintf("%.2fs–%.2fs", min, max)
+}
+
+func playbackDelayAppliedLabel(s *session.Session) string {
+	if s == nil || s.Playback == nil {
+		return ""
+	}
+	if s.Playback.CurrentDelayUsed <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.2fs", s.Playback.CurrentDelayUsed.Seconds())
+}
+
+func playbackEvents(s *session.Session) []session.WorkflowEvent {
+	if s == nil {
+		return nil
+	}
+	return s.PlaybackEvents
+}
+
+func addPlaybackEvent(s *session.Session, message string) {
+	if s == nil {
+		return
+	}
+	entry := session.WorkflowEvent{Time: time.Now(), Message: message}
+	s.PlaybackEvents = append(s.PlaybackEvents, entry)
+	const maxEvents = 200
+	if len(s.PlaybackEvents) > maxEvents {
+		s.PlaybackEvents = s.PlaybackEvents[len(s.PlaybackEvents)-maxEvents:]
+	}
+}
+
 func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, error) {
 	if workflow != nil && workflow.Host != "" {
 		host := workflow.Host
@@ -981,6 +1121,11 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 
 func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("workflow panic: %v\n%s", r, debug.Stack())
+		}
+	}()
+	defer func() {
 		if s != nil && s.Playback != nil {
 			s.Playback.Active = false
 			s.Playback = nil
@@ -989,29 +1134,64 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	if s == nil || workflow == nil {
 		return
 	}
+	addPlaybackEvent(s, fmt.Sprintf("Loaded %d steps", len(workflow.Steps)))
 	if s.Playback == nil {
-		s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
+		s.Playback = &session.WorkflowPlayback{StartedAt: time.Now(), Mode: "play", TotalSteps: len(workflow.Steps)}
 	}
 	s.Playback.Active = true
 	s.Playback.PendingInput = false
-	s.Playback.Paused = false
+	if s.Playback.Mode == "play" {
+		s.Playback.Paused = false
+	}
 	s.Playback.StopRequested = false
 	for i, step := range workflow.Steps {
 		if playbackShouldStop(s) {
 			return
 		}
-		if playbackWait(s, 0) {
+		s.Playback.CurrentStep = i + 1
+		s.Playback.CurrentStepType = step.Type
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: %s", i+1, s.Playback.TotalSteps, step.Type))
+		if rng := workflowStepDelayRange(workflow, step); rng != nil {
+			s.Playback.CurrentDelayMin = rng.Min
+			s.Playback.CurrentDelayMax = rng.Max
+		} else {
+			s.Playback.CurrentDelayMin = 0
+			s.Playback.CurrentDelayMax = 0
+		}
+		s.Playback.CurrentDelayUsed = 0
+		if s.Playback.Mode == "debug" {
+			if waitForDebugStep(s) {
+				return
+			}
+		} else if playbackWait(s, 0) {
 			return
 		}
 		if err := app.applyWorkflowStep(s, step); err != nil {
 			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
+			addPlaybackEvent(s, fmt.Sprintf("Step failed: %v", err))
 			return
 		}
-		if delay := workflowStepDelay(workflow, step); delay > 0 {
-			if playbackWait(s, delay) {
-				return
+		if s.Playback.Mode == "play" {
+			if delay := workflowStepDelay(workflow, step); delay > 0 {
+				s.Playback.CurrentDelayUsed = delay
+				log.Printf("workflow delay after step %d: %s", i+1, delay)
+				addPlaybackEvent(s, fmt.Sprintf("Delay applied: %s", delay))
+				if playbackWait(s, delay) {
+					return
+				}
 			}
 		}
+	}
+	if workflow.EndOfTaskDelay != nil {
+		if delay := workflowDelay(workflow.EndOfTaskDelay); delay > 0 {
+			log.Printf("workflow end delay: %s", delay)
+			addPlaybackEvent(s, fmt.Sprintf("End delay: %s", delay))
+			_ = playbackWait(s, delay)
+		}
+	}
+	if s != nil {
+		s.PlaybackCompletedAt = time.Now()
+		addPlaybackEvent(s, "Playback complete")
 	}
 }
 
@@ -1043,6 +1223,22 @@ func playbackWait(s *session.Session, delay time.Duration) bool {
 	}
 }
 
+func waitForDebugStep(s *session.Session) bool {
+	if s == nil || s.Playback == nil {
+		return true
+	}
+	for {
+		if playbackShouldStop(s) {
+			return true
+		}
+		if s.Playback.StepRequested {
+			s.Playback.StepRequested = false
+			return false
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
 func playbackShouldStop(s *session.Session) bool {
 	if s == nil || s.Playback == nil {
 		return true
@@ -1058,11 +1254,18 @@ func stopWorkflowPlayback(s *session.Session) {
 	s.Playback.Active = false
 	s.Playback.Paused = false
 	s.Playback.PendingInput = false
+	s.PlaybackCompletedAt = time.Time{}
+	addPlaybackEvent(s, "Playback stopped")
 }
 
 func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
 	if s == nil || s.Host == nil {
 		return nil
+	}
+	if step.Coordinates != nil {
+		log.Printf("workflow: step=%s row=%d col=%d", step.Type, step.Coordinates.Row, step.Coordinates.Column)
+	} else {
+		log.Printf("workflow: step=%s", step.Type)
 	}
 	switch step.Type {
 	case "Connect":
@@ -1102,12 +1305,9 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 	if s == nil || s.Host == nil || step.Coordinates == nil {
 		return nil
 	}
-	if err := s.Host.UpdateScreen(); err != nil {
+	screen, err := waitForFormattedScreen(s, 8*time.Second)
+	if err != nil {
 		return err
-	}
-	screen := s.Host.GetScreen()
-	if screen == nil {
-		return nil
 	}
 	// Workflow coordinates are 1-based, so convert to 0-based indices.
 	row := step.Coordinates.Row - 1
@@ -1117,11 +1317,14 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 	}
 	field := screen.GetInputFieldAt(col, row)
 	if field == nil {
-		return nil
+		return fmt.Errorf("no input field at row %d col %d", step.Coordinates.Row, step.Coordinates.Column)
 	}
 	field.SetValue(step.Text)
+	if err := s.Host.WriteStringAt(row, col, step.Text); err != nil {
+		return err
+	}
 	if s.Playback != nil {
-		s.Playback.PendingInput = true
+		s.Playback.PendingInput = false
 	}
 	return nil
 }
@@ -1130,15 +1333,34 @@ func submitWorkflowPendingInput(s *session.Session) error {
 	if s == nil || s.Host == nil || s.Playback == nil || !s.Playback.PendingInput {
 		return nil
 	}
-	screen := s.Host.GetScreen()
-	if screen == nil || !screen.IsFormatted {
-		return nil
+	if _, err := waitForFormattedScreen(s, 6*time.Second); err != nil {
+		return err
 	}
 	if err := s.Host.SubmitScreen(); err != nil {
 		return err
 	}
 	s.Playback.PendingInput = false
 	return nil
+}
+
+func waitForFormattedScreen(s *session.Session, timeout time.Duration) (*host.Screen, error) {
+	if s == nil || s.Host == nil {
+		return nil, errors.New("missing host")
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if err := s.Host.UpdateScreen(); err != nil {
+			return nil, err
+		}
+		screen := s.Host.GetScreen()
+		if screen != nil && screen.IsFormatted {
+			return screen, nil
+		}
+		if time.Now().After(deadline) {
+			return screen, errors.New("formatted screen not ready")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func workflowStepDelay(workflow *WorkflowConfig, step session.WorkflowStep) time.Duration {
@@ -1149,6 +1371,16 @@ func workflowStepDelay(workflow *WorkflowConfig, step session.WorkflowStep) time
 		return workflowDelay(workflow.EveryStepDelay)
 	}
 	return 0
+}
+
+func workflowStepDelayRange(workflow *WorkflowConfig, step session.WorkflowStep) *session.WorkflowDelayRange {
+	if step.StepDelay != nil {
+		return step.StepDelay
+	}
+	if workflow != nil && workflow.EveryStepDelay != nil {
+		return workflow.EveryStepDelay
+	}
+	return nil
 }
 
 func workflowDelay(delay *session.WorkflowDelayRange) time.Duration {

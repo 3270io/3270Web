@@ -107,6 +107,13 @@ func (h *GoSampleAppHost) SendKey(key string) error {
 	return h.client.SendKey(key)
 }
 
+func (h *GoSampleAppHost) WriteStringAt(row, col int, text string) error {
+	if h.client == nil {
+		return fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.WriteStringAt(row, col, text)
+}
+
 func (h *GoSampleAppHost) SubmitScreen() error {
 	if h.client == nil {
 		return fmt.Errorf(sampleAppClientNotStarted)

@@ -11,15 +11,17 @@ import (
 
 // Session represents a user session.
 type Session struct {
-	ID             string
-	Host           host.Host
-	LastAccess     time.Time
-	Prefs          Preferences
-	TargetHost     string
-	TargetPort     int
-	Recording      *WorkflowRecording
-	Playback       *WorkflowPlayback
-	LoadedWorkflow *LoadedWorkflow
+	ID                  string
+	Host                host.Host
+	LastAccess          time.Time
+	Prefs               Preferences
+	TargetHost          string
+	TargetPort          int
+	Recording           *WorkflowRecording
+	Playback            *WorkflowPlayback
+	LoadedWorkflow      *LoadedWorkflow
+	PlaybackCompletedAt time.Time
+	PlaybackEvents      []WorkflowEvent
 }
 
 type Preferences struct {
@@ -57,11 +59,24 @@ type WorkflowRecording struct {
 }
 
 type WorkflowPlayback struct {
-	Active        bool
-	PendingInput  bool
-	Paused        bool
-	StopRequested bool
-	StartedAt     time.Time
+	Active           bool
+	PendingInput     bool
+	Paused           bool
+	StopRequested    bool
+	StartedAt        time.Time
+	Mode             string
+	CurrentStep      int
+	CurrentStepType  string
+	TotalSteps       int
+	StepRequested    bool
+	CurrentDelayMin  float64
+	CurrentDelayMax  float64
+	CurrentDelayUsed time.Duration
+}
+
+type WorkflowEvent struct {
+	Time    time.Time
+	Message string
 }
 
 type LoadedWorkflow struct {

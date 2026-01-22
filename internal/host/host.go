@@ -12,6 +12,7 @@ type Host interface {
 	UpdateScreen() error
 	GetScreen() *Screen
 	SendKey(key string) error
+	WriteStringAt(row, col int, text string) error
 	SubmitScreen() error
 	SubmitUnformatted(data string) error
 }
@@ -77,6 +78,41 @@ func (m *MockHost) GetScreen() *Screen {
 
 func (m *MockHost) SendKey(key string) error {
 	m.Commands = append(m.Commands, "key:"+key)
+	return nil
+}
+
+func (m *MockHost) WriteStringAt(row, col int, text string) error {
+	m.Commands = append(m.Commands, "write")
+	if m.Screen == nil {
+		m.Screen = &Screen{Width: 80, Height: 24, IsFormatted: true}
+	}
+	if row < 0 || col < 0 {
+		return nil
+	}
+	if row >= m.Screen.Height {
+		for i := m.Screen.Height; i <= row; i++ {
+			m.Screen.Buffer = append(m.Screen.Buffer, make([]rune, m.Screen.Width))
+		}
+		m.Screen.Height = row + 1
+	}
+	if col+len([]rune(text)) > m.Screen.Width {
+		newWidth := col + len([]rune(text))
+		for y := 0; y < m.Screen.Height; y++ {
+			rowBuf := make([]rune, newWidth)
+			if y < len(m.Screen.Buffer) {
+				copy(rowBuf, m.Screen.Buffer[y])
+			}
+			if y < len(m.Screen.Buffer) {
+				m.Screen.Buffer[y] = rowBuf
+			} else {
+				m.Screen.Buffer = append(m.Screen.Buffer, rowBuf)
+			}
+		}
+		m.Screen.Width = newWidth
+	}
+	for i, r := range []rune(text) {
+		m.Screen.Buffer[row][col+i] = r
+	}
 	return nil
 }
 

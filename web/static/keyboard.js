@@ -9,6 +9,10 @@
     Delete: "Delete",
     Insert: "Insert",
     Home: "Home",
+    Up: "Up",
+    Down: "Down",
+    Left: "Left",
+    Right: "Right",
     Clear: "Clear",
     Reset: "Reset",
     EraseEOF: "EraseEOF",
@@ -103,6 +107,18 @@
     }
     if (event.key === "Home" || code === 36) {
       return specialKeys.Home;
+    }
+    if (event.key === "ArrowUp" || code === 38) {
+      return specialKeys.Up;
+    }
+    if (event.key === "ArrowDown" || code === 40) {
+      return specialKeys.Down;
+    }
+    if (event.key === "ArrowLeft" || code === 37) {
+      return specialKeys.Left;
+    }
+    if (event.key === "ArrowRight" || code === 39) {
+      return specialKeys.Right;
     }
     if (event.key === "Escape" || code === 27) {
       return specialKeys.Clear;
@@ -219,19 +235,20 @@
     }
 
     if (isEditableTarget(event.target) && isNativeNavKey(event)) {
-      if (event.key === "ArrowUp" || event.keyCode === 38) {
-        var upField = findNearestField(event.target, "up");
-        if (upField) {
+      if (
+        event.key === "ArrowUp" ||
+        event.key === "ArrowDown" ||
+        event.key === "ArrowLeft" ||
+        event.key === "ArrowRight" ||
+        event.keyCode === 37 ||
+        event.keyCode === 38 ||
+        event.keyCode === 39 ||
+        event.keyCode === 40
+      ) {
+        var arrowKey = mapSpecialKey(event);
+        if (arrowKey) {
           event.preventDefault();
-          upField.focus();
-        }
-        return;
-      }
-      if (event.key === "ArrowDown" || event.keyCode === 40) {
-        var downField = findNearestField(event.target, "down");
-        if (downField) {
-          event.preventDefault();
-          downField.focus();
+          sendFormWithKey(arrowKey, formId);
         }
         return;
       }

@@ -155,7 +155,7 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		dataY += lineNum
 	}
 
-	sb.WriteString(fmt.Sprintf(`<input type="%s" name="%s" class="%s" value="%s" maxlength="%d" size="%d" data-x="%d" data-y="%d" data-w="%d" />`,
+	sb.WriteString(fmt.Sprintf(`<input type="%s" name="%s" class="%s" value="%s" maxlength="%d" size="%d" data-x="%d" data-y="%d" data-w="%d" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 		inputType, name, class, html.EscapeString(val), width, width, dataX, dataY, width))
 }
 
