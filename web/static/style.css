@@ -132,6 +132,18 @@ body.theme-slick {
   --bg-overlay-opacity: 0.3;
 }
 
+body.theme-yorkshire {
+  --bg: #1a1208;
+  --panel: #24180c;
+  --panel-2: #2e1f10;
+  --border: #3a2816;
+  --fg: #ffcc66;
+  --fg-muted: #e0b162;
+  --accent: #ffb347;
+  --accent-2: #ffd27f;
+  --bg-overlay-opacity: 0.32;
+}
+
 body.theme-not3270 {
   --bg: #f6f7fb;
   --panel: #ffffff;
