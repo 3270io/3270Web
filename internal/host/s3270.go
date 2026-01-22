@@ -182,7 +182,7 @@ func (h *S3270) sendKeyOnce(key string) error {
 		return nil
 	}
 	if err == nil && !isS3270Error(status, data) {
-		if isAidKey(key) {
+		if isAidKey(key) && !isKeyboardUnlocked(status) {
 			return h.waitUnlockLocked()
 		}
 		return nil
@@ -200,7 +200,7 @@ func (h *S3270) sendKeyOnce(key string) error {
 			return nil
 		}
 		if err == nil && !isS3270Error(status, data) {
-			if isAidKey(key) {
+			if isAidKey(key) && !isKeyboardUnlocked(status) {
 				return h.waitUnlockLocked()
 			}
 			return nil
@@ -219,6 +219,12 @@ func (h *S3270) sendKeyOnce(key string) error {
 func isAidKey(key string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(key))
 	return upper == "ENTER" || strings.HasPrefix(upper, "PF") || strings.HasPrefix(upper, "PA") || upper == "CLEAR" || upper == "SYSREQ" || upper == "ATTN"
+}
+
+// isKeyboardUnlocked checks if the keyboard is unlocked based on the s3270 status line.
+// The first field in the status line indicates keyboard state: "U" = Unlocked, "L" = Locked.
+func isKeyboardUnlocked(status string) bool {
+	return strings.HasPrefix(status, "U ")
 }
 
 func (h *S3270) waitUnlockLocked() error {
