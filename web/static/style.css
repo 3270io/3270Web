@@ -390,10 +390,6 @@ label, select, button, input {
   padding: 8px 10px;
 }
 
-input[type="text"] {
-  width: 100%;
-}
-
 button {
   cursor: pointer;
   background: linear-gradient(135deg, var(--panel-2), transparent);
