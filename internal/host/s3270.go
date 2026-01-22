@@ -82,6 +82,15 @@ func (h *S3270) Start() error {
 
 	go h.captureStderr()
 
+	if h.TargetHost == "" {
+		return nil
+	}
+
+	// If a target host wasn't provided as a command arg, connect explicitly.
+	if len(h.Args) == 0 || h.Args[len(h.Args)-1] != h.TargetHost {
+		return h.reconnectLocked()
+	}
+
 	// Wait for formatted screen like Java, but keep it bounded.
 	return h.waitFormattedLocked()
 }

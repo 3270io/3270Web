@@ -142,6 +142,61 @@ body.theme-yorkshire {
   --accent: #33cc33;
   --accent-2: #66dd66;
   --bg-overlay-opacity: 0.35;
+  --crt-glow: #00ff804d;
+  --crt-scanline: #00ff8026;
+  --crt-radial: #00ff801a;
+  --yorkshire-accent: #c79600;
+  --crt-vignette: rgba(0, 0, 0, 0.55);
+  --crt-edge: rgba(0, 255, 128, 0.08);
+}
+
+body.theme-yorkshire .bg-overlay::before {
+  opacity: 0.2;
+  background:
+    radial-gradient(circle at 30% 20%, var(--crt-edge), transparent 45%),
+    radial-gradient(circle at 70% 10%, var(--crt-edge), transparent 35%),
+    radial-gradient(circle at 50% 50%, transparent 55%, var(--crt-vignette) 100%);
+}
+
+body.theme-yorkshire .bg-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.35),
+    rgba(0, 0, 0, 0.35) 1px,
+    rgba(0, 255, 128, 0.18) 1px,
+    rgba(0, 255, 128, 0.18) 3px
+  );
+  mix-blend-mode: screen;
+}
+
+body.theme-yorkshire .screen-container,
+body.theme-yorkshire .renderer-form,
+body.theme-yorkshire .h3270-form {
+  position: relative;
+  background: radial-gradient(var(--crt-radial), transparent 70%);
+  box-shadow: none;
+  border-color: transparent;
+}
+
+body.theme-yorkshire .card {
+  border: 1px solid var(--border);
+  box-shadow: 0 0 18px rgba(0, 255, 128, 0.22), 0 0 40px rgba(0, 0, 0, 0.35);
+}
+
+body.theme-yorkshire a,
+body.theme-yorkshire .yorkshire-accent {
+  color: var(--yorkshire-accent);
+  font-style: italic;
+}
+
+body.theme-yorkshire a:hover,
+body.theme-yorkshire .yorkshire-accent:hover {
+  text-shadow: 0 0 4px #ffc1074d;
 }
 
 body.theme-not3270 {

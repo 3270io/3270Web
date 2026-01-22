@@ -23,9 +23,9 @@ func StartServer(appID string, port int) (*Server, error) {
 	if appHandler == nil {
 		return nil, fmt.Errorf("unknown sample app %q", appID)
 	}
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sample app %s failed to listen on 127.0.0.1:%d: %w", appID, port, err)
 	}
 	server := &Server{
 		appID:    appID,

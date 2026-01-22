@@ -18,9 +18,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -69,7 +69,31 @@ var sampleAppConfigs = []SampleAppConfig{
 const defaultSampleAppPort = 3270
 
 func main() {
-	cfg, err := config.Load("webapp/WEB-INF/3270Web-config.xml")
+	baseDir := resolveBaseDir()
+	logFile, err := openStartupLog(baseDir)
+	if err == nil {
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			msg := fmt.Sprintf("3270Web crashed during startup: %v", r)
+			log.Printf("%s\n%s", msg, stack)
+			showFatalError(msg)
+		}
+	}()
+	configPath := filepath.Join(baseDir, "webapp", "WEB-INF", "3270Web-config.xml")
+	if !fileExists(configPath) {
+		if cwd, err := os.Getwd(); err == nil {
+			fallback := filepath.Join(cwd, "webapp", "WEB-INF", "3270Web-config.xml")
+			if fileExists(fallback) {
+				configPath = fallback
+			}
+		}
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		log.Printf("Warning: Could not load config: %v", err)
 		cfg = &config.Config{ExecPath: "/usr/local/bin"}
@@ -85,8 +109,19 @@ func main() {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
 	}
-	r.LoadHTMLGlob("web/templates/*")
-	r.Static("/static", "web/static")
+	templatesGlob, err := resolveTemplatesGlob(baseDir)
+	if err != nil {
+		showFatalError(err.Error())
+		return
+	}
+	staticDir, err := resolveStaticDir(baseDir)
+	if err != nil {
+		showFatalError(err.Error())
+		return
+	}
+
+	r.LoadHTMLGlob(templatesGlob)
+	r.Static("/static", staticDir)
 
 	r.GET("/", app.HomeHandler)
 	r.POST("/connect", app.ConnectHandler)
@@ -106,11 +141,13 @@ func main() {
 	r.GET("/disconnect", app.DisconnectHandler)
 
 	shutdownCh := make(chan struct{})
-	var shutdownOnce sync.Once
 	requestShutdown := func() {
-		shutdownOnce.Do(func() {
+		select {
+		case <-shutdownCh:
+			return
+		default:
 			close(shutdownCh)
-		})
+		}
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -123,8 +160,6 @@ func main() {
 	addr := ":8080"
 	if runtime.GOOS == "windows" {
 		addr = "127.0.0.1:8080"
-		go openBrowser("http://localhost:8080/")
-		startTray(requestShutdown)
 	}
 
 	srv := &http.Server{
@@ -141,10 +176,103 @@ func main() {
 		}
 	}()
 
-	log.Printf("Starting server on %s", addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+	startServer := func(errCh chan<- error) {
+		log.Printf("Starting server on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
 	}
+
+	if runtime.GOOS == "windows" {
+		errCh := make(chan error, 1)
+		go startServer(errCh)
+		waitForServer(addr, 5*time.Second)
+		select {
+		case err := <-errCh:
+			log.Printf("Server failed: %v", err)
+			showFatalError(fmt.Sprintf("3270Web failed to start. %v", err))
+			return
+		default:
+		}
+		runAppWindow("http://"+addr+"/", requestShutdown)
+		return
+	}
+
+	errCh := make(chan error, 1)
+	startServer(errCh)
+	select {
+	case err := <-errCh:
+		log.Printf("Server failed: %v", err)
+		showFatalError(fmt.Sprintf("3270Web failed to start. %v", err))
+		return
+	default:
+	}
+}
+
+func waitForServer(addr string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for {
+		conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+func resolveBaseDir() string {
+	if exe, err := os.Executable(); err == nil {
+		if dir := filepath.Dir(exe); dir != "" {
+			return dir
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return cwd
+	}
+	return "."
+}
+
+func openStartupLog(baseDir string) (*os.File, error) {
+	path := filepath.Join(baseDir, "3270Web.log")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	log.Printf("Starting 3270Web from %s", baseDir)
+	return file, nil
+}
+
+func resolveTemplatesGlob(baseDir string) (string, error) {
+	primary := filepath.Join(baseDir, "web", "templates", "*")
+	if matches, _ := filepath.Glob(primary); len(matches) > 0 {
+		return primary, nil
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		fallback := filepath.Join(cwd, "web", "templates", "*")
+		if matches, _ := filepath.Glob(fallback); len(matches) > 0 {
+			return fallback, nil
+		}
+	}
+	return "", fmt.Errorf("templates not found. Expected %s", primary)
+}
+
+func resolveStaticDir(baseDir string) (string, error) {
+	primary := filepath.Join(baseDir, "web", "static")
+	if dirExists(primary) {
+		return primary, nil
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		fallback := filepath.Join(cwd, "web", "static")
+		if dirExists(fallback) {
+			return fallback, nil
+		}
+	}
+	return "", fmt.Errorf("static assets not found. Expected %s", primary)
 }
 
 func openBrowser(url string) {
@@ -212,7 +340,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
-			app.renderConnectPage(c, http.StatusServiceUnavailable, targetHost, connectErrorMessage(targetHost))
+			app.renderConnectPage(c, http.StatusServiceUnavailable, targetHost, connectErrorMessage(targetHost, err))
 			return
 		}
 		c.Redirect(http.StatusFound, "/screen")
@@ -229,21 +357,24 @@ func (app *App) ConnectHandler(c *gin.Context) {
 		hostname = strings.TrimSpace(hostname)
 	}
 	if hostname == "" {
-		app.renderConnectPage(c, http.StatusBadRequest, hostname, connectErrorMessage(hostname))
+		app.renderConnectPage(c, http.StatusBadRequest, hostname, connectErrorMessage(hostname, nil))
 		return
 	}
 
 	if err := app.connectToHost(c, hostname); err != nil {
 		log.Printf("Connect failed for %q: %v", hostname, err)
-		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname))
+		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname, err))
 		return
 	}
 	c.Redirect(http.StatusFound, "/screen")
 }
 
-func connectErrorMessage(hostname string) string {
+func connectErrorMessage(hostname string, err error) string {
 	if hostname == "" {
 		return "Please enter a hostname or IP address to connect."
+	}
+	if _, _, ok := parseSampleAppHost(hostname); ok && err != nil {
+		return fmt.Sprintf("We couldn't start the sample app at %s. %v", hostname, err)
 	}
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
 }
@@ -1091,6 +1222,30 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 }
 
 func resolveS3270Path(execPath string) string {
+	if runtime.GOOS == "windows" {
+		if execPath != "" {
+			candidate := execPath
+			if info, err := os.Stat(candidate); err == nil {
+				if info.IsDir() {
+					candidate = filepath.Join(candidate, s3270BinaryName())
+				}
+				if fileExists(candidate) {
+					return candidate
+				}
+			}
+		}
+
+		local := filepath.Join(".", "s3270-bin", s3270BinaryName())
+		if fileExists(local) {
+			return local
+		}
+
+		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
+		if embedded, err := assets.ExtractS3270(); err == nil {
+			return embedded
+		}
+	}
+
 	if execPath != "" && execPath != "/usr/local/bin" {
 		return filepath.Join(execPath, s3270BinaryName())
 	}
@@ -1098,13 +1253,6 @@ func resolveS3270Path(execPath string) string {
 	local := filepath.Join(".", "s3270-bin", s3270BinaryName())
 	if fileExists(local) {
 		return local
-	}
-
-	if runtime.GOOS == "windows" {
-		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
-		if embedded, err := assets.ExtractS3270(); err == nil {
-			return embedded
-		}
 	}
 
 	if path, err := exec.LookPath(s3270BinaryName()); err == nil {
@@ -1124,6 +1272,11 @@ func s3270BinaryName() string {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func availableSampleApps() []SampleAppOption {
@@ -1214,9 +1367,9 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
 	port = sampleAppPort(port)
-	target := fmt.Sprintf("localhost:%d", port)
-	args := buildS3270Args(opts, target)
-	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args)
+	target := fmt.Sprintf("127.0.0.1:%d", port)
+	args := buildS3270Args(opts, "")
+	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {
@@ -1227,7 +1380,9 @@ func buildS3270Args(opts config.S3270Options, hostname string) []string {
 	if opts.Additional != "" {
 		args = append(args, strings.Fields(opts.Additional)...)
 	}
-	args = append(args, hostname)
+	if strings.TrimSpace(hostname) != "" {
+		args = append(args, hostname)
+	}
 	return args
 }
 

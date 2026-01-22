@@ -1,0 +1,47 @@
+2026/01/22 14:22:33 main.go:178: Starting server on 127.0.0.1:8080
+2026/01/22 14:22:33 main.go:80: 3270Web crashed during startup: runtime error: invalid memory address or nil pointer dereference
+2026/01/22 14:23:51 main.go:180: Starting server on 127.0.0.1:8080
+2026/01/22 14:23:51 main.go:82: 3270Web crashed during startup: runtime error: invalid memory address or nil pointer dereference
+goroutine 1 [running, locked to thread]:
+runtime/debug.Stack()
+	runtime/debug/stack.go:26 +0x5e
+main.main.func1()
+	github.com/jnnngs/3270Web/cmd/3270Web/main.go:80 +0x3f
+panic({0x7ff73621d020?, 0x7ff736ee58e0?})
+	runtime/panic.go:783 +0x132
+github.com/lxn/walk.(*Icon).handleForDPIWithError(0x0, 0x60)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/icon.go:241 +0x1c
+github.com/lxn/walk.(*Icon).handleForDPI(...)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/icon.go:236
+github.com/lxn/walk.(*IconCache).Icon(0xc000043b00, {0x7ff736546020, 0x0}, 0x60)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/iconcache.go:76 +0x85
+github.com/lxn/walk.IconFrom({0x7ff736291b60?, 0x0?}, 0x60)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/icon.go:48 +0x54
+github.com/lxn/walk.(*FormBase).init.func2({0x7ff736291b60, 0x0})
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/form.go:120 +0x3b
+github.com/lxn/walk.(*property).Set(0xc0002292c0, {0x7ff736291b60, 0x0})
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/property.go:65 +0x74
+github.com/lxn/walk/declarative.(*Builder).initProperties(0xc000138370)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/declarative/builder.go:666 +0x46b
+github.com/lxn/walk/declarative.(*Builder).InitWidget(0xc000138370, {0x7ff73653e8c0, 0xc000141b08}, {0x7ff73655f1a8, 0xc000004808}, 0xc000324390)
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/declarative/builder.go:418 +0x1f25
+github.com/lxn/walk/declarative.MainWindow.Create({{{0x0, 0x0}, {0x0, 0x0}, {0x0, 0x0}, {0x0, 0x0}, {0x0, 0x0}, ...}, ...})
+	github.com/lxn/walk@v0.0.0-20210112085537-c389da54e794/declarative/mainwindow.go:124 +0x6f5
+main.runAppWindow({0xc000034b28, 0x16}, 0xc000043a70)
+	github.com/jnnngs/3270Web/cmd/3270Web/appwindow_windows.go:93 +0x7be
+main.main()
+	github.com/jnnngs/3270Web/cmd/3270Web/main.go:197 +0x1485
+2026/01/22 14:36:47 main.go:180: Starting server on 127.0.0.1:8080
+2026/01/22 14:37:17 main.go:440: Submit: raw key="Enter"
+2026/01/22 14:37:17 main.go:467: Submit: normalized key="Enter"
+2026/01/22 14:37:17 s3270.go:187: s3270: cmd="Enter" status="U F P C(127.0.0.1) I 3 24 80 0 0 0x0 0.000"
+2026/01/22 14:37:18 main.go:440: Submit: raw key="Enter"
+2026/01/22 14:37:18 main.go:467: Submit: normalized key="Enter"
+2026/01/22 14:37:18 s3270.go:187: s3270: cmd="Enter" status="U F U C(127.0.0.1) I 3 24 80 4 20 0x0 0.000"
+2026/01/22 14:37:20 main.go:440: Submit: raw key="PF3"
+2026/01/22 14:37:20 main.go:467: Submit: normalized key="PF(3)"
+2026/01/22 14:37:20 s3270.go:187: s3270: cmd="PF(3)" status="L F U N N 3 24 80 4 20 0x0 0.000"
+2026/01/22 14:37:29 s3270.go:187: s3270: cmd="Enter" status="U F U C(127.0.0.1) I 3 24 80 4 20 0x0 0.000"
+2026/01/22 14:37:37 s3270.go:187: s3270: cmd="PF3" status=""
+2026/01/22 14:37:37 s3270.go:205: s3270: cmd="Key(PF3)" status=""
+2026/01/22 14:37:37 main.go:1007: workflow step 5 (PressPF3) failed: write |1: The pipe is being closed.

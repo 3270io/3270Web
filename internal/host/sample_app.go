@@ -12,6 +12,7 @@ type GoSampleAppHost struct {
 	Port     int
 	ExecPath string
 	Args     []string
+	Target   string
 
 	server *sampleapps.Server
 	client *S3270
@@ -19,7 +20,7 @@ type GoSampleAppHost struct {
 
 const sampleAppClientNotStarted = "sample app client not started"
 
-func NewGoSampleAppHost(appID string, port int, execPath string, args []string) (*GoSampleAppHost, error) {
+func NewGoSampleAppHost(appID string, port int, execPath string, args []string, target string) (*GoSampleAppHost, error) {
 	if appID == "" {
 		return nil, fmt.Errorf("missing sample app id")
 	}
@@ -29,11 +30,15 @@ func NewGoSampleAppHost(appID string, port int, execPath string, args []string) 
 	if execPath == "" {
 		return nil, fmt.Errorf("missing s3270 executable path")
 	}
+	if target == "" {
+		return nil, fmt.Errorf("missing sample app target host")
+	}
 	return &GoSampleAppHost{
 		AppID:    appID,
 		Port:     port,
 		ExecPath: execPath,
 		Args:     args,
+		Target:   target,
 	}, nil
 }
 
@@ -46,8 +51,16 @@ func (h *GoSampleAppHost) Start() error {
 		h.server = server
 	}
 	h.client = NewS3270(h.ExecPath, h.Args...)
+	h.client.TargetHost = h.Target
 	if err := h.client.Start(); err != nil {
 		h.server.Stop()
+		h.server = nil
+		return err
+	}
+	if err := h.client.UpdateScreen(); err != nil {
+		_ = h.client.Stop()
+		h.client = nil
+		_ = h.server.Stop()
 		h.server = nil
 		return err
 	}

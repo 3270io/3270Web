@@ -2,13 +2,13 @@
   "use strict";
 
   var themes = [
+    { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
     { id: "theme-classic", name: "Classic 3270" },
     { id: "theme-dark", name: "Dark Mode" },
     { id: "theme-light", name: "Light Mode" },
     { id: "theme-modern", name: "Super Modern 3270" },
     { id: "theme-minimal", name: "Minimal 3270" },
     { id: "theme-slick", name: "Slick 3270" },
-    { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
     { id: "theme-not3270", name: "Not 3270" }
   ];
 
@@ -29,7 +29,7 @@
   }
 
   function getStoredTheme() {
-    return localStorage.getItem("3270Web.theme") || "theme-classic";
+    return localStorage.getItem("3270Web.theme") || "theme-yorkshire";
   }
 
   function initThemeSelector() {
