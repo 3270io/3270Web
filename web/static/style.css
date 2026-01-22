@@ -133,15 +133,15 @@ body.theme-slick {
 }
 
 body.theme-yorkshire {
-  --bg: #1a1208;
-  --panel: #24180c;
-  --panel-2: #2e1f10;
-  --border: #3a2816;
-  --fg: #ffcc66;
-  --fg-muted: #e0b162;
-  --accent: #ffb347;
-  --accent-2: #ffd27f;
-  --bg-overlay-opacity: 0.32;
+  --bg: #0a0e0a;
+  --panel: #0f140f;
+  --panel-2: #141a14;
+  --border: #1e2b1e;
+  --fg: #33cc33;
+  --fg-muted: #5da75d;
+  --accent: #33cc33;
+  --accent-2: #66dd66;
+  --bg-overlay-opacity: 0.35;
 }
 
 body.theme-not3270 {
@@ -388,10 +388,6 @@ label, select, button, input {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
-}
-
-input[type="text"] {
-  width: 100%;
 }
 
 button {
