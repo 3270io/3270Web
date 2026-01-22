@@ -57,6 +57,7 @@
     "theme-modern": { mode: "pixels", density: 1, speed: 1 },
     "theme-minimal": { mode: "characters", density: 0.7, speed: 0.75 },
     "theme-slick": { mode: "pixels", density: 1.15, speed: 1.15 },
+    "theme-yorkshire": { mode: "characters", density: 0.95, speed: 0.9 },
     "theme-not3270": { mode: "punchcards", density: 1.1, speed: 0.95 }
   };
 
