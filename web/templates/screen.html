@@ -28,7 +28,7 @@
                 </div>
             </div>
             <div class="toolbar" style="margin-bottom: 16px;">
-                <a href="/disconnect">Disconnect</a>
+                <a href="/disconnect" onclick="return confirm('Are you sure you want to disconnect?');" aria-label="Disconnect from session">Disconnect</a>
                 {{ if .RecordingActive }}
                 <span class="status-indicator">
                     <span class="recording-indicator" aria-hidden="true"></span>

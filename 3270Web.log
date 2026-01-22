@@ -86,3 +86,8 @@
 2026/01/22 18:55:44 main.go:1403: workflow: disconnect step skipped to keep session alive
 2026/01/22 18:55:44 main.go:1274: workflow delay after step 6: 1.791656s
 2026/01/22 18:55:46 main.go:1287: workflow end delay: 2.688791s
+2026/01/22 20:30:22 main.go:197: Starting server on :8080
+2026/01/22 20:31:05 main.go:382: Connect failed for "mock": failed to start host connection: failed to start s3270: fork/exec /usr/bin/s3270: no such file or directory
+2026/01/22 20:32:54 main.go:197: Starting server on :8080
+2026/01/22 20:33:14 main.go:382: Connect failed for "mock-internal": failed to start host connection: failed to start s3270: fork/exec /usr/bin/s3270: no such file or directory
+2026/01/22 20:35:30 main.go:197: Starting server on :8080
