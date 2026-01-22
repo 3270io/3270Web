@@ -265,6 +265,10 @@ body.theme-not3270 {
   letter-spacing: 0.04em;
 }
 
+.status-indicator[data-status-open] {
+  cursor: pointer;
+}
+
 .status-text {
   color: var(--fg);
 }

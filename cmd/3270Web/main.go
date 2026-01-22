@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"math/big"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/assets"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/host"
@@ -109,19 +111,31 @@ func main() {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
 	}
-	templatesGlob, err := resolveTemplatesGlob(baseDir)
-	if err != nil {
-		showFatalError(err.Error())
-		return
-	}
-	staticDir, err := resolveStaticDir(baseDir)
-	if err != nil {
-		showFatalError(err.Error())
-		return
+	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
+	if tmplErr == nil {
+		r.LoadHTMLGlob(templatesGlob)
+	} else {
+		log.Printf("Warning: %v", tmplErr)
+		tmplFS, err := fs.Sub(webassets.FS, "web/templates")
+		if err != nil {
+			showFatalError(err.Error())
+			return
+		}
+		r.LoadHTMLFS(http.FS(tmplFS), "*")
 	}
 
-	r.LoadHTMLGlob(templatesGlob)
-	r.Static("/static", staticDir)
+	staticDir, staticErr := resolveStaticDir(baseDir)
+	if staticErr == nil {
+		r.Static("/static", staticDir)
+	} else {
+		log.Printf("Warning: %v", staticErr)
+		staticFS, err := fs.Sub(webassets.FS, "web/static")
+		if err != nil {
+			showFatalError(err.Error())
+			return
+		}
+		r.StaticFS("/static", http.FS(staticFS))
+	}
 
 	r.GET("/", app.HomeHandler)
 	r.POST("/connect", app.ConnectHandler)

@@ -19,6 +19,22 @@
   if (!modal) {
     return;
   }
+
+  const keepInBounds = () => {
+    const rect = modal.getBoundingClientRect();
+    const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
+    const maxTop = Math.max(20, window.innerHeight - rect.height - 20);
+    let nextLeft = rect.left;
+    let nextTop = rect.top;
+    if (!Number.isFinite(nextLeft) || nextLeft < 0 || nextLeft > maxLeft) {
+      nextLeft = Math.min(120, maxLeft);
+    }
+    if (!Number.isFinite(nextTop) || nextTop < 0 || nextTop > maxTop) {
+      nextTop = Math.min(120, maxTop);
+    }
+    modal.style.left = `${nextLeft}px`;
+    modal.style.top = `${nextTop}px`;
+  };
   const openButtons = document.querySelectorAll('[data-modal-open]');
   const closeButtons = modal.querySelectorAll('[data-modal-close]');
 
@@ -97,9 +113,26 @@
     return;
   }
 
+  const keepInBounds = () => {
+    const rect = modal.getBoundingClientRect();
+    const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
+    const maxTop = Math.max(20, window.innerHeight - rect.height - 20);
+    let nextLeft = rect.left;
+    let nextTop = rect.top;
+    if (!Number.isFinite(nextLeft) || nextLeft < 0 || nextLeft > maxLeft) {
+      nextLeft = Math.min(120, maxLeft);
+    }
+    if (!Number.isFinite(nextTop) || nextTop < 0 || nextTop > maxTop) {
+      nextTop = Math.min(120, maxTop);
+    }
+    modal.style.left = `${nextLeft}px`;
+    modal.style.top = `${nextTop}px`;
+  };
+
   const openModal = () => {
     modal.removeAttribute('hidden');
     saveModalState(true);
+    keepInBounds();
   };
 
   const closeModal = () => {
@@ -218,6 +251,7 @@
       const open = localStorage.getItem('workflowStatusModalOpen') === '1';
       if (open) {
         modal.removeAttribute('hidden');
+        keepInBounds();
       }
     } catch (err) {
       // ignore

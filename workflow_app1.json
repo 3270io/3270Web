@@ -36,9 +36,6 @@
       "Type": "PressEnter"
     },
     {
-      "Type": "PressPF3"
-    },
-    {
       "Type": "Disconnect"
     }
   ]

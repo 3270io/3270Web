@@ -9,7 +9,7 @@
     <script src="/static/keyboard.js?v=5" defer></script>
     <script src="/static/theme.js" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js" defer></script>
+    <script src="/static/workflow.js?v=7" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}">
     <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
@@ -59,7 +59,7 @@
                     {{ end }}
                 </span>
                 {{ if .PlaybackStep }}
-                <span class="status-indicator">
+                <span class="status-indicator" data-status-open role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status">
                     <span class="status-text">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ if .PlaybackStepType }}: {{ .PlaybackStepType }}{{ end }}</span>
                 </span>
                 {{ end }}
@@ -109,7 +109,7 @@
                     {{ else }}
                     <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
                         <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
-                        <button type="button" data-workflow-trigger>Play Recording</button>
+                        <button type="button" data-workflow-trigger>Load Recording</button>
                     </form>
                     {{ end }}
                 </div>
