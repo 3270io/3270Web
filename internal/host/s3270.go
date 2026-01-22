@@ -119,7 +119,19 @@ func (h *S3270) UpdateScreen() error {
 	for i := 0; i < 50; i++ {
 		lines, status, err := h.doCommandLocked("readbuffer ascii")
 		if err != nil {
-			return err
+			// If not connected, try to reconnect once
+			if h.stdin == nil {
+				if reconnectErr := h.reconnectLocked(); reconnectErr != nil {
+					return err
+				}
+				// Retry the command after reconnecting
+				lines, status, err = h.doCommandLocked("readbuffer ascii")
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 		if isDisconnectedStatus(status) {
 			if err := h.reconnectLocked(); err != nil {
