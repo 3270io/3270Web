@@ -745,9 +745,9 @@ pre, pre input, textarea {
   margin-top: 8px;
   border-top: 1px solid var(--border);
   padding-top: 8px;
-  display: grid;
-  grid-auto-rows: minmax(0, auto);
-  align-content: space-between;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 6px;
   flex: 1;
   min-height: 0;
