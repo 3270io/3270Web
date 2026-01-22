@@ -1,5 +1,5 @@
 {
-  "Host": "localhost",
+  "Host": "sampleapp:app1",
   "Port": 3270,
   "EveryStepDelay": {
     "Min": 0.1,
@@ -15,28 +15,6 @@
   "Steps": [
     {
       "Type": "Connect"
-    },
-    {
-      "Type": "FillString",
-      "Coordinates": {
-        "Row": 5,
-        "Column": 21
-      },
-      "Text": "123"
-    },
-    {
-      "Type": "FillString",
-      "Coordinates": {
-        "Row": 6,
-        "Column": 21
-      },
-      "Text": "123"
-    },
-    {
-      "Type": "PressEnter"
-    },
-    {
-      "Type": "PressPF3"
     },
     {
       "Type": "Disconnect"

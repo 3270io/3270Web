@@ -14,7 +14,12 @@ try {
   $env:CGO_ENABLED = "0"
 
   Write-Host "Building Windows executable..."
-  go build -trimpath -ldflags "-s -w" -o $Output ./cmd/3270Web
+  Write-Host "Generating Windows resources (icon)..."
+  go run github.com/tc-hib/go-winres@latest simply --icon ./web/static/3270Web_logo.png --out ./cmd/3270Web/rsrc --manifest gui
+  if ($LASTEXITCODE -ne 0) {
+    throw "go-winres failed with exit code $LASTEXITCODE"
+  }
+  go build -trimpath -ldflags "-s -w -H=windowsgui" -o $Output ./cmd/3270Web
   Write-Host "Built: $Output"
 } finally {
   Pop-Location

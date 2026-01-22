@@ -209,6 +209,23 @@ body.theme-not3270 {
   align-items: center;
 }
 
+.workflow-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.workflow-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
 .recording-indicator {
   width: 14px;
   height: 14px;
@@ -226,6 +243,24 @@ body.theme-not3270 {
   border-left: 14px solid #39ff14;
   filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.7));
   animation: pulse 1s infinite;
+}
+
+.paused-indicator {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.paused-indicator::before,
+.paused-indicator::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 14px;
+  background-color: #ffd24d;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255, 210, 77, 0.7);
 }
 
 @keyframes pulse {
@@ -263,6 +298,71 @@ body.theme-not3270 {
   text-align: center;
   position: relative;
   z-index: 1;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-content {
+  position: relative;
+  width: min(760px, 92vw);
+  max-height: 80vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 1;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.workflow-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 48vh;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
 }
 
 .error-title {

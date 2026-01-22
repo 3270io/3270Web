@@ -7,6 +7,7 @@
     <script src="/static/keyboard.js?v=5" defer></script>
     <script src="/static/theme.js" defer></script>
     <script src="/static/background.js" defer></script>
+    <script src="/static/workflow.js" defer></script>
 </head>
 <body>
     <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
@@ -41,17 +42,48 @@
                 {{ end }}
                 {{ if .PlaybackActive }}
                 <span class="status-indicator">
+                    {{ if .PlaybackPaused }}
+                    <span class="paused-indicator" aria-hidden="true"></span>
+                    <span class="status-text">PAUSE</span>
+                    {{ else }}
                     <span class="playing-indicator" aria-hidden="true"></span>
                     <span class="status-text">PLAY</span>
+                    {{ end }}
                 </span>
+                <form action="/workflow/pause" method="post">
+                    {{ if .PlaybackPaused }}
+                    <button type="submit">Resume</button>
+                    {{ else }}
+                    <button type="submit">Pause</button>
+                    {{ end }}
+                </form>
+                <form action="/workflow/stop" method="post">
+                    <button type="submit">Stop</button>
+                </form>
                 {{ end }}
                 {{ if .RecordingFile }}
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
-                <form action="/workflow/play" method="post" enctype="multipart/form-data" class="workflow-form">
-                    <input type="file" name="workflow" accept=".json" required>
-                    <button type="submit">Load workflow and Play</button>
-                </form>
+                <div class="workflow-controls">
+                    {{ if .LoadedWorkflow }}
+                    <span class="workflow-status">
+                        <span class="subtle">Loaded:</span>
+                        <strong>{{ .LoadedWorkflowName }}</strong>
+                    </span>
+                    <form action="/workflow/play" method="post" class="workflow-form">
+                        <button type="submit">Ready to Play</button>
+                    </form>
+                    <button type="button" data-modal-open>View recording</button>
+                    <form action="/workflow/remove" method="post" class="workflow-form">
+                        <button type="submit">Remove</button>
+                    </form>
+                    {{ else }}
+                    <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
+                        <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
+                        <button type="button" data-workflow-trigger>Play Recording</button>
+                    </form>
+                    {{ end }}
+                </div>
             </div>
             {{ if .SampleAppName }}
             <div class="sample-status">
@@ -70,5 +102,24 @@
             </div>
         </div>
     </div>
+    {{ if .LoadedWorkflow }}
+    <div class="modal" data-modal hidden>
+        <div class="modal-backdrop" data-modal-close></div>
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
+            <div class="modal-header">
+                <h3 id="workflow-modal-title">Loaded Recording</h3>
+                <button type="button" data-modal-close>Close</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-meta">
+                    <span class="subtle">File</span>
+                    <strong>{{ .LoadedWorkflowName }}</strong>
+                    <span class="subtle">({{ .LoadedWorkflowSize }} bytes)</span>
+                </div>
+                <pre class="workflow-preview">{{ .LoadedWorkflowPreview }}</pre>
+            </div>
+        </div>
+    </div>
+    {{ end }}
 </body>
 </html>

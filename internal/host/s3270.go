@@ -30,7 +30,10 @@ type S3270 struct {
 	mu     sync.Mutex // Protects command execution
 }
 
-const waitUnlockTimeoutSeconds = 10
+const (
+	waitUnlockTimeoutSeconds = 10
+	commandTimeout           = 15 * time.Second
+)
 
 // NewS3270 creates a new S3270 host instance.
 func NewS3270(execPath string, args ...string) *S3270 {
@@ -354,29 +357,50 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 		return nil, "", err
 	}
 
-	var lines []string
-	for {
-		if !h.stdout.Scan() {
-			if err := h.stdout.Err(); err != nil {
-				return nil, "", err
+	type commandResult struct {
+		data   []string
+		status string
+		err    error
+	}
+
+	resultCh := make(chan commandResult, 1)
+	go func() {
+		var lines []string
+		for {
+			if !h.stdout.Scan() {
+				if err := h.stdout.Err(); err != nil {
+					resultCh <- commandResult{err: err}
+					return
+				}
+				resultCh <- commandResult{err: h.terminalError("s3270 terminated")}
+				return
 			}
-			return nil, "", h.terminalError("s3270 terminated")
+			line := h.stdout.Text()
+			if line == "ok" {
+				break
+			}
+			lines = append(lines, line)
 		}
-		line := h.stdout.Text()
-		if line == "ok" {
-			break
+
+		if len(lines) == 0 {
+			resultCh <- commandResult{err: h.terminalError("no status received")}
+			return
 		}
-		lines = append(lines, line)
+
+		status := lines[len(lines)-1]
+		data := lines[:len(lines)-1]
+		resultCh <- commandResult{data: data, status: status}
+	}()
+
+	select {
+	case result := <-resultCh:
+		return result.data, result.status, result.err
+	case <-time.After(commandTimeout):
+		if h.cmd != nil && h.cmd.Process != nil {
+			_ = h.cmd.Process.Kill()
+		}
+		return nil, "", fmt.Errorf("s3270 command timed out")
 	}
-
-	if len(lines) == 0 {
-		return nil, "", h.terminalError("no status received")
-	}
-
-	status := lines[len(lines)-1]
-	data := lines[:len(lines)-1]
-
-	return data, status, nil
 }
 
 func (h *S3270) captureStderr() {

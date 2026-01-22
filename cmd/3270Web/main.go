@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -92,16 +93,22 @@ func main() {
 	r.POST("/record/start", app.RecordStartHandler)
 	r.POST("/record/stop", app.RecordStopHandler)
 	r.GET("/record/download", app.RecordDownloadHandler)
+	r.POST("/workflow/load", app.LoadWorkflowHandler)
 	r.POST("/workflow/play", app.PlayWorkflowHandler)
+	r.POST("/workflow/pause", app.PauseWorkflowHandler)
+	r.POST("/workflow/stop", app.StopWorkflowHandler)
+	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
 
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
 
-	log.Println("Starting server on :8080")
+	addr := ":8080"
 	if runtime.GOOS == "windows" {
+		addr = "127.0.0.1:8080"
 		go openBrowser("http://localhost:8080/")
 	}
-	if err := r.Run(":8080"); err != nil {
+	log.Printf("Starting server on %s", addr)
+	if err := r.Run(addr); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -236,19 +243,24 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		}
 	}
 	c.HTML(http.StatusOK, "screen.html", gin.H{
-		"ScreenContent":       template.HTML(rendered),
-		"SessionID":           s.ID,
-		"ColorSchemes":        app.Config.ColorSchemes.Schemes,
-		"Fonts":               app.Config.Fonts.Fonts,
-		"SelectedColorScheme": s.Prefs.ColorScheme,
-		"SelectedFont":        s.Prefs.FontName,
-		"UseKeypad":           s.Prefs.UseKeypad,
-		"ThemeCSS":            template.CSS(themeCSS),
-		"RecordingActive":     s.Recording != nil && s.Recording.Active,
-		"RecordingFile":       recordingFileName(s),
-		"PlaybackActive":      s.Playback != nil && s.Playback.Active,
-		"SampleAppName":       sampleAppName,
-		"SampleAppPort":       sampleAppPort,
+		"ScreenContent":         template.HTML(rendered),
+		"SessionID":             s.ID,
+		"ColorSchemes":          app.Config.ColorSchemes.Schemes,
+		"Fonts":                 app.Config.Fonts.Fonts,
+		"SelectedColorScheme":   s.Prefs.ColorScheme,
+		"SelectedFont":          s.Prefs.FontName,
+		"UseKeypad":             s.Prefs.UseKeypad,
+		"ThemeCSS":              template.CSS(themeCSS),
+		"RecordingActive":       s.Recording != nil && s.Recording.Active,
+		"RecordingFile":         recordingFileName(s),
+		"PlaybackActive":        s.Playback != nil && s.Playback.Active,
+		"PlaybackPaused":        s.Playback != nil && s.Playback.Active && s.Playback.Paused,
+		"LoadedWorkflow":        s.LoadedWorkflow != nil,
+		"LoadedWorkflowName":    loadedWorkflowName(s),
+		"LoadedWorkflowPreview": loadedWorkflowPreview(s),
+		"LoadedWorkflowSize":    loadedWorkflowSize(s),
+		"SampleAppName":         sampleAppName,
+		"SampleAppPort":         sampleAppPort,
 	})
 }
 
@@ -370,6 +382,31 @@ func (app *App) RecordDownloadHandler(c *gin.Context) {
 	c.FileAttachment(s.Recording.FilePath, name)
 }
 
+func (app *App) LoadWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Playback != nil && s.Playback.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	upload, err := loadWorkflowUpload(c)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
+		return
+	}
+	preview := prettyWorkflowPayload(upload.Payload)
+	s.LoadedWorkflow = &session.LoadedWorkflow{
+		Name:     upload.Name,
+		Payload:  upload.Payload,
+		Preview:  preview,
+		LoadedAt: time.Now(),
+	}
+	c.Redirect(http.StatusFound, "/screen")
+}
+
 func (app *App) PlayWorkflowHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -380,7 +417,7 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	workflow, err := loadWorkflowConfig(c)
+	workflow, err := workflowFromSessionOrUpload(s, c)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
 		return
@@ -396,6 +433,41 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 	}
 	s.Playback = &session.WorkflowPlayback{StartedAt: time.Now()}
 	go app.playWorkflow(s, workflow)
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) PauseWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	if s.Playback == nil || !s.Playback.Active {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+	s.Playback.Paused = !s.Playback.Paused
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) StopWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	stopWorkflowPlayback(s)
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) RemoveWorkflowHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	stopWorkflowPlayback(s)
+	s.LoadedWorkflow = nil
 	c.Redirect(http.StatusFound, "/screen")
 }
 
@@ -577,7 +649,21 @@ func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
 }
 
 func loadWorkflowConfig(c *gin.Context) (*WorkflowConfig, error) {
-	file, err := workflowFileFromRequest(c)
+	upload, err := loadWorkflowUpload(c)
+	if err != nil {
+		return nil, err
+	}
+	return upload.Config, nil
+}
+
+type workflowUpload struct {
+	Name    string
+	Payload []byte
+	Config  *WorkflowConfig
+}
+
+func loadWorkflowUpload(c *gin.Context) (*workflowUpload, error) {
+	file, name, err := workflowFileFromRequest(c)
 	if err != nil {
 		return nil, err
 	}
@@ -586,6 +672,14 @@ func loadWorkflowConfig(c *gin.Context) (*WorkflowConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	workflow, err := parseWorkflowPayload(payload)
+	if err != nil {
+		return nil, err
+	}
+	return &workflowUpload{Name: name, Payload: payload, Config: workflow}, nil
+}
+
+func parseWorkflowPayload(payload []byte) (*WorkflowConfig, error) {
 	if len(payload) == 0 {
 		return nil, errors.New("workflow file is empty")
 	}
@@ -599,15 +693,68 @@ func loadWorkflowConfig(c *gin.Context) (*WorkflowConfig, error) {
 	return &workflow, nil
 }
 
-func workflowFileFromRequest(c *gin.Context) (io.ReadCloser, error) {
+func workflowFileFromRequest(c *gin.Context) (io.ReadCloser, string, error) {
 	file, err := c.FormFile("workflow")
 	if err == nil {
-		return file.Open()
+		reader, err := file.Open()
+		return reader, file.Filename, err
 	}
 	if !errors.Is(err, http.ErrMissingFile) {
+		return nil, "", err
+	}
+	return nil, "", errors.New("workflow file is required")
+}
+
+func prettyWorkflowPayload(payload []byte) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var out bytes.Buffer
+	if err := json.Indent(&out, payload, "", "  "); err != nil {
+		return string(payload)
+	}
+	return out.String()
+}
+
+func workflowFromSessionOrUpload(s *session.Session, c *gin.Context) (*WorkflowConfig, error) {
+	if s != nil && s.LoadedWorkflow != nil {
+		return parseWorkflowPayload(s.LoadedWorkflow.Payload)
+	}
+	upload, err := loadWorkflowUpload(c)
+	if err != nil {
 		return nil, err
 	}
-	return nil, errors.New("workflow file is required")
+	preview := prettyWorkflowPayload(upload.Payload)
+	if s != nil {
+		s.LoadedWorkflow = &session.LoadedWorkflow{
+			Name:     upload.Name,
+			Payload:  upload.Payload,
+			Preview:  preview,
+			LoadedAt: time.Now(),
+		}
+	}
+	return upload.Config, nil
+}
+
+func loadedWorkflowName(s *session.Session) string {
+	if s == nil || s.LoadedWorkflow == nil {
+		return ""
+	}
+	return s.LoadedWorkflow.Name
+}
+
+func loadedWorkflowPreview(s *session.Session) string {
+	if s == nil || s.LoadedWorkflow == nil {
+		return ""
+	}
+	return s.LoadedWorkflow.Preview
+}
+
+func loadedWorkflowSize(s *session.Session) int {
+	if s == nil || s.LoadedWorkflow == nil {
+		return 0
+	}
+	return len(s.LoadedWorkflow.Payload)
 }
 
 func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, error) {
@@ -682,15 +829,70 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	}
 	s.Playback.Active = true
 	s.Playback.PendingInput = false
+	s.Playback.Paused = false
+	s.Playback.StopRequested = false
 	for i, step := range workflow.Steps {
+		if playbackShouldStop(s) {
+			return
+		}
+		if playbackWait(s, 0) {
+			return
+		}
 		if err := app.applyWorkflowStep(s, step); err != nil {
 			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
 			return
 		}
 		if delay := workflowStepDelay(workflow, step); delay > 0 {
-			time.Sleep(delay)
+			if playbackWait(s, delay) {
+				return
+			}
 		}
 	}
+}
+
+func playbackWait(s *session.Session, delay time.Duration) bool {
+	if s == nil || s.Playback == nil {
+		return true
+	}
+	deadline := time.Now().Add(delay)
+	for {
+		if playbackShouldStop(s) {
+			return true
+		}
+		if s.Playback.Paused {
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		if delay <= 0 {
+			return false
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return false
+		}
+		sleep := remaining
+		if sleep > 200*time.Millisecond {
+			sleep = 200 * time.Millisecond
+		}
+		time.Sleep(sleep)
+	}
+}
+
+func playbackShouldStop(s *session.Session) bool {
+	if s == nil || s.Playback == nil {
+		return true
+	}
+	return !s.Playback.Active || s.Playback.StopRequested
+}
+
+func stopWorkflowPlayback(s *session.Session) {
+	if s == nil || s.Playback == nil {
+		return
+	}
+	s.Playback.StopRequested = true
+	s.Playback.Active = false
+	s.Playback.Paused = false
+	s.Playback.PendingInput = false
 }
 
 func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
