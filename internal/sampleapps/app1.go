@@ -19,7 +19,7 @@ var app1Screen1 = go3270.Screen{
 	{Row: 5, Col: 39, Autoskip: true},
 	{Row: 6, Col: 0, Content: "Password  . . . ."},
 	{Row: 6, Col: 19, Name: "password", Write: true, Hidden: true},
-	{Row: 6, Col: 40},
+	{Row: 6, Col: 39},
 	{Row: 8, Col: 0, Content: "Press"},
 	{Row: 8, Col: 6, Intense: true, Content: "enter"},
 	{Row: 8, Col: 12, Content: "to submit your name."},
