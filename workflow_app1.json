@@ -2,15 +2,15 @@
   "Host": "sampleapp:app1",
   "Port": 3270,
   "EveryStepDelay": {
-    "Min": 0.1,
-    "Max": 0.3
+    "Min": 1,
+    "Max": 2
   },
   "OutputFilePath": "output.html",
   "RampUpBatchSize": 50,
   "RampUpDelay": 1.5,
   "EndOfTaskDelay": {
-    "Min": 60,
-    "Max": 120
+    "Min": 5,
+    "Max": 8
   },
   "Steps": [
     {

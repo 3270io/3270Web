@@ -65,8 +65,19 @@
   }
 
   const refreshMs = 300;
+  const isStatusModalOpen = () => {
+    const modal = document.querySelector('[data-status-modal]');
+    if (modal && !modal.hidden) {
+      return true;
+    }
+    try {
+      return localStorage.getItem('workflowStatusModalOpen') === '1';
+    } catch (err) {
+      return false;
+    }
+  };
   const tick = () => {
-    if (document.visibilityState !== 'visible') {
+    if (document.visibilityState !== 'visible' || isStatusModalOpen()) {
       setTimeout(tick, refreshMs);
       return;
     }
@@ -77,28 +88,48 @@
 })();
 
 (() => {
-  const statusRow = document.querySelector('[data-status-open]');
+  const openTriggers = document.querySelectorAll('[data-status-open]');
   const modal = document.querySelector('[data-status-modal]');
   const closeBtn = document.querySelector('[data-status-close]');
   const dragHandle = document.querySelector('[data-status-drag]');
 
-  if (!statusRow || !modal) {
+  if (!modal) {
     return;
   }
 
   const openModal = () => {
-    modal.hidden = false;
+    modal.removeAttribute('hidden');
     saveModalState(true);
   };
 
   const closeModal = () => {
-    modal.hidden = true;
+    modal.setAttribute('hidden', '');
     saveModalState(false);
   };
 
-  statusRow.addEventListener('click', openModal);
-  statusRow.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
+  openTriggers.forEach((trigger) => {
+    trigger.addEventListener('click', openModal);
+    trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openModal();
+      }
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-status-open]');
+    if (trigger) {
+      openModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active.closest && active.closest('[data-status-open]')) {
       event.preventDefault();
       openModal();
     }
@@ -186,7 +217,7 @@
       }
       const open = localStorage.getItem('workflowStatusModalOpen') === '1';
       if (open) {
-        modal.hidden = false;
+        modal.removeAttribute('hidden');
       }
     } catch (err) {
       // ignore

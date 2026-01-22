@@ -54,6 +54,7 @@ func (h *S3270) Start() error {
 	defer h.mu.Unlock()
 
 	h.cmd = exec.Command(h.ExecPath, h.Args...)
+	configureCmd(h.cmd)
 
 	var err error
 	h.stdin, err = h.cmd.StdinPipe()

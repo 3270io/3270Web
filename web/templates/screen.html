@@ -38,9 +38,13 @@
                     <button type="submit">Stop Recording</button>
                 </form>
                 {{ else }}
+                {{ if .PlaybackActive }}
+                <button type="button" disabled title="Stop playback to start a recording">Start Recording</button>
+                {{ else }}
                 <form action="/record/start" method="post">
                     <button type="submit">Start Recording</button>
                 </form>
+                {{ end }}
                 {{ end }}
                 {{ if .PlaybackActive }}
                 <span class="status-indicator">
@@ -117,11 +121,15 @@
             </div>
             {{ end }}
 
-            {{ if .PlaybackActive }}
+            {{ if or .PlaybackActive .PlaybackCompleted .LoadedWorkflow }}
             <div class="workflow-status-row" data-status-open role="button" tabindex="0">
                 <div>
+                    {{ if .PlaybackStep }}
                     <strong>Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</strong>
                     {{ if .PlaybackStepType }}<span class="subtle">{{ .PlaybackStepType }}</span>{{ end }}
+                    {{ else }}
+                    <strong>Playback not started</strong>
+                    {{ end }}
                 </div>
                 <div class="workflow-status-meta">
                     {{ if .PlaybackDelayRange }}
@@ -169,10 +177,14 @@
             <button type="button" data-status-close>Close</button>
         </div>
         <div class="workflow-status-body">
+            {{ if .PlaybackStep }}
             <div class="workflow-status-line">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</div>
             {{ if .PlaybackStepType }}<div class="workflow-status-line">Type: {{ .PlaybackStepType }}</div>{{ end }}
             {{ if .PlaybackDelayRange }}<div class="workflow-status-line">Delay range: {{ .PlaybackDelayRange }}</div>{{ end }}
             {{ if .PlaybackDelayApplied }}<div class="workflow-status-line">Applied delay: {{ .PlaybackDelayApplied }}</div>{{ end }}
+            {{ else }}
+            <div class="workflow-status-line">Playback has not started yet.</div>
+            {{ end }}
             <div class="workflow-status-line subtle">Drag to move. Resize using the corner.</div>
             {{ if .PlaybackEvents }}
             <div class="workflow-status-events">
