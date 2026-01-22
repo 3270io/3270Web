@@ -430,7 +430,7 @@ body.theme-not3270 {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  overflow: auto;
+  overflow: hidden;
   max-height: 48vh;
   font-size: 0.9rem;
   white-space: pre-wrap;
@@ -710,7 +710,7 @@ pre, pre input, textarea {
   display: flex;
   flex-direction: column;
   resize: both;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .workflow-status-modal[hidden] {
@@ -729,9 +729,12 @@ pre, pre input, textarea {
 }
 
 .workflow-status-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   gap: 6px;
   padding: 12px;
+  min-height: 0;
 }
 
 .workflow-status-line {
@@ -744,7 +747,8 @@ pre, pre input, textarea {
   padding-top: 8px;
   display: grid;
   gap: 6px;
-  max-height: 40vh;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 

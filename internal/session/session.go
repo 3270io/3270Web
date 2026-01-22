@@ -11,17 +11,22 @@ import (
 
 // Session represents a user session.
 type Session struct {
-	ID                  string
-	Host                host.Host
-	LastAccess          time.Time
-	Prefs               Preferences
-	TargetHost          string
-	TargetPort          int
-	Recording           *WorkflowRecording
-	Playback            *WorkflowPlayback
-	LoadedWorkflow      *LoadedWorkflow
-	PlaybackCompletedAt time.Time
-	PlaybackEvents      []WorkflowEvent
+	ID                       string
+	Host                     host.Host
+	LastAccess               time.Time
+	Prefs                    Preferences
+	TargetHost               string
+	TargetPort               int
+	Recording                *WorkflowRecording
+	Playback                 *WorkflowPlayback
+	LoadedWorkflow           *LoadedWorkflow
+	PlaybackCompletedAt      time.Time
+	PlaybackEvents           []WorkflowEvent
+	LastPlaybackStep         int
+	LastPlaybackStepType     string
+	LastPlaybackStepTotal    int
+	LastPlaybackDelayRange   string
+	LastPlaybackDelayApplied string
 }
 
 type Preferences struct {

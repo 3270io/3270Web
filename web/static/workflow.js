@@ -81,19 +81,8 @@
   }
 
   const refreshMs = 300;
-  const isStatusModalOpen = () => {
-    const modal = document.querySelector('[data-status-modal]');
-    if (modal && !modal.hidden) {
-      return true;
-    }
-    try {
-      return localStorage.getItem('workflowStatusModalOpen') === '1';
-    } catch (err) {
-      return false;
-    }
-  };
   const tick = () => {
-    if (document.visibilityState !== 'visible' || isStatusModalOpen()) {
+    if (document.visibilityState !== 'visible') {
       setTimeout(tick, refreshMs);
       return;
     }
@@ -113,6 +102,17 @@
     return;
   }
 
+  const statusStepLine = modal.querySelector('[data-status-step-line]');
+  const statusTypeLine = modal.querySelector('[data-status-type-line]');
+  const statusDelayRangeLine = modal.querySelector('[data-status-delay-range-line]');
+  const statusDelayAppliedLine = modal.querySelector('[data-status-delay-applied-line]');
+  const statusEvents = modal.querySelector('[data-status-events]');
+  const statusIndicators = Array.from(document.querySelectorAll('[data-status-indicator]'));
+  const rowStepText = document.querySelector('[data-status-row-step]');
+  const rowTypeText = document.querySelector('[data-status-row-type]');
+  const rowDelayRangeText = document.querySelector('[data-status-row-delay-range]');
+  const rowDelayAppliedText = document.querySelector('[data-status-row-delay-applied]');
+
   const keepInBounds = () => {
     const rect = modal.getBoundingClientRect();
     const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
@@ -129,13 +129,144 @@
     modal.style.top = `${nextTop}px`;
   };
 
+  const statusPollIntervalMs = 1500;
+  let statusPollTimer = null;
+  const placeholderText = 'Playback has not started yet.';
+
+  const escapeHtml = (value = '') => {
+    const text = value == null ? '' : String(value);
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
+  const renderEvents = (events = []) => {
+    if (!Array.isArray(events) || events.length === 0) {
+      return '';
+    }
+    return events
+      .map((event) => {
+        const time = escapeHtml(event.time);
+        const message = escapeHtml(event.message);
+        return `<div class="workflow-status-event"><span class="workflow-status-time">${time}</span><span>${message}</span></div>`;
+      })
+      .join('');
+  };
+
+  const updateWorkflowStatus = (payload) => {
+    if (!payload) {
+      return;
+    }
+    const hasStep = typeof payload.playbackStep === 'number' && payload.playbackStep > 0;
+    let stepLabel = payload.playbackStepLabel || '';
+    if (!stepLabel && hasStep) {
+      stepLabel = `Step ${payload.playbackStep}`;
+      if (payload.playbackStepTotal && payload.playbackStepTotal > 0) {
+        stepLabel = `${stepLabel}/${payload.playbackStepTotal}`;
+      }
+      if (payload.playbackStepType) {
+        stepLabel = `${stepLabel}: ${payload.playbackStepType}`;
+      }
+    }
+    if (!hasStep) {
+      stepLabel = placeholderText;
+    }
+    if (statusStepLine) {
+      statusStepLine.textContent = stepLabel;
+    }
+    statusIndicators.forEach((indicator) => {
+      indicator.textContent = stepLabel;
+    });
+    if (rowStepText) {
+      rowStepText.textContent = stepLabel;
+    }
+    const typeText = payload.playbackStepType ? `Type: ${payload.playbackStepType}` : '';
+    if (statusTypeLine) {
+      statusTypeLine.textContent = typeText;
+      statusTypeLine.hidden = !payload.playbackStepType;
+    }
+    if (rowTypeText) {
+      rowTypeText.textContent = typeText;
+      rowTypeText.hidden = !payload.playbackStepType;
+    }
+    const rangeText = payload.playbackDelayRange ? `Delay range: ${payload.playbackDelayRange}` : '';
+    if (statusDelayRangeLine) {
+      statusDelayRangeLine.textContent = rangeText;
+      statusDelayRangeLine.hidden = !payload.playbackDelayRange;
+    }
+    if (rowDelayRangeText) {
+      rowDelayRangeText.textContent = rangeText;
+      rowDelayRangeText.hidden = !payload.playbackDelayRange;
+    }
+    const appliedText = payload.playbackDelayApplied ? `Applied: ${payload.playbackDelayApplied}` : '';
+    if (statusDelayAppliedLine) {
+      statusDelayAppliedLine.textContent = appliedText;
+      statusDelayAppliedLine.hidden = !payload.playbackDelayApplied;
+    }
+    if (rowDelayAppliedText) {
+      rowDelayAppliedText.textContent = appliedText;
+      rowDelayAppliedText.hidden = !payload.playbackDelayApplied;
+    }
+    if (statusEvents) {
+      statusEvents.innerHTML = renderEvents(payload.playbackEvents);
+    }
+  };
+
+  const stopStatusPolling = () => {
+    if (statusPollTimer === null) {
+      return;
+    }
+    window.clearInterval(statusPollTimer);
+    statusPollTimer = null;
+  };
+
+  const fetchWorkflowStatus = () => {
+    fetch('/workflow/status', {
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    })
+      .then((res) => {
+        if (res.status === 401 || res.status === 403) {
+          stopStatusPolling();
+          return null;
+        }
+        if (!res.ok) {
+          return null;
+        }
+        return res.json();
+      })
+      .then((payload) => {
+        if (payload) {
+          updateWorkflowStatus(payload);
+        }
+      })
+      .catch(() => {
+        // ignore transient errors
+      });
+  };
+
+  const startStatusPolling = () => {
+    if (statusPollTimer !== null) {
+      return;
+    }
+    fetchWorkflowStatus();
+    statusPollTimer = window.setInterval(fetchWorkflowStatus, statusPollIntervalMs);
+  };
+
   const openModal = () => {
     modal.removeAttribute('hidden');
     saveModalState(true);
     keepInBounds();
+    startStatusPolling();
   };
 
   const closeModal = () => {
+    stopStatusPolling();
     modal.setAttribute('hidden', '');
     saveModalState(false);
   };
@@ -243,6 +374,7 @@
   };
 
   const restoreModal = () => {
+    stopStatusPolling();
     try {
       const pos = JSON.parse(localStorage.getItem('workflowStatusModalPos') || 'null');
       if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
@@ -260,6 +392,7 @@
       if (open) {
         modal.removeAttribute('hidden');
         keepInBounds();
+        startStatusPolling();
       }
     } catch (err) {
       // ignore

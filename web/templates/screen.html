@@ -60,7 +60,7 @@
                 </span>
                 {{ if .PlaybackStep }}
                 <span class="status-indicator" data-status-open role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status">
-                    <span class="status-text">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ if .PlaybackStepType }}: {{ .PlaybackStepType }}{{ end }}</span>
+                    <span class="status-text" data-status-indicator>Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ if .PlaybackStepType }}: {{ .PlaybackStepType }}{{ end }}</span>
                 </span>
                 {{ end }}
                 {{ if eq .PlaybackMode "debug" }}
@@ -124,20 +124,20 @@
             {{ if or .PlaybackActive .PlaybackCompleted .LoadedWorkflow }}
             <div class="workflow-status-row" data-status-open role="button" tabindex="0">
                 <div>
-                    {{ if .PlaybackStep }}
-                    <strong>Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</strong>
-                    {{ if .PlaybackStepType }}<span class="subtle">{{ .PlaybackStepType }}</span>{{ end }}
-                    {{ else }}
-                    <strong>Playback not started</strong>
-                    {{ end }}
+                    <strong data-status-row-step>
+                        {{ if .PlaybackStep }}Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ else }}Playback not started{{ end }}
+                    </strong>
+                    <span class="subtle" data-status-row-type {{ if not .PlaybackStepType }}hidden{{ end }}>
+                        {{ if .PlaybackStepType }}Type: {{ .PlaybackStepType }}{{ end }}
+                    </span>
                 </div>
                 <div class="workflow-status-meta">
-                    {{ if .PlaybackDelayRange }}
-                    <span>Delay: {{ .PlaybackDelayRange }}</span>
-                    {{ end }}
-                    {{ if .PlaybackDelayApplied }}
-                    <span>Applied: {{ .PlaybackDelayApplied }}</span>
-                    {{ end }}
+                    <span class="subtle" data-status-row-delay-range {{ if not .PlaybackDelayRange }}hidden{{ end }}>
+                        {{ if .PlaybackDelayRange }}Delay: {{ .PlaybackDelayRange }}{{ end }}
+                    </span>
+                    <span class="subtle" data-status-row-delay-applied {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
+                        {{ if .PlaybackDelayApplied }}Applied: {{ .PlaybackDelayApplied }}{{ end }}
+                    </span>
                 </div>
             </div>
             {{ end }}
@@ -177,17 +177,20 @@
             <button type="button" data-status-close>Close</button>
         </div>
         <div class="workflow-status-body">
-            {{ if .PlaybackStep }}
-            <div class="workflow-status-line">Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}</div>
-            {{ if .PlaybackStepType }}<div class="workflow-status-line">Type: {{ .PlaybackStepType }}</div>{{ end }}
-            {{ if .PlaybackDelayRange }}<div class="workflow-status-line">Delay range: {{ .PlaybackDelayRange }}</div>{{ end }}
-            {{ if .PlaybackDelayApplied }}<div class="workflow-status-line">Applied delay: {{ .PlaybackDelayApplied }}</div>{{ end }}
-            {{ else }}
-            <div class="workflow-status-line">Playback has not started yet.</div>
-            {{ end }}
+            <div class="workflow-status-line" data-status-step-line>
+                {{ if .PlaybackStep }}Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ else }}Playback has not started yet.{{ end }}
+            </div>
+            <div class="workflow-status-line" data-status-type-line {{ if not .PlaybackStepType }}hidden{{ end }}>
+                Type: {{ .PlaybackStepType }}
+            </div>
+            <div class="workflow-status-line" data-status-delay-range-line {{ if not .PlaybackDelayRange }}hidden{{ end }}>
+                Delay range: {{ .PlaybackDelayRange }}
+            </div>
+            <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
+                Applied delay: {{ .PlaybackDelayApplied }}
+            </div>
             <div class="workflow-status-line subtle">Drag to move. Resize using the corner.</div>
-            {{ if .PlaybackEvents }}
-            <div class="workflow-status-events">
+            <div class="workflow-status-events" data-status-events>
                 {{ range .PlaybackEvents }}
                 <div class="workflow-status-event">
                     <span class="workflow-status-time">{{ .Time.Format "15:04:05" }}</span>
@@ -195,7 +198,6 @@
                 </div>
                 {{ end }}
             </div>
-            {{ end }}
         </div>
     </div>
 </body>
