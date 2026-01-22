@@ -94,6 +94,7 @@ func (h *S3270) Stop() error {
 		// Send quit just in case
 		fmt.Fprintln(h.stdin, "quit")
 		h.stdin.Close()
+		h.stdin = nil
 	}
 	if h.cmd != nil {
 		// Kill if still running
@@ -398,6 +399,11 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 	case <-time.After(commandTimeout):
 		if h.cmd != nil && h.cmd.Process != nil {
 			_ = h.cmd.Process.Kill()
+		}
+		// Clean up stdin to prevent "broken pipe" on subsequent calls
+		if h.stdin != nil {
+			h.stdin.Close()
+			h.stdin = nil
 		}
 		return nil, "", fmt.Errorf("s3270 command timed out")
 	}
