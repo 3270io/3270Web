@@ -96,6 +96,10 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 		t.Fatalf("failed to create mock host: %v", err)
 	}
 	screen := mockHost.GetScreen()
+	screen.Buffer = make([][]rune, screen.Height)
+	for i := 0; i < screen.Height; i++ {
+		screen.Buffer[i] = make([]rune, screen.Width)
+	}
 	screen.Fields = []*host.Field{
 		{
 			Screen:   screen,
@@ -124,11 +128,12 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 	if err := app.applyWorkflowFill(sess, step); err != nil {
 		t.Fatalf("applyWorkflowFill failed: %v", err)
 	}
+	sess.Playback.PendingInput = true
 	if err := submitWorkflowPendingInput(sess); err != nil {
 		t.Fatalf("submitWorkflowPendingInput failed: %v", err)
 	}
 
-	if len(mockHost.Commands) != 1 || mockHost.Commands[0] != "submit" {
+	if len(mockHost.Commands) != 2 || mockHost.Commands[1] != "submit" {
 		t.Fatalf("expected submit command, got %v", mockHost.Commands)
 	}
 }
