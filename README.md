@@ -48,7 +48,12 @@ The output matches the 3270Connect workflow format.
 Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.
 
 ## Configuration
-The app loads `webapp/WEB-INF/3270Web-config.xml` if present. If missing, defaults are used.
+The application loads `webapp/WEB-INF/3270Web-config.xml` if present. If missing, defaults are used.
+
+See the [Configuration Reference](docs/configuration.md) for details on available options, including:
+- Customizing the `s3270` execution path and model
+- Setting a default target host and auto-connect behavior
+- Defining custom color schemes and fonts
 
 ## GitHub Actions
 A workflow is included to build and push images to GHCR on pushes to `main`.
