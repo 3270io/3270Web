@@ -166,3 +166,4 @@
 2026/01/23 08:33:35 main.go:1816: workflow: disconnect step skipped to keep session alive
 2026/01/23 08:33:35 main.go:1651: workflow delay after step 6: 213.219ms
 2026/01/23 08:33:36 main.go:1669: workflow end delay: 1m49.1118s
+2026/01/23 08:34:53 main.go:198: Starting server on 127.0.0.1:8080
