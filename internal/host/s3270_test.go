@@ -60,3 +60,69 @@ func TestIsKeyboardUnlocked(t *testing.T) {
 		})
 	}
 }
+
+func TestKeyToKeySpec(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", "Enter"},
+		{"   ", "Enter"},
+		{"Enter", "Enter"},
+		{"enter", "enter"},
+		{"PF(1)", "PF1"},
+		{"pf(1)", "PF1"},
+		{"PF(12)", "PF12"},
+		{"PF(24)", "PF24"},
+		{"PA(1)", "PA1"},
+		{"pa(2)", "PA2"},
+		{"PF1", "PF1"}, // Already correct
+		{"Clear", "Clear"},
+		{"PF(a)", "PF(a)"}, // Invalid number, returns trimmed input
+		{"PA()", "PA()"},   // Invalid format
+		{"Something", "Something"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := keyToKeySpec(tt.input)
+			if got != tt.expected {
+				t.Errorf("keyToKeySpec(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsAidKey(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected bool
+	}{
+		{"Enter", true},
+		{"ENTER", true},
+		{"PF1", true},
+		{"pf1", true},
+		{"PF24", true},
+		{"PA1", true},
+		{"pa3", true},
+		{"Clear", true},
+		{"SysReq", true},
+		{"Attn", true},
+		{"a", false},
+		{"1", false},
+		{"Tab", false},
+		{"BackTab", false},
+		{"Reset", false},
+		{"String", false},
+		{"PF", true}, // "PF" prefix match
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			got := isAidKey(tt.key)
+			if got != tt.expected {
+				t.Errorf("isAidKey(%q) = %v, want %v", tt.key, got, tt.expected)
+			}
+		})
+	}
+}
