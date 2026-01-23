@@ -74,46 +74,53 @@
   if (!body) {
     return;
   }
-  const isPlaying = body.dataset.playbackActive === 'true';
-  const isPaused = body.dataset.playbackPaused === 'true';
-  if (!isPlaying || isPaused) {
-    return;
-  }
-
-  const refreshMs = 300;
-  const tick = () => {
-    if (document.visibilityState !== 'visible') {
-      setTimeout(tick, refreshMs);
-      return;
-    }
-    window.location.reload();
-  };
-
-  setTimeout(tick, refreshMs);
-})();
-
-(() => {
   const openTriggers = document.querySelectorAll('[data-status-open]');
   const modal = document.querySelector('[data-status-modal]');
   const closeBtn = document.querySelector('[data-status-close]');
   const dragHandle = document.querySelector('[data-status-drag]');
+  const statusPanel = document.querySelector('[data-status-panel]');
+  const statusPanelToggle = document.querySelector('[data-status-panel-toggle]');
+  const statusPanelMeta = document.querySelector('[data-status-panel-meta]');
+  const statusPanelBody = document.querySelector('[data-status-panel-body]');
+  const modalOpenButtons = document.querySelectorAll('[data-status-modal-open]');
+  const recordingIndicator = document.querySelector('[data-recording-indicator]');
+  const recordingStop = document.querySelector('[data-recording-stop]');
+  const recordingStart = document.querySelector('[data-recording-start]');
+  const recordingStartDisabled = document.querySelector('[data-recording-start-disabled]');
+  const playbackIndicator = document.querySelector('[data-playback-indicator]');
+  const playbackComplete = document.querySelector('[data-playback-complete]');
+  const playbackStepContainer = document.querySelector('[data-playback-step-container]');
+  const playbackDebugControls = document.querySelector('[data-playback-debug-controls]');
+  const playbackPlayControls = document.querySelector('[data-playback-play-controls]');
+  const playbackStatusText = document.querySelector('[data-playback-status-text]');
+  const playbackPausedIndicator = document.querySelector('[data-playback-paused-indicator]');
+  const playbackPlayingIndicator = document.querySelector('[data-playback-playing-indicator]');
+  const playbackPauseButton = document.querySelector('[data-playback-pause-button]');
 
-  if (!modal) {
-    return;
-  }
-
-  const statusStepLine = modal.querySelector('[data-status-step-line]');
-  const statusTypeLine = modal.querySelector('[data-status-type-line]');
-  const statusDelayRangeLine = modal.querySelector('[data-status-delay-range-line]');
-  const statusDelayAppliedLine = modal.querySelector('[data-status-delay-applied-line]');
-  const statusEvents = modal.querySelector('[data-status-events]');
+  const panelLines = statusPanel
+    ? {
+        step: statusPanel.querySelector('[data-status-step-line]'),
+        type: statusPanel.querySelector('[data-status-type-line]'),
+        delayRange: statusPanel.querySelector('[data-status-delay-range-line]'),
+        delayApplied: statusPanel.querySelector('[data-status-delay-applied-line]'),
+        events: statusPanel.querySelector('[data-status-events]'),
+      }
+    : null;
+  const modalLines = modal
+    ? {
+        step: modal.querySelector('[data-status-step-line]'),
+        type: modal.querySelector('[data-status-type-line]'),
+        delayRange: modal.querySelector('[data-status-delay-range-line]'),
+        delayApplied: modal.querySelector('[data-status-delay-applied-line]'),
+        events: modal.querySelector('[data-status-events]'),
+      }
+    : null;
   const statusIndicators = Array.from(document.querySelectorAll('[data-status-indicator]'));
-  const rowStepText = document.querySelector('[data-status-row-step]');
-  const rowTypeText = document.querySelector('[data-status-row-type]');
-  const rowDelayRangeText = document.querySelector('[data-status-row-delay-range]');
-  const rowDelayAppliedText = document.querySelector('[data-status-row-delay-applied]');
 
   const keepInBounds = () => {
+    if (!modal) {
+      return;
+    }
     const rect = modal.getBoundingClientRect();
     const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
     const maxTop = Math.max(20, window.innerHeight - rect.height - 20);
@@ -129,9 +136,52 @@
     modal.style.top = `${nextTop}px`;
   };
 
-  const statusPollIntervalMs = 1500;
-  let statusPollTimer = null;
   const placeholderText = 'Playback has not started yet.';
+  let lastActive = body.dataset.playbackActive === 'true';
+  let lastPaused = body.dataset.playbackPaused === 'true';
+  let lastPayload = null;
+  let useModal = false;
+
+  const setHidden = (el, hidden) => {
+    if (el) {
+      el.hidden = !!hidden;
+    }
+  };
+
+  const updatePlaybackControls = (payload) => {
+    if (!payload) {
+      return;
+    }
+    const active = !!payload.playbackActive;
+    const paused = !!payload.playbackPaused;
+    const completed = !!payload.playbackCompleted && !active;
+    const mode = payload.playbackMode || '';
+    const debugMode = mode === 'debug';
+    const recordingActive = recordingIndicator ? !recordingIndicator.hidden : false;
+
+    setHidden(playbackIndicator, !active);
+    setHidden(playbackComplete, !completed);
+    setHidden(playbackDebugControls, !(active && debugMode));
+    setHidden(playbackPlayControls, !(active && !debugMode));
+    setHidden(playbackStepContainer, !(payload.playbackStep > 0));
+
+    if (playbackStatusText) {
+      playbackStatusText.textContent = debugMode ? 'DEBUG' : paused ? 'PAUSE' : 'PLAY';
+    }
+    setHidden(playbackPausedIndicator, !(active && !debugMode && paused));
+    setHidden(playbackPlayingIndicator, !(active && !debugMode && !paused));
+    if (playbackPauseButton) {
+      playbackPauseButton.textContent = paused ? 'Resume' : 'Pause';
+    }
+
+    setHidden(recordingStartDisabled, recordingActive || !active);
+    if (recordingStart) {
+      setHidden(recordingStart, recordingActive || active);
+    }
+    if (recordingStop) {
+      setHidden(recordingStop, !recordingActive);
+    }
+  };
 
   const escapeHtml = (value = '') => {
     const text = value == null ? '' : String(value);
@@ -160,6 +210,13 @@
     if (!payload) {
       return;
     }
+    lastPayload = payload;
+    lastActive = !!payload.playbackActive;
+    lastPaused = !!payload.playbackPaused;
+    body.dataset.playbackActive = lastActive ? 'true' : 'false';
+    body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
+    body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
+    updatePlaybackControls(payload);
     const hasStep = typeof payload.playbackStep === 'number' && payload.playbackStep > 0;
     let stepLabel = payload.playbackStepLabel || '';
     if (!stepLabel && hasStep) {
@@ -174,57 +231,63 @@
     if (!hasStep) {
       stepLabel = placeholderText;
     }
-    if (statusStepLine) {
-      statusStepLine.textContent = stepLabel;
-    }
     statusIndicators.forEach((indicator) => {
       indicator.textContent = stepLabel;
     });
-    if (rowStepText) {
-      rowStepText.textContent = stepLabel;
-    }
     const typeText = payload.playbackStepType ? `Type: ${payload.playbackStepType}` : '';
-    if (statusTypeLine) {
-      statusTypeLine.textContent = typeText;
-      statusTypeLine.hidden = !payload.playbackStepType;
-    }
-    if (rowTypeText) {
-      rowTypeText.textContent = typeText;
-      rowTypeText.hidden = !payload.playbackStepType;
-    }
     const rangeText = payload.playbackDelayRange ? `Delay range: ${payload.playbackDelayRange}` : '';
-    if (statusDelayRangeLine) {
-      statusDelayRangeLine.textContent = rangeText;
-      statusDelayRangeLine.hidden = !payload.playbackDelayRange;
-    }
-    if (rowDelayRangeText) {
-      rowDelayRangeText.textContent = rangeText;
-      rowDelayRangeText.hidden = !payload.playbackDelayRange;
-    }
     const appliedText = payload.playbackDelayApplied ? `Applied: ${payload.playbackDelayApplied}` : '';
-    if (statusDelayAppliedLine) {
-      statusDelayAppliedLine.textContent = appliedText;
-      statusDelayAppliedLine.hidden = !payload.playbackDelayApplied;
+    if (statusPanelMeta) {
+      statusPanelMeta.textContent = payload.playbackActive ? (payload.playbackPaused ? 'Paused' : 'Live') : 'Idle';
     }
-    if (rowDelayAppliedText) {
-      rowDelayAppliedText.textContent = appliedText;
-      rowDelayAppliedText.hidden = !payload.playbackDelayApplied;
-    }
-    if (statusEvents) {
-      statusEvents.innerHTML = renderEvents(payload.playbackEvents);
-    }
-  };
 
-  const stopStatusPolling = () => {
-    if (statusPollTimer === null) {
+    const eventsHtml = renderEvents(payload.playbackEvents);
+    const applyLines = (target) => {
+      if (!target) {
+        return;
+      }
+      if (target.step) {
+        target.step.textContent = stepLabel;
+      }
+      if (target.type) {
+        target.type.textContent = typeText;
+        target.type.hidden = !payload.playbackStepType;
+      }
+      if (target.delayRange) {
+        target.delayRange.textContent = rangeText;
+        target.delayRange.hidden = !payload.playbackDelayRange;
+      }
+      if (target.delayApplied) {
+        target.delayApplied.textContent = appliedText;
+        target.delayApplied.hidden = !payload.playbackDelayApplied;
+      }
+      if (target.events) {
+        target.events.innerHTML = eventsHtml;
+      }
+    };
+
+    if (useModal) {
+      applyLines(modalLines);
+      if (modalLines && modalLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
+        modalLines.events.scrollTo({ top: modalLines.events.scrollHeight, behavior: 'smooth' });
+      }
       return;
     }
-    window.clearInterval(statusPollTimer);
-    statusPollTimer = null;
+
+    applyLines(panelLines);
+    if (statusPanelBody && payload.playbackEvents && payload.playbackEvents.length > 0) {
+      if (statusPanel && statusPanel.classList.contains('is-collapsed')) {
+        return;
+      }
+      const maxScroll = statusPanelBody.scrollHeight - statusPanelBody.clientHeight;
+      if (maxScroll > 0) {
+        statusPanelBody.scrollTo({ top: statusPanelBody.scrollHeight, behavior: 'smooth' });
+      }
+    }
   };
 
   const fetchWorkflowStatus = () => {
-    fetch('/workflow/status', {
+    return fetch('/workflow/status', {
       headers: {
         Accept: 'application/json',
         'Cache-Control': 'no-cache',
@@ -232,7 +295,6 @@
     })
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
-          stopStatusPolling();
           return null;
         }
         if (!res.ok) {
@@ -240,35 +302,35 @@
         }
         return res.json();
       })
-      .then((payload) => {
-        if (payload) {
-          updateWorkflowStatus(payload);
-        }
-      })
       .catch(() => {
         // ignore transient errors
+        return null;
       });
   };
 
-  const startStatusPolling = () => {
-    if (statusPollTimer !== null) {
+  const openModal = () => {
+    if (!modal) {
       return;
     }
-    fetchWorkflowStatus();
-    statusPollTimer = window.setInterval(fetchWorkflowStatus, statusPollIntervalMs);
-  };
-
-  const openModal = () => {
     modal.removeAttribute('hidden');
     saveModalState(true);
     keepInBounds();
-    startStatusPolling();
+    useModal = true;
+    if (lastPayload) {
+      updateWorkflowStatus(lastPayload);
+    }
   };
 
   const closeModal = () => {
-    stopStatusPolling();
+    if (!modal) {
+      return;
+    }
     modal.setAttribute('hidden', '');
     saveModalState(false);
+    useModal = false;
+    if (lastPayload) {
+      updateWorkflowStatus(lastPayload);
+    }
   };
 
   openTriggers.forEach((trigger) => {
@@ -278,6 +340,13 @@
         event.preventDefault();
         openModal();
       }
+    });
+  });
+
+  modalOpenButtons.forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openModal();
     });
   });
 
@@ -349,7 +418,7 @@
   };
 
   const savePosition = () => {
-    if (modal.hidden) {
+    if (!modal || modal.hidden) {
       return;
     }
     try {
@@ -362,7 +431,7 @@
   };
 
   const saveSize = () => {
-    if (modal.hidden) {
+    if (!modal || modal.hidden) {
       return;
     }
     try {
@@ -374,7 +443,9 @@
   };
 
   const restoreModal = () => {
-    stopStatusPolling();
+    if (!modal) {
+      return;
+    }
     try {
       const pos = JSON.parse(localStorage.getItem('workflowStatusModalPos') || 'null');
       if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
@@ -392,7 +463,10 @@
       if (open) {
         modal.removeAttribute('hidden');
         keepInBounds();
-        startStatusPolling();
+        useModal = true;
+        if (lastPayload) {
+          updateWorkflowStatus(lastPayload);
+        }
       }
     } catch (err) {
       // ignore
@@ -400,11 +474,110 @@
   };
 
   if (typeof ResizeObserver !== 'undefined') {
-    const observer = new ResizeObserver(() => {
-      saveSize();
-    });
-    observer.observe(modal);
+    if (modal) {
+      const observer = new ResizeObserver(() => {
+        saveSize();
+      });
+      observer.observe(modal);
+    }
   }
 
   restoreModal();
+
+  const panelKey = 'workflowStatusPanelCollapsed';
+  const setPanelCollapsed = (collapsed) => {
+    if (!statusPanel) {
+      return;
+    }
+    statusPanel.classList.toggle('is-collapsed', collapsed);
+    if (statusPanelToggle) {
+      statusPanelToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    try {
+      localStorage.setItem(panelKey, collapsed ? '1' : '0');
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  if (statusPanelToggle) {
+    statusPanelToggle.addEventListener('click', () => {
+      const collapsed = statusPanel && statusPanel.classList.contains('is-collapsed');
+      setPanelCollapsed(!collapsed);
+    });
+  }
+
+  try {
+    const collapsed = localStorage.getItem(panelKey) === '1';
+    setPanelCollapsed(collapsed);
+  } catch (err) {
+    // ignore
+  }
+
+  let playbackPollTimer = null;
+  const playbackFastMs = 700;
+  const playbackSlowMs = 2000;
+
+  const shouldSkipScreenUpdate = (container) => {
+    if (!container) {
+      return true;
+    }
+    const active = document.activeElement;
+    return active && container.contains(active);
+  };
+
+  const updateScreenContent = (container) => {
+    if (!container || shouldSkipScreenUpdate(container)) {
+      return Promise.resolve();
+    }
+    return fetch('/screen/content', {
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (!payload || typeof payload.html !== 'string') {
+          return;
+        }
+        container.innerHTML = payload.html;
+        if (typeof window.installKeyHandler === 'function') {
+          const form = container.querySelector('form.renderer-form');
+          const formId = form ? (form.id || form.getAttribute('name')) : null;
+          window.installKeyHandler(formId);
+        }
+      })
+      .catch(() => {
+        // ignore transient errors
+      });
+  };
+
+  const pollPlayback = () => {
+    if (document.visibilityState !== 'visible') {
+      playbackPollTimer = window.setTimeout(pollPlayback, playbackSlowMs);
+      return;
+    }
+    fetchWorkflowStatus()
+      .then((payload) => {
+        if (payload) {
+          updateWorkflowStatus(payload);
+        }
+        const isActive = payload && payload.playbackActive;
+        const isPaused = payload && payload.playbackPaused;
+        const container = document.querySelector('.screen-container');
+        if (isActive && !isPaused) {
+          return updateScreenContent(container).then(() => true);
+        }
+        return false;
+      })
+      .finally(() => {
+        const delay = lastActive ? playbackFastMs : playbackSlowMs;
+        playbackPollTimer = window.setTimeout(pollPlayback, delay);
+      });
+  };
+
+  if (playbackPollTimer === null) {
+    playbackPollTimer = window.setTimeout(pollPlayback, playbackFastMs);
+  }
 })();

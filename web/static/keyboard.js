@@ -2,6 +2,7 @@
   "use strict";
 
   var submitting = false;
+  var keydownInstalled = false;
 
   var specialKeys = {
     Enter: "Enter",
@@ -347,24 +348,30 @@
   };
 
   window.installKeyHandler = function (formId) {
-    window.addEventListener(
-      "keydown",
-      function (event) {
-        handleKeyDownEvent(event, formId);
-      },
-      true
-    );
+    if (!keydownInstalled) {
+      window.addEventListener(
+        "keydown",
+        function (event) {
+          handleKeyDownEvent(event, formId);
+        },
+        true
+      );
+      keydownInstalled = true;
+    }
     var form = findForm(formId);
     if (form) {
-      form.addEventListener("submit", function () {
-        var keyInput = form.querySelector('input[name="key"]');
-        if (!keyInput) {
-          return;
-        }
-        if (!submitting || !keyInput.value) {
-          keyInput.value = specialKeys.Enter;
-        }
-      });
+      if (!form.dataset.keyHandlerInstalled) {
+        form.addEventListener("submit", function () {
+          var keyInput = form.querySelector('input[name="key"]');
+          if (!keyInput) {
+            return;
+          }
+          if (!submitting || !keyInput.value) {
+            keyInput.value = specialKeys.Enter;
+          }
+        });
+        form.dataset.keyHandlerInstalled = "1";
+      }
     }
   };
 

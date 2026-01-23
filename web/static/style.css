@@ -2,6 +2,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -681,6 +685,8 @@ pre, pre input, textarea {
   justify-content: space-between;
   gap: 16px;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .workflow-status-row:hover {
@@ -693,6 +699,88 @@ pre, pre input, textarea {
   gap: 12px;
   font-size: 0.95rem;
   color: var(--fg-muted);
+}
+
+.workflow-status-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workflow-status-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.workflow-status-panel-toggle {
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-status-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workflow-status-panel-popup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.workflow-status-panel-popup svg {
+  width: 16px;
+  height: 16px;
+}
+
+.workflow-status-panel-meta {
+  font-size: 0.85rem;
+}
+
+.workflow-status-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
+  height: 320px;
+  max-height: 320px;
+  overflow: auto;
+  transition: max-height 0.25s ease, height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+  scroll-behavior: smooth;
+}
+
+.workflow-status-panel.is-collapsed .workflow-status-panel-body {
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .workflow-status-modal {
@@ -748,9 +836,17 @@ pre, pre input, textarea {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
   min-height: 0;
+}
+
+.workflow-status-modal .workflow-status-events {
+  flex: 1;
   overflow: auto;
+}
+
+.workflow-status-panel .workflow-status-events {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .workflow-status-event {

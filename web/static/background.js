@@ -22,6 +22,7 @@
   // Divisors keep animation density balanced around a ~1200x700 viewport.
   var PIXEL_AREA_DIVISOR = 20000;
   var CARD_AREA_DIVISOR = 80000;
+  var BLOCK_AREA_DIVISOR = 220000;
   var CHAR_AREA_DIVISOR = 12000;
   var MAX_DELTA_SECONDS = 0.05;
   var TOGGLE_KEYS = [" ", "Enter"];
@@ -53,12 +54,12 @@
   var themeConfigs = {
     "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
     "theme-dark": { mode: "characters", density: 0.9, speed: 0.8 },
-    "theme-light": { mode: "punchcards", density: 1, speed: 1 },
+    "theme-light": { mode: "characters", density: 0.95, speed: 0.9 },
     "theme-modern": { mode: "pixels", density: 1, speed: 1 },
     "theme-minimal": { mode: "characters", density: 0.7, speed: 0.75 },
     "theme-slick": { mode: "pixels", density: 1.15, speed: 1.15 },
-    "theme-yorkshire": { mode: "lines", density: 0.55, speed: 0.65 },
-    "theme-not3270": { mode: "punchcards", density: 1.1, speed: 0.95 }
+    "theme-yorkshire": { mode: "blocks", density: 0.6, speed: 0.6 },
+    "theme-not3270": { mode: "characters", density: 1, speed: 0.9 }
   };
 
   var state = {
@@ -144,6 +145,9 @@
     if (state.mode === "punchcards") {
       return clamp(Math.round(area / CARD_AREA_DIVISOR * state.density), 6, 26);
     }
+    if (state.mode === "blocks") {
+      return clamp(Math.round(area / BLOCK_AREA_DIVISOR * state.density), 4, 16);
+    }
     return clamp(Math.round(area / CHAR_AREA_DIVISOR * state.density), 20, 160);
   }
 
@@ -213,6 +217,56 @@
     };
   }
 
+  var yorkshireBlocks = [
+    [
+      "000001 //CICSTEST JOB (ACCT),'EY UP',CLASS=A,MSGCLASS=X",
+      "000002 //STEP010 EXEC PGM=DFHRM000",
+      "000003 //SYSOUT  DD SYSOUT=*",
+      "000004 DFHAC2200I CICSTEST CONTROL REGION READY"
+    ],
+    [
+      "SDSF STATUS: ACTIVE JOBS",
+      "JOBNAME  STEPNAME  PROC  RC",
+      "PAYROLL  STEP020   PAYP  0000",
+      "INVOICE  STEP010   INV1  0004",
+      "EZYUP001 MESSAGE: EY UP, CHECK THA' RC"
+    ],
+    [
+      "IEF404I JOB LEDGER  ENDED - TIME=09.12.44",
+      "IEC130I SYS1.PARMLIB, VOLUME SERIAL MISMATCH",
+      "RESP=12  REASON=00000014",
+      "EZYUP404I IF WEATHER = 'COLD' THEN PUT JUMPER ON"
+    ],
+    [
+      "IKJ56250I COMMAND COMPLETE",
+      "TSO READY",
+      "SDSF DA",
+      "OWNER  ID     NAME     CL  POS",
+      "EYUP001I THA' JOB'S REET, LAD"
+    ],
+    [
+      "COBOL  CICS  DFHCOMMAREA",
+      "01  WS-STATUS.",
+      "    05 WS-ERROR-CODE   PIC X(08).",
+      "    05 WS-ERROR-TEXT   PIC X(40).",
+      "IF WS-ERROR-CODE = 'COLD' DISPLAY 'GET THA JUMPER'"
+    ]
+  ];
+
+  function newBlock() {
+    var size = 10 + Math.random() * 4;
+    var block = yorkshireBlocks[Math.floor(Math.random() * yorkshireBlocks.length)];
+    return {
+      x: Math.random() * state.width,
+      y: Math.random() * state.height,
+      size: size,
+      lines: block,
+      life: 1.4 + Math.random() * 1.8,
+      maxLife: 0,
+      drift: (Math.random() - 0.5) * 10
+    };
+  }
+
   function updateCharacters(delta) {
     var target = desiredCount(state.width * state.height);
     while (state.items.length < target) {
@@ -265,6 +319,36 @@
       ctx.fillStyle = state.colors.accent || state.colors.fg;
       ctx.font = item.size + "px " + textFont;
       ctx.fillText(item.char, item.x, item.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function updateBlocks(delta) {
+    var target = desiredCount(state.width * state.height);
+    while (state.items.length < target) {
+      var next = newBlock();
+      next.maxLife = next.life;
+      state.items.push(next);
+    }
+    ctx.clearRect(0, 0, state.width, state.height);
+    ctx.textBaseline = "top";
+    for (var i = state.items.length - 1; i >= 0; i--) {
+      var item = state.items[i];
+      item.life -= delta * state.speed;
+      item.y += item.drift * delta * state.speed;
+      if (item.life <= 0) {
+        state.items.splice(i, 1);
+        continue;
+      }
+      var progress = 1 - item.life / item.maxLife;
+      var alpha = Math.sin(progress * Math.PI);
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.fillStyle = state.colors.accent || state.colors.fg;
+      ctx.font = item.size + "px " + textFont;
+      var lineHeight = item.size + 3;
+      for (var l = 0; l < item.lines.length; l++) {
+        ctx.fillText(item.lines[l], item.x, item.y + l * lineHeight);
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -338,6 +422,8 @@
         updateCards(delta);
       } else if (state.mode === "lines") {
         updateLines(delta);
+      } else if (state.mode === "blocks") {
+        updateBlocks(delta);
       } else {
         updateCharacters(delta);
       }

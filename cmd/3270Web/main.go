@@ -140,6 +140,7 @@ func main() {
 	r.GET("/", app.HomeHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
+	r.GET("/screen/content", app.ScreenContentHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/prefs", app.PrefsHandler)
 	r.POST("/record/start", app.RecordStartHandler)
@@ -537,6 +538,21 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	})
 }
 
+func (app *App) ScreenContentHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	if err := s.Host.UpdateScreen(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
+		return
+	}
+	screen := s.Host.GetScreen()
+	rendered := app.Renderer.Render(screen, "/submit", s.ID)
+	c.JSON(http.StatusOK, gin.H{"html": rendered})
+}
+
 func (app *App) SubmitHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -808,6 +824,17 @@ func resetPlaybackSummary(s *session.Session) {
 	s.LastPlaybackDelayApplied = ""
 }
 
+func clearWorkflowStatus(s *session.Session) {
+	if s == nil {
+		return
+	}
+	withSessionLock(s, func() {
+		resetPlaybackSummary(s)
+		s.PlaybackEvents = nil
+		s.PlaybackCompletedAt = time.Time{}
+	})
+}
+
 func (app *App) StepWorkflowHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -877,6 +904,7 @@ func (app *App) RemoveWorkflowHandler(c *gin.Context) {
 		s.LoadedWorkflow = nil
 		s.PlaybackCompletedAt = time.Time{}
 	})
+	clearWorkflowStatus(s)
 	c.Redirect(http.StatusFound, "/screen")
 }
 
@@ -896,6 +924,9 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"playbackActive":       playbackActive(s),
+		"playbackPaused":       playbackPaused(s),
+		"playbackCompleted":    playbackCompleted(s),
+		"playbackMode":         playbackMode(s),
 		"playbackStep":         playbackStepIndex(s),
 		"playbackStepTotal":    playbackStepTotal(s),
 		"playbackStepType":     playbackStepType(s),
@@ -1411,6 +1442,24 @@ func playbackActive(s *session.Session) bool {
 	s.Lock()
 	defer s.Unlock()
 	return s.Playback != nil && s.Playback.Active
+}
+
+func playbackPaused(s *session.Session) bool {
+	if s == nil {
+		return false
+	}
+	s.Lock()
+	defer s.Unlock()
+	return s.Playback != nil && s.Playback.Active && s.Playback.Paused
+}
+
+func playbackCompleted(s *session.Session) bool {
+	if s == nil {
+		return false
+	}
+	s.Lock()
+	defer s.Unlock()
+	return !s.PlaybackCompletedAt.IsZero()
 }
 
 func playbackEvents(s *session.Session) []session.WorkflowEvent {
