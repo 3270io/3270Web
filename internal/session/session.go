@@ -11,6 +11,7 @@ import (
 
 // Session represents a user session.
 type Session struct {
+	mu                       sync.Mutex
 	ID                       string
 	Host                     host.Host
 	LastAccess               time.Time
@@ -110,7 +111,9 @@ func (m *Manager) GetSession(id string) (*Session, bool) {
 	defer m.mu.RUnlock()
 	s, ok := m.sessions[id]
 	if ok {
+		s.mu.Lock()
 		s.LastAccess = time.Now()
+		s.mu.Unlock()
 	}
 	return s, ok
 }
@@ -144,4 +147,20 @@ func generateID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// Lock guards session state mutations.
+func (s *Session) Lock() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+}
+
+// Unlock releases the session state lock.
+func (s *Session) Unlock() {
+	if s == nil {
+		return
+	}
+	s.mu.Unlock()
 }
