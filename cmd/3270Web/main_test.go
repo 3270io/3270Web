@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jnnngs/3270Web/internal/host"
@@ -148,6 +149,12 @@ func TestIsValidHostname(t *testing.T) {
 		{name: "hostname", hostname: "localhost", expected: true},
 		{name: "host with port", hostname: "localhost:3270", expected: true},
 		{name: "sample app", hostname: "sampleapp:app1:3270", expected: true},
+		{name: "ipv4", hostname: "127.0.0.1", expected: true},
+		{name: "ipv6", hostname: "::1", expected: true},
+		{name: "ipv6 with port", hostname: "[::1]:3270", expected: true},
+		{name: "invalid char", hostname: "bad host", expected: false},
+		{name: "empty label", hostname: "bad..host", expected: false},
+		{name: "invalid label length", hostname: strings.Repeat("a", 64), expected: false},
 	}
 
 	for _, tt := range tests {

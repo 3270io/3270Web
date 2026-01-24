@@ -325,7 +325,51 @@ func parseHostPort(hostname string) (string, int) {
 }
 
 func isValidHostname(hostname string) bool {
-	return strings.TrimSpace(hostname) != ""
+	trimmed := strings.TrimSpace(hostname)
+	if trimmed == "" {
+		return false
+	}
+	if _, _, ok := parseSampleAppHost(trimmed); ok {
+		return true
+	}
+	if trimmed == "mock" || trimmed == "demo" {
+		return true
+	}
+	if strings.Contains(trimmed, " ") {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		host := trimmed
+		if strings.Contains(trimmed, "]") {
+			if h, _, err := net.SplitHostPort(trimmed); err == nil {
+				host = h
+			} else {
+				host = strings.TrimSuffix(trimmed, "]")
+			}
+		}
+		return net.ParseIP(strings.TrimPrefix(host, "[")) != nil
+	}
+	if h, _, err := net.SplitHostPort(trimmed); err == nil {
+		trimmed = h
+	}
+	if ip := net.ParseIP(trimmed); ip != nil {
+		return true
+	}
+	if len(trimmed) > 253 {
+		return false
+	}
+	parts := strings.Split(trimmed, ".")
+	for _, part := range parts {
+		if part == "" || len(part) > 63 {
+			return false
+		}
+		for _, r := range part {
+			if !(r == '-' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func recordingFileName(s *session.Session) string {
