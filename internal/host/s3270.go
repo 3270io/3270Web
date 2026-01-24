@@ -124,16 +124,9 @@ func (h *S3270) IsConnected() bool {
 }
 
 func (h *S3270) UpdateScreen() error {
-	if err := h.updateScreenOnce(); err != nil {
-		// If not connected, try to restart once
-		if !h.IsConnected() || isConnectionError(err) {
-			if restartErr := h.Start(); restartErr == nil {
-				return h.updateScreenOnce()
-			}
-		}
-		return err
-	}
-	return nil
+	return h.withRetry(func() error {
+		return h.updateScreenOnce()
+	})
 }
 
 func (h *S3270) updateScreenOnce() error {
@@ -165,22 +158,22 @@ func (h *S3270) GetScreen() *Screen {
 }
 
 func (h *S3270) SendKey(key string) error {
-	if err := h.sendKeyOnce(key); err != nil {
-		if !h.IsConnected() || isConnectionError(err) {
-			if restartErr := h.Start(); restartErr == nil {
-				return h.sendKeyOnce(key)
-			}
-		}
-		return err
-	}
-	return nil
+	return h.withRetry(func() error {
+		return h.sendKeyOnce(key)
+	})
 }
 
 func (h *S3270) WriteStringAt(row, col int, text string) error {
-	if err := h.writeStringAtOnce(row, col, text); err != nil {
+	return h.withRetry(func() error {
+		return h.writeStringAtOnce(row, col, text)
+	})
+}
+
+func (h *S3270) withRetry(op func() error) error {
+	if err := op(); err != nil {
 		if !h.IsConnected() || isConnectionError(err) {
 			if restartErr := h.Start(); restartErr == nil {
-				return h.writeStringAtOnce(row, col, text)
+				return op()
 			}
 		}
 		return err
