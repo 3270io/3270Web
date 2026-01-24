@@ -1,8 +1,8 @@
 package render
 
 import (
-	"fmt"
 	"html"
+	"strconv"
 	"strings"
 
 	"github.com/jnnngs/3270Web/internal/host"
@@ -18,7 +18,13 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	var sb strings.Builder
 	formName := r.getFormName(id)
 
-	sb.WriteString(fmt.Sprintf(`<form id="%s" name="%s" action="%s" method="post" class="renderer-form">`, formName, formName, actionURL))
+	sb.WriteString(`<form id="`)
+	sb.WriteString(formName)
+	sb.WriteString(`" name="`)
+	sb.WriteString(formName)
+	sb.WriteString(`" action="`)
+	sb.WriteString(actionURL)
+	sb.WriteString(`" method="post" class="renderer-form">`)
 	sb.WriteString("\n")
 
 	if s.IsFormatted {
@@ -30,7 +36,9 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	sb.WriteString(`<div><input type="hidden" name="key" /></div>`)
 	sb.WriteString("\n")
 	if id != "" {
-		sb.WriteString(fmt.Sprintf(`<div><input type="hidden" name="TERMINAL" value="%s"></div>`, id))
+		sb.WriteString(`<div><input type="hidden" name="TERMINAL" value="`)
+		sb.WriteString(id)
+		sb.WriteString(`"></div>`)
 		sb.WriteString("\n")
 	}
 	sb.WriteString("</form>\n")
@@ -58,7 +66,9 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 		} else {
 			needSpan := r.needSpan(f)
 			if needSpan {
-				sb.WriteString(fmt.Sprintf(`<span class="%s">`, r.protectedFieldClass(f)))
+				sb.WriteString(`<span class="`)
+				sb.WriteString(r.protectedFieldClass(f))
+				sb.WriteString(`">`)
 			}
 
 			val := f.GetValue()
@@ -89,7 +99,11 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 	}
 
 	text := s.Text()
-	sb.WriteString(fmt.Sprintf(`<textarea name="field" class="unformatted" rows="%d" cols="%d">`, rows, cols))
+	sb.WriteString(`<textarea name="field" class="unformatted" rows="`)
+	sb.WriteString(strconv.Itoa(rows))
+	sb.WriteString(`" cols="`)
+	sb.WriteString(strconv.Itoa(cols))
+	sb.WriteString(`">`)
 	sb.WriteString(html.EscapeString(text))
 	sb.WriteString("</textarea>")
 }
@@ -135,9 +149,9 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		inputType = "password"
 	}
 
-	name := fmt.Sprintf("field_%d_%d", f.StartX, f.StartY)
+	name := "field_" + strconv.Itoa(f.StartX) + "_" + strconv.Itoa(f.StartY)
 	if lineNum != -1 {
-		name += fmt.Sprintf("_%d", lineNum)
+		name += "_" + strconv.Itoa(lineNum)
 	}
 
 	class := "color-input"
@@ -155,8 +169,25 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		dataY += lineNum
 	}
 
-	sb.WriteString(fmt.Sprintf(`<input type="%s" name="%s" class="%s" value="%s" maxlength="%d" size="%d" data-x="%d" data-y="%d" data-w="%d" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		inputType, name, class, html.EscapeString(val), width, width, dataX, dataY, width))
+	sb.WriteString(`<input type="`)
+	sb.WriteString(inputType)
+	sb.WriteString(`" name="`)
+	sb.WriteString(name)
+	sb.WriteString(`" class="`)
+	sb.WriteString(class)
+	sb.WriteString(`" value="`)
+	sb.WriteString(html.EscapeString(val))
+	sb.WriteString(`" maxlength="`)
+	sb.WriteString(strconv.Itoa(width))
+	sb.WriteString(`" size="`)
+	sb.WriteString(strconv.Itoa(width))
+	sb.WriteString(`" data-x="`)
+	sb.WriteString(strconv.Itoa(dataX))
+	sb.WriteString(`" data-y="`)
+	sb.WriteString(strconv.Itoa(dataY))
+	sb.WriteString(`" data-w="`)
+	sb.WriteString(strconv.Itoa(width))
+	sb.WriteString(`" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
 }
 
 func (r *HtmlRenderer) needSpan(f *host.Field) bool {
@@ -222,9 +253,13 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 	sb.WriteString(`<script type="text/javascript">` + "\n")
 	sb.WriteString("  window.addEventListener(\"DOMContentLoaded\", function () {\n")
 	fn := r.getFormName(id)
-	sb.WriteString(fmt.Sprintf(`    installKeyHandler('%s');`+"\n", fn))
+	sb.WriteString(`    installKeyHandler('`)
+	sb.WriteString(fn)
+	sb.WriteString(`');` + "\n")
 	if !s.IsFormatted {
-		sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field.focus()`+"\n", fn))
+		sb.WriteString(`    document.forms["`)
+		sb.WriteString(fn)
+		sb.WriteString(`"].field.focus()` + "\n")
 	} else {
 		var focused *host.Field
 		for _, f := range s.Fields {
@@ -239,8 +274,14 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 			if focused.IsMultiline() {
 				suffix = "_0"
 			}
-			sb.WriteString(fmt.Sprintf(`    document.forms["%s"].field_%d_%d%s.focus()`+"\n",
-				fn, focused.StartX, focused.StartY, suffix))
+			sb.WriteString(`    document.forms["`)
+			sb.WriteString(fn)
+			sb.WriteString(`"].field_`)
+			sb.WriteString(strconv.Itoa(focused.StartX))
+			sb.WriteString(`_`)
+			sb.WriteString(strconv.Itoa(focused.StartY))
+			sb.WriteString(suffix)
+			sb.WriteString(`.focus()` + "\n")
 		}
 	}
 	sb.WriteString("  });\n")
