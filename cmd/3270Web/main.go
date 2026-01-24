@@ -324,6 +324,10 @@ func parseHostPort(hostname string) (string, int) {
 	return host, port
 }
 
+func isValidHostname(hostname string) bool {
+	return strings.TrimSpace(hostname) != ""
+}
+
 func recordingFileName(s *session.Session) string {
 	if s == nil {
 		return ""
