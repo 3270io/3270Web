@@ -339,13 +339,14 @@ func isValidHostname(hostname string) bool {
 		return false
 	}
 	if strings.HasPrefix(trimmed, "[") {
+		if !strings.Contains(trimmed, "]") {
+			return false
+		}
 		host := trimmed
-		if strings.Contains(trimmed, "]") {
-			if h, _, err := net.SplitHostPort(trimmed); err == nil {
-				host = h
-			} else {
-				host = strings.TrimSuffix(trimmed, "]")
-			}
+		if h, _, err := net.SplitHostPort(trimmed); err == nil {
+			host = h
+		} else {
+			host = strings.TrimSuffix(trimmed, "]")
 		}
 		return net.ParseIP(strings.TrimPrefix(host, "[")) != nil
 	}
@@ -361,6 +362,9 @@ func isValidHostname(hostname string) bool {
 	parts := strings.Split(trimmed, ".")
 	for _, part := range parts {
 		if part == "" || len(part) > 63 {
+			return false
+		}
+		if part[0] == '-' || part[len(part)-1] == '-' {
 			return false
 		}
 		for _, r := range part {

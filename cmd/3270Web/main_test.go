@@ -152,9 +152,12 @@ func TestIsValidHostname(t *testing.T) {
 		{name: "ipv4", hostname: "127.0.0.1", expected: true},
 		{name: "ipv6", hostname: "::1", expected: true},
 		{name: "ipv6 with port", hostname: "[::1]:3270", expected: true},
+		{name: "ipv6 missing bracket", hostname: "[::1", expected: false},
 		{name: "invalid char", hostname: "bad host", expected: false},
 		{name: "empty label", hostname: "bad..host", expected: false},
 		{name: "invalid label length", hostname: strings.Repeat("a", 64), expected: false},
+		{name: "label starts hyphen", hostname: "-bad.example", expected: false},
+		{name: "label ends hyphen", hostname: "bad-.example", expected: false},
 	}
 
 	for _, tt := range tests {
