@@ -9,6 +9,13 @@
       });
       fileInput.addEventListener('change', () => {
         if (fileInput.files && fileInput.files.length > 0) {
+          const width = trigger.offsetWidth;
+          trigger.style.width = `${width}px`;
+          trigger.innerHTML =
+            '<span class="spinner" aria-hidden="true"></span> Loading...';
+          trigger.setAttribute('aria-busy', 'true');
+          trigger.disabled = true;
+
           uploadForm.submit();
         }
       });
