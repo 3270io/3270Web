@@ -42,7 +42,7 @@ The Docker image installs the `s3270` package so it is available at `/usr/bin/s3
 
 To replay a workflow, use **Load workflow and Play** on the session screen.
 
-The output matches the 3270Connect workflow format.
+The output matches the 3270Connect workflow format. See [Workflow Configuration](docs/workflow.md) for file format details.
 
 ## Sample applications
 Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.
