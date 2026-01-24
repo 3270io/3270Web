@@ -351,13 +351,20 @@ func isValidHostname(hostname string) bool {
 			if trimmed[closing+1] != ':' {
 				return false
 			}
-			if _, _, err := net.SplitHostPort(trimmed); err != nil {
+			_, portStr, err := net.SplitHostPort(trimmed)
+			if err != nil {
+				return false
+			}
+			if portValue, err := strconv.Atoi(portStr); err != nil || portValue <= 0 || portValue > 65535 {
 				return false
 			}
 		}
 		return net.ParseIP(bracketHost) != nil
 	}
-	if h, _, err := net.SplitHostPort(trimmed); err == nil {
+	if h, portStr, err := net.SplitHostPort(trimmed); err == nil {
+		if portValue, err := strconv.Atoi(portStr); err != nil || portValue <= 0 || portValue > 65535 {
+			return false
+		}
 		trimmed = h
 	}
 	if ip := net.ParseIP(trimmed); ip != nil {
