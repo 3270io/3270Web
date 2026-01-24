@@ -86,6 +86,12 @@ func (m *MockHost) WriteStringAt(row, col int, text string) error {
 	if m.Screen == nil {
 		m.Screen = &Screen{Width: 80, Height: 24, IsFormatted: true}
 	}
+	if m.Screen.Buffer == nil {
+		m.Screen.Buffer = make([][]rune, m.Screen.Height)
+		for i := range m.Screen.Buffer {
+			m.Screen.Buffer[i] = make([]rune, m.Screen.Width)
+		}
+	}
 	if row < 0 || col < 0 {
 		return nil
 	}
