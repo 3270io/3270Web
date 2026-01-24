@@ -1960,6 +1960,10 @@ func (app *App) getSession(c *gin.Context) *session.Session {
 }
 
 func (app *App) connectToHost(c *gin.Context, hostname string) error {
+	if !isValidHostname(hostname) {
+		return fmt.Errorf("invalid hostname format: %q", hostname)
+	}
+
 	var h host.Host
 	var err error
 
