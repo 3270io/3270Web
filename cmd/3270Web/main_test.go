@@ -136,3 +136,25 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 		t.Fatalf("expected write command, got %v", mockHost.Commands)
 	}
 }
+
+func TestIsValidHostname(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		expected bool
+	}{
+		{name: "empty", hostname: "", expected: false},
+		{name: "whitespace", hostname: "   ", expected: false},
+		{name: "hostname", hostname: "localhost", expected: true},
+		{name: "host with port", hostname: "localhost:3270", expected: true},
+		{name: "sample app", hostname: "sampleapp:app1:3270", expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidHostname(tt.hostname); got != tt.expected {
+				t.Errorf("isValidHostname(%q) = %v, want %v", tt.hostname, got, tt.expected)
+			}
+		})
+	}
+}
