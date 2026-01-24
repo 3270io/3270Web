@@ -362,7 +362,10 @@ func isValidHostname(hostname string) bool {
 	parts := strings.Split(trimmed, ".")
 	for _, part := range parts {
 		partLen := len(part)
-		if partLen == 0 || partLen > 63 {
+		if partLen == 0 {
+			return false
+		}
+		if partLen > 63 {
 			return false
 		}
 		if part[0] == '-' || part[partLen-1] == '-' {
