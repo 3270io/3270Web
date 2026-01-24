@@ -324,6 +324,76 @@ func parseHostPort(hostname string) (string, int) {
 	return host, port
 }
 
+func isValidHostname(hostname string) bool {
+	trimmed := strings.TrimSpace(hostname)
+	if trimmed == "" {
+		return false
+	}
+	if _, _, ok := parseSampleAppHost(trimmed); ok {
+		return true
+	}
+	if trimmed == "mock" || trimmed == "demo" {
+		return true
+	}
+	if strings.Contains(trimmed, " ") {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		closing := strings.Index(trimmed, "]")
+		if closing == -1 {
+			return false
+		}
+		bracketHost := trimmed[1:closing]
+		if bracketHost == "" {
+			return false
+		}
+		if closing+1 < len(trimmed) {
+			if trimmed[closing+1] != ':' {
+				return false
+			}
+			_, portStr, err := net.SplitHostPort(trimmed)
+			if err != nil {
+				return false
+			}
+			if portValue, err := strconv.Atoi(portStr); err != nil || portValue <= 0 || portValue > 65535 {
+				return false
+			}
+		}
+		return net.ParseIP(bracketHost) != nil
+	}
+	if h, portStr, err := net.SplitHostPort(trimmed); err == nil {
+		if portValue, err := strconv.Atoi(portStr); err != nil || portValue <= 0 || portValue > 65535 {
+			return false
+		}
+		trimmed = h
+	}
+	if ip := net.ParseIP(trimmed); ip != nil {
+		return true
+	}
+	if len(trimmed) > 253 {
+		return false
+	}
+	parts := strings.Split(trimmed, ".")
+	for _, part := range parts {
+		partLen := len(part)
+		if partLen == 0 {
+			return false
+		}
+		if partLen > 63 {
+			return false
+		}
+		if part[0] == '-' || part[partLen-1] == '-' {
+			return false
+		}
+		for _, r := range part {
+			if !(r == '-' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func recordingFileName(s *session.Session) string {
 	if s == nil {
 		return ""

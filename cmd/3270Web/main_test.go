@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jnnngs/3270Web/internal/host"
@@ -134,5 +135,41 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 	// We update the test to match current behavior.
 	if len(mockHost.Commands) != 1 || mockHost.Commands[0] != "write" {
 		t.Fatalf("expected write command, got %v", mockHost.Commands)
+	}
+}
+
+func TestIsValidHostname(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		expected bool
+	}{
+		{name: "empty", hostname: "", expected: false},
+		{name: "whitespace", hostname: "   ", expected: false},
+		{name: "hostname", hostname: "localhost", expected: true},
+		{name: "host with port", hostname: "localhost:3270", expected: true},
+		{name: "sample app", hostname: "sampleapp:app1:3270", expected: true},
+		{name: "ipv4", hostname: "127.0.0.1", expected: true},
+		{name: "ipv6", hostname: "::1", expected: true},
+		{name: "ipv6 with port", hostname: "[::1]:3270", expected: true},
+		{name: "ipv6 missing bracket", hostname: "[::1", expected: false},
+		{name: "ipv6 missing opening bracket", hostname: "::1]", expected: false},
+		{name: "ipv6 trailing garbage", hostname: "[::1]x", expected: false},
+		{name: "invalid char", hostname: "bad host", expected: false},
+		{name: "empty label", hostname: "bad..host", expected: false},
+		{name: "invalid label length", hostname: strings.Repeat("a", 64), expected: false},
+		{name: "label starts hyphen", hostname: "-bad.example", expected: false},
+		{name: "label ends hyphen", hostname: "bad-.example", expected: false},
+		{name: "invalid port", hostname: "localhost:99999", expected: false},
+		{name: "invalid ipv6 port", hostname: "[::1]:70000", expected: false},
+		{name: "hostname with port 23", hostname: "localhost:23", expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidHostname(tt.hostname); got != tt.expected {
+				t.Errorf("isValidHostname(%q) = %v, want %v", tt.hostname, got, tt.expected)
+			}
+		})
 	}
 }
