@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
@@ -99,12 +100,12 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 	screen := mockHost.GetScreen()
 	screen.Fields = []*host.Field{
 		{
-			Screen:   screen,
-			StartX:   0,
-			StartY:   0,
-			EndX:     4,
-			EndY:     0,
-			Changed:  false,
+			Screen:    screen,
+			StartX:    0,
+			StartY:    0,
+			EndX:      4,
+			EndY:      0,
+			Changed:   false,
 			FieldCode: 0,
 		},
 	}
@@ -171,5 +172,49 @@ func TestIsValidHostname(t *testing.T) {
 				t.Errorf("isValidHostname(%q) = %v, want %v", tt.hostname, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestBuildThemeCSS_Caching(t *testing.T) {
+	// Setup App with mock config
+	cfg := &config.Config{
+		ColorSchemes: config.ColorSchemesConfig{
+			Schemes: []config.ColorScheme{
+				{Name: "Scheme1", PNBg: "#000", PNFg: "#FFF"},
+				{Name: "Scheme2", PNBg: "#FFF", PNFg: "#000"},
+			},
+		},
+		Fonts: config.FontsConfig{
+			Fonts: []config.Font{
+				{Name: "Font1"},
+			},
+		},
+	}
+	app := &App{
+		Config:     cfg,
+		themeCache: make(map[string]string),
+	}
+
+	// First call - should populate cache
+	prefs1 := session.Preferences{ColorScheme: "Scheme1", FontName: "Font1"}
+	css1 := app.buildThemeCSS(prefs1)
+	if !strings.Contains(css1, "#000") {
+		t.Errorf("Expected CSS to contain #000, got %s", css1)
+	}
+
+	// Second call - should use cache
+	css2 := app.buildThemeCSS(prefs1)
+	if css1 != css2 {
+		t.Errorf("Expected cached CSS to match first call")
+	}
+
+	// Different prefs - should generate new CSS
+	prefs2 := session.Preferences{ColorScheme: "Scheme2", FontName: "Font1"}
+	css3 := app.buildThemeCSS(prefs2)
+	if !strings.Contains(css3, "#FFF") { // Scheme2 bg is #FFF
+		t.Errorf("Expected CSS to contain #FFF, got %s", css3)
+	}
+	if css1 == css3 {
+		t.Errorf("Expected different CSS for different schemes")
 	}
 }
