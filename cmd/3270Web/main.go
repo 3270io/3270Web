@@ -22,6 +22,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,8 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
+	themeCache     map[string]string
+	themeCacheMu   sync.RWMutex
 }
 
 type WorkflowConfig struct {
@@ -105,6 +108,7 @@ func main() {
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
+		themeCache:     make(map[string]string),
 	}
 
 	r := gin.Default()
@@ -2278,6 +2282,15 @@ func (app *App) isValidFont(name string) bool {
 }
 
 func (app *App) buildThemeCSS(p session.Preferences) string {
+	// ⚡ Bolt: Memoize theme CSS generation to improve performance on screen updates
+	key := p.ColorScheme + "|" + p.FontName
+	app.themeCacheMu.RLock()
+	if css, ok := app.themeCache[key]; ok {
+		app.themeCacheMu.RUnlock()
+		return css
+	}
+	app.themeCacheMu.RUnlock()
+
 	fontName := app.resolveFontName(p.FontName)
 	cs, _ := app.resolveColorScheme(p.ColorScheme)
 
@@ -2297,7 +2310,11 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 		writeRule(&sb, ".color-input-hidden", cs.UHBg, cs.UHFg)
 	}
 
-	return sb.String()
+	css := sb.String()
+	app.themeCacheMu.Lock()
+	app.themeCache[key] = css
+	app.themeCacheMu.Unlock()
+	return css
 }
 
 func normalizeKey(key string) string {
