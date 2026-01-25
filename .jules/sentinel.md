@@ -1,0 +1,4 @@
+## 2025-02-18 - [Command Injection via s3270 Input]
+**Vulnerability:** The `normalizeKey` function in `cmd/3270Web/main.go` accepted arbitrary input strings and returned them if they weren't matched against a list of keys. These strings were then passed directly to the `s3270` subprocess stdin via `sendKey`. This allowed attackers to inject arbitrary s3270 commands (e.g., `Connect(evil.com)`, `Quit`) by sending them as the `key` parameter in a POST request.
+**Learning:** Functions that sanitize input for subprocess execution must operate on a strict whitelist basis. Returning the original input as a fallback ("fail open" for functionality) can be catastrophic for security when the downstream consumer is a command interpreter.
+**Prevention:** Always ensure that input intended for `exec` or subprocess stdin matches a strict allowlist. If input is not recognized, default to a safe value (like "Enter" or error) rather than passing the raw input through.
