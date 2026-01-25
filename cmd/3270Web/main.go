@@ -2306,6 +2306,12 @@ func normalizeKey(key string) string {
 		return "Enter"
 	}
 
+	// Sanitize to prevent command injection
+	if strings.ContainsAny(trimmed, "\n\r\t;") {
+		log.Printf("Security warning: detected potential command injection in key: %q", key)
+		return "Enter"
+	}
+
 	upper := strings.ToUpper(trimmed)
 	lower := strings.ToLower(trimmed)
 
