@@ -57,21 +57,23 @@ Defines a random delay duration range.
 
 ## Step Types
 
-| Type | Description |
-|------|-------------|
-| `Connect` | Recorded at start. Ignored during playback (session connects automatically). |
-| `Disconnect` | Recorded at end. Ignored during playback to keep the session alive. |
-| `FillString` | Types text into a field at the specified `Coordinates`. |
-| `PressEnter` | Sends the Enter key. |
-| `PressTab` | Sends the Tab key. |
-| `PressPF<n>` | Sends a PF key (e.g., `PressPF1`, `PressPF12`). |
-| `PressPA<n>` | Sends a PA key (e.g., `PressPA1`). |
-| `PressClear` | Sends the Clear key. |
-| `PressReset` | Sends the Reset key. |
-| `PressEraseInput` | Sends the Erase Input key. |
-| `PressEraseEOF` | Sends the Erase EOF key. |
-| `PressHome` | Sends the Home key. |
-| `PressUp`, `PressDown`, `PressLeft`, `PressRight` | Sends cursor movement keys. |
+Most step types are supported for playback, but the recorder currently only captures a subset of keys. Unrecorded keys can be manually added to the JSON file.
+
+| Type | Description | Recorded? |
+|------|-------------|-----------|
+| `Connect` | Recorded at start. Ignored during playback (session connects automatically). | Yes |
+| `Disconnect` | Recorded at end. Ignored during playback to keep the session alive. | Yes |
+| `FillString` | Types text into a field at the specified `Coordinates`. | Yes |
+| `PressEnter` | Sends the Enter key. | Yes |
+| `PressTab` | Sends the Tab key. | Yes |
+| `PressPF<n>` | Sends a PF key (e.g., `PressPF1`, `PressPF12`). | Yes |
+| `PressPA<n>` | Sends a PA key (e.g., `PressPA1`). | No |
+| `PressClear` | Sends the Clear key. | No |
+| `PressReset` | Sends the Reset key. | No |
+| `PressEraseInput` | Sends the Erase Input key. | No |
+| `PressEraseEOF` | Sends the Erase EOF key. | No |
+| `PressHome` | Sends the Home key. | No |
+| `PressUp`, `PressDown`, `PressLeft`, `PressRight` | Sends cursor movement keys. | No |
 
 ## Example
 
