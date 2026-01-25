@@ -2390,7 +2390,8 @@ func normalizeKey(key string) string {
 		return "Right"
 	}
 
-	return trimmed
+	// Default to Enter for any unrecognized key to prevent command injection
+	return "Enter"
 }
 
 func writeRule(sb *strings.Builder, selector, bg, fg string) {
