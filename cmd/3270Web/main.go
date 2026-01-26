@@ -328,6 +328,107 @@ func parseHostPort(hostname string) (string, int) {
 	return host, port
 }
 
+func isValidHostname(hostname string) bool {
+	host := strings.TrimSpace(hostname)
+	if host == "" {
+		return false
+	}
+	if host == "mock" || host == "demo" {
+		return true
+	}
+	if _, port, ok := parseSampleAppHost(host); ok {
+		if strings.Count(host, ":") > 1 && !isValidPort(port) {
+			return false
+		}
+		return true
+	}
+	if strings.HasPrefix(host, "[") {
+		return isValidBracketedIPv6(host)
+	}
+	if strings.Count(host, ":") >= 2 {
+		return net.ParseIP(host) != nil
+	}
+	if strings.Contains(host, ":") {
+		parsedHost, portStr, err := net.SplitHostPort(host)
+		if err != nil || parsedHost == "" {
+			return false
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil || !isValidPort(port) {
+			return false
+		}
+		return isValidHostLabel(parsedHost)
+	}
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	return isValidDomainName(host)
+}
+
+func isValidHostLabel(host string) bool {
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	return isValidDomainName(host)
+}
+
+func isValidDomainName(name string) bool {
+	if name == "" {
+		return false
+	}
+	labels := strings.Split(name, ".")
+	for _, label := range labels {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			switch {
+			case r >= 'a' && r <= 'z':
+			case r >= 'A' && r <= 'Z':
+			case r >= '0' && r <= '9':
+			case r == '-':
+			default:
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isValidBracketedIPv6(host string) bool {
+	end := strings.Index(host, "]")
+	if end <= 1 {
+		return false
+	}
+	ipLiteral := host[1:end]
+	if net.ParseIP(ipLiteral) == nil || !strings.Contains(ipLiteral, ":") {
+		return false
+	}
+	rest := host[end+1:]
+	if rest == "" {
+		return true
+	}
+	if !strings.HasPrefix(rest, ":") {
+		return false
+	}
+	portStr := rest[1:]
+	if portStr == "" {
+		return false
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || !isValidPort(port) {
+		return false
+	}
+	return true
+}
+
+func isValidPort(port int) bool {
+	return port >= 1 && port <= 65535
+}
+
 
 func recordingFileName(s *session.Session) string {
 	if s == nil {
