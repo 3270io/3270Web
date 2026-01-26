@@ -70,6 +70,10 @@ func (s *Screen) Update(status string, lines []string) error {
 		s.IsFormatted = false
 	}
 
+	if rows, cols, ok := screenDimensionsFromStatus(status); ok {
+		lines = normalizeScreenLines(lines, rows, cols)
+	}
+
 	if err := s.updateBuffer(lines); err != nil {
 		return err
 	}
@@ -94,6 +98,94 @@ func (s *Screen) Update(status string, lines []string) error {
 	}
 
 	return nil
+}
+
+func screenDimensionsFromStatus(status string) (int, int, bool) {
+	if status == "" {
+		return 0, 0, false
+	}
+	parts := strings.Fields(status)
+	if len(parts) < 8 {
+		return 0, 0, false
+	}
+	rows, err := strconv.Atoi(parts[6])
+	if err != nil || rows <= 0 {
+		return 0, 0, false
+	}
+	cols, err := strconv.Atoi(parts[7])
+	if err != nil || cols <= 0 {
+		return 0, 0, false
+	}
+	return rows, cols, true
+}
+
+func normalizeScreenLines(lines []string, rows, cols int) []string {
+	if rows <= 0 || cols <= 0 || len(lines) != 1 {
+		return lines
+	}
+	line := strings.TrimSpace(lines[0])
+	if strings.HasPrefix(line, "data:") {
+		line = strings.TrimSpace(line[len("data:"):])
+	}
+	tokens := formattedTokenPattern.FindAllString(line, -1)
+	if len(tokens) < cols || len(tokens)%cols != 0 {
+		return lines
+	}
+	totalRows := len(tokens) / cols
+	if totalRows < rows {
+		return lines
+	}
+	if totalRows > rows {
+		totalRows = rows
+	}
+	if totalRows < 2 {
+		return lines
+	}
+	if duplicatesOnly(tokens, cols, totalRows, rows) {
+		return lines
+	}
+	normalized := make([]string, 0, totalRows)
+	for i := 0; i < totalRows; i++ {
+		start := i * cols
+		end := start + cols
+		if end > len(tokens) {
+			break
+		}
+		normalized = append(normalized, "data: "+strings.Join(tokens[start:end], " "))
+	}
+	if len(normalized) == 0 {
+		return lines
+	}
+	return normalized
+}
+
+func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
+	return normalizeScreenLines(lines, rows, cols)
+}
+
+func duplicatesOnlyForTest(tokens []string, cols, totalRows, expectedRows int) bool {
+	return duplicatesOnly(tokens, cols, totalRows, expectedRows)
+}
+
+func duplicatesOnly(tokens []string, cols, totalRows, expectedRows int) bool {
+	if expectedRows <= 0 || totalRows < expectedRows {
+		return false
+	}
+	first := strings.Join(tokens[:cols], " ")
+	if first == "" {
+		return false
+	}
+	for row := 1; row < totalRows; row++ {
+		start := row * cols
+		end := start + cols
+		if end > len(tokens) {
+			return false
+		}
+		if strings.Join(tokens[start:end], " ") != first {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Screen) updateBuffer(lines []string) error {
