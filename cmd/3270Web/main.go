@@ -328,6 +328,62 @@ func parseHostPort(hostname string) (string, int) {
 	return host, port
 }
 
+func isValidHostname(hostname string) bool {
+	host := strings.TrimSpace(hostname)
+	if host == "" {
+		return false
+	}
+
+	if _, port, ok := parseSampleAppHost(host); ok {
+		return port == 0 || isAllowedSampleAppPort(port)
+	}
+
+	// Extract port, if present.
+	if strings.HasPrefix(host, "[") {
+		h, p, err := net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+		host = h
+		if p != "" {
+			n, err := strconv.Atoi(p)
+			if err != nil || n <= 0 || n > 65535 {
+				return false
+			}
+		}
+	} else if strings.Count(host, ":") == 1 {
+		h, p, err := net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+		host = h
+		if n, err := strconv.Atoi(p); err != nil || n <= 0 || n > 65535 {
+			return false
+		}
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		return true
+	}
+
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+		for _, r := range label {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' {
+				continue
+			}
+			return false
+		}
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+	}
+	return true
+}
+
 
 func recordingFileName(s *session.Session) string {
 	if s == nil {
