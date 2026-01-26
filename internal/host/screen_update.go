@@ -70,6 +70,10 @@ func (s *Screen) Update(status string, lines []string) error {
 		s.IsFormatted = false
 	}
 
+	if rows, cols, ok := screenDimensionsFromStatus(status); ok {
+		lines = normalizeScreenLines(lines, rows, cols)
+	}
+
 	if err := s.updateBuffer(lines); err != nil {
 		return err
 	}
@@ -94,6 +98,103 @@ func (s *Screen) Update(status string, lines []string) error {
 	}
 
 	return nil
+}
+
+func screenDimensionsFromStatus(status string) (int, int, bool) {
+	if status == "" {
+		return 0, 0, false
+	}
+	parts := strings.Fields(status)
+	if len(parts) < 8 {
+		return 0, 0, false
+	}
+	rows, err := strconv.Atoi(parts[6])
+	if err != nil || rows <= 0 {
+		return 0, 0, false
+	}
+	cols, err := strconv.Atoi(parts[7])
+	if err != nil || cols <= 0 {
+		return 0, 0, false
+	}
+	return rows, cols, true
+}
+
+func normalizeScreenLines(lines []string, rows, cols int) []string {
+	if rows <= 0 || cols <= 0 || len(lines) != 1 {
+		return lines
+	}
+	line := strings.TrimSpace(lines[0])
+	if strings.HasPrefix(line, "data:") {
+		line = strings.TrimSpace(line[len("data:"):])
+	}
+	tokens := formattedTokenPattern.FindAllString(line, -1)
+	if len(tokens) < cols || len(tokens)%cols != 0 {
+		return lines
+	}
+	totalRows := len(tokens) / cols
+	if totalRows < rows {
+		return lines
+	}
+	if totalRows == rows {
+		return splitScreenLines(tokens, rows, cols)
+	}
+	if totalRows%rows != 0 {
+		return lines
+	}
+	if !repeatsScreen(tokens, rows, cols, totalRows) {
+		return lines
+	}
+	return splitScreenLines(tokens, rows, cols)
+}
+
+func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
+	return normalizeScreenLines(lines, rows, cols)
+}
+
+func repeatsScreenForTest(tokens []string, rows, cols, totalRows int) bool {
+	return repeatsScreen(tokens, rows, cols, totalRows)
+}
+
+func splitScreenLines(tokens []string, rows, cols int) []string {
+	if rows <= 0 || cols <= 0 {
+		return nil
+	}
+	normalized := make([]string, 0, rows)
+	for i := 0; i < rows; i++ {
+		start := i * cols
+		end := start + cols
+		if end > len(tokens) {
+			break
+		}
+		normalized = append(normalized, "data: "+strings.Join(tokens[start:end], " "))
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
+	if rows <= 0 || cols <= 0 || totalRows <= rows {
+		return false
+	}
+	blockSize := rows * cols
+	if blockSize <= 0 || blockSize > len(tokens) {
+		return false
+	}
+	blocks := totalRows / rows
+	for block := 1; block < blocks; block++ {
+		offset := block * blockSize
+		if offset+blockSize > len(tokens) {
+			return false
+		}
+		for i := 0; i < blockSize; i++ {
+			if tokens[i] != tokens[offset+i] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *Screen) updateBuffer(lines []string) error {
