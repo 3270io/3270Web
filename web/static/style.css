@@ -701,103 +701,13 @@ pre, pre input, textarea {
   color: var(--fg-muted);
 }
 
-.workflow-status-panel {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.workflow-status-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel-2);
-}
-
-.workflow-status-panel-toggle {
-  border: none;
-  background: transparent;
-  color: var(--fg);
-  cursor: pointer;
-  font-weight: 600;
-  padding: 6px 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.workflow-status-panel-toggle svg {
-  transition: transform 0.2s ease;
-}
-
-.workflow-status-panel-toggle[aria-expanded="false"] svg {
-  transform: rotate(-90deg);
-}
-
-.workflow-status-panel-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.workflow-status-panel-popup {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.workflow-status-panel-popup svg {
-  width: 16px;
-  height: 16px;
-}
-
-.workflow-status-panel-meta {
-  font-size: 0.85rem;
-}
-
-.workflow-status-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  flex: 1;
-  min-height: 0;
-  height: 320px;
-  max-height: 320px;
-  overflow: auto;
-  transition: max-height 0.25s ease, height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
-  scroll-behavior: smooth;
-}
-
-.workflow-status-panel.is-collapsed .workflow-status-panel-body {
-  opacity: 0;
-  pointer-events: none;
-  height: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.workflow-status-modal {
+.workflow-status-widget {
   position: fixed;
-  top: 120px;
-  left: 120px;
+  bottom: 20px;
+  right: 20px;
   width: 360px;
-  max-width: 90vw;
-  max-height: 80vh;
+  max-width: calc(100vw - 40px);
+  max-height: 70vh;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -805,32 +715,55 @@ pre, pre input, textarea {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  resize: both;
   overflow: hidden;
+  resize: both;
+  transition: width 0.25s ease, height 0.25s ease, box-shadow 0.2s ease;
 }
 
-.workflow-status-modal[hidden] {
-  display: none;
-}
-
-.workflow-status-header {
+.workflow-status-widget-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  cursor: move;
-  user-select: none;
+  background: var(--panel-2);
 }
 
-.workflow-status-body {
+.workflow-status-widget-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.workflow-status-widget-body {
   display: flex;
   flex-direction: column;
   flex: 1;
   gap: 6px;
   padding: 12px;
   min-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+  max-height: 60vh;
+  scroll-behavior: smooth;
+}
+
+.workflow-status-widget.is-minimized {
+  width: 220px;
+  resize: none;
+}
+
+.workflow-status-widget.is-minimized .workflow-status-widget-body {
+  opacity: 0;
+  pointer-events: none;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .workflow-status-line {
@@ -845,16 +778,8 @@ pre, pre input, textarea {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-}
-
-.workflow-status-modal .workflow-status-events {
   flex: 1;
   overflow: auto;
-}
-
-.workflow-status-panel .workflow-status-events {
-  flex: 0 0 auto;
-  overflow: visible;
 }
 
 .workflow-status-event {
