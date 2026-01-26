@@ -732,6 +732,14 @@ pre, pre input, textarea {
   gap: 6px;
 }
 
+.workflow-status-panel-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.workflow-status-panel-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
 .workflow-status-panel-actions {
   display: inline-flex;
   align-items: center;
