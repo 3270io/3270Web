@@ -706,8 +706,10 @@ pre, pre input, textarea {
   bottom: 20px;
   right: 20px;
   width: 360px;
+  height: 320px;
   max-width: calc(100vw - 40px);
   max-height: 70vh;
+  min-height: 180px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -775,6 +777,8 @@ pre, pre input, textarea {
 
 .workflow-status-widget.is-minimized {
   width: 220px;
+  height: auto;
+  min-height: 0;
   resize: none;
 }
 
@@ -784,6 +788,14 @@ pre, pre input, textarea {
   max-height: 0;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.workflow-status-widget.is-minimized .workflow-status-widget-toggle {
+  display: none;
+}
+
+.workflow-status-widget.is-minimized .workflow-status-widget-header {
+  cursor: pointer;
 }
 
 .workflow-status-line {
