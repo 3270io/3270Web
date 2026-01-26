@@ -135,17 +135,32 @@ func normalizeScreenLines(lines []string, rows, cols int) []string {
 	if totalRows < rows {
 		return lines
 	}
-	if totalRows > rows {
-		totalRows = rows
+	if totalRows == rows {
+		return splitScreenLines(tokens, rows, cols)
 	}
-	if totalRows < 2 {
+	if totalRows%rows != 0 {
 		return lines
 	}
-	if duplicatesOnly(tokens, cols, totalRows, rows) {
+	if !repeatsScreen(tokens, rows, cols, totalRows) {
 		return lines
 	}
-	normalized := make([]string, 0, totalRows)
-	for i := 0; i < totalRows; i++ {
+	return splitScreenLines(tokens, rows, cols)
+}
+
+func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
+	return normalizeScreenLines(lines, rows, cols)
+}
+
+func repeatsScreenForTest(tokens []string, rows, cols, totalRows int) bool {
+	return repeatsScreen(tokens, rows, cols, totalRows)
+}
+
+func splitScreenLines(tokens []string, rows, cols int) []string {
+	if rows <= 0 || cols <= 0 {
+		return nil
+	}
+	normalized := make([]string, 0, rows)
+	for i := 0; i < rows; i++ {
 		start := i * cols
 		end := start + cols
 		if end > len(tokens) {
@@ -154,35 +169,29 @@ func normalizeScreenLines(lines []string, rows, cols int) []string {
 		normalized = append(normalized, "data: "+strings.Join(tokens[start:end], " "))
 	}
 	if len(normalized) == 0 {
-		return lines
+		return nil
 	}
 	return normalized
 }
 
-func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
-	return normalizeScreenLines(lines, rows, cols)
-}
-
-func duplicatesOnlyForTest(tokens []string, cols, totalRows, expectedRows int) bool {
-	return duplicatesOnly(tokens, cols, totalRows, expectedRows)
-}
-
-func duplicatesOnly(tokens []string, cols, totalRows, expectedRows int) bool {
-	if expectedRows <= 0 || totalRows < expectedRows {
+func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
+	if rows <= 0 || cols <= 0 || totalRows <= rows {
 		return false
 	}
-	first := strings.Join(tokens[:cols], " ")
-	if first == "" {
+	blockSize := rows * cols
+	if blockSize <= 0 || blockSize > len(tokens) {
 		return false
 	}
-	for row := 1; row < totalRows; row++ {
-		start := row * cols
-		end := start + cols
-		if end > len(tokens) {
+	blocks := totalRows / rows
+	for block := 1; block < blocks; block++ {
+		offset := block * blockSize
+		if offset+blockSize > len(tokens) {
 			return false
 		}
-		if strings.Join(tokens[start:end], " ") != first {
-			return false
+		for i := 0; i < blockSize; i++ {
+			if tokens[i] != tokens[offset+i] {
+				return false
+			}
 		}
 	}
 	return true
