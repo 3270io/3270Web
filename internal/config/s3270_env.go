@@ -436,6 +436,8 @@ func LoadDotEnv(path string) error {
 func S3270EnvOverridesFromEnv() (S3270EnvOverrides, error) {
 	var overrides S3270EnvOverrides
 	var parseErr error
+	certFile := strings.TrimSpace(os.Getenv("S3270_CERT_FILE"))
+	keyFile := strings.TrimSpace(os.Getenv("S3270_KEY_FILE"))
 
 	for _, spec := range s3270OptionSpecs {
 		value := strings.TrimSpace(os.Getenv(spec.EnvVar))
@@ -452,6 +454,14 @@ func S3270EnvOverridesFromEnv() (S3270EnvOverrides, error) {
 			overrides.CodePage = value
 			overrides.HasCodePage = true
 			continue
+		case "S3270_CERT_FILE_TYPE":
+			if certFile == "" {
+				continue
+			}
+		case "S3270_KEY_FILE_TYPE":
+			if keyFile == "" {
+				continue
+			}
 		}
 
 		switch spec.Kind {

@@ -813,28 +813,34 @@ pre, pre input, textarea {
 }
 
 .workflow-status-events {
-  margin-top: 8px;
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-height: 0;
   flex: 1;
   overflow: auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 10px 24px rgba(0, 0, 0, 0.25);
 }
 
 .workflow-status-event {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 10px;
-  font-size: 0.9rem;
-  color: var(--fg-muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--fg);
 }
 
 .workflow-status-time {
   font-family: var(--mono);
-  color: var(--fg);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 @keyframes spin {
