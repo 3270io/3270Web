@@ -82,14 +82,8 @@
     return;
   }
   const openTriggers = document.querySelectorAll('[data-status-open]');
-  const modal = document.querySelector('[data-status-modal]');
-  const closeBtn = document.querySelector('[data-status-close]');
-  const dragHandle = document.querySelector('[data-status-drag]');
-  const statusPanel = document.querySelector('[data-status-panel]');
-  const statusPanelToggle = document.querySelector('[data-status-panel-toggle]');
-  const statusPanelMeta = document.querySelector('[data-status-panel-meta]');
-  const statusPanelBody = document.querySelector('[data-status-panel-body]');
-  const modalOpenButtons = document.querySelectorAll('[data-status-modal-open]');
+  const statusWidget = document.querySelector('[data-status-widget]');
+  const statusWidgetToggle = statusWidget ? statusWidget.querySelector('[data-status-minimize]') : null;
   const recordingIndicator = document.querySelector('[data-recording-indicator]');
   const recordingStop = document.querySelector('[data-recording-stop]');
   const recordingStart = document.querySelector('[data-recording-start]');
@@ -104,50 +98,21 @@
   const playbackPlayingIndicator = document.querySelector('[data-playback-playing-indicator]');
   const playbackPauseButton = document.querySelector('[data-playback-pause-button]');
 
-  const panelLines = statusPanel
+  const widgetLines = statusWidget
     ? {
-        step: statusPanel.querySelector('[data-status-step-line]'),
-        type: statusPanel.querySelector('[data-status-type-line]'),
-        delayRange: statusPanel.querySelector('[data-status-delay-range-line]'),
-        delayApplied: statusPanel.querySelector('[data-status-delay-applied-line]'),
-        events: statusPanel.querySelector('[data-status-events]'),
-      }
-    : null;
-  const modalLines = modal
-    ? {
-        step: modal.querySelector('[data-status-step-line]'),
-        type: modal.querySelector('[data-status-type-line]'),
-        delayRange: modal.querySelector('[data-status-delay-range-line]'),
-        delayApplied: modal.querySelector('[data-status-delay-applied-line]'),
-        events: modal.querySelector('[data-status-events]'),
+        step: statusWidget.querySelector('[data-status-step-line]'),
+        type: statusWidget.querySelector('[data-status-type-line]'),
+        delayRange: statusWidget.querySelector('[data-status-delay-range-line]'),
+        delayApplied: statusWidget.querySelector('[data-status-delay-applied-line]'),
+        events: statusWidget.querySelector('[data-status-events]'),
       }
     : null;
   const statusIndicators = Array.from(document.querySelectorAll('[data-status-indicator]'));
-
-  const keepInBounds = () => {
-    if (!modal) {
-      return;
-    }
-    const rect = modal.getBoundingClientRect();
-    const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
-    const maxTop = Math.max(20, window.innerHeight - rect.height - 20);
-    let nextLeft = rect.left;
-    let nextTop = rect.top;
-    if (!Number.isFinite(nextLeft) || nextLeft < 0 || nextLeft > maxLeft) {
-      nextLeft = Math.min(120, maxLeft);
-    }
-    if (!Number.isFinite(nextTop) || nextTop < 0 || nextTop > maxTop) {
-      nextTop = Math.min(120, maxTop);
-    }
-    modal.style.left = `${nextLeft}px`;
-    modal.style.top = `${nextTop}px`;
-  };
 
   const placeholderText = 'Playback has not started yet.';
   let lastActive = body.dataset.playbackActive === 'true';
   let lastPaused = body.dataset.playbackPaused === 'true';
   let lastPayload = null;
-  let useModal = false;
 
   const setHidden = (el, hidden) => {
     if (el) {
@@ -243,11 +208,7 @@
     });
     const typeText = payload.playbackStepType ? `Type: ${payload.playbackStepType}` : '';
     const rangeText = payload.playbackDelayRange ? `Delay range: ${payload.playbackDelayRange}` : '';
-    const appliedText = payload.playbackDelayApplied ? `Applied: ${payload.playbackDelayApplied}` : '';
-    if (statusPanelMeta) {
-      statusPanelMeta.textContent = payload.playbackActive ? (payload.playbackPaused ? 'Paused' : 'Live') : 'Idle';
-    }
-
+    const appliedText = payload.playbackDelayApplied ? `Applied delay: ${payload.playbackDelayApplied}` : '';
     const eventsHtml = renderEvents(payload.playbackEvents);
     const applyLines = (target) => {
       if (!target) {
@@ -273,23 +234,12 @@
       }
     };
 
-    if (useModal) {
-      applyLines(modalLines);
-      if (modalLines && modalLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
-        modalLines.events.scrollTo({ top: modalLines.events.scrollHeight, behavior: 'smooth' });
-      }
-      return;
-    }
-
-    applyLines(panelLines);
-    if (statusPanelBody && payload.playbackEvents && payload.playbackEvents.length > 0) {
-      if (statusPanel && statusPanel.classList.contains('is-collapsed')) {
+    applyLines(widgetLines);
+    if (widgetLines && widgetLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
+      if (statusWidget && statusWidget.classList.contains('is-minimized')) {
         return;
       }
-      const maxScroll = statusPanelBody.scrollHeight - statusPanelBody.clientHeight;
-      if (maxScroll > 0) {
-        statusPanelBody.scrollTo({ top: statusPanelBody.scrollHeight, behavior: 'smooth' });
-      }
+      widgetLines.events.scrollTo({ top: widgetLines.events.scrollHeight, behavior: 'smooth' });
     }
   };
 
@@ -315,211 +265,101 @@
       });
   };
 
-  const openModal = () => {
-    if (!modal) {
+  const widgetMinimizedKey = 'workflowStatusWidgetMinimized';
+  const widgetSizeKey = 'workflowStatusWidgetSize';
+
+  const applyStoredSize = () => {
+    if (!statusWidget) {
       return;
     }
-    modal.removeAttribute('hidden');
-    saveModalState(true);
-    keepInBounds();
-    useModal = true;
-    if (lastPayload) {
-      updateWorkflowStatus(lastPayload);
+    try {
+      const size = JSON.parse(localStorage.getItem(widgetSizeKey) || 'null');
+      if (size && typeof size.width === 'number' && size.width >= 220) {
+        statusWidget.style.width = `${size.width}px`;
+      }
+      if (size && typeof size.height === 'number' && size.height >= 80) {
+        statusWidget.style.height = `${size.height}px`;
+      }
+    } catch (err) {
+      // ignore
     }
   };
 
-  const closeModal = () => {
-    if (!modal) {
+  const saveWidgetSize = () => {
+    if (!statusWidget || statusWidget.classList.contains('is-minimized')) {
       return;
     }
-    modal.setAttribute('hidden', '');
-    saveModalState(false);
-    useModal = false;
-    if (lastPayload) {
-      updateWorkflowStatus(lastPayload);
+    try {
+      const size = { width: statusWidget.offsetWidth, height: statusWidget.offsetHeight };
+      localStorage.setItem(widgetSizeKey, JSON.stringify(size));
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const setWidgetMinimized = (minimized) => {
+    if (!statusWidget) {
+      return;
+    }
+    statusWidget.classList.toggle('is-minimized', minimized);
+    if (minimized) {
+      saveWidgetSize();
+      statusWidget.style.width = '';
+      statusWidget.style.height = '';
+    } else {
+      applyStoredSize();
+    }
+    if (statusWidgetToggle) {
+      statusWidgetToggle.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+      statusWidgetToggle.textContent = minimized ? 'Restore' : 'Minimize';
+    }
+    try {
+      localStorage.setItem(widgetMinimizedKey, minimized ? '1' : '0');
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const restoreWidgetState = () => {
+    if (!statusWidget) {
+      return;
+    }
+    try {
+      applyStoredSize();
+      const minimized = localStorage.getItem(widgetMinimizedKey) === '1';
+      setWidgetMinimized(minimized);
+    } catch (err) {
+      // ignore
     }
   };
 
   openTriggers.forEach((trigger) => {
-    trigger.addEventListener('click', openModal);
+    trigger.addEventListener('click', () => {
+      setWidgetMinimized(false);
+    });
     trigger.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        openModal();
+        setWidgetMinimized(false);
       }
     });
   });
 
-  modalOpenButtons.forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      openModal();
-    });
-  });
-
-  document.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-status-open]');
-    if (trigger) {
-      openModal();
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
-    }
-    const active = document.activeElement;
-    if (active && active.closest && active.closest('[data-status-open]')) {
-      event.preventDefault();
-      openModal();
-    }
-  });
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeModal);
-  }
-
-  if (dragHandle) {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onMove = (event) => {
-      if (!dragging) {
-        return;
-      }
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      modal.style.left = `${startLeft + dx}px`;
-      modal.style.top = `${startTop + dy}px`;
-      savePosition();
-    };
-
-    const onUp = () => {
-      dragging = false;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-
-    dragHandle.addEventListener('mousedown', (event) => {
-      dragging = true;
-      const rect = modal.getBoundingClientRect();
-      startX = event.clientX;
-      startY = event.clientY;
-      startLeft = rect.left;
-      startTop = rect.top;
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+  if (statusWidgetToggle) {
+    statusWidgetToggle.addEventListener('click', () => {
+      const minimized = statusWidget && statusWidget.classList.contains('is-minimized');
+      setWidgetMinimized(!minimized);
     });
   }
 
-  const saveModalState = (isOpen) => {
-    try {
-      localStorage.setItem('workflowStatusModalOpen', isOpen ? '1' : '0');
-      savePosition();
-      saveSize();
-    } catch (err) {
-      // ignore
-    }
-  };
-
-  const savePosition = () => {
-    if (!modal || modal.hidden) {
-      return;
-    }
-    try {
-      const rect = modal.getBoundingClientRect();
-      const pos = { left: rect.left, top: rect.top };
-      localStorage.setItem('workflowStatusModalPos', JSON.stringify(pos));
-    } catch (err) {
-      // ignore
-    }
-  };
-
-  const saveSize = () => {
-    if (!modal || modal.hidden) {
-      return;
-    }
-    try {
-      const size = { width: modal.offsetWidth, height: modal.offsetHeight };
-      localStorage.setItem('workflowStatusModalSize', JSON.stringify(size));
-    } catch (err) {
-      // ignore
-    }
-  };
-
-  const restoreModal = () => {
-    if (!modal) {
-      return;
-    }
-    try {
-      const pos = JSON.parse(localStorage.getItem('workflowStatusModalPos') || 'null');
-      if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
-        modal.style.left = `${pos.left}px`;
-        modal.style.top = `${pos.top}px`;
-      }
-      const size = JSON.parse(localStorage.getItem('workflowStatusModalSize') || 'null');
-      if (size && typeof size.width === 'number' && size.width >= 40) {
-        modal.style.width = `${size.width}px`;
-      }
-      if (size && typeof size.height === 'number' && size.height >= 40) {
-        modal.style.height = `${size.height}px`;
-      }
-      const open = localStorage.getItem('workflowStatusModalOpen') === '1';
-      if (open) {
-        modal.removeAttribute('hidden');
-        keepInBounds();
-        useModal = true;
-        if (lastPayload) {
-          updateWorkflowStatus(lastPayload);
-        }
-      }
-    } catch (err) {
-      // ignore
-    }
-  };
-
-  if (typeof ResizeObserver !== 'undefined') {
-    if (modal) {
-      const observer = new ResizeObserver(() => {
-        saveSize();
-      });
-      observer.observe(modal);
-    }
-  }
-
-  restoreModal();
-
-  const panelKey = 'workflowStatusPanelCollapsed';
-  const setPanelCollapsed = (collapsed) => {
-    if (!statusPanel) {
-      return;
-    }
-    statusPanel.classList.toggle('is-collapsed', collapsed);
-    if (statusPanelToggle) {
-      statusPanelToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    }
-    try {
-      localStorage.setItem(panelKey, collapsed ? '1' : '0');
-    } catch (err) {
-      // ignore
-    }
-  };
-
-  if (statusPanelToggle) {
-    statusPanelToggle.addEventListener('click', () => {
-      const collapsed = statusPanel && statusPanel.classList.contains('is-collapsed');
-      setPanelCollapsed(!collapsed);
+  if (typeof ResizeObserver !== 'undefined' && statusWidget) {
+    const observer = new ResizeObserver(() => {
+      saveWidgetSize();
     });
+    observer.observe(statusWidget);
   }
 
-  try {
-    const collapsed = localStorage.getItem(panelKey) === '1';
-    setPanelCollapsed(collapsed);
-  } catch (err) {
-    // ignore
-  }
+  restoreWidgetState();
 
   let playbackPollTimer = null;
   const playbackFastMs = 700;
