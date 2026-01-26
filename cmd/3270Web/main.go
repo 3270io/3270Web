@@ -337,7 +337,7 @@ func isValidHostname(hostname string) bool {
 		return true
 	}
 	if _, port, ok := parseSampleAppHost(host); ok {
-		if strings.Count(host, ":") > 1 && !isValidPort(port) {
+		if port > 0 && !isAllowedSampleAppPort(port) {
 			return false
 		}
 		return true
@@ -345,8 +345,8 @@ func isValidHostname(hostname string) bool {
 	if strings.HasPrefix(host, "[") {
 		return isValidBracketedIPv6(host)
 	}
-	if strings.Count(host, ":") >= 2 {
-		return net.ParseIP(host) != nil
+	if net.ParseIP(host) != nil {
+		return true
 	}
 	if strings.Contains(host, ":") {
 		parsedHost, portStr, err := net.SplitHostPort(host)
@@ -358,9 +358,6 @@ func isValidHostname(hostname string) bool {
 			return false
 		}
 		return isValidHostLabel(parsedHost)
-	}
-	if net.ParseIP(host) != nil {
-		return true
 	}
 	return isValidDomainName(host)
 }
@@ -400,11 +397,12 @@ func isValidDomainName(name string) bool {
 
 func isValidBracketedIPv6(host string) bool {
 	end := strings.Index(host, "]")
-	if end <= 1 {
+	if end < 0 {
 		return false
 	}
 	ipLiteral := host[1:end]
-	if net.ParseIP(ipLiteral) == nil || !strings.Contains(ipLiteral, ":") {
+	ip := net.ParseIP(ipLiteral)
+	if ip == nil || (ip.To4() != nil && !strings.Contains(ipLiteral, ":")) {
 		return false
 	}
 	rest := host[end+1:]
