@@ -853,23 +853,6 @@ pre, pre input, textarea {
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
-.workflow-status-toggle-text {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.workflow-status-toggle-on {
-  display: none;
-  color: var(--accent);
-}
-
-.workflow-status-toggle-off {
-  color: var(--fg-muted);
-}
-
 .workflow-status-tracking-toggle input:checked ~ .workflow-status-toggle {
   background: var(--accent);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
@@ -878,14 +861,6 @@ pre, pre input, textarea {
 .workflow-status-tracking-toggle input:checked ~ .workflow-status-toggle::after {
   transform: translateX(16px);
   background: var(--bg);
-}
-
-.workflow-status-tracking-toggle input:checked ~ .workflow-status-toggle-text .workflow-status-toggle-on {
-  display: inline;
-}
-
-.workflow-status-tracking-toggle input:checked ~ .workflow-status-toggle-text .workflow-status-toggle-off {
-  display: none;
 }
 
 .workflow-status-widget-toggle {

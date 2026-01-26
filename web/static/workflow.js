@@ -101,6 +101,24 @@
   const playbackPausedIndicator = document.querySelector('[data-playback-paused-indicator]');
   const playbackPlayingIndicator = document.querySelector('[data-playback-playing-indicator]');
   const playbackPauseButton = document.querySelector('[data-playback-pause-button]');
+  const trackingToggleLabel = statusWidget ? statusWidget.querySelector('.workflow-status-tracking-toggle') : null;
+
+  const ensureButtonTooltip = (button) => {
+    if (!button || button.hasAttribute('data-tippy-content')) {
+      return;
+    }
+    const aria = button.getAttribute('aria-label');
+    const label = aria || button.textContent.trim();
+    if (label) {
+      button.setAttribute('data-tippy-content', label);
+    }
+  };
+
+  document.querySelectorAll('button').forEach(ensureButtonTooltip);
+  if (trackingToggleLabel && !trackingToggleLabel.hasAttribute('data-tippy-content')) {
+    trackingToggleLabel.setAttribute('data-tippy-content', 'Tracking enabled');
+  }
+
   const tooltipTargets = document.querySelectorAll('[data-tippy-content]');
 
   const widgetLines = statusWidget
@@ -133,6 +151,17 @@
       placement: 'bottom',
     });
   }
+
+  const updateTrackingTooltip = (enabled) => {
+    if (!trackingToggleLabel) {
+      return;
+    }
+    const label = enabled ? 'Tracking enabled' : 'Tracking disabled';
+    trackingToggleLabel.setAttribute('data-tippy-content', label);
+    if (trackingToggleLabel._tippy) {
+      trackingToggleLabel._tippy.setContent(label);
+    }
+  };
 
   const updatePlaybackControls = (payload) => {
     if (!payload) {
@@ -298,6 +327,7 @@
     if (trackingToggle) {
       trackingToggle.checked = enabled;
     }
+    updateTrackingTooltip(enabled);
     setHidden(trackingDisabledMessage, enabled);
     if (statusWidget) {
       statusWidget.classList.toggle('is-tracking-disabled', !enabled);
