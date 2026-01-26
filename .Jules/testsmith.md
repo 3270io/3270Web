@@ -7,3 +7,8 @@ Action: Added `internal/session/session_test.go` with strict concurrency tests u
 Learning: The `normalizeKey` function allowed inputs with newlines and other control characters to pass through, creating a command injection vulnerability where malicious users could execute arbitrary s3270 commands.
 Risk: High. An attacker could bypass application logic or potentially gain control over the s3270 session.
 Action: Added `cmd/3270Web/security_test.go` to test for injection, and patched `normalizeKey` in `main.go` to strictly reject keys containing control characters.
+
+## 2026-01-26 - Untested Environment Variable Parsing
+Learning: The `s3270_env` configuration logic relied on complex custom argument splitting (quotes, escapes) without any tests, leaving it vulnerable to parsing errors or injection if the logic was flawed.
+Risk: Medium. Incorrect parsing of environment variables could lead to misconfigured s3270 sessions or argument injection via env vars.
+Action: Added `internal/config/s3270_env_test.go` to verify parsing logic with table-driven tests covering quotes and escape sequences.
