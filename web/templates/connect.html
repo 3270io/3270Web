@@ -44,9 +44,9 @@
     </div>
     {{ if .SampleApps }}
     <div class="modal-backdrop" data-sample-modal hidden>
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sample-app-title">
             <div class="modal-header">
-                <h3>Start Sample App</h3>
+                <h3 id="sample-app-title">Start Sample App</h3>
                 <button type="button" class="modal-close" data-sample-close>Close</button>
             </div>
             <div class="stack">
