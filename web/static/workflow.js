@@ -83,6 +83,7 @@
   }
   const openTriggers = document.querySelectorAll('[data-status-open]');
   const statusWidget = document.querySelector('[data-status-widget]');
+  const statusWidgetHeader = statusWidget ? statusWidget.querySelector('[data-status-widget-header]') : null;
   const statusWidgetToggle = statusWidget ? statusWidget.querySelector('[data-status-minimize]') : null;
   const trackingToggle = statusWidget ? statusWidget.querySelector('[data-status-tracking-toggle]') : null;
   const trackingDisabledMessage = statusWidget ? statusWidget.querySelector('[data-status-tracking-disabled]') : null;
@@ -394,6 +395,18 @@
     statusWidgetToggle.addEventListener('click', () => {
       const minimized = statusWidget && statusWidget.classList.contains('is-minimized');
       setWidgetMinimized(!minimized);
+    });
+  }
+
+  if (statusWidgetHeader) {
+    statusWidgetHeader.addEventListener('click', (event) => {
+      if (!statusWidget || !statusWidget.classList.contains('is-minimized')) {
+        return;
+      }
+      if (event.target.closest('button, input, label')) {
+        return;
+      }
+      setWidgetMinimized(false);
     });
   }
 
