@@ -85,6 +85,7 @@
   const statusWidget = document.querySelector('[data-status-widget]');
   const statusWidgetHeader = statusWidget ? statusWidget.querySelector('[data-status-widget-header]') : null;
   const statusWidgetToggle = statusWidget ? statusWidget.querySelector('[data-status-minimize]') : null;
+  const statusWidgetMaximize = statusWidget ? statusWidget.querySelector('[data-status-maximize]') : null;
   const trackingToggle = statusWidget ? statusWidget.querySelector('[data-status-tracking-toggle]') : null;
   const trackingDisabledMessage = statusWidget ? statusWidget.querySelector('[data-status-tracking-disabled]') : null;
   const recordingIndicator = document.querySelector('[data-recording-indicator]');
@@ -290,6 +291,7 @@
 
   const widgetMinimizedKey = 'workflowStatusWidgetMinimized';
   const widgetSizeKey = 'workflowStatusWidgetSize';
+  const widgetMaximizedKey = 'workflowStatusWidgetMaximized';
 
   const applyTrackingState = (enabled) => {
     trackingEnabled = enabled;
@@ -347,7 +349,7 @@
   };
 
   const saveWidgetSize = () => {
-    if (!statusWidget || statusWidget.classList.contains('is-minimized')) {
+    if (!statusWidget || statusWidget.classList.contains('is-minimized') || statusWidget.classList.contains('is-maximized')) {
       return;
     }
     try {
@@ -362,6 +364,9 @@
     if (!statusWidget) {
       return;
     }
+    if (minimized) {
+      setWidgetMaximized(false);
+    }
     statusWidget.classList.toggle('is-minimized', minimized);
     if (minimized) {
       saveWidgetSize();
@@ -371,11 +376,43 @@
       applyStoredSize();
     }
     if (statusWidgetToggle) {
+      const label = minimized ? 'Restore workflow status' : 'Minimize workflow status';
       statusWidgetToggle.setAttribute('aria-expanded', minimized ? 'false' : 'true');
-      statusWidgetToggle.textContent = minimized ? 'Restore' : 'Minimize';
+      statusWidgetToggle.setAttribute('aria-label', label);
+      statusWidgetToggle.setAttribute('data-tippy-content', label);
+      if (statusWidgetToggle._tippy) {
+        statusWidgetToggle._tippy.setContent(label);
+      }
     }
     try {
       localStorage.setItem(widgetMinimizedKey, minimized ? '1' : '0');
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const setWidgetMaximized = (maximized) => {
+    if (!statusWidget) {
+      return;
+    }
+    statusWidget.classList.toggle('is-maximized', maximized);
+    if (maximized) {
+      saveWidgetSize();
+      statusWidget.style.height = '';
+    } else {
+      applyStoredSize();
+    }
+    if (statusWidgetMaximize) {
+      const label = maximized ? 'Restore workflow status' : 'Maximize workflow status';
+      statusWidgetMaximize.setAttribute('aria-expanded', maximized ? 'true' : 'false');
+      statusWidgetMaximize.setAttribute('aria-label', label);
+      statusWidgetMaximize.setAttribute('data-tippy-content', label);
+      if (statusWidgetMaximize._tippy) {
+        statusWidgetMaximize._tippy.setContent(label);
+      }
+    }
+    try {
+      localStorage.setItem(widgetMaximizedKey, maximized ? '1' : '0');
     } catch (err) {
       // ignore
     }
@@ -389,6 +426,10 @@
       applyStoredSize();
       const minimized = localStorage.getItem(widgetMinimizedKey) === '1';
       setWidgetMinimized(minimized);
+      const maximized = localStorage.getItem(widgetMaximizedKey) === '1';
+      if (!minimized) {
+        setWidgetMaximized(maximized);
+      }
     } catch (err) {
       // ignore
     }
@@ -410,6 +451,16 @@
     statusWidgetToggle.addEventListener('click', () => {
       const minimized = statusWidget && statusWidget.classList.contains('is-minimized');
       setWidgetMinimized(!minimized);
+    });
+  }
+
+  if (statusWidgetMaximize) {
+    statusWidgetMaximize.addEventListener('click', () => {
+      const maximized = statusWidget && statusWidget.classList.contains('is-maximized');
+      if (statusWidget && statusWidget.classList.contains('is-minimized')) {
+        setWidgetMinimized(false);
+      }
+      setWidgetMaximized(!maximized);
     });
   }
 

@@ -776,20 +776,39 @@ pre, pre input, textarea {
   transition: width 0.25s ease, height 0.25s ease, box-shadow 0.2s ease;
 }
 
+.workflow-status-widget.is-maximized {
+  height: 70vh;
+  max-height: calc(100vh - 40px);
+  resize: none;
+}
+
 .workflow-status-widget-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: nowrap;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--panel-2);
 }
 
+.workflow-status-widget-header strong {
+  min-width: 0;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workflow-status-widget-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .workflow-status-tracking-toggle {
@@ -800,6 +819,7 @@ pre, pre input, textarea {
   color: var(--fg-muted);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
 .workflow-status-tracking-toggle input {

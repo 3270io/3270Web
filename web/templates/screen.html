@@ -118,16 +118,24 @@
                         </button>
                     </form>
                     <form action="/workflow/debug" method="post" class="workflow-form">
-                        <button type="submit">Debug</button>
+                        <button type="submit" class="icon-button" data-tippy-content="Debug recording" aria-label="Debug recording">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3h10v2h3v2h-3v2h2v2h-2v2h3v2h-3v2h-10v-2h-3v-2h3v-2h-2v-2h2v-2h-3v-2h3zM9 7v10h6V7z" /></svg>
+                        </button>
                     </form>
-                    <button type="button" data-modal-open>View recording</button>
+                    <button type="button" class="icon-button" data-modal-open data-tippy-content="View recording" aria-label="View recording">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5.25 0 9.62 3.44 11 7-1.38 3.56-5.75 7-11 7S2.38 15.56 1 12c1.38-3.56 5.75-7 11-7zm0 2c-3.55 0-6.67 2.02-8.16 5 1.49 2.98 4.61 5 8.16 5s6.67-2.02 8.16-5C18.67 9.02 15.55 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
+                    </button>
                     <form action="/workflow/remove" method="post" class="workflow-form">
-                        <button type="submit">Remove</button>
+                        <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Remove recording" aria-label="Remove recording">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
+                        </button>
                     </form>
                     {{ else }}
                     <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
                         <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
-                        <button type="button" data-workflow-trigger>Load Recording</button>
+                        <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 15v4H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4zM11 3h2v9l3-3 1.4 1.4L12 16l-5.4-5.6L8 9l3 3V3z" /></svg>
+                        </button>
                     </form>
                     {{ end }}
                 </div>
@@ -180,7 +188,12 @@
                         <span class="workflow-status-toggle-off">Disabled</span>
                     </span>
                 </label>
-                <button type="button" class="workflow-status-widget-toggle" data-status-minimize aria-expanded="true">Minimize</button>
+                <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize workflow status" aria-label="Maximize workflow status">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                </button>
+                <button type="button" class="icon-button" data-status-minimize aria-expanded="true" data-tippy-content="Minimize workflow status" aria-label="Minimize workflow status">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                </button>
             </div>
         </div>
         <div class="workflow-status-widget-body" data-status-widget-body>
