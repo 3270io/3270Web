@@ -125,44 +125,6 @@
                 <div class="screen-container">
                     {{ .ScreenContent }}
                 </div>
-                <div class="workflow-status-panel" data-status-panel>
-                    <div class="workflow-status-panel-header">
-                        <button type="button" class="workflow-status-panel-toggle" data-status-panel-toggle aria-expanded="true">
-                            <span>Workflow status</span>
-                        </button>
-                        <span class="workflow-status-panel-actions">
-                            <span class="workflow-status-panel-meta subtle" data-status-panel-meta>Live</span>
-                            <button type="button" class="workflow-status-panel-popup" data-status-modal-open aria-label="Open workflow status popup" title="Open popup">
-                                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                                    <path d="M6 4h10v10h-2V7.4l-8.3 8.3-1.4-1.4L12.6 6H6V4z" fill="currentColor" />
-                                </svg>
-                            </button>
-                        </span>
-                    </div>
-                    <div class="workflow-status-panel-body" data-status-panel-body>
-                        <div class="workflow-status-line" data-status-step-line>
-                            {{ if .PlaybackStep }}Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ else }}Playback has not started yet.{{ end }}
-                        </div>
-                        <div class="workflow-status-line" data-status-type-line {{ if not .PlaybackStepType }}hidden{{ end }}>
-                            Type: {{ .PlaybackStepType }}
-                        </div>
-                        <div class="workflow-status-line" data-status-delay-range-line {{ if not .PlaybackDelayRange }}hidden{{ end }}>
-                            Delay range: {{ .PlaybackDelayRange }}
-                        </div>
-                        <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
-                            Applied delay: {{ .PlaybackDelayApplied }}
-                        </div>
-                        <div class="workflow-status-line subtle">Updates automatically while playback runs.</div>
-                        <div class="workflow-status-events" data-status-events>
-                            {{ range .PlaybackEvents }}
-                            <div class="workflow-status-event">
-                                <span class="workflow-status-time">{{ .Time.Format "15:04:05" }}</span>
-                                <span>{{ .Message }}</span>
-                            </div>
-                            {{ end }}
-                        </div>
-                    </div>
-                </div>
                 {{ if .UseKeypad }}
                 <div id="keypad" class="controls"></div>
                 {{ end }}
@@ -188,12 +150,21 @@
         </div>
     </div>
     {{ end }}
-    <div class="workflow-status-modal" data-status-modal hidden>
-        <div class="workflow-status-header" data-status-drag>
+    <div class="workflow-status-widget" data-status-widget>
+        <div class="workflow-status-widget-header">
             <strong>Workflow status</strong>
-            <button type="button" data-status-close>Close</button>
+            <div class="workflow-status-widget-actions">
+                <label class="workflow-status-tracking-toggle">
+                    <input type="checkbox" data-status-tracking-toggle>
+                    <span>Tracking on/off</span>
+                </label>
+                <button type="button" class="workflow-status-widget-toggle" data-status-minimize aria-expanded="true">Minimize</button>
+            </div>
         </div>
-        <div class="workflow-status-body">
+        <div class="workflow-status-widget-body" data-status-widget-body>
+            <div class="workflow-status-line workflow-status-disabled" data-status-tracking-disabled hidden>
+                Tracking disabled.
+            </div>
             <div class="workflow-status-line" data-status-step-line>
                 {{ if .PlaybackStep }}Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ else }}Playback has not started yet.{{ end }}
             </div>
@@ -206,7 +177,7 @@
             <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
                 Applied delay: {{ .PlaybackDelayApplied }}
             </div>
-            <div class="workflow-status-line subtle">Drag to move. Resize using the corner.</div>
+            <div class="workflow-status-line subtle">Updates automatically while playback runs.</div>
             <div class="workflow-status-events" data-status-events>
                 {{ range .PlaybackEvents }}
                 <div class="workflow-status-event">

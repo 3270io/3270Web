@@ -22,6 +22,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,8 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
+	themeCache     map[string]string
+	themeCacheMu   sync.RWMutex
 }
 
 type WorkflowConfig struct {
@@ -105,6 +108,7 @@ func main() {
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
+		themeCache:     make(map[string]string),
 	}
 
 	r := gin.Default()
@@ -323,6 +327,63 @@ func parseHostPort(hostname string) (string, int) {
 	}
 	return host, port
 }
+
+func isValidHostname(hostname string) bool {
+	host := strings.TrimSpace(hostname)
+	if host == "" {
+		return false
+	}
+
+	if _, port, ok := parseSampleAppHost(host); ok {
+		return port == 0 || isAllowedSampleAppPort(port)
+	}
+
+	// Extract port, if present.
+	if strings.HasPrefix(host, "[") {
+		h, p, err := net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+		host = h
+		if p != "" {
+			n, err := strconv.Atoi(p)
+			if err != nil || n <= 0 || n > 65535 {
+				return false
+			}
+		}
+	} else if strings.Count(host, ":") == 1 {
+		h, p, err := net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+		host = h
+		if n, err := strconv.Atoi(p); err != nil || n <= 0 || n > 65535 {
+			return false
+		}
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		return true
+	}
+
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+		for _, r := range label {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' {
+				continue
+			}
+			return false
+		}
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+	}
+	return true
+}
+
 
 func recordingFileName(s *session.Session) string {
 	if s == nil {
@@ -1960,6 +2021,10 @@ func (app *App) getSession(c *gin.Context) *session.Session {
 }
 
 func (app *App) connectToHost(c *gin.Context, hostname string) error {
+	if !isValidHostname(hostname) {
+		return fmt.Errorf("invalid hostname format: %q", hostname)
+	}
+
 	var h host.Host
 	var err error
 
@@ -2204,6 +2269,15 @@ func (app *App) isValidFont(name string) bool {
 }
 
 func (app *App) buildThemeCSS(p session.Preferences) string {
+	// ⚡ Bolt: Memoize theme CSS generation to improve performance on screen updates
+	key := p.ColorScheme + "|" + p.FontName
+	app.themeCacheMu.RLock()
+	if css, ok := app.themeCache[key]; ok {
+		app.themeCacheMu.RUnlock()
+		return css
+	}
+	app.themeCacheMu.RUnlock()
+
 	fontName := app.resolveFontName(p.FontName)
 	cs, _ := app.resolveColorScheme(p.ColorScheme)
 
@@ -2223,12 +2297,22 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 		writeRule(&sb, ".color-input-hidden", cs.UHBg, cs.UHFg)
 	}
 
-	return sb.String()
+	css := sb.String()
+	app.themeCacheMu.Lock()
+	app.themeCache[key] = css
+	app.themeCacheMu.Unlock()
+	return css
 }
 
 func normalizeKey(key string) string {
 	trimmed := strings.TrimSpace(key)
 	if trimmed == "" {
+		return "Enter"
+	}
+
+	// Sanitize to prevent command injection
+	if strings.ContainsAny(trimmed, "\n\r\t;") {
+		log.Printf("Security warning: detected potential command injection in key: %q", key)
 		return "Enter"
 	}
 
@@ -2316,7 +2400,8 @@ func normalizeKey(key string) string {
 		return "Right"
 	}
 
-	return trimmed
+	// Default to Enter for any unrecognized key to prevent command injection
+	return "Enter"
 }
 
 func writeRule(sb *strings.Builder, selector, bg, fg string) {
