@@ -67,7 +67,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 			needSpan := r.needSpan(f)
 			if needSpan {
 				sb.WriteString(`<span class="`)
-				sb.WriteString(r.protectedFieldClass(f))
+				r.writeProtectedFieldClass(sb, f)
 				sb.WriteString(`">`)
 			}
 
@@ -194,12 +194,14 @@ func (r *HtmlRenderer) needSpan(f *host.Field) bool {
 	return f.IsIntensified() || f.IsHidden() || f.Color != host.AttrColDefault || f.ExtendedHighlight != host.AttrEhDefault
 }
 
-func (r *HtmlRenderer) protectedFieldClass(f *host.Field) string {
-	var classes []string
+func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Field) {
+	first := true
 	if f.IsIntensified() {
-		classes = append(classes, "color-intensified")
+		sb.WriteString("color-intensified")
+		first = false
 	} else if f.IsHidden() {
-		classes = append(classes, "color-hidden")
+		sb.WriteString("color-hidden")
+		first = false
 	}
 
 	if f.Color != host.AttrColDefault {
@@ -221,7 +223,11 @@ func (r *HtmlRenderer) protectedFieldClass(f *host.Field) string {
 			c = "color-white"
 		}
 		if c != "" {
-			classes = append(classes, c)
+			if !first {
+				sb.WriteString(" ")
+			}
+			sb.WriteString(c)
+			first = false
 		}
 	}
 
@@ -236,10 +242,12 @@ func (r *HtmlRenderer) protectedFieldClass(f *host.Field) string {
 			h = "highlight-underscore"
 		}
 		if h != "" {
-			classes = append(classes, h)
+			if !first {
+				sb.WriteString(" ")
+			}
+			sb.WriteString(h)
 		}
 	}
-	return strings.Join(classes, " ")
 }
 
 func (r *HtmlRenderer) getFormName(id string) string {

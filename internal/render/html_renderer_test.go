@@ -72,3 +72,56 @@ func TestRenderCorrectness(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderProtectedFieldClasses(t *testing.T) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+	}
+
+	// Case 1: Just color
+	// 0x20 (Protected) | 0x00 (Normal) -> 0x20
+	f1 := host.NewField(screen, host.AttrProtected, 0, 0, 5, 0, host.AttrColRed, host.AttrEhDefault)
+	f1.SetValue("AAAAA")
+
+	// Case 2: Color + Extended Highlight
+	f2 := host.NewField(screen, host.AttrProtected, 10, 0, 15, 0, host.AttrColBlue, host.AttrEhUnderscore)
+	f2.SetValue("BBBBB")
+
+	// Case 3: Intensified + Color
+	// 0x20 (Protected) | 0x08 (Intensified) -> 0x28
+	f3 := host.NewField(screen, host.AttrProtected|0x08, 20, 0, 25, 0, host.AttrColGreen, host.AttrEhDefault)
+	f3.SetValue("CCCCC")
+
+	// Case 4: Hidden + Color + Highlight
+	// 0x20 (Protected) | 0x0C (Hidden) -> 0x2C
+	f4 := host.NewField(screen, host.AttrProtected|0x0C, 30, 0, 35, 0, host.AttrColPink, host.AttrEhBlink)
+	f4.SetValue("DDDDD")
+
+	screen.Fields = []*host.Field{f1, f2, f3, f4}
+
+	r := NewHtmlRenderer()
+	output := r.Render(screen, "/submit", "")
+
+	expectedSubstrings := []string{
+		// Case 1
+		`<span class="color-red">AAAAA</span>`,
+		// Case 2
+		`<span class="color-blue highlight-underscore">BBBBB</span>`,
+		// Case 3
+		`<span class="color-intensified color-green">CCCCC</span>`,
+		// Case 4
+		`<span class="color-hidden color-pink highlight-blink">DDDDD</span>`,
+	}
+
+	for _, expected := range expectedSubstrings {
+		if !strings.Contains(output, expected) {
+			t.Errorf("Output missing expected substring: %s", expected)
+		}
+	}
+}
