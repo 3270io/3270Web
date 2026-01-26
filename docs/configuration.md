@@ -31,6 +31,20 @@ Configures the underlying 3270 emulator process.
 </s3270-options>
 ```
 
+### .env Overrides
+
+At startup, 3270Web loads a `.env` file (created with defaults if missing) alongside the executable. Each variable maps to a specific `s3270` command-line option using the `S3270_<OPTION_NAME>` convention. Values in `.env` are applied after the XML config and do not overwrite existing environment variables set by the shell.
+
+Example (overrides TLS and tracing):
+
+```dotenv
+S3270_NO_VERIFY_CERT=true
+S3270_TRACE=true
+S3270_TRACE_FILE=/tmp/s3270.trace
+```
+
+All supported options, defaults, and descriptions are listed in the generated `.env` file at the repo root. Update those values to change the arguments passed to `s3270`.
+
 ### Target Host
 
 Sets the default host to connect to.

@@ -88,6 +88,13 @@ func main() {
 			showFatalError(msg)
 		}
 	}()
+	envPath := filepath.Join(baseDir, ".env")
+	if err := config.EnsureDotEnv(envPath); err != nil {
+		log.Printf("Warning: could not ensure .env file: %v", err)
+	}
+	if err := config.LoadDotEnv(envPath); err != nil {
+		log.Printf("Warning: could not load .env file: %v", err)
+	}
 	configPath := filepath.Join(baseDir, "webapp", "WEB-INF", "3270Web-config.xml")
 	if !fileExists(configPath) {
 		if cwd, err := os.Getwd(); err == nil {
@@ -383,7 +390,6 @@ func isValidHostname(hostname string) bool {
 	}
 	return true
 }
-
 
 func recordingFileName(s *session.Session) string {
 	if s == nil {
@@ -2209,12 +2215,35 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {
-	args := []string{"-model", opts.Model}
-	if opts.Charset != "" && opts.Charset != "bracket" {
+	envOverrides, err := config.S3270EnvOverrides()
+	if err != nil {
+		log.Printf("Warning: invalid .env s3270 options: %v", err)
+	}
+
+	model := opts.Model
+	if envOverrides.HasModel {
+		model = envOverrides.Model
+	}
+	args := []string{}
+	if model != "" {
+		args = append(args, "-model", model)
+	}
+
+	if envOverrides.HasCodePage {
+		if envOverrides.CodePage != "" {
+			args = append(args, "-codepage", envOverrides.CodePage)
+		}
+	} else if opts.Charset != "" && opts.Charset != "bracket" {
 		args = append(args, "-charset", opts.Charset)
 	}
+
+	args = append(args, envOverrides.Args...)
 	if opts.Additional != "" {
 		args = append(args, strings.Fields(opts.Additional)...)
+	}
+	if len(envOverrides.ExecArgs) > 0 {
+		args = append(args, envOverrides.ExecArgs...)
+		return args
 	}
 	if strings.TrimSpace(hostname) != "" {
 		args = append(args, hostname)
