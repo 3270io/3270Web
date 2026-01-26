@@ -55,5 +55,7 @@ See the [Configuration Reference](docs/configuration.md) for details on availabl
 - Setting a default target host and auto-connect behavior
 - Defining custom color schemes and fonts
 
+An optional `.env` file (created with defaults on first run) lets you override the full set of `s3270` command-line options using `S3270_*` environment variables.
+
 ## GitHub Actions
 A workflow is included to build and push images to GHCR on pushes to `main`.
