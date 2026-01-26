@@ -84,6 +84,8 @@
   const openTriggers = document.querySelectorAll('[data-status-open]');
   const statusWidget = document.querySelector('[data-status-widget]');
   const statusWidgetToggle = statusWidget ? statusWidget.querySelector('[data-status-minimize]') : null;
+  const trackingToggle = statusWidget ? statusWidget.querySelector('[data-status-tracking-toggle]') : null;
+  const trackingDisabledMessage = statusWidget ? statusWidget.querySelector('[data-status-tracking-disabled]') : null;
   const recordingIndicator = document.querySelector('[data-recording-indicator]');
   const recordingStop = document.querySelector('[data-recording-stop]');
   const recordingStart = document.querySelector('[data-recording-start]');
@@ -113,6 +115,8 @@
   let lastActive = body.dataset.playbackActive === 'true';
   let lastPaused = body.dataset.playbackPaused === 'true';
   let lastPayload = null;
+  const trackingEnabledKey = 'workflowStatusTrackingEnabled';
+  let trackingEnabled = true;
 
   const setHidden = (el, hidden) => {
     if (el) {
@@ -189,6 +193,9 @@
     body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
     updatePlaybackControls(payload);
+    if (!trackingEnabled) {
+      return;
+    }
     const hasStep = typeof payload.playbackStep === 'number' && payload.playbackStep > 0;
     let stepLabel = payload.playbackStepLabel || '';
     if (!stepLabel && hasStep) {
@@ -267,6 +274,44 @@
 
   const widgetMinimizedKey = 'workflowStatusWidgetMinimized';
   const widgetSizeKey = 'workflowStatusWidgetSize';
+
+  const applyTrackingState = (enabled) => {
+    trackingEnabled = enabled;
+    if (trackingToggle) {
+      trackingToggle.checked = enabled;
+    }
+    setHidden(trackingDisabledMessage, enabled);
+    if (statusWidget) {
+      statusWidget.classList.toggle('is-tracking-disabled', !enabled);
+    }
+    if (enabled && lastPayload) {
+      updateWorkflowStatus(lastPayload);
+    }
+  };
+
+  const restoreTrackingState = () => {
+    try {
+      const stored = localStorage.getItem(trackingEnabledKey);
+      if (stored === null) {
+        applyTrackingState(true);
+        return;
+      }
+      applyTrackingState(stored === '1');
+    } catch (err) {
+      applyTrackingState(true);
+    }
+  };
+
+  if (trackingToggle) {
+    trackingToggle.addEventListener('change', () => {
+      applyTrackingState(trackingToggle.checked);
+      try {
+        localStorage.setItem(trackingEnabledKey, trackingToggle.checked ? '1' : '0');
+      } catch (err) {
+        // ignore
+      }
+    });
+  }
 
   const applyStoredSize = () => {
     if (!statusWidget) {
@@ -360,6 +405,7 @@
   }
 
   restoreWidgetState();
+  restoreTrackingState();
 
   let playbackPollTimer = null;
   const playbackFastMs = 700;
