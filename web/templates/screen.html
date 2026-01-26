@@ -6,10 +6,13 @@
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+    <script src="https://unpkg.com/@popperjs/core@2" defer></script>
+    <script src="https://unpkg.com/tippy.js@6" defer></script>
     <script src="/static/keyboard.js?v=5" defer></script>
     <script src="/static/theme.js" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js?v=7" defer></script>
+    <script src="/static/workflow.js?v=8" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
     <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
@@ -34,12 +37,20 @@
                     <span class="status-text">REC</span>
                 </span>
                 <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
-                    <button type="submit">Stop Recording</button>
+                    <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop recording" aria-label="Stop recording">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                    </button>
                 </form>
                 <form action="/record/start" method="post" data-recording-start {{ if or .RecordingActive .PlaybackActive }}hidden{{ end }}>
-                    <button type="submit">Start Recording</button>
+                    <button type="submit" class="icon-button icon-button-record" data-tippy-content="Start recording" aria-label="Start recording">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
+                    </button>
                 </form>
-                <button type="button" disabled title="Stop playback to start a recording" data-recording-start-disabled {{ if or .RecordingActive (not .PlaybackActive) }}hidden{{ end }}>Start Recording</button>
+                <span class="icon-button-wrapper" data-tippy-content="Stop playback to start a recording" data-recording-start-disabled {{ if or .RecordingActive (not .PlaybackActive) }}hidden{{ end }}>
+                    <button type="button" disabled class="icon-button icon-button-record" aria-label="Start recording">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
+                    </button>
+                </span>
                 <span class="status-indicator" data-playback-indicator {{ if not .PlaybackActive }}hidden{{ end }}>
                     <span class="paused-indicator" aria-hidden="true" data-playback-paused-indicator {{ if or (not .PlaybackPaused) (eq .PlaybackMode "debug") }}hidden{{ end }}></span>
                     <span class="playing-indicator" aria-hidden="true" data-playback-playing-indicator {{ if or .PlaybackPaused (eq .PlaybackMode "debug") }}hidden{{ end }}></span>
@@ -70,21 +81,26 @@
                         <button type="submit">Step</button>
                     </form>
                     <form action="/workflow/stop" method="post">
-                        <button type="submit">Stop</button>
+                        <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop playback" aria-label="Stop playback">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                        </button>
                     </form>
                 </div>
                 <div class="workflow-form" data-playback-play-controls {{ if or (not .PlaybackActive) (eq .PlaybackMode "debug") }}hidden{{ end }}>
                     <form action="/workflow/pause" method="post">
-                        <button type="submit" data-playback-pause-button>
-                            {{ if .PlaybackPaused }}
-                            Resume
-                            {{ else }}
-                            Pause
-                            {{ end }}
+                        <button type="submit" class="icon-button playback-pause-button" data-playback-pause-button data-tippy-content="{{ if .PlaybackPaused }}Resume{{ else }}Pause{{ end }}" aria-label="{{ if .PlaybackPaused }}Resume{{ else }}Pause{{ end }}">
+                            <span class="icon icon-pause" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
+                            </span>
+                            <span class="icon icon-play" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false"><path d="M8 5l12 7-12 7z" /></svg>
+                            </span>
                         </button>
                     </form>
                     <form action="/workflow/stop" method="post">
-                        <button type="submit">Stop</button>
+                        <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop playback" aria-label="Stop playback">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                        </button>
                     </form>
                 </div>
                 {{ if .RecordingFile }}
@@ -97,7 +113,9 @@
                         <strong>{{ .LoadedWorkflowName }}</strong>
                     </span>
                     <form action="/workflow/play" method="post" class="workflow-form">
-                        <button type="submit">Play</button>
+                        <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l12 7-12 7z" /></svg>
+                        </button>
                     </form>
                     <form action="/workflow/debug" method="post" class="workflow-form">
                         <button type="submit">Debug</button>
@@ -156,7 +174,11 @@
             <div class="workflow-status-widget-actions">
                 <label class="workflow-status-tracking-toggle">
                     <input type="checkbox" data-status-tracking-toggle>
-                    <span>Tracking on/off</span>
+                    <span class="workflow-status-toggle" aria-hidden="true"></span>
+                    <span class="workflow-status-toggle-text">
+                        <span class="workflow-status-toggle-on">Enabled</span>
+                        <span class="workflow-status-toggle-off">Disabled</span>
+                    </span>
                 </label>
                 <button type="button" class="workflow-status-widget-toggle" data-status-minimize aria-expanded="true">Minimize</button>
             </div>

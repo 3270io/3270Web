@@ -58,3 +58,59 @@
 2026/01/26 08:27:44 main.go:1883: workflow: disconnect step skipped to keep session alive
 2026/01/26 08:27:44 main.go:1718: workflow delay after step 5: 2.721238s
 2026/01/26 08:27:47 main.go:1736: workflow end delay: 9.746796s
+2026/01/26 08:30:39 main.go:209: Starting server on 127.0.0.1:8080
+2026/01/26 08:30:58 main.go:1855: workflow: step=Connect
+2026/01/26 08:30:58 main.go:1718: workflow delay after step 1: 1.914375999s
+2026/01/26 08:30:59 main.go:1853: workflow: step=FillString row=5 col=21
+2026/01/26 08:30:59 s3270.go:244: s3270: cmd="movecursor(4, 20)" status="U F U C(127.0.0.1) I 4 24 80 4 20 0x0 0.000"
+2026/01/26 08:30:59 s3270.go:251: s3270: cmd="key(0x50)" status="U F U C(127.0.0.1) I 4 24 80 4 21 0x0 0.000"
+2026/01/26 08:30:59 s3270.go:251: s3270: cmd="key(0x61)" status="U F U C(127.0.0.1) I 4 24 80 4 22 0x0 0.000"
+2026/01/26 08:30:59 s3270.go:251: s3270: cmd="key(0x75)" status="U F U C(127.0.0.1) I 4 24 80 4 23 0x0 0.000"
+2026/01/26 08:30:59 s3270.go:251: s3270: cmd="key(0x6c)" status="U F U C(127.0.0.1) I 4 24 80 4 24 0x0 0.000"
+2026/01/26 08:30:59 main.go:1718: workflow delay after step 2: 2.389502s
+2026/01/26 08:31:02 main.go:1853: workflow: step=FillString row=6 col=21
+2026/01/26 08:31:02 s3270.go:244: s3270: cmd="movecursor(5, 20)" status="U F U C(127.0.0.1) I 4 24 80 5 20 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x4a)" status="U F U C(127.0.0.1) I 4 24 80 5 21 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x65)" status="U F U C(127.0.0.1) I 4 24 80 5 22 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 23 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 24 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x69)" status="U F U C(127.0.0.1) I 4 24 80 5 25 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 26 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x67)" status="U F U C(127.0.0.1) I 4 24 80 5 27 0x0 0.000"
+2026/01/26 08:31:02 s3270.go:251: s3270: cmd="key(0x73)" status="U F U C(127.0.0.1) I 4 24 80 5 28 0x0 0.000"
+2026/01/26 08:31:02 main.go:1718: workflow delay after step 3: 2.760412s
+2026/01/26 08:31:05 main.go:1855: workflow: step=PressEnter
+2026/01/26 08:31:05 s3270.go:193: s3270: cmd="Enter" status="U F P C(127.0.0.1) I 4 24 80 0 0 0x0 0.001"
+2026/01/26 08:31:05 main.go:1718: workflow delay after step 4: 2.248234s
+2026/01/26 08:31:07 main.go:1855: workflow: step=Disconnect
+2026/01/26 08:31:07 main.go:1883: workflow: disconnect step skipped to keep session alive
+2026/01/26 08:31:07 main.go:1718: workflow delay after step 5: 1.922504s
+2026/01/26 08:31:09 main.go:1736: workflow end delay: 9.428544s
+2026/01/26 08:34:11 main.go:209: Starting server on 127.0.0.1:8080
+2026/01/26 08:34:58 main.go:1855: workflow: step=Connect
+2026/01/26 08:34:58 main.go:1718: workflow delay after step 1: 2.82069s
+2026/01/26 08:35:01 main.go:1853: workflow: step=FillString row=5 col=21
+2026/01/26 08:35:01 s3270.go:244: s3270: cmd="movecursor(4, 20)" status="U F U C(127.0.0.1) I 4 24 80 4 20 0x0 0.000"
+2026/01/26 08:35:01 s3270.go:251: s3270: cmd="key(0x50)" status="U F U C(127.0.0.1) I 4 24 80 4 21 0x0 0.000"
+2026/01/26 08:35:01 s3270.go:251: s3270: cmd="key(0x61)" status="U F U C(127.0.0.1) I 4 24 80 4 22 0x0 0.000"
+2026/01/26 08:35:01 s3270.go:251: s3270: cmd="key(0x75)" status="U F U C(127.0.0.1) I 4 24 80 4 23 0x0 0.000"
+2026/01/26 08:35:01 s3270.go:251: s3270: cmd="key(0x6c)" status="U F U C(127.0.0.1) I 4 24 80 4 24 0x0 0.000"
+2026/01/26 08:35:01 main.go:1718: workflow delay after step 2: 2.054322s
+2026/01/26 08:35:03 main.go:1853: workflow: step=FillString row=6 col=21
+2026/01/26 08:35:03 s3270.go:244: s3270: cmd="movecursor(5, 20)" status="U F U C(127.0.0.1) I 4 24 80 5 20 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x4a)" status="U F U C(127.0.0.1) I 4 24 80 5 21 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x65)" status="U F U C(127.0.0.1) I 4 24 80 5 22 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 23 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 24 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x69)" status="U F U C(127.0.0.1) I 4 24 80 5 25 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x6e)" status="U F U C(127.0.0.1) I 4 24 80 5 26 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x67)" status="U F U C(127.0.0.1) I 4 24 80 5 27 0x0 0.000"
+2026/01/26 08:35:03 s3270.go:251: s3270: cmd="key(0x73)" status="U F U C(127.0.0.1) I 4 24 80 5 28 0x0 0.000"
+2026/01/26 08:35:03 main.go:1718: workflow delay after step 3: 1.677433999s
+2026/01/26 08:35:05 main.go:1855: workflow: step=PressEnter
+2026/01/26 08:35:05 s3270.go:193: s3270: cmd="Enter" status="U F P C(127.0.0.1) I 4 24 80 0 0 0x0 0.000"
+2026/01/26 08:35:05 main.go:1718: workflow delay after step 4: 1.51783s
+2026/01/26 08:35:06 main.go:1855: workflow: step=Disconnect
+2026/01/26 08:35:06 main.go:1883: workflow: disconnect step skipped to keep session alive
+2026/01/26 08:35:06 main.go:1718: workflow delay after step 5: 1.49962s
+2026/01/26 08:35:19 main.go:1736: workflow end delay: 11.250876s

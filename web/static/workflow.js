@@ -100,6 +100,7 @@
   const playbackPausedIndicator = document.querySelector('[data-playback-paused-indicator]');
   const playbackPlayingIndicator = document.querySelector('[data-playback-playing-indicator]');
   const playbackPauseButton = document.querySelector('[data-playback-pause-button]');
+  const tooltipTargets = document.querySelectorAll('[data-tippy-content]');
 
   const widgetLines = statusWidget
     ? {
@@ -125,6 +126,13 @@
     }
   };
 
+  if (window.tippy && tooltipTargets.length > 0) {
+    window.tippy(tooltipTargets, {
+      delay: [150, 0],
+      placement: 'bottom',
+    });
+  }
+
   const updatePlaybackControls = (payload) => {
     if (!payload) {
       return;
@@ -148,7 +156,12 @@
     setHidden(playbackPausedIndicator, !(active && !debugMode && paused));
     setHidden(playbackPlayingIndicator, !(active && !debugMode && !paused));
     if (playbackPauseButton) {
-      playbackPauseButton.textContent = paused ? 'Resume' : 'Pause';
+      const label = paused ? 'Resume' : 'Pause';
+      playbackPauseButton.setAttribute('aria-label', label);
+      playbackPauseButton.setAttribute('data-tippy-content', label);
+      if (playbackPauseButton._tippy) {
+        playbackPauseButton._tippy.setContent(label);
+      }
     }
 
     setHidden(recordingStartDisabled, recordingActive || !active);
@@ -243,7 +256,9 @@
     };
 
     applyLines(widgetLines);
-    if (widgetLines && widgetLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
+    const shouldAutoScroll =
+      payload.playbackActive && !payload.playbackPaused && !payload.playbackCompleted;
+    if (shouldAutoScroll && widgetLines && widgetLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
       if (statusWidget && statusWidget.classList.contains('is-minimized')) {
         return;
       }
