@@ -153,9 +153,18 @@
     <div class="workflow-status-widget" data-status-widget>
         <div class="workflow-status-widget-header">
             <strong>Workflow status</strong>
-            <button type="button" class="workflow-status-widget-toggle" data-status-minimize aria-expanded="true">Minimize</button>
+            <div class="workflow-status-widget-actions">
+                <label class="workflow-status-tracking-toggle">
+                    <input type="checkbox" data-status-tracking-toggle>
+                    <span>Tracking on/off</span>
+                </label>
+                <button type="button" class="workflow-status-widget-toggle" data-status-minimize aria-expanded="true">Minimize</button>
+            </div>
         </div>
         <div class="workflow-status-widget-body" data-status-widget-body>
+            <div class="workflow-status-line workflow-status-disabled" data-status-tracking-disabled hidden>
+                Tracking disabled.
+            </div>
             <div class="workflow-status-line" data-status-step-line>
                 {{ if .PlaybackStep }}Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ else }}Playback has not started yet.{{ end }}
             </div>

@@ -730,6 +730,26 @@ pre, pre input, textarea {
   background: var(--panel-2);
 }
 
+.workflow-status-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workflow-status-tracking-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.workflow-status-tracking-toggle input {
+  accent-color: var(--accent);
+}
+
 .workflow-status-widget-toggle {
   border: 1px solid var(--border);
   background: transparent;
@@ -768,6 +788,16 @@ pre, pre input, textarea {
 
 .workflow-status-line {
   font-size: 0.95rem;
+}
+
+.workflow-status-disabled {
+  font-style: italic;
+  color: var(--fg-muted);
+}
+
+.workflow-status-widget.is-tracking-disabled .workflow-status-line:not(.workflow-status-disabled),
+.workflow-status-widget.is-tracking-disabled .workflow-status-events {
+  display: none;
 }
 
 .workflow-status-events {
