@@ -185,6 +185,11 @@ func (h *S3270) sendKeyOnce(key string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	// Sentinel: Prevent command injection via s3270 pipe
+	if strings.ContainsAny(key, "\n\r\t;") {
+		return fmt.Errorf("security error: invalid characters in key command")
+	}
+
 	if key == "" {
 		key = "Enter"
 	}
