@@ -432,8 +432,8 @@ func LoadDotEnv(path string) error {
 	return scanner.Err()
 }
 
-// S3270EnvOverrides builds s3270 command-line arguments from environment variables.
-func S3270EnvOverrides() (S3270EnvOverrides, error) {
+// S3270EnvOverridesFromEnv builds s3270 command-line arguments from environment variables.
+func S3270EnvOverridesFromEnv() (S3270EnvOverrides, error) {
 	var overrides S3270EnvOverrides
 	var parseErr error
 

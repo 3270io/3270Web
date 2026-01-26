@@ -2215,7 +2215,7 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func buildS3270Args(opts config.S3270Options, hostname string) []string {
-	envOverrides, err := config.S3270EnvOverrides()
+	envOverrides, err := config.S3270EnvOverridesFromEnv()
 	if err != nil {
 		log.Printf("Warning: invalid .env s3270 options: %v", err)
 	}
