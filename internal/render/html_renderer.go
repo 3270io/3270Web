@@ -1,7 +1,6 @@
 package render
 
 import (
-	"html"
 	"strconv"
 	"strings"
 
@@ -71,10 +70,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 				sb.WriteString(`">`)
 			}
 
-			val := f.GetValue()
-			escaped := html.EscapeString(val)
-			escaped = strings.ReplaceAll(escaped, "\u0000", " ")
-			sb.WriteString(escaped)
+			r.writeEscaped(sb, f.GetValue())
 
 			if needSpan {
 				sb.WriteString("</span>")
@@ -104,7 +100,7 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 	sb.WriteString(`" cols="`)
 	sb.WriteString(strconv.Itoa(cols))
 	sb.WriteString(`">`)
-	sb.WriteString(html.EscapeString(text))
+	r.writeEscaped(sb, text)
 	sb.WriteString("</textarea>")
 }
 
@@ -176,7 +172,7 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 	sb.WriteString(`" class="`)
 	sb.WriteString(class)
 	sb.WriteString(`" value="`)
-	sb.WriteString(html.EscapeString(val))
+	r.writeEscaped(sb, val)
 	sb.WriteString(`" maxlength="`)
 	sb.WriteString(strconv.Itoa(width))
 	sb.WriteString(`" size="`)
@@ -188,6 +184,41 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 	sb.WriteString(`" data-w="`)
 	sb.WriteString(strconv.Itoa(width))
 	sb.WriteString(`" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
+}
+
+func (r *HtmlRenderer) writeEscaped(sb *strings.Builder, s string) {
+	if strings.IndexAny(s, "\x00\"&'<>") == -1 {
+		sb.WriteString(s)
+		return
+	}
+
+	start := 0
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b == 0 || b == '"' || b == '&' || b == '\'' || b == '<' || b == '>' {
+			if i > start {
+				sb.WriteString(s[start:i])
+			}
+			switch b {
+			case 0:
+				sb.WriteByte(' ')
+			case '"':
+				sb.WriteString("&#34;")
+			case '&':
+				sb.WriteString("&amp;")
+			case '\'':
+				sb.WriteString("&#39;")
+			case '<':
+				sb.WriteString("&lt;")
+			case '>':
+				sb.WriteString("&gt;")
+			}
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		sb.WriteString(s[start:])
+	}
 }
 
 func (r *HtmlRenderer) needSpan(f *host.Field) bool {
