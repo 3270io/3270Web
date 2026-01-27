@@ -45,6 +45,29 @@ S3270_TRACE_FILE=/tmp/s3270.trace
 
 All supported options, defaults, and descriptions are listed in the generated `.env` file at the repo root. Update those values to change the arguments passed to `s3270`.
 
+#### Argument Parsing
+
+For options that accept multiple arguments (like `S3270_SET`, `S3270_XRM`, or `S3270_EXEC_COMMAND`), values are parsed using shell-like quoting rules:
+
+1.  **Splitting**: The value is split by spaces into individual arguments.
+2.  **Quoting**: Use single (`'`) or double (`"`) quotes within the value to treat strings with spaces as a single argument.
+3.  **Escaping**: Use backslash (`\`) to escape characters (e.g., `\"` for a literal quote).
+
+**Examples:**
+
+To pass `-set title "My Session"` (where "My Session" is a single argument):
+
+```dotenv
+# Option 1: Unquoted value in .env, using quotes for the argument
+S3270_SET=title "My Session"
+
+# Option 2: Quoted value in .env, using single quotes for the argument
+S3270_SET="title 'My Session'"
+
+# Option 3: Quoted value in .env, escaping inner double quotes
+S3270_SET="title \"My Session\""
+```
+
 ### Target Host
 
 Sets the default host to connect to.

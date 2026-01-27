@@ -36,6 +36,38 @@ func BenchmarkRender(b *testing.B) {
 	}
 }
 
+func BenchmarkRenderWithSpecialChars(b *testing.B) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+		for j := range screen.Buffer[i] {
+			if j%5 == 0 {
+				screen.Buffer[i][j] = '<' // Special char
+			} else {
+				screen.Buffer[i][j] = 'a'
+			}
+		}
+	}
+
+	for y := 0; y < 24; y++ {
+		for x := 0; x < 80; x += 10 {
+			f := host.NewField(screen, host.AttrProtected, x, y, x+8, y, host.AttrColGreen, host.AttrEhDefault)
+			screen.Fields = append(screen.Fields, f)
+		}
+	}
+
+	r := NewHtmlRenderer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Render(screen, "/submit", "session1")
+	}
+}
+
 func TestRenderCorrectness(t *testing.T) {
 	screen := &host.Screen{
 		Width:       80,
