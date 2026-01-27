@@ -1,6 +1,10 @@
 package host
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"testing"
+)
 
 func TestWaitUnlockCommandUsesTimeout(t *testing.T) {
 	if got := WaitUnlockCommandForTest(nil); got != "Wait(Unlock,10)" {
@@ -122,6 +126,89 @@ func TestIsAidKey(t *testing.T) {
 			got := isAidKey(tt.key)
 			if got != tt.expected {
 				t.Errorf("isAidKey(%q) = %v, want %v", tt.key, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsConnectionError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"nil error", nil, false},
+		{"simple error", errors.New("something went wrong"), false},
+		{"not connected", errors.New("not connected"), true},
+		{"Not Connected", errors.New("Not Connected"), true},
+		{"terminated", errors.New("s3270 terminated"), true},
+		{"no status", errors.New("no status received"), true},
+		{"timed out", errors.New("s3270 command timed out"), true},
+		{"broken pipe", errors.New("write: broken pipe"), true},
+		{"pipe closed", errors.New("read: pipe is being closed"), true},
+		{"pipe ended", errors.New("pipe has been ended"), true},
+		{"closed pipe", errors.New("io: closed pipe"), true},
+		{"wrapped error", fmt.Errorf("context: %w", errors.New("broken pipe")), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isConnectionError(tt.err); got != tt.expected {
+				t.Errorf("isConnectionError(%q) = %v, want %v", tt.err, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsS3270Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		data     []string
+		expected bool
+	}{
+		{
+			name:     "clean success",
+			status:   "U F ...",
+			data:     []string{"ok"},
+			expected: false,
+		},
+		{
+			name:     "status error",
+			status:   "E F ...",
+			data:     []string{"something"},
+			expected: true,
+		},
+		{
+			name:     "data error",
+			status:   "U F ...",
+			data:     []string{"Error: invalid command"},
+			expected: true,
+		},
+		{
+			name:     "data error lowercase",
+			status:   "U F ...",
+			data:     []string{"error: invalid command"},
+			expected: true,
+		},
+		{
+			name:     "multi-line data error",
+			status:   "U F ...",
+			data:     []string{"line 1", "error here", "line 3"},
+			expected: true,
+		},
+		{
+			name:     "no error",
+			status:   "U F ...",
+			data:     []string{"data 1", "data 2"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isS3270Error(tt.status, tt.data); got != tt.expected {
+				t.Errorf("isS3270Error(%q, %v) = %v, want %v", tt.status, tt.data, got, tt.expected)
 			}
 		})
 	}
