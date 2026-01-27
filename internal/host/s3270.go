@@ -312,19 +312,28 @@ func isDisconnectedStatus(status string) bool {
 	return false
 }
 
+var connectionErrorPhrases = []string{
+	"not connected",
+	"terminated",
+	"no status received",
+	"timed out",
+	"pipe is being closed",
+	"broken pipe",
+	"pipe has been ended",
+	"closed pipe",
+}
+
 func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "not connected") ||
-		strings.Contains(msg, "terminated") ||
-		strings.Contains(msg, "no status received") ||
-		strings.Contains(msg, "timed out") ||
-		strings.Contains(msg, "pipe is being closed") ||
-		strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "pipe has been ended") ||
-		strings.Contains(msg, "closed pipe")
+	for _, phrase := range connectionErrorPhrases {
+		if strings.Contains(msg, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func keyToKeySpec(key string) string {

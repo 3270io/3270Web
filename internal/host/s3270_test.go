@@ -1,6 +1,9 @@
 package host
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestWaitUnlockCommandUsesTimeout(t *testing.T) {
 	if got := WaitUnlockCommandForTest(nil); got != "Wait(Unlock,10)" {
@@ -122,6 +125,36 @@ func TestIsAidKey(t *testing.T) {
 			got := isAidKey(tt.key)
 			if got != tt.expected {
 				t.Errorf("isAidKey(%q) = %v, want %v", tt.key, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsConnectionError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"nil error", nil, false},
+		{"not connected", errors.New("Not connected"), true},
+		{"terminated", errors.New("s3270 terminated unexpectedly"), true},
+		{"no status", errors.New("No status received from host"), true},
+		{"timed out", errors.New("command timed out"), true},
+		{"pipe closed", errors.New("pipe is being closed"), true},
+		{"broken pipe", errors.New("write: broken pipe"), true},
+		{"pipe ended", errors.New("pipe has been ended"), true},
+		{"closed pipe", errors.New("read: closed pipe"), true},
+		{"other error", errors.New("something went wrong"), false},
+		{"empty error", errors.New(""), false},
+		{"mixed case", errors.New("NOT CONNECTED"), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isConnectionError(tt.err)
+			if got != tt.expected {
+				t.Errorf("isConnectionError(%v) = %v, want %v", tt.err, got, tt.expected)
 			}
 		})
 	}
