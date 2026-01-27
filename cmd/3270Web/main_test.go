@@ -1,9 +1,11 @@
 package main
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
@@ -216,5 +218,31 @@ func TestBuildThemeCSS_Caching(t *testing.T) {
 	}
 	if css1 == css3 {
 		t.Errorf("Expected different CSS for different schemes")
+	}
+}
+
+func TestSecurityHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(SecurityHeadersMiddleware())
+	r.GET("/", func(c *gin.Context) {
+		c.Status(200)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+	r.ServeHTTP(w, req)
+
+	headers := map[string]string{
+		"X-Frame-Options":           "SAMEORIGIN",
+		"X-Content-Type-Options":    "nosniff",
+		"Referrer-Policy":           "strict-origin-when-cross-origin",
+		"Content-Security-Policy":   "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;",
+	}
+
+	for k, v := range headers {
+		if got := w.Header().Get(k); got != v {
+			t.Errorf("Header %q: expected %q, got %q", k, v, got)
+		}
 	}
 }
