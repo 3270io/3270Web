@@ -42,7 +42,7 @@ func TestNormalizeScreenLinesSkipsDuplicateRows(t *testing.T) {
 	if lines[0] != line {
 		t.Fatalf("expected original line preserved, got %q", lines[0])
 	}
-	if !duplicatesOnlyForTest(tokens, cols, len(tokens)/cols, rows) {
+	if !repeatsScreenForTest(tokens, rows, cols, len(tokens)/cols) {
 		t.Fatalf("expected duplicatesOnly to report true")
 	}
 }
