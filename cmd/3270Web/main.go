@@ -122,6 +122,7 @@ func main() {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
 	}
+	r.Use(SecurityHeadersMiddleware())
 	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
@@ -2376,4 +2377,14 @@ func (app *App) resolveFontName(name string) string {
 		}
 	}
 	return ""
+}
+
+func SecurityHeadersMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Frame-Options", "SAMEORIGIN")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;")
+		c.Next()
+	}
 }
