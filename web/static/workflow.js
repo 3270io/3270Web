@@ -11,8 +11,14 @@
         if (fileInput.files && fileInput.files.length > 0) {
           const width = trigger.offsetWidth;
           trigger.style.width = `${width}px`;
-          trigger.innerHTML =
-            '<span class="spinner" aria-hidden="true"></span> Loading...';
+          if (trigger.classList.contains('icon-button')) {
+            trigger.innerHTML =
+              '<span class="spinner" aria-hidden="true" style="margin-right: 0"></span>';
+            trigger.setAttribute('aria-label', 'Loading...');
+          } else {
+            trigger.innerHTML =
+              '<span class="spinner" aria-hidden="true"></span> Loading...';
+          }
           trigger.setAttribute('aria-busy', 'true');
           trigger.disabled = true;
 
