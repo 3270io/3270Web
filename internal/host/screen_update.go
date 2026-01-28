@@ -173,7 +173,7 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 		return 0, 0, false
 	}
 	
-	// Extract model number from status (part[5] is the model number 2-5)
+	// Extract model number from status (parts[5] is the model number 2-5)
 	// Status format: "U F P C(host) I 4 24 80 0 0 0x0 0.000"
 	//                 0 1 2 3        4 5 6  7  8 9 10  11
 	if len(parts) > 5 {

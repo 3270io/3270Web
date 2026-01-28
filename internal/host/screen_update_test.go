@@ -63,6 +63,7 @@ func TestGetModelDimensions(t *testing.T) {
 		{"3279-3-E", 32, 80, true},
 		{"3279-4-E", 43, 80, true},
 		{"3279-5-E", 27, 132, true},
+		{"3279", 0, 0, false},      // Incomplete model string
 		{"invalid", 0, 0, false},
 		{"", 0, 0, false},
 	}
@@ -106,6 +107,13 @@ func TestScreenDimensionsFromStatusEnforcesLimits(t *testing.T) {
 			expectedOk:   true,
 		},
 		{
+			name:         "Model 2 with dimensions below limit (should be preserved)",
+			status:       "U F P C(localhost) I 2 20 60 0 0 0x0 0.000",
+			expectedRows: 20, // Preserved as-is
+			expectedCols: 60, // Preserved as-is
+			expectedOk:   true,
+		},
+		{
 			name:         "Model 3 with correct dimensions",
 			status:       "U F P C(localhost) I 3 32 80 0 0 0x0 0.000",
 			expectedRows: 32,
@@ -124,6 +132,13 @@ func TestScreenDimensionsFromStatusEnforcesLimits(t *testing.T) {
 			status:       "U F P C(localhost) I 5 27 132 0 0 0x0 0.000",
 			expectedRows: 27,
 			expectedCols: 132,
+			expectedOk:   true,
+		},
+		{
+			name:         "Unrecognized model (should preserve dimensions)",
+			status:       "U F P C(localhost) I 1 30 90 0 0 0x0 0.000",
+			expectedRows: 30, // Preserved as-is when model not recognized
+			expectedCols: 90, // Preserved as-is when model not recognized
 			expectedOk:   true,
 		},
 		{
