@@ -5,3 +5,7 @@
 ## 2025-01-27 - [Avoid html.EscapeString in Hot Loops]
 **Learning:** `html.EscapeString` and `strings.ReplaceAll` allocate new strings which generates significant garbage in hot loops (e.g., rendering hundreds of fields).
 **Action:** Use a custom helper that writes directly to `strings.Builder` (e.g., `writeEscaped(sb, s)`), utilizing `strings.IndexAny` for a fast path to skip processing when no escaping is needed. This reduced allocations by ~90% in worst-case scenarios.
+
+## 2025-02-14 - [Replace Regexp with Manual Parsing in Hot Loops]
+**Learning:** `regexp.FindAllString` and `regexp.ReplaceAllString` are significantly slower than manual string parsing (e.g. `strings.Fields` and loops) in hot paths. Replacing regex with manual parsing in `decodeLine` reduced execution time by ~82%.
+**Action:** Prefer `strings` package functions or manual parsing over `regexp` when the pattern is simple and the code is in a critical loop.
