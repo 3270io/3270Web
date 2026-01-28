@@ -556,7 +556,9 @@ pre, pre input, textarea {
 .h3270-input,
 .h3270-input-intensified,
 .color-input,
-.color-input-intensified {
+.color-input-intensified,
+.h3270-input-hidden,
+.color-input-hidden {
   background-color: var(--panel);
   border: none !important;
   border-radius: 0 !important;
@@ -570,7 +572,9 @@ pre, pre input, textarea {
   .h3270-input,
   .h3270-input-intensified,
   .color-input,
-  .color-input-intensified {
+  .color-input-intensified,
+  .h3270-input-hidden,
+  .color-input-hidden {
     caret-shape: block;
   }
 }
@@ -579,7 +583,9 @@ pre, pre input, textarea {
 .h3270-input:focus,
 .h3270-input-intensified:focus,
 .color-input:focus,
-.color-input-intensified:focus {
+.color-input-intensified:focus,
+.h3270-input-hidden:focus,
+.color-input-hidden:focus {
   text-shadow: 0 0 2px var(--accent);
 }
 
@@ -587,7 +593,9 @@ pre, pre input, textarea {
 .h3270-input::selection,
 .h3270-input-intensified::selection,
 .color-input::selection,
-.color-input-intensified::selection {
+.color-input-intensified::selection,
+.h3270-input-hidden::selection,
+.color-input-hidden::selection {
   background-color: var(--accent);
   color: var(--panel);
 }
@@ -613,7 +621,6 @@ pre, pre input, textarea {
 .color-input-hidden,
 .color-hidden {
   color: var(--bg);
-  background-color: var(--bg);
 }
 
 .h3270-unformatted,
