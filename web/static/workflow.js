@@ -373,10 +373,16 @@
       if (size && typeof size.height === 'number' && size.height >= 80) {
         statusWidget.style.height = `${size.height}px`;
       }
+      // Initialize lastSavedSize with the restored size
+      if (size) {
+        lastSavedSize = { width: size.width, height: size.height };
+      }
     } catch (err) {
       // ignore
     }
   };
+
+  let lastSavedSize = null;
 
   const saveWidgetSize = () => {
     if (!statusWidget || statusWidget.classList.contains('is-minimized') || statusWidget.classList.contains('is-maximized')) {
@@ -384,6 +390,13 @@
     }
     try {
       const size = { width: statusWidget.offsetWidth, height: statusWidget.offsetHeight };
+      // Only save if size changed meaningfully (more than 2px in either dimension)
+      if (lastSavedSize && 
+          Math.abs(size.width - lastSavedSize.width) < 3 && 
+          Math.abs(size.height - lastSavedSize.height) < 3) {
+        return;
+      }
+      lastSavedSize = size;
       localStorage.setItem(widgetSizeKey, JSON.stringify(size));
     } catch (err) {
       // ignore
