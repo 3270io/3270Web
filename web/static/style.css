@@ -575,15 +575,15 @@ pre, pre input, textarea {
   }
 }
 
-/* Fallback: Add glow effect to make cursor more visible */
+/* Fallback: Add subtle glow effect to make cursor more visible */
 .h3270-input:focus,
 .h3270-input-intensified:focus,
 .color-input:focus,
 .color-input-intensified:focus {
-  text-shadow: 0 0 8px var(--accent);
+  text-shadow: 0 0 2px var(--accent);
 }
 
-/* Block cursor effect using background */
+/* Text selection styling for input fields */
 .h3270-input::selection,
 .h3270-input-intensified::selection,
 .color-input::selection,
