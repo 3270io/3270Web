@@ -7,3 +7,7 @@
 ## 2025-05-18 - Non-Semantic Modals
 **Learning:** The application uses `div` elements with `hidden` attributes for modals (e.g., sample app selection) but lacks semantic ARIA roles (`dialog`, `aria-modal`) and label associations, making them invisible or confusing to screen reader users.
 **Action:** When working on modals in this codebase, always manually add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` to ensure accessibility, as the base implementation does not include them.
+
+## 2025-05-18 - Manual Focus Management in Vanilla Modals
+**Learning:** Standard HTML/CSS modals (using `hidden` attribute) do not automatically manage focus. Explicit JavaScript is required to save the previous focus, move focus into the modal on open, and restore it on close.
+**Action:** When implementing or modifying vanilla JS modals, always add focus management logic to ensure keyboard accessibility.

@@ -36,7 +36,7 @@
             <form action="/connect" method="post" id="connect-form">
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP</label>
-                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required placeholder="hostname:port">
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required autofocus placeholder="hostname:port">
                     <button type="submit" id="connect-btn">Connect</button>
                 </fieldset>
             </form>
@@ -93,15 +93,25 @@
                 });
             }
 
+            let lastFocusedElement;
             const hideModal = () => {
                 if (modal) {
                     modal.hidden = true;
+                    if (lastFocusedElement) {
+                        lastFocusedElement.focus();
+                        lastFocusedElement = null;
+                    }
                 }
             };
 
             if (openModal && modal) {
                 openModal.addEventListener("click", () => {
+                    lastFocusedElement = document.activeElement;
                     modal.hidden = false;
+                    const firstInput = modal.querySelector('select, input, button:not(.modal-close)');
+                    if (firstInput) {
+                        firstInput.focus();
+                    }
                 });
             }
             if (closeModal) {
