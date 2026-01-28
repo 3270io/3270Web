@@ -41,6 +41,43 @@ func TestParseSampleAppHost(t *testing.T) {
 	}
 }
 
+func TestWorkflowSpecialKeys(t *testing.T) {
+	mockHost, _ := host.NewMockHost("")
+	sess := &session.Session{Host: mockHost}
+	app := &App{}
+
+	keys := []struct {
+		stepType string
+		wantKey  string
+	}{
+		{"PressClear", "Clear"},
+		{"PressReset", "Reset"},
+		{"PressPA1", "PA1"},
+		{"PressPA2", "PA2"},
+		{"PressPA3", "PA3"},
+		{"PressHome", "Home"},
+		{"PressEraseInput", "EraseInput"},
+	}
+
+	for _, k := range keys {
+		step := session.WorkflowStep{Type: k.stepType}
+		if err := app.applyWorkflowStep(sess, step); err != nil {
+			t.Errorf("applyWorkflowStep(%q) failed: %v", k.stepType, err)
+		}
+	}
+
+	if len(mockHost.Commands) != len(keys) {
+		t.Fatalf("expected %d commands, got %d", len(keys), len(mockHost.Commands))
+	}
+
+	for i, k := range keys {
+		want := "key:" + k.wantKey
+		if mockHost.Commands[i] != want {
+			t.Errorf("command %d: expected %q, got %q", i, want, mockHost.Commands[i])
+		}
+	}
+}
+
 func TestSampleAppHostname(t *testing.T) {
 	if got := sampleAppHostname("app1"); got != "sampleapp:app1" {
 		t.Fatalf("sampleAppHostname returned %q", got)
