@@ -26,8 +26,9 @@ type S3270 struct {
 	lastErrMu sync.Mutex
 	lastErr   string
 
-	screen *Screen
-	mu     sync.Mutex // Protects command execution
+	screen         *Screen
+	mu             sync.Mutex // Protects command execution
+	verboseLogging bool
 }
 
 const (
@@ -446,6 +447,10 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 		return nil, "", fmt.Errorf("not connected")
 	}
 
+	if h.verboseLogging {
+		log.Printf("[VERBOSE] s3270 command: %q", cmd)
+	}
+
 	_, err := fmt.Fprintln(h.stdin, cmd)
 	if err != nil {
 		h.stdin = nil
@@ -489,6 +494,15 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 
 	select {
 	case result := <-resultCh:
+		if h.verboseLogging {
+			log.Printf("[VERBOSE] s3270 response - status: %q, data lines: %d", result.status, len(result.data))
+			for i, line := range result.data {
+				log.Printf("[VERBOSE] s3270 response data[%d]: %s", i, line)
+			}
+			if result.err != nil {
+				log.Printf("[VERBOSE] s3270 error: %v", result.err)
+			}
+		}
 		return result.data, result.status, result.err
 	case <-time.After(commandTimeout):
 		if h.cmd != nil && h.cmd.Process != nil {
@@ -498,6 +512,9 @@ func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 		if h.stdin != nil {
 			h.stdin.Close()
 			h.stdin = nil
+		}
+		if h.verboseLogging {
+			log.Printf("[VERBOSE] s3270 command timed out")
 		}
 		return nil, "", fmt.Errorf("s3270 command timed out")
 	}
@@ -546,4 +563,18 @@ func (h *S3270) reconnectLocked() error {
 		return err
 	}
 	return h.waitFormattedLocked()
+}
+
+// SetVerboseLogging enables or disables verbose logging of S3270 commands and responses.
+func (h *S3270) SetVerboseLogging(enabled bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.verboseLogging = enabled
+}
+
+// GetVerboseLogging returns whether verbose logging is enabled.
+func (h *S3270) GetVerboseLogging() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.verboseLogging
 }

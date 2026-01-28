@@ -821,7 +821,7 @@ pre, pre input, textarea {
   flex-direction: column;
   overflow: hidden;
   resize: both;
-  transition: width 0.25s ease, height 0.25s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .workflow-status-widget.is-maximized {
@@ -1016,4 +1016,148 @@ pre, pre input, textarea {
   animation: spin 0.75s linear infinite;
   margin-right: 0.5em;
   vertical-align: -2px;
+}
+
+/* Logs Modal */
+.logs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logs-modal[hidden] {
+  display: none;
+}
+
+.logs-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.logs-modal-content {
+  position: relative;
+  width: min(900px, 92vw);
+  height: min(600px, 85vh);
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+.logs-modal.is-maximized .logs-modal-content {
+  width: 98vw;
+  height: 96vh;
+}
+
+.logs-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.logs-modal-header h3 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.logs-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logs-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.logs-toggle-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.logs-toggle-text {
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.logs-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  min-height: 0;
+}
+
+.logs-content {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--fg-muted);
+  border-radius: 4px;
+  font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 100%;
+}
+
+.logs-modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.logs-modal-footer button {
+  padding: 8px 16px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.logs-modal-footer button:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.logs-modal-header-actions button {
+  padding: 6px 12px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.logs-modal-header-actions button:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.logs-modal-header-actions .icon-button {
+  padding: 6px;
+  border: 1px solid var(--accent);
 }

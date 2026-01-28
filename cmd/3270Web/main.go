@@ -39,6 +39,7 @@ type App struct {
 	Config         *config.Config
 	themeCache     map[string]string
 	themeCacheMu   sync.RWMutex
+	logFilePath    string
 }
 
 type WorkflowConfig struct {
@@ -115,6 +116,7 @@ func main() {
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
 		themeCache:     make(map[string]string),
+		logFilePath:    filepath.Join(baseDir, "3270Web.log"),
 	}
 
 	r := gin.Default()
@@ -165,6 +167,12 @@ func main() {
 	r.POST("/workflow/stop", app.StopWorkflowHandler)
 	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
 	r.GET("/workflow/status", app.WorkflowStatusHandler)
+
+	// Logging handlers
+	r.GET("/logs", app.LogsHandler)
+	r.POST("/logs/toggle", app.LogsToggleHandler)
+	r.POST("/logs/clear", app.LogsClearHandler)
+	r.GET("/logs/download", app.LogsDownloadHandler)
 
 	// Disconnect handler
 	r.GET("/disconnect", app.DisconnectHandler)
@@ -946,6 +954,92 @@ func (app *App) PrefsHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/screen")
 }
 
+func (app *App) LogsHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+
+	content, err := os.ReadFile(app.logFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusOK, gin.H{
+				"content": "",
+				"enabled": s.Prefs.VerboseLogging,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read log file"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"content": string(content),
+		"enabled": s.Prefs.VerboseLogging,
+	})
+}
+
+func (app *App) LogsToggleHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+
+	enabled := c.PostForm("enabled") == "true"
+	withSessionLock(s, func() {
+		s.Prefs.VerboseLogging = enabled
+		if h, ok := s.Host.(*host.S3270); ok {
+			h.SetVerboseLogging(enabled)
+		}
+	})
+
+	log.Printf("Verbose logging %s", map[bool]string{true: "enabled", false: "disabled"}[enabled])
+	c.JSON(http.StatusOK, gin.H{"enabled": enabled})
+}
+
+func (app *App) LogsClearHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+
+	// Clear the log file
+	err := os.WriteFile(app.logFilePath, []byte(""), 0644)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear log file"})
+		return
+	}
+
+	log.Printf("Log file cleared")
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (app *App) LogsDownloadHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+
+	content, err := os.ReadFile(app.logFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			content = []byte("")
+		} else {
+			c.String(http.StatusInternalServerError, "Failed to read log file")
+			return
+		}
+	}
+
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("3270Web-%s.log", timestamp)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "text/plain", content)
+}
+
 func (app *App) updateFields(c *gin.Context, s *session.Session) {
 	screen := s.Host.GetScreen()
 	for _, f := range screen.Fields {
@@ -1514,6 +1608,10 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 		s.Host = h
 		s.TargetHost = hostName
 		s.TargetPort = port
+		// Apply verbose logging preference
+		if h3270, ok := h.(*host.S3270); ok {
+			h3270.SetVerboseLogging(s.Prefs.VerboseLogging)
+		}
 	})
 	return nil
 }
