@@ -187,6 +187,20 @@
                     <input type="checkbox" data-status-tracking-toggle>
                     <span class="workflow-status-toggle" aria-hidden="true"></span>
                 </label>
+                <script>
+                    (function () {
+                        try {
+                            var toggle = document.querySelector('[data-status-tracking-toggle]');
+                            if (!toggle) {
+                                return;
+                            }
+                            var stored = localStorage.getItem('workflowStatusTrackingEnabled');
+                            toggle.checked = stored === null ? true : stored === '1';
+                        } catch (err) {
+                            // ignore
+                        }
+                    })();
+                </script>
                 <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize workflow status" aria-label="Maximize workflow status">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
                 </button>
