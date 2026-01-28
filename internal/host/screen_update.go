@@ -13,9 +13,36 @@ var (
 	statusPattern = regexp.MustCompile(
 		`^[ULE] [FU] [PU] (?:C\([^)]*\)|N) [ILCN] [2-5] [0-9]+ [0-9]+ ([0-9]+) ([0-9]+) 0x0 (?:[0-9.]+|-)$`,
 	)
-	formattedTokenPattern = regexp.MustCompile(`SF\([^)]*\)|[0-9a-fA-F]{2}`)
-	saPattern             = regexp.MustCompile(`SA\(..=..\)`)
 )
+
+func extractTokens(line string) []string {
+	fields := strings.Fields(line)
+	tokens := make([]string, 0, len(fields))
+
+	for _, field := range fields {
+		if strings.HasPrefix(field, "SA(") {
+			continue
+		}
+		// formattedTokenPattern is SF(...) or 2 hex chars.
+		if strings.HasPrefix(field, "SF(") || (len(field) == 2 && isHex(field)) {
+			tokens = append(tokens, field)
+		}
+	}
+	return tokens
+}
+
+func isHex(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		isDigit := c >= '0' && c <= '9'
+		isHexUpper := c >= 'A' && c <= 'F'
+		isHexLower := c >= 'a' && c <= 'f'
+		if !isDigit && !isHexUpper && !isHexLower {
+			return false
+		}
+	}
+	return true
+}
 
 type decodeState struct {
 	fieldStartX    int
@@ -127,7 +154,7 @@ func normalizeScreenLines(lines []string, rows, cols int) []string {
 	if strings.HasPrefix(line, "data:") {
 		line = strings.TrimSpace(line[len("data:"):])
 	}
-	tokens := formattedTokenPattern.FindAllString(line, -1)
+	tokens := extractTokens(line)
 	if len(tokens) < cols || len(tokens)%cols != 0 {
 		return lines
 	}
@@ -248,8 +275,7 @@ func decodeLine(line string, y int, formatted bool, s *Screen, state *decodeStat
 		line = strings.TrimSpace(line[len("data:"):])
 	}
 
-	line = saPattern.ReplaceAllString(line, "")
-	tokens := formattedTokenPattern.FindAllString(line, -1)
+	tokens := extractTokens(line)
 
 	var result []rune
 	index := 0
