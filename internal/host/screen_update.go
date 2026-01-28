@@ -127,6 +127,33 @@ func (s *Screen) Update(status string, lines []string) error {
 	return nil
 }
 
+// getModelDimensions returns the standard dimensions for IBM 3270 terminal models.
+// Returns (rows, cols, true) if the model is recognized, (0, 0, false) otherwise.
+func getModelDimensions(model string) (int, int, bool) {
+	// Handle both short form (2, 3, 4, 5) and long form (3279-2, 3279-2-E, etc.)
+	// Extract the model number from formats like "3279-4-E" -> "4"
+	modelNum := model
+	if strings.Contains(model, "-") {
+		parts := strings.Split(model, "-")
+		if len(parts) >= 2 {
+			modelNum = parts[1]
+		}
+	}
+	
+	switch modelNum {
+	case "2":
+		return 24, 80, true
+	case "3":
+		return 32, 80, true
+	case "4":
+		return 43, 80, true
+	case "5":
+		return 27, 132, true
+	default:
+		return 0, 0, false
+	}
+}
+
 func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if status == "" {
 		return 0, 0, false
@@ -135,6 +162,8 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if len(parts) < 8 {
 		return 0, 0, false
 	}
+	
+	// Extract reported dimensions from s3270 status
 	rows, err := strconv.Atoi(parts[6])
 	if err != nil || rows <= 0 {
 		return 0, 0, false
@@ -143,6 +172,23 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if err != nil || cols <= 0 {
 		return 0, 0, false
 	}
+	
+	// Extract model number from status (part[5] is the model number 2-5)
+	// Status format: "U F P C(host) I 4 24 80 0 0 0x0 0.000"
+	//                 0 1 2 3        4 5 6  7  8 9 10  11
+	if len(parts) > 5 {
+		modelNum := parts[5]
+		if expectedRows, expectedCols, ok := getModelDimensions(modelNum); ok {
+			// Validate and enforce model-specific dimension limits
+			if rows > expectedRows {
+				rows = expectedRows
+			}
+			if cols > expectedCols {
+				cols = expectedCols
+			}
+		}
+	}
+	
 	return rows, cols, true
 }
 
