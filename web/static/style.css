@@ -821,7 +821,7 @@ pre, pre input, textarea {
   flex-direction: column;
   overflow: hidden;
   resize: both;
-  transition: width 0.25s ease, height 0.25s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .workflow-status-widget.is-maximized {
