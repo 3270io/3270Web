@@ -536,6 +536,7 @@ pre, pre input, textarea {
   outline: none;
   background-color: var(--bg);
   color: var(--fg);
+  caret-color: var(--fg);
 }
 
 .h3270-form,
@@ -558,7 +559,8 @@ pre, pre input, textarea {
 .color-input,
 .color-input-intensified,
 .color-intensified {
-  background-color: var(--bg);
+  background-color: var(--panel);
+  border: none;
 }
 
 .h3270-input,

@@ -235,6 +235,19 @@
       return;
     }
 
+    // Handle Tab key to restrict it to terminal screen inputs only
+    var code = event.keyCode || event.which;
+    if (event.key === "Tab" || code === 9) {
+      var form = findForm(formId);
+      if (form && event.target && (event.target.form === form || form.contains(event.target))) {
+        // Allow Tab navigation within the terminal screen form
+        event.preventDefault();
+        sendFormWithKey(event.shiftKey ? "BackTab" : "Tab", formId);
+      }
+      // Allow normal browser Tab navigation outside the terminal screen
+      return;
+    }
+
     if (isEditableTarget(event.target) && isNativeNavKey(event)) {
       if (
         event.key === "ArrowUp" ||
