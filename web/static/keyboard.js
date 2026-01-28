@@ -243,10 +243,8 @@
         // Allow Tab navigation within the terminal screen form
         event.preventDefault();
         sendFormWithKey(event.shiftKey ? "BackTab" : "Tab", formId);
-      } else {
-        // Block Tab key outside of terminal screen
-        event.preventDefault();
       }
+      // Allow normal browser Tab navigation outside the terminal screen
       return;
     }
 
