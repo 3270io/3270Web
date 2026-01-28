@@ -31,9 +31,10 @@ type Session struct {
 }
 
 type Preferences struct {
-	ColorScheme string
-	FontName    string
-	UseKeypad   bool
+	ColorScheme    string
+	FontName       string
+	UseKeypad      bool
+	VerboseLogging bool
 }
 
 type WorkflowCoordinates struct {

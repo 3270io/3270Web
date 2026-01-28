@@ -32,6 +32,9 @@
             </div>
             <div class="toolbar" style="margin-bottom: 16px;">
                 <a href="/disconnect" onclick="return confirm('Are you sure you want to disconnect?');" aria-label="Disconnect from session">Disconnect</a>
+                <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                </button>
                 <span class="status-indicator" data-recording-indicator {{ if not .RecordingActive }}hidden{{ end }}>
                     <span class="recording-indicator" aria-hidden="true"></span>
                     <span class="status-text">REC</span>
@@ -219,5 +222,35 @@
             </div>
         </div>
     </div>
+    <div class="logs-modal" data-logs-modal hidden>
+        <div class="logs-modal-backdrop" data-logs-modal-close></div>
+        <div class="logs-modal-content" role="dialog" aria-modal="true" aria-labelledby="logs-modal-title">
+            <div class="logs-modal-header">
+                <h3 id="logs-modal-title">Verbose Logging</h3>
+                <div class="logs-modal-header-actions">
+                    <label class="logs-toggle-label">
+                        <input type="checkbox" data-logs-toggle-checkbox>
+                        <span class="logs-toggle-text">Verbose Logging</span>
+                    </label>
+                    <button type="button" class="icon-button" data-logs-maximize aria-expanded="false" data-tippy-content="Maximize logs" aria-label="Maximize logs">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-logs-minimize aria-expanded="true" data-tippy-content="Minimize logs" aria-label="Minimize logs" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" data-logs-modal-close>Close</button>
+                </div>
+            </div>
+            <div class="logs-modal-body">
+                <pre class="logs-content" data-logs-content>No logs yet. Enable verbose logging to capture S3270 commands and responses.</pre>
+            </div>
+            <div class="logs-modal-footer">
+                <button type="button" data-logs-refresh>Refresh</button>
+                <button type="button" data-logs-clear>Clear Logs</button>
+                <button type="button" data-logs-download>Download Logs</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/logs.js" defer></script>
 </body>
 </html>
