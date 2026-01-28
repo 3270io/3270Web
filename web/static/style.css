@@ -565,7 +565,7 @@ pre, pre input, textarea {
   padding: 0;
 }
 
-/* Simulate block cursor with a thicker caret */
+/* Block cursor for compatible browsers */
 @supports (caret-shape: block) {
   .h3270-input,
   .h3270-input-intensified,
