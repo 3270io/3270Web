@@ -361,6 +361,8 @@
     });
   }
 
+  let lastSavedSize = null;
+
   const applyStoredSize = () => {
     if (!statusWidget) {
       return;
@@ -373,8 +375,8 @@
       if (size && typeof size.height === 'number' && size.height >= 80) {
         statusWidget.style.height = `${size.height}px`;
       }
-      // Initialize lastSavedSize with the restored size
-      if (size) {
+      // Initialize lastSavedSize with the restored size if both dimensions are valid
+      if (size && typeof size.width === 'number' && typeof size.height === 'number') {
         lastSavedSize = { width: size.width, height: size.height };
       }
     } catch (err) {
@@ -382,15 +384,13 @@
     }
   };
 
-  let lastSavedSize = null;
-
   const saveWidgetSize = () => {
     if (!statusWidget || statusWidget.classList.contains('is-minimized') || statusWidget.classList.contains('is-maximized')) {
       return;
     }
     try {
       const size = { width: statusWidget.offsetWidth, height: statusWidget.offsetHeight };
-      // Only save if size changed meaningfully (more than 2px in either dimension)
+      // Only save if size changed by at least 3px in either dimension
       if (lastSavedSize && 
           Math.abs(size.width - lastSavedSize.width) < 3 && 
           Math.abs(size.height - lastSavedSize.height) < 3) {
