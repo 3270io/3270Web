@@ -555,12 +555,41 @@ pre, pre input, textarea {
 
 .h3270-input,
 .h3270-input-intensified,
-.h3270-intensified,
 .color-input,
-.color-input-intensified,
-.color-intensified {
+.color-input-intensified {
   background-color: var(--panel);
-  border: none;
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  caret-color: var(--accent);
+  padding: 0;
+}
+
+/* Block cursor for compatible browsers */
+@supports (caret-shape: block) {
+  .h3270-input,
+  .h3270-input-intensified,
+  .color-input,
+  .color-input-intensified {
+    caret-shape: block;
+  }
+}
+
+/* Fallback: Add subtle glow effect to make cursor more visible */
+.h3270-input:focus,
+.h3270-input-intensified:focus,
+.color-input:focus,
+.color-input-intensified:focus {
+  text-shadow: 0 0 2px var(--accent);
+}
+
+/* Text selection styling for input fields */
+.h3270-input::selection,
+.h3270-input-intensified::selection,
+.color-input::selection,
+.color-input-intensified::selection {
+  background-color: var(--accent);
+  color: var(--panel);
 }
 
 .h3270-input,
@@ -576,6 +605,7 @@ pre, pre input, textarea {
 .h3270-intensified,
 .color-intensified {
   color: var(--accent-2);
+  background-color: transparent;
 }
 
 .h3270-input-hidden,
