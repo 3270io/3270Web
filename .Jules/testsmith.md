@@ -12,3 +12,8 @@ Action: Added `cmd/3270Web/security_test.go` to test for injection, and patched 
 Learning: The `isConnectionError` and `isS3270Error` functions, critical for process recovery and error reporting, were untested and relied on fragile string matching.
 Risk: High. Failure to correctly identify connection errors could prevent the application from reconnecting to `s3270`, leading to denial of service for the user.
 Action: Added comprehensive table-driven tests in `internal/host/s3270_test.go` to verify error classification logic.
+
+## 2026-02-20 - Fragile S3270 Status Parsing
+Learning: The `statusPattern` regex used to parse `s3270` output included a strict end-of-line anchor (`$`), which caused parsing to fail entirely if the status line format changed (e.g., adding new fields).
+Risk: Moderate. Future versions of `s3270` or different configurations could inadvertently break screen rendering, leading to unformatted or duplicated screens.
+Action: Added `internal/host/screen_parsing_test.go` to enforce parsing resiliency and removed the `$` anchor from the regex in `internal/host/screen_update.go`.
