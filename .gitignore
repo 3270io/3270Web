@@ -33,3 +33,4 @@ workflow.json
 # Old binary names (backward compatibility during transition)
 h3270-web
 h3270-web.exe
+3270Web_test
