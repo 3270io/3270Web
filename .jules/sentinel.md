@@ -7,3 +7,8 @@
 **Vulnerability:** The application was missing standard security headers, including CSP. Adding a strict CSP (`script-src 'self'`) broke the application because `web/templates/connect.html` relies on inline scripts (`<script>...</script>`) for initialization.
 **Learning:** Retrofitting strict CSP into an existing application often requires refactoring inline scripts into external files or implementing nonces. In constrained environments (time/scope), allowing `'unsafe-inline'` is a necessary trade-off to enable other protections (like `frame-ancestors` or `object-src`) without breaking functionality.
 **Prevention:** When designing new views, avoid inline scripts and styles. Use external files to allow for stricter CSP rules later.
+
+## 2026-01-28 - Workflow Command Injection
+**Vulnerability:** The `PlayWorkflowHandler` in `cmd/3270Web/main.go` allowed executing arbitrary s3270 commands via the `Press` step type in a workflow file. A malicious workflow could contain steps like `{"Type": "PressConnect(evil.com)"}`, which would be passed directly to the s3270 host process, enabling SSRF or other attacks.
+**Learning:** Whitelisting user input is crucial, even when that input comes from a structured file like a JSON workflow. The `normalizeKey` function was already implementing a whitelist for user form input but was bypassed by the workflow playback logic. Reusing existing security controls (like `normalizeKey`) is better than ad-hoc validation.
+**Prevention:** Ensure that all paths to sensitive sinks (like command execution) pass through the same validation/sanitization logic. Treat uploaded files (workflows) as untrusted user input.

@@ -1758,7 +1758,9 @@ func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep)
 		return app.applyWorkflowKey(s, "Enter")
 	default:
 		if strings.HasPrefix(step.Type, "Press") {
-			return app.applyWorkflowKey(s, strings.TrimPrefix(step.Type, "Press"))
+			// Sentinel: Sanitize key to prevent command injection via workflow
+			key := normalizeKey(strings.TrimPrefix(step.Type, "Press"))
+			return app.applyWorkflowKey(s, key)
 		}
 		return nil
 	}
