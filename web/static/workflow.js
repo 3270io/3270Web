@@ -33,6 +33,8 @@
     return;
   }
 
+  let lastFocusedElement = null;
+
   const keepInBounds = () => {
     const rect = modal.getBoundingClientRect();
     const maxLeft = Math.max(20, window.innerWidth - rect.width - 20);
@@ -52,13 +54,24 @@
   const closeButtons = modal.querySelectorAll('[data-modal-close]');
 
   const openModal = () => {
+    lastFocusedElement = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    const firstFocusable = modal.querySelector(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (firstFocusable) {
+      firstFocusable.focus();
+    }
   };
 
   const closeModal = () => {
     modal.hidden = true;
     document.body.style.overflow = '';
+    if (lastFocusedElement) {
+      lastFocusedElement.focus();
+      lastFocusedElement = null;
+    }
   };
 
   openButtons.forEach((button) => {
