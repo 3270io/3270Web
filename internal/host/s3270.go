@@ -390,8 +390,15 @@ func (h *S3270) SubmitScreen() error {
 					}
 				} else {
 					// Encode as hex key to avoid escaping issues
-					if _, _, err := h.doCommandLocked(fmt.Sprintf("key(0x%x)", r)); err != nil {
-						return err
+					cmd := fmt.Sprintf("key(0x%x)", r)
+					if f.IsHidden() {
+						if _, _, err := h.doCommandLockedRedacted(cmd, "key(***)"); err != nil {
+							return err
+						}
+					} else {
+						if _, _, err := h.doCommandLocked(cmd); err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -443,12 +450,20 @@ func (h *S3270) SubmitUnformatted(data string) error {
 
 // doCommandLocked executes a command and reads response until "ok".
 func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
+	return h.executeCommandLocked(cmd, cmd)
+}
+
+func (h *S3270) doCommandLockedRedacted(cmd string, logCmd string) ([]string, string, error) {
+	return h.executeCommandLocked(cmd, logCmd)
+}
+
+func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, string, error) {
 	if h.stdin == nil {
 		return nil, "", fmt.Errorf("not connected")
 	}
 
 	if h.verboseLogging {
-		log.Printf("[VERBOSE] s3270 command: %q", cmd)
+		log.Printf("[VERBOSE] s3270 command: %q", logCmd)
 	}
 
 	_, err := fmt.Fprintln(h.stdin, cmd)
