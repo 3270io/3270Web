@@ -15,3 +15,7 @@
 ## 2026-01-28 - Icon-Only Button Loading States
 **Learning:** Standard loading patterns (injecting "Loading..." text) break layout on icon-only buttons with locked widths, causing overflow and visual glitches.
 **Action:** For icon-only buttons (`.icon-button`), only show the spinner (removing margins) and use `aria-label="Loading..."` to convey state without changing dimensions or layout.
+
+## 2026-01-29 - Testing Vanilla JS Focus Management
+**Learning:** Testing vanilla JS focus management logic requires mocking the DOM structure expected by the script, as the scripts are often tightly coupled to specific selectors (e.g., `data-logs-modal`).
+**Action:** When testing frontend logic in isolation, create minimal HTML fixtures that replicate the `data-` attributes expected by the JS to verify focus transitions with Playwright.

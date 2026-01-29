@@ -19,10 +19,18 @@
 
   let autoRefreshInterval = null;
   let isMaximized = false;
+  let lastFocusedElement = null;
 
   const openModal = () => {
+    lastFocusedElement = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    const firstFocusable = modal.querySelector(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (firstFocusable) {
+      firstFocusable.focus();
+    }
     fetchLogs();
     startAutoRefresh();
   };
@@ -31,6 +39,10 @@
     modal.hidden = true;
     document.body.style.overflow = '';
     stopAutoRefresh();
+    if (lastFocusedElement) {
+      lastFocusedElement.focus();
+      lastFocusedElement = null;
+    }
   };
 
   const startAutoRefresh = () => {
