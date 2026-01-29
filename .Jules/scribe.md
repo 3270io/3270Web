@@ -12,3 +12,8 @@ Action: Documented the split/quote behavior in `docs/configuration.md` with exam
 Learning: The `docs/workflow.md` claimed support for keys like `PressPA<n>` and `PressClear` (via manual editing), but no tests verified this capability, creating a risk of silent regression if the underlying mapping logic changed.
 Impact: Users relying on advanced workflow features might find them broken despite documentation assurances, eroding trust.
 Action: Added `TestWorkflowSpecialKeys` to explicitly verify that all documented key types are correctly processed and sent to the host.
+
+## 2024-05-22 - Configuration Precedence Mismatch
+Learning: Users modifying `3270Web-config.xml` `<model>` setting saw no effect because the generated `.env` file (defaulting to `3279-4-E`) silently overrides the XML configuration.
+Impact: Confusion and loss of trust in documentation which stated XML defaults.
+Action: Updated `docs/configuration.md` to explicitly warn about `.env` precedence and the effective default.

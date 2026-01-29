@@ -25,6 +25,7 @@ Configures the underlying 3270 emulator process.
     <!-- Character set (default: bracket) -->
     <charset>bracket</charset>
     <!-- IBM Model number, e.g., 2, 3, 4, 5 (default: 3) -->
+    <!-- Note: This may be overridden by S3270_MODEL in the .env file -->
     <model>3</model>
     <!-- Additional command-line arguments for s3270 -->
     <additional>-trace</additional>
@@ -44,6 +45,8 @@ S3270_TRACE_FILE=/tmp/s3270.trace
 ```
 
 All supported options, defaults, and descriptions are listed in the generated `.env` file at the repo root. Update those values to change the arguments passed to `s3270`.
+
+> **Note:** The generated `.env` file typically sets `S3270_MODEL=3279-4-E` by default. If this value is present, it will override the `<model>` setting in `3270Web-config.xml`.
 
 #### Argument Parsing
 
