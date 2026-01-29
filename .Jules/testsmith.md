@@ -17,3 +17,8 @@ Action: Added comprehensive table-driven tests in `internal/host/s3270_test.go` 
 Learning: The `statusPattern` regex used to parse `s3270` output included a strict end-of-line anchor (`$`), which caused parsing to fail entirely if the status line format changed (e.g., adding new fields).
 Risk: Moderate. Future versions of `s3270` or different configurations could inadvertently break screen rendering, leading to unformatted or duplicated screens.
 Action: Added `internal/host/screen_parsing_test.go` to enforce parsing resiliency and removed the `$` anchor from the regex in `internal/host/screen_update.go`.
+
+## 2026-02-24 - Untested HTML Escaping and Null Byte Handling
+Learning: The `HtmlRenderer` uses a custom `writeEscaped` method for performance that manually handles HTML escaping and null-byte replacement. This logic was not explicitly tested, relying on indirect screen rendering tests that didn't cover all edge cases (like null bytes or mixed content).
+Risk: High. Flaws in escaping logic are a primary vector for XSS attacks, and mishandling null bytes can cause rendering issues or undefined browser behavior.
+Action: Added `TestWriteEscaped` in `internal/render/html_renderer_test.go` with comprehensive table-driven cases for HTML entities, null bytes, and unicode to ensure correctness and safety.
