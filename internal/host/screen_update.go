@@ -97,11 +97,20 @@ func (s *Screen) Update(status string, lines []string) error {
 		s.IsFormatted = false
 	}
 
+	var tokenRows [][]string
 	if rows, cols, ok := screenDimensionsFromStatus(status); ok {
-		lines = normalizeScreenLines(lines, rows, cols)
+		tokenRows = normalizeScreenTokens(lines, rows, cols)
+	} else {
+		tokenRows = make([][]string, len(lines))
+		for i, line := range lines {
+			if strings.HasPrefix(line, "data:") {
+				line = strings.TrimSpace(line[len("data:"):])
+			}
+			tokenRows[i] = extractTokens(line)
+		}
 	}
 
-	if err := s.updateBuffer(lines); err != nil {
+	if err := s.updateBuffer(tokenRows); err != nil {
 		return err
 	}
 
@@ -192,59 +201,77 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 	return rows, cols, true
 }
 
-func normalizeScreenLines(lines []string, rows, cols int) []string {
-	if rows <= 0 || cols <= 0 || len(lines) != 1 {
-		return lines
+func normalizeScreenTokens(lines []string, rows, cols int) [][]string {
+	// Fallback to processing lines as-is if we can't normalize
+	fallback := func() [][]string {
+		out := make([][]string, len(lines))
+		for i, line := range lines {
+			if strings.HasPrefix(line, "data:") {
+				line = strings.TrimSpace(line[len("data:"):])
+			}
+			out[i] = extractTokens(line)
+		}
+		return out
 	}
+
+	if rows <= 0 || cols <= 0 || len(lines) != 1 {
+		return fallback()
+	}
+
 	line := strings.TrimSpace(lines[0])
 	if strings.HasPrefix(line, "data:") {
 		line = strings.TrimSpace(line[len("data:"):])
 	}
 	tokens := extractTokens(line)
+
 	if len(tokens) < cols || len(tokens)%cols != 0 {
-		return lines
+		return fallback()
 	}
 	totalRows := len(tokens) / cols
 	if totalRows < rows {
-		return lines
+		return fallback()
 	}
+
+	// Helper to slice tokens into rows
+	splitTokens := func(t []string, r, c int) [][]string {
+		if r <= 0 || c <= 0 {
+			return nil
+		}
+		out := make([][]string, 0, r)
+		for i := 0; i < r; i++ {
+			start := i * c
+			end := start + c
+			if end > len(t) {
+				break
+			}
+			out = append(out, t[start:end])
+		}
+		return out
+	}
+
 	if totalRows == rows {
-		return splitScreenLines(tokens, rows, cols)
+		return splitTokens(tokens, rows, cols)
 	}
 	if totalRows%rows != 0 {
-		return lines
+		return fallback()
 	}
 	if !repeatsScreen(tokens, rows, cols, totalRows) {
-		return lines
+		return fallback()
 	}
-	return splitScreenLines(tokens, rows, cols)
+	return splitTokens(tokens, rows, cols)
 }
 
 func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
-	return normalizeScreenLines(lines, rows, cols)
+	tokenRows := normalizeScreenTokens(lines, rows, cols)
+	out := make([]string, len(tokenRows))
+	for i, tokens := range tokenRows {
+		out[i] = "data: " + strings.Join(tokens, " ")
+	}
+	return out
 }
 
 func repeatsScreenForTest(tokens []string, rows, cols, totalRows int) bool {
 	return repeatsScreen(tokens, rows, cols, totalRows)
-}
-
-func splitScreenLines(tokens []string, rows, cols int) []string {
-	if rows <= 0 || cols <= 0 {
-		return nil
-	}
-	normalized := make([]string, 0, rows)
-	for i := 0; i < rows; i++ {
-		start := i * cols
-		end := start + cols
-		if end > len(tokens) {
-			break
-		}
-		normalized = append(normalized, "data: "+strings.Join(tokens[start:end], " "))
-	}
-	if len(normalized) == 0 {
-		return nil
-	}
-	return normalized
 }
 
 func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
@@ -270,8 +297,8 @@ func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
 	return true
 }
 
-func (s *Screen) updateBuffer(lines []string) error {
-	s.Height = len(lines)
+func (s *Screen) updateBuffer(tokenRows [][]string) error {
+	s.Height = len(tokenRows)
 	if s.Height == 0 {
 		s.Width = 0
 		s.Buffer = nil
@@ -292,9 +319,9 @@ func (s *Screen) updateBuffer(lines []string) error {
 	}
 
 	width := 0
-	for y, line := range lines {
+	for y, tokens := range tokenRows {
 		state.width = width
-		row, err := decodeLine(line, y, s.IsFormatted, s, state)
+		row, err := decodeLineTokens(tokens, y, s.IsFormatted, s, state)
 		if err != nil {
 			return err
 		}
@@ -316,13 +343,7 @@ func (s *Screen) updateBuffer(lines []string) error {
 	return nil
 }
 
-func decodeLine(line string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
-	if strings.HasPrefix(line, "data:") {
-		line = strings.TrimSpace(line[len("data:"):])
-	}
-
-	tokens := extractTokens(line)
-
+func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
 	var result []rune
 	index := 0
 
