@@ -157,3 +157,43 @@ func TestRenderProtectedFieldClasses(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteEscaped(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"Empty", "", ""},
+		{"Normal", "abc123", "abc123"},
+		{"Space", "   ", "   "},
+		{"Null", "\x00", " "},
+		{"Nulls", "\x00\x00\x00", "   "},
+		{"NullMixed", "a\x00b", "a b"},
+		{"Quote", "\"", "&#34;"},
+		{"Ampersand", "&", "&amp;"},
+		{"Apostrophe", "'", "&#39;"},
+		{"LessThan", "<", "&lt;"},
+		{"GreaterThan", ">", "&gt;"},
+		{"MixedHTML", `<script>alert("xss")</script>`, "&lt;script&gt;alert(&#34;xss&#34;)&lt;/script&gt;"},
+		{"MixedNullHTML", "<\x00>", "&lt; &gt;"},
+		{"ControlChars", "\n\t\r", "\n\t\r"},
+		{"Unicode", "你好", "你好"},
+		{"Emoji", "👍", "👍"},
+		{"OptimizationPath", "no special chars", "no special chars"},
+		{"OptimizationPathFail", "special < char", "special &lt; char"},
+	}
+
+	r := NewHtmlRenderer()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sb strings.Builder
+			r.writeEscaped(&sb, tt.input)
+			got := sb.String()
+			if got != tt.expected {
+				t.Errorf("writeEscaped(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
