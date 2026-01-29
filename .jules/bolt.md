@@ -9,3 +9,7 @@
 ## 2025-02-14 - [Replace Regexp with Manual Parsing in Hot Loops]
 **Learning:** `regexp.FindAllString` and `regexp.ReplaceAllString` are significantly slower than manual string parsing (e.g. `strings.Fields` and loops) in hot paths. Replacing regex with manual parsing in `decodeLine` reduced execution time by ~82%.
 **Action:** Prefer `strings` package functions or manual parsing over `regexp` when the pattern is simple and the code is in a critical loop.
+
+## 2025-05-23 - [Refactor Screen Parsing to Avoid Allocations]
+**Learning:** Reconstructing strings from tokens only to parse them again (split/join/split) is a major waste of allocations in hot loops.
+**Action:** Pass tokenized data structures ([][]string) directly between producer and consumer functions instead of serializing to strings in between.
