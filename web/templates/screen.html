@@ -6,6 +6,35 @@
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var minimized = localStorage.getItem('workflowStatusWidgetMinimized') === '1';
+                var maximized = localStorage.getItem('workflowStatusWidgetMaximized') === '1';
+                if (minimized) {
+                    root.classList.add('workflow-status-minimized');
+                    root.classList.remove('workflow-status-maximized');
+                } else if (maximized) {
+                    root.classList.add('workflow-status-maximized');
+                }
+                if (!minimized) {
+                    var size = localStorage.getItem('workflowStatusWidgetSize');
+                    if (size) {
+                        var parsed = JSON.parse(size);
+                        if (parsed && typeof parsed.width === 'number') {
+                            root.style.setProperty('--workflow-status-width', parsed.width + 'px');
+                        }
+                        if (parsed && typeof parsed.height === 'number') {
+                            root.style.setProperty('--workflow-status-height', parsed.height + 'px');
+                        }
+                    }
+                }
+            } catch (err) {
+                // ignore
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
     <script src="https://unpkg.com/@popperjs/core@2" defer></script>
     <script src="https://unpkg.com/tippy.js@6" defer></script>
@@ -13,6 +42,7 @@
     <script src="/static/theme.js" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/workflow.js?v=8" defer></script>
+    <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
     <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
@@ -31,7 +61,7 @@
                 </div>
             </div>
             <div class="toolbar" style="margin-bottom: 16px;">
-                <a href="/disconnect" onclick="return confirm('Are you sure you want to disconnect?');" aria-label="Disconnect from session">Disconnect</a>
+                <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
@@ -179,6 +209,21 @@
         </div>
     </div>
     {{ end }}
+    <div class="modal-backdrop" data-disconnect-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="disconnect-modal-title" aria-describedby="disconnect-modal-desc">
+            <div class="modal-header">
+                <h3 id="disconnect-modal-title">Disconnect</h3>
+                <button type="button" class="modal-close" data-disconnect-close>Close</button>
+            </div>
+            <p id="disconnect-modal-desc">Are you sure you want to disconnect?</p>
+            <div class="modal-actions">
+                <button type="button" data-disconnect-close>Cancel</button>
+                <form action="/disconnect" method="get">
+                    <button type="submit" data-disconnect-confirm>Disconnect</button>
+                </form>
+            </div>
+        </div>
+    </div>
     <div class="workflow-status-widget" data-status-widget>
         <div class="workflow-status-widget-header" data-status-widget-header>
             <strong>Workflow status</strong>

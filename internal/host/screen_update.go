@@ -163,6 +163,11 @@ func getModelDimensions(model string) (int, int, bool) {
 	}
 }
 
+// ModelDimensions exposes the standard 3270 model dimensions for external callers.
+func ModelDimensions(model string) (int, int, bool) {
+	return getModelDimensions(model)
+}
+
 func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if status == "" {
 		return 0, 0, false

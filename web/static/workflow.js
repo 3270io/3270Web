@@ -87,6 +87,7 @@
   if (!body) {
     return;
   }
+  const root = document.documentElement;
   const openTriggers = document.querySelectorAll('[data-status-open]');
   const statusWidget = document.querySelector('[data-status-widget]');
   const statusWidgetHeader = statusWidget ? statusWidget.querySelector('[data-status-widget-header]') : null;
@@ -417,6 +418,12 @@
       setWidgetMaximized(false);
     }
     statusWidget.classList.toggle('is-minimized', minimized);
+    if (root) {
+      root.classList.toggle('workflow-status-minimized', minimized);
+      if (minimized) {
+        root.classList.remove('workflow-status-maximized');
+      }
+    }
     if (minimized) {
       saveWidgetSize();
       statusWidget.style.width = '';
@@ -445,6 +452,12 @@
       return;
     }
     statusWidget.classList.toggle('is-maximized', maximized);
+    if (root) {
+      root.classList.toggle('workflow-status-maximized', maximized);
+      if (maximized) {
+        root.classList.remove('workflow-status-minimized');
+      }
+    }
     if (maximized) {
       saveWidgetSize();
       statusWidget.style.height = '';

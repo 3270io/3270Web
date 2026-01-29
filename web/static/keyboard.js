@@ -230,6 +230,88 @@
     return best;
   }
 
+  function isScreenInput(el) {
+    if (!isEditableTarget(el)) {
+      return false;
+    }
+    if (!el.dataset || el.dataset.x == null || el.dataset.y == null) {
+      return false;
+    }
+    return true;
+  }
+
+  function getOrderedScreenInputs(form) {
+    if (!form) {
+      return [];
+    }
+    var nodes = form.querySelectorAll("input[data-x][data-y]");
+    var entries = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!isScreenInput(el) || el.disabled || el.readOnly) {
+        continue;
+      }
+      var pos = getFieldPosition(el);
+      if (!pos) {
+        continue;
+      }
+      entries.push({ el: el, x: pos.x, y: pos.y });
+    }
+    entries.sort(function (a, b) {
+      if (a.y !== b.y) {
+        return a.y - b.y;
+      }
+      if (a.x !== b.x) {
+        return a.x - b.x;
+      }
+      return 0;
+    });
+    var ordered = [];
+    for (var j = 0; j < entries.length; j++) {
+      ordered.push(entries[j].el);
+    }
+    return ordered;
+  }
+
+  function focusNextScreenInput(current, form) {
+    var inputs = getOrderedScreenInputs(form);
+    var idx = inputs.indexOf(current);
+    if (idx === -1 || idx >= inputs.length - 1) {
+      return false;
+    }
+    var next = inputs[idx + 1];
+    next.focus();
+    if (typeof next.setSelectionRange === "function") {
+      var len = next.value ? next.value.length : 0;
+      next.setSelectionRange(len, len);
+    }
+    return true;
+  }
+
+  function handleAutoAdvance(event, form) {
+    if (!event || event.isComposing) {
+      return;
+    }
+    var target = event.target;
+    if (!form || !isScreenInput(target) || target.disabled || target.readOnly) {
+      return;
+    }
+    var max = target.maxLength;
+    if (!max || max < 1) {
+      return;
+    }
+    var value = target.value || "";
+    if (value.length < max) {
+      return;
+    }
+    if (typeof target.selectionStart === "number" && typeof target.selectionEnd === "number") {
+      if (target.selectionStart !== target.selectionEnd || target.selectionEnd !== value.length) {
+        return;
+      }
+    }
+    focusNextScreenInput(target, form);
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
       return;
@@ -382,6 +464,9 @@
           if (!submitting || !keyInput.value) {
             keyInput.value = specialKeys.Enter;
           }
+        });
+        form.addEventListener("input", function (event) {
+          handleAutoAdvance(event, form);
         });
         form.dataset.keyHandlerInstalled = "1";
       }

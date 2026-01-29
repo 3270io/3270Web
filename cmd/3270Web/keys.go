@@ -134,3 +134,63 @@ func workflowStepForKey(key string) *session.WorkflowStep {
 	}
 	return nil
 }
+
+func workflowKeyForStepType(stepType string) (string, bool) {
+	trimmed := strings.TrimSpace(stepType)
+	switch trimmed {
+	case "PressEnter":
+		return "Enter", true
+	case "PressTab":
+		return "Tab", true
+	case "PressBackTab":
+		return "BackTab", true
+	case "PressClear":
+		return "Clear", true
+	case "PressReset":
+		return "Reset", true
+	case "PressEraseEOF":
+		return "EraseEOF", true
+	case "PressEraseInput":
+		return "EraseInput", true
+	case "PressDup":
+		return "Dup", true
+	case "PressFieldMark":
+		return "FieldMark", true
+	case "PressSysReq":
+		return "SysReq", true
+	case "PressAttn":
+		return "Attn", true
+	case "PressNewline":
+		return "Newline", true
+	case "PressBackspace":
+		return "BackSpace", true
+	case "PressDelete":
+		return "Delete", true
+	case "PressInsert":
+		return "Insert", true
+	case "PressHome":
+		return "Home", true
+	case "PressUp":
+		return "Up", true
+	case "PressDown":
+		return "Down", true
+	case "PressLeft":
+		return "Left", true
+	case "PressRight":
+		return "Right", true
+	}
+
+	if strings.HasPrefix(trimmed, "PressPF") {
+		inner := strings.TrimPrefix(trimmed, "PressPF")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+			return fmt.Sprintf("PF(%d)", n), true
+		}
+	}
+	if strings.HasPrefix(trimmed, "PressPA") {
+		inner := strings.TrimPrefix(trimmed, "PressPA")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 3 {
+			return fmt.Sprintf("PA(%d)", n), true
+		}
+	}
+	return "", false
+}

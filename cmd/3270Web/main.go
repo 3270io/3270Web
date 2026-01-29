@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -483,6 +484,9 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	}
 
 	screen := s.Host.GetScreen()
+	if rows, cols, ok := app.modelDimensions(); ok {
+		screen = limitScreenForDisplay(screen, rows, cols)
+	}
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	snap := app.snapshotSession(s)
 	themeCSS := app.buildThemeCSS(snap.Prefs)
@@ -539,8 +543,72 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		return
 	}
 	screen := s.Host.GetScreen()
+	if rows, cols, ok := app.modelDimensions(); ok {
+		screen = limitScreenForDisplay(screen, rows, cols)
+	}
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	c.JSON(http.StatusOK, gin.H{"html": rendered})
+}
+
+func (app *App) modelDimensions() (int, int, bool) {
+	model := ""
+	if app != nil && app.Config != nil {
+		model = strings.TrimSpace(app.Config.S3270Options.Model)
+	}
+	if overrides, err := config.S3270EnvOverridesFromEnv(); err == nil && overrides.HasModel {
+		model = strings.TrimSpace(overrides.Model)
+	}
+	if model == "" {
+		return 0, 0, false
+	}
+	return host.ModelDimensions(model)
+}
+
+func limitScreenForDisplay(screen *host.Screen, maxRows, maxCols int) *host.Screen {
+	if screen == nil || maxRows <= 0 || maxCols <= 0 {
+		return screen
+	}
+	if screen.Height <= maxRows && screen.Width <= maxCols {
+		return screen
+	}
+
+	limited := *screen
+	if limited.Height > maxRows {
+		limited.Height = maxRows
+	}
+	if limited.Width > maxCols {
+		limited.Width = maxCols
+	}
+	limited.Buffer = nil
+	limited.Fields = nil
+
+	limited.Buffer = make([][]rune, limited.Height)
+	for y := 0; y < limited.Height; y++ {
+		row := make([]rune, limited.Width)
+		if y < len(screen.Buffer) {
+			src := screen.Buffer[y]
+			for x := 0; x < limited.Width && x < len(src); x++ {
+				row[x] = src[x]
+			}
+		}
+		limited.Buffer[y] = row
+	}
+
+	for _, f := range screen.Fields {
+		if f == nil {
+			continue
+		}
+		if !fieldWithinBounds(f, limited.Height, limited.Width) {
+			continue
+		}
+		nf := *f
+		nf.Screen = &limited
+		nf.Value = ""
+		nf.Changed = false
+		limited.Fields = append(limited.Fields, &nf)
+	}
+
+	return &limited
 }
 
 func (app *App) SubmitHandler(c *gin.Context) {
@@ -927,6 +995,340 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 	})
 }
 
+const maxPlaybackEvents = 200
+
+func addPlaybackEvent(s *session.Session, message string) {
+	if s == nil || strings.TrimSpace(message) == "" {
+		return
+	}
+	withSessionLock(s, func() {
+		s.PlaybackEvents = append(s.PlaybackEvents, session.WorkflowEvent{
+			Time:    time.Now(),
+			Message: message,
+		})
+		if len(s.PlaybackEvents) > maxPlaybackEvents {
+			s.PlaybackEvents = s.PlaybackEvents[len(s.PlaybackEvents)-maxPlaybackEvents:]
+		}
+	})
+}
+
+func stopWorkflowPlayback(s *session.Session) {
+	if s == nil {
+		return
+	}
+	shouldStop := false
+	withSessionLock(s, func() {
+		if s.Playback != nil && s.Playback.Active {
+			s.Playback.StopRequested = true
+			shouldStop = true
+		}
+	})
+	if shouldStop {
+		addPlaybackEvent(s, "Stop requested")
+	}
+}
+
+func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
+	if s == nil || workflow == nil {
+		return
+	}
+	steps := workflow.Steps
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			s.Playback = &session.WorkflowPlayback{}
+		}
+		s.Playback.Active = true
+		s.Playback.StopRequested = false
+		s.Playback.StepRequested = false
+		s.Playback.PendingInput = false
+		s.Playback.TotalSteps = len(steps)
+	})
+
+	for idx, step := range steps {
+		if playbackStopRequested(s) {
+			finalizeWorkflowPlayback(s, false)
+			addPlaybackEvent(s, "Playback stopped")
+			return
+		}
+
+		setPlaybackStep(s, idx+1, step.Type, len(steps))
+		if !playbackReadyForStep(s) {
+			finalizeWorkflowPlayback(s, false)
+			addPlaybackEvent(s, "Playback stopped")
+			return
+		}
+		if err := app.applyWorkflowStep(s, step); err != nil {
+			addPlaybackEvent(s, fmt.Sprintf("Step %d failed: %v", idx+1, err))
+			finalizeWorkflowPlayback(s, false)
+			return
+		}
+		addPlaybackEvent(s, fmt.Sprintf("Step %d: %s", idx+1, step.Type))
+
+		minDelay, maxDelay, appliedDelay := resolveWorkflowDelay(step.StepDelay, workflow.EveryStepDelay, rng)
+		setPlaybackDelay(s, minDelay, maxDelay, appliedDelay)
+		if appliedDelay > 0 {
+			if !waitPlaybackDelay(s, appliedDelay) {
+				finalizeWorkflowPlayback(s, false)
+				addPlaybackEvent(s, "Playback stopped")
+				return
+			}
+		}
+	}
+
+	endMin, endMax, endDelay := resolveWorkflowDelay(workflow.EndOfTaskDelay, nil, rng)
+	setPlaybackDelay(s, endMin, endMax, endDelay)
+	if endDelay > 0 {
+		addPlaybackEvent(s, "End of task delay")
+		if !waitPlaybackDelay(s, endDelay) {
+			finalizeWorkflowPlayback(s, false)
+			addPlaybackEvent(s, "Playback stopped")
+			return
+		}
+	}
+
+	addPlaybackEvent(s, "Playback completed")
+	finalizeWorkflowPlayback(s, true)
+}
+
+func playbackStopRequested(s *session.Session) bool {
+	if s == nil {
+		return true
+	}
+	stop := false
+	withSessionLock(s, func() {
+		stop = s.Playback == nil || s.Playback.StopRequested
+	})
+	return stop
+}
+
+func playbackReadyForStep(s *session.Session) bool {
+	for {
+		var stop bool
+		var mode string
+		var paused bool
+		var stepRequested bool
+		withSessionLock(s, func() {
+			if s.Playback == nil {
+				stop = true
+				return
+			}
+			stop = s.Playback.StopRequested
+			mode = s.Playback.Mode
+			paused = s.Playback.Paused
+			stepRequested = s.Playback.StepRequested
+			if mode == "debug" && stepRequested {
+				s.Playback.StepRequested = false
+			}
+		})
+		if stop {
+			return false
+		}
+		if mode == "debug" {
+			if stepRequested {
+				return true
+			}
+			time.Sleep(120 * time.Millisecond)
+			continue
+		}
+		if paused {
+			time.Sleep(120 * time.Millisecond)
+			continue
+		}
+		return true
+	}
+}
+
+func waitPlaybackDelay(s *session.Session, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+	remaining := delay
+	tick := 120 * time.Millisecond
+	for remaining > 0 {
+		var stop bool
+		var mode string
+		var paused bool
+		withSessionLock(s, func() {
+			if s.Playback == nil {
+				stop = true
+				return
+			}
+			stop = s.Playback.StopRequested
+			mode = s.Playback.Mode
+			paused = s.Playback.Paused
+		})
+		if stop {
+			return false
+		}
+		if mode != "debug" && paused {
+			time.Sleep(tick)
+			continue
+		}
+		sleepFor := tick
+		if remaining < sleepFor {
+			sleepFor = remaining
+		}
+		time.Sleep(sleepFor)
+		remaining -= sleepFor
+	}
+	return true
+}
+
+func resolveWorkflowDelay(stepDelay *session.WorkflowDelayRange, defaultDelay *session.WorkflowDelayRange, rng *rand.Rand) (float64, float64, time.Duration) {
+	delay := stepDelay
+	if delay == nil {
+		delay = defaultDelay
+	}
+	if delay == nil {
+		return 0, 0, 0
+	}
+	min := delay.Min
+	max := delay.Max
+	if max < min {
+		max = min
+	}
+	if min <= 0 && max <= 0 {
+		return 0, 0, 0
+	}
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	applied := min
+	if max > min {
+		if rng != nil {
+			applied = min + rng.Float64()*(max-min)
+		} else {
+			applied = min + rand.Float64()*(max-min)
+		}
+	}
+	if applied < 0 {
+		applied = 0
+	}
+	return min, max, time.Duration(applied * float64(time.Second))
+}
+
+func setPlaybackStep(s *session.Session, stepIndex int, stepType string, total int) {
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			return
+		}
+		s.Playback.CurrentStep = stepIndex
+		s.Playback.CurrentStepType = stepType
+		if total > 0 {
+			s.Playback.TotalSteps = total
+		}
+	})
+}
+
+func setPlaybackDelay(s *session.Session, min, max float64, applied time.Duration) {
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			return
+		}
+		s.Playback.CurrentDelayMin = min
+		s.Playback.CurrentDelayMax = max
+		s.Playback.CurrentDelayUsed = applied
+	})
+}
+
+func finalizeWorkflowPlayback(s *session.Session, completed bool) {
+	if s == nil {
+		return
+	}
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			return
+		}
+		pb := s.Playback
+		pb.Active = false
+		s.LastPlaybackStep = pb.CurrentStep
+		s.LastPlaybackStepType = pb.CurrentStepType
+		s.LastPlaybackStepTotal = pb.TotalSteps
+		s.LastPlaybackDelayRange = formatDelayRange(pb.CurrentDelayMin, pb.CurrentDelayMax)
+		s.LastPlaybackDelayApplied = formatDelayApplied(pb.CurrentDelayUsed.Seconds())
+		if completed {
+			s.PlaybackCompletedAt = time.Now()
+		}
+		s.Playback = nil
+	})
+}
+
+func submitWorkflowPendingInput(s *session.Session) error {
+	if s == nil {
+		return nil
+	}
+	var pending bool
+	withSessionLock(s, func() {
+		if s.Playback != nil && s.Playback.PendingInput {
+			pending = true
+			s.Playback.PendingInput = false
+		}
+	})
+	if !pending {
+		return nil
+	}
+	if s.Host == nil {
+		return errors.New("session host not available")
+	}
+	return s.Host.SubmitScreen()
+}
+
+func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
+	if s == nil || s.Host == nil {
+		return errors.New("session not available")
+	}
+	stepType := strings.TrimSpace(step.Type)
+	if stepType == "" {
+		return nil
+	}
+	switch stepType {
+	case "Connect", "Disconnect":
+		return nil
+	case "FillString":
+		return app.applyWorkflowFill(s, step)
+	default:
+		key, ok := workflowKeyForStepType(stepType)
+		if !ok && strings.HasPrefix(stepType, "Press") {
+			key = normalizeKey(strings.TrimPrefix(stepType, "Press"))
+			ok = true
+		}
+		if !ok {
+			return fmt.Errorf("unsupported step type %q", stepType)
+		}
+		if err := submitWorkflowPendingInput(s); err != nil {
+			return err
+		}
+		return s.Host.SendKey(key)
+	}
+}
+
+func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
+	if s == nil || s.Host == nil {
+		return errors.New("session not available")
+	}
+	if step.Coordinates == nil {
+		return errors.New("FillString requires coordinates")
+	}
+	row := step.Coordinates.Row
+	col := step.Coordinates.Column
+	if row <= 0 || col <= 0 {
+		return fmt.Errorf("FillString coordinates must be positive (row=%d col=%d)", row, col)
+	}
+	if err := s.Host.WriteStringAt(row, col, step.Text); err != nil {
+		return err
+	}
+	withSessionLock(s, func() {
+		if s.Playback != nil {
+			s.Playback.PendingInput = false
+		}
+	})
+	return nil
+}
+
 func (app *App) PrefsHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -1039,8 +1441,12 @@ func (app *App) LogsDownloadHandler(c *gin.Context) {
 
 func (app *App) updateFields(c *gin.Context, s *session.Session) {
 	screen := s.Host.GetScreen()
+	maxRows, maxCols, hasLimit := app.modelDimensions()
 	for _, f := range screen.Fields {
 		if !f.IsProtected() {
+			if hasLimit && !fieldWithinBounds(f, maxRows, maxCols) {
+				continue
+			}
 			fieldName := fmt.Sprintf("field_%d_%d", f.StartX, f.StartY)
 			original := normalizeInputValue(f.GetValue())
 
@@ -1065,6 +1471,22 @@ func (app *App) updateFields(c *gin.Context, s *session.Session) {
 			}
 		}
 	}
+}
+
+func fieldWithinBounds(f *host.Field, maxRows, maxCols int) bool {
+	if f == nil || maxRows <= 0 || maxCols <= 0 {
+		return true
+	}
+	if f.StartY < 0 || f.StartX < 0 {
+		return false
+	}
+	if f.StartY >= maxRows || f.StartX >= maxCols {
+		return false
+	}
+	if f.EndY >= maxRows || f.EndX >= maxCols {
+		return false
+	}
+	return true
 }
 
 func recordFieldUpdates(s *session.Session) {

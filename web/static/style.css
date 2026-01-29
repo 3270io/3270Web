@@ -765,6 +765,17 @@ pre, pre input, textarea {
   padding: 6px 10px;
 }
 
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal-actions form {
+  margin: 0;
+}
+
 .sample-status {
   display: flex;
   flex-direction: column;
@@ -807,8 +818,8 @@ pre, pre input, textarea {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  width: 360px;
-  height: 320px;
+  width: var(--workflow-status-width, 360px);
+  height: var(--workflow-status-height, 320px);
   max-width: calc(100vw - 40px);
   max-height: 70vh;
   min-height: 180px;
@@ -824,7 +835,8 @@ pre, pre input, textarea {
   transition: box-shadow 0.2s ease;
 }
 
-.workflow-status-widget.is-maximized {
+.workflow-status-widget.is-maximized,
+html.workflow-status-maximized .workflow-status-widget {
   height: 70vh;
   max-height: calc(100vh - 40px);
   resize: none;
@@ -934,14 +946,16 @@ pre, pre input, textarea {
   scroll-behavior: smooth;
 }
 
-.workflow-status-widget.is-minimized {
+.workflow-status-widget.is-minimized,
+html.workflow-status-minimized .workflow-status-widget {
   width: 220px;
   height: auto;
   min-height: 0;
   resize: none;
 }
 
-.workflow-status-widget.is-minimized .workflow-status-widget-body {
+.workflow-status-widget.is-minimized .workflow-status-widget-body,
+html.workflow-status-minimized .workflow-status-widget-body {
   opacity: 0;
   pointer-events: none;
   max-height: 0;
@@ -949,11 +963,13 @@ pre, pre input, textarea {
   padding-bottom: 0;
 }
 
-.workflow-status-widget.is-minimized .workflow-status-widget-toggle {
+.workflow-status-widget.is-minimized .workflow-status-widget-toggle,
+html.workflow-status-minimized .workflow-status-widget-toggle {
   display: none;
 }
 
-.workflow-status-widget.is-minimized .workflow-status-widget-header {
+.workflow-status-widget.is-minimized .workflow-status-widget-header,
+html.workflow-status-minimized .workflow-status-widget-header {
   cursor: pointer;
 }
 
