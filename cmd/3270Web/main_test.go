@@ -52,9 +52,9 @@ func TestWorkflowSpecialKeys(t *testing.T) {
 	}{
 		{"PressClear", "Clear"},
 		{"PressReset", "Reset"},
-		{"PressPA1", "PA1"},
-		{"PressPA2", "PA2"},
-		{"PressPA3", "PA3"},
+		{"PressPA1", "PA(1)"},
+		{"PressPA2", "PA(2)"},
+		{"PressPA3", "PA(3)"},
 		{"PressHome", "Home"},
 		{"PressEraseInput", "EraseInput"},
 	}
@@ -271,10 +271,10 @@ func TestSecurityHeaders(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	headers := map[string]string{
-		"X-Frame-Options":           "SAMEORIGIN",
-		"X-Content-Type-Options":    "nosniff",
-		"Referrer-Policy":           "strict-origin-when-cross-origin",
-		"Content-Security-Policy":   "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;",
+		"X-Frame-Options":         "SAMEORIGIN",
+		"X-Content-Type-Options":  "nosniff",
+		"Referrer-Policy":         "strict-origin-when-cross-origin",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;",
 	}
 
 	for k, v := range headers {

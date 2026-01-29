@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"io"
 	"io/fs"
 	"log"
-	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -315,7 +313,6 @@ func resolveStaticDir(baseDir string) (string, error) {
 func openBrowser(url string) {
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 }
-
 
 func recordingFileName(s *session.Session) string {
 	if s == nil {
@@ -1148,7 +1145,6 @@ func recordActionKey(s *session.Session, key string) {
 	}
 }
 
-
 func buildWorkflowConfig(s *session.Session) *WorkflowConfig {
 	if s == nil || s.Recording == nil {
 		return &WorkflowConfig{}
@@ -1528,20 +1524,6 @@ func playbackEvents(s *session.Session) []session.WorkflowEvent {
 	return append([]session.WorkflowEvent(nil), s.PlaybackEvents...)
 }
 
-func addPlaybackEvent(s *session.Session, message string) {
-	if s == nil {
-		return
-	}
-	s.Lock()
-	defer s.Unlock()
-	entry := session.WorkflowEvent{Time: time.Now(), Message: message}
-	s.PlaybackEvents = append(s.PlaybackEvents, entry)
-	const maxEvents = 200
-	if len(s.PlaybackEvents) > maxEvents {
-		s.PlaybackEvents = s.PlaybackEvents[len(s.PlaybackEvents)-maxEvents:]
-	}
-}
-
 func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, error) {
 	if workflow != nil && workflow.Host != "" {
 		host := workflow.Host
@@ -1614,397 +1596,6 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 		}
 	})
 	return nil
-}
-
-func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("workflow panic: %v\n%s", r, debug.Stack())
-		}
-	}()
-	defer func() {
-		withSessionLock(s, func() {
-			if s.Playback != nil {
-				s.Playback.Active = false
-				s.Playback = nil
-			}
-		})
-	}()
-	if s == nil || workflow == nil {
-		return
-	}
-	addPlaybackEvent(s, fmt.Sprintf("Loaded %d steps", len(workflow.Steps)))
-	withSessionLock(s, func() {
-		if s.Playback == nil {
-			s.Playback = &session.WorkflowPlayback{StartedAt: time.Now(), Mode: "play", TotalSteps: len(workflow.Steps)}
-		}
-		s.Playback.Active = true
-		s.Playback.PendingInput = false
-		if s.Playback.Mode == "play" {
-			s.Playback.Paused = false
-		}
-		s.Playback.StopRequested = false
-	})
-	for i, step := range workflow.Steps {
-		if playbackShouldStop(s) {
-			return
-		}
-		totalSteps := 0
-		withSessionLock(s, func() {
-			if s.Playback == nil {
-				return
-			}
-			s.Playback.CurrentStep = i + 1
-			s.Playback.CurrentStepType = step.Type
-			s.LastPlaybackStep = s.Playback.CurrentStep
-			s.LastPlaybackStepType = s.Playback.CurrentStepType
-			s.LastPlaybackStepTotal = s.Playback.TotalSteps
-			totalSteps = s.Playback.TotalSteps
-		})
-		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: %s", i+1, totalSteps, step.Type))
-		if rng := workflowStepDelayRange(workflow, step); rng != nil {
-			withSessionLock(s, func() {
-				if s.Playback == nil {
-					return
-				}
-				s.Playback.CurrentDelayMin = rng.Min
-				s.Playback.CurrentDelayMax = rng.Max
-				s.LastPlaybackDelayRange = formatDelayRange(rng.Min, rng.Max)
-				s.Playback.CurrentDelayUsed = 0
-			})
-		} else {
-			withSessionLock(s, func() {
-				if s.Playback == nil {
-					return
-				}
-				s.Playback.CurrentDelayMin = 0
-				s.Playback.CurrentDelayMax = 0
-				s.LastPlaybackDelayRange = formatDelayRange(0, 0)
-				s.Playback.CurrentDelayUsed = 0
-			})
-		}
-		mode := playbackMode(s)
-		if mode == "debug" {
-			if waitForDebugStep(s) {
-				return
-			}
-		} else if playbackWait(s, 0) {
-			return
-		}
-		if err := app.applyWorkflowStep(s, step); err != nil {
-			log.Printf("workflow step %d (%s) failed: %v", i+1, step.Type, err)
-			addPlaybackEvent(s, fmt.Sprintf("Step failed: %v", err))
-			return
-		}
-		if mode == "play" {
-			delay := workflowStepDelay(workflow, step)
-			if delay > 0 {
-				withSessionLock(s, func() {
-					if s.Playback == nil {
-						return
-					}
-					s.Playback.CurrentDelayUsed = delay
-					s.LastPlaybackDelayApplied = formatDelayApplied(delay.Seconds())
-				})
-				log.Printf("workflow delay after step %d: %s", i+1, delay)
-				addPlaybackEvent(s, fmt.Sprintf("Delay applied: %s", delay))
-				if playbackWait(s, delay) {
-					return
-				}
-			} else {
-				withSessionLock(s, func() {
-					if s.Playback == nil {
-						return
-					}
-					s.Playback.CurrentDelayUsed = 0
-					s.LastPlaybackDelayApplied = formatDelayApplied(0)
-				})
-			}
-		}
-	}
-	if workflow.EndOfTaskDelay != nil {
-		if delay := workflowDelay(workflow.EndOfTaskDelay); delay > 0 {
-			log.Printf("workflow end delay: %s", delay)
-			addPlaybackEvent(s, fmt.Sprintf("End delay: %s", delay))
-			_ = playbackWait(s, delay)
-		}
-	}
-
-	var targetHost string
-	withSessionLock(s, func() {
-		if s.Host == nil && s.TargetHost != "" {
-			targetHost = s.TargetHost
-		}
-	})
-	if targetHost != "" {
-		if err := app.resetSessionHost(s, targetHost); err != nil {
-			log.Printf("workflow: failed to reconnect host after playback: %v", err)
-			addPlaybackEvent(s, fmt.Sprintf("Reconnect failed: %v", err))
-		} else {
-			app.applyDefaultPrefs(s)
-		}
-	}
-	withSessionLock(s, func() {
-		s.PlaybackCompletedAt = time.Now()
-	})
-	addPlaybackEvent(s, "Playback complete")
-}
-
-func playbackWait(s *session.Session, delay time.Duration) bool {
-	if s == nil {
-		return true
-	}
-	deadline := time.Now().Add(delay)
-	for {
-		if playbackShouldStop(s) {
-			return true
-		}
-		paused := false
-		withSessionLock(s, func() {
-			if s.Playback != nil {
-				paused = s.Playback.Paused
-			}
-		})
-		if paused {
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-		if delay <= 0 {
-			return false
-		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return false
-		}
-		sleep := remaining
-		if sleep > 200*time.Millisecond {
-			sleep = 200 * time.Millisecond
-		}
-		time.Sleep(sleep)
-	}
-}
-
-func waitForDebugStep(s *session.Session) bool {
-	if s == nil {
-		return true
-	}
-	for {
-		if playbackShouldStop(s) {
-			return true
-		}
-		step := false
-		withSessionLock(s, func() {
-			if s.Playback != nil && s.Playback.StepRequested {
-				s.Playback.StepRequested = false
-				step = true
-			}
-		})
-		if step {
-			return false
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-}
-
-func playbackShouldStop(s *session.Session) bool {
-	if s == nil {
-		return true
-	}
-	shouldStop := true
-	withSessionLock(s, func() {
-		if s.Playback != nil {
-			shouldStop = !s.Playback.Active || s.Playback.StopRequested
-		}
-	})
-	return shouldStop
-}
-
-func stopWorkflowPlayback(s *session.Session) {
-	if s == nil {
-		return
-	}
-	withSessionLock(s, func() {
-		if s.Playback == nil {
-			return
-		}
-		s.Playback.StopRequested = true
-		s.Playback.Active = false
-		s.Playback.Paused = false
-		s.Playback.PendingInput = false
-		s.PlaybackCompletedAt = time.Time{}
-	})
-	addPlaybackEvent(s, "Playback stopped")
-}
-
-func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
-	if s == nil || s.Host == nil {
-		return nil
-	}
-	if step.Coordinates != nil {
-		log.Printf("workflow: step=%s row=%d col=%d", step.Type, step.Coordinates.Row, step.Coordinates.Column)
-	} else {
-		log.Printf("workflow: step=%s", step.Type)
-	}
-	switch step.Type {
-	case "Connect":
-		return nil
-	case "Disconnect":
-		return app.handleWorkflowDisconnect(s)
-	case "FillString":
-		return app.applyWorkflowFill(s, step)
-	case "PressEnter":
-		return app.applyWorkflowKey(s, "Enter")
-	default:
-		if strings.HasPrefix(step.Type, "Press") {
-			// Sentinel: Sanitize key to prevent command injection via workflow
-			key := normalizeKey(strings.TrimPrefix(step.Type, "Press"))
-			return app.applyWorkflowKey(s, key)
-		}
-		return nil
-	}
-}
-
-func (app *App) handleWorkflowDisconnect(s *session.Session) error {
-	if s == nil {
-		return nil
-	}
-	withSessionLock(s, func() {
-		if s.Playback != nil {
-			s.Playback.PendingInput = false
-		}
-	})
-	log.Printf("workflow: disconnect step skipped to keep session alive")
-	addPlaybackEvent(s, "Disconnect step skipped (session remains connected)")
-	return nil
-}
-
-func (app *App) applyWorkflowKey(s *session.Session, key string) error {
-	if err := submitWorkflowPendingInput(s); err != nil {
-		return err
-	}
-	return s.Host.SendKey(key)
-}
-
-func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
-	if s == nil || s.Host == nil || step.Coordinates == nil {
-		return nil
-	}
-	screen, err := waitForFormattedScreen(s, 8*time.Second)
-	if err != nil {
-		return err
-	}
-	// Workflow coordinates are 1-based, so convert to 0-based indices.
-	row := step.Coordinates.Row - 1
-	col := step.Coordinates.Column - 1
-	if row < 0 || col < 0 {
-		return nil
-	}
-	field := screen.GetInputFieldAt(col, row)
-	if field == nil {
-		return fmt.Errorf("no input field at row %d col %d", step.Coordinates.Row, step.Coordinates.Column)
-	}
-	field.SetValue(step.Text)
-	if err := s.Host.WriteStringAt(row, col, step.Text); err != nil {
-		return err
-	}
-	withSessionLock(s, func() {
-		if s.Playback != nil {
-			s.Playback.PendingInput = false
-		}
-	})
-	return nil
-}
-
-func submitWorkflowPendingInput(s *session.Session) error {
-	if s == nil || s.Host == nil {
-		return nil
-	}
-	pending := false
-	withSessionLock(s, func() {
-		if s.Playback != nil && s.Playback.PendingInput {
-			pending = true
-		}
-	})
-	if !pending {
-		return nil
-	}
-	if _, err := waitForFormattedScreen(s, 6*time.Second); err != nil {
-		return err
-	}
-	if err := s.Host.SubmitScreen(); err != nil {
-		return err
-	}
-	withSessionLock(s, func() {
-		if s.Playback != nil {
-			s.Playback.PendingInput = false
-		}
-	})
-	return nil
-}
-
-func waitForFormattedScreen(s *session.Session, timeout time.Duration) (*host.Screen, error) {
-	if s == nil || s.Host == nil {
-		return nil, errors.New("missing host")
-	}
-	deadline := time.Now().Add(timeout)
-	for {
-		if err := s.Host.UpdateScreen(); err != nil {
-			return nil, err
-		}
-		screen := s.Host.GetScreen()
-		if screen != nil && screen.IsFormatted {
-			return screen, nil
-		}
-		if time.Now().After(deadline) {
-			return screen, errors.New("formatted screen not ready")
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}
-
-func workflowStepDelay(workflow *WorkflowConfig, step session.WorkflowStep) time.Duration {
-	if step.StepDelay != nil {
-		return workflowDelay(step.StepDelay)
-	}
-	if workflow != nil && workflow.EveryStepDelay != nil {
-		return workflowDelay(workflow.EveryStepDelay)
-	}
-	return 0
-}
-
-func workflowStepDelayRange(workflow *WorkflowConfig, step session.WorkflowStep) *session.WorkflowDelayRange {
-	if step.StepDelay != nil {
-		return step.StepDelay
-	}
-	if workflow != nil && workflow.EveryStepDelay != nil {
-		return workflow.EveryStepDelay
-	}
-	return nil
-}
-
-func workflowDelay(delay *session.WorkflowDelayRange) time.Duration {
-	if delay == nil {
-		return 0
-	}
-	if delay.Min <= 0 && delay.Max <= 0 {
-		return 0
-	}
-	min := delay.Min
-	max := delay.Max
-	if max < min {
-		max = min
-	}
-	if max == min {
-		return time.Duration(min * float64(time.Second))
-	}
-	span := max - min
-	const precision = int64(1000000)
-	n, err := rand.Int(rand.Reader, big.NewInt(precision))
-	if err != nil {
-		return time.Duration(min * float64(time.Second))
-	}
-	value := min + (span * float64(n.Int64()) / float64(precision))
-	return time.Duration(value * float64(time.Second))
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {
@@ -2129,7 +1720,6 @@ func availableSampleApps() []SampleAppOption {
 func sampleAppHostname(id string) string {
 	return sampleAppPrefix + id
 }
-
 
 func sampleAppConfig(id string) (SampleAppConfig, bool) {
 	for _, cfg := range sampleAppConfigs {
@@ -2297,7 +1887,6 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 	app.themeCacheMu.Unlock()
 	return css
 }
-
 
 func writeRule(sb *strings.Builder, selector, bg, fg string) {
 	if bg == "" && fg == "" {
