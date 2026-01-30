@@ -22,3 +22,8 @@ Action: Added `internal/host/screen_parsing_test.go` to enforce parsing resilien
 Learning: The `HtmlRenderer` uses a custom `writeEscaped` method for performance that manually handles HTML escaping and null-byte replacement. This logic was not explicitly tested, relying on indirect screen rendering tests that didn't cover all edge cases (like null bytes or mixed content).
 Risk: High. Flaws in escaping logic are a primary vector for XSS attacks, and mishandling null bytes can cause rendering issues or undefined browser behavior.
 Action: Added `TestWriteEscaped` in `internal/render/html_renderer_test.go` with comprehensive table-driven cases for HTML entities, null bytes, and unicode to ensure correctness and safety.
+
+## 2026-03-05 - Duplicate Business Logic Hiding Bugs
+Learning: Critical workflow logic (`applyWorkflowFill`) was duplicated in `main.go` and `workflow_playback.go`, with the `main.go` version containing an off-by-one error (1-based vs 0-based coordinates) that was active in tests but masked by weak test assertions.
+Risk: High. Duplicate implementations drift apart, leading to behavior that passes tests but fails in production (or vice versa), and makes bug fixes unreliable.
+Action: Removed duplicate code from `main.go` and added `TestApplyWorkflowFillCoordinates` to explicitly verify coordinate translation using a mock host with argument recording.

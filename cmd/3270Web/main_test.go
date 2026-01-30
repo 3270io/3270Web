@@ -169,12 +169,11 @@ func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
 		t.Fatalf("submitWorkflowPendingInput failed: %v", err)
 	}
 
-	// Expected behavior: FillString calls WriteStringAt ("write"), and sets PendingInput=false.
+	// Expected behavior: FillString calls WriteStringAt ("write(row,col,text)"), and sets PendingInput=false.
+	// Coordinates should be 0-based, so (1,1) in workflow becomes (0,0) in s3270.
 	// So submitWorkflowPendingInput does nothing.
-	// The test previously expected "submit", which implies the logic changed.
-	// We update the test to match current behavior.
-	if len(mockHost.Commands) != 1 || mockHost.Commands[0] != "write" {
-		t.Fatalf("expected write command, got %v", mockHost.Commands)
+	if len(mockHost.Commands) != 1 || mockHost.Commands[0] != "write(0,0,HELLO)" {
+		t.Fatalf("expected write(0,0,HELLO) command, got %v", mockHost.Commands)
 	}
 }
 

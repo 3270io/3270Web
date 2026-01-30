@@ -1,6 +1,7 @@
 package host
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -86,7 +87,7 @@ func (m *MockHost) SendKey(key string) error {
 }
 
 func (m *MockHost) WriteStringAt(row, col int, text string) error {
-	m.Commands = append(m.Commands, "write")
+	m.Commands = append(m.Commands, fmt.Sprintf("write(%d,%d,%s)", row, col, text))
 	if m.Screen == nil {
 		m.Screen = &Screen{Width: 80, Height: 24, IsFormatted: true}
 	}
