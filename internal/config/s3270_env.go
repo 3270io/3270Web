@@ -224,7 +224,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		EnvVar:      "S3270_NO_VERIFY_CERT",
 		Flag:        "-noverifycert",
 		Description: "Do not verify the TLS host certificate",
-		Default:     "true",
+		Default:     "false",
 		DefaultVal:  "false",
 		Kind:        s3270OptionBool,
 	},
