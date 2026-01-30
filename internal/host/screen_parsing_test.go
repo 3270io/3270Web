@@ -51,8 +51,8 @@ ok`,
 			wantContent:   "AB", // ZZ is dropped
 		},
 		{
-			name: "Mixed valid and invalid tokens",
-			dump: "data: 41 42 43 ZZ 44\nU F U C(1.2.3.4) I 4 24 80 0 0 0x0 0.0\nok",
+			name:          "Mixed valid and invalid tokens",
+			dump:          "data: 41 42 43 ZZ 44\nU F U C(1.2.3.4) I 4 24 80 0 0 0x0 0.0\nok",
 			wantStatus:    true,
 			wantFormatted: true,
 			wantContent:   "ABCD",

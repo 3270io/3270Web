@@ -416,6 +416,12 @@ body.theme-not3270 {
   gap: 12px;
 }
 
+.workflow-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .workflow-modal-body {
   display: flex;
   flex-direction: column;

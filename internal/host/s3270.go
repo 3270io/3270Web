@@ -264,7 +264,6 @@ func (h *S3270) writeStringAtOnce(row, col int, text string) error {
 	return nil
 }
 
-
 func (h *S3270) waitUnlockLocked() error {
 	cmd := h.waitUnlockCommand()
 	_, status, err := h.doCommandLocked(cmd)
@@ -279,7 +278,6 @@ func (h *S3270) waitUnlockLocked() error {
 func (h *S3270) waitUnlockCommand() string {
 	return fmt.Sprintf("Wait(Unlock,%d)", waitUnlockTimeoutSeconds)
 }
-
 
 func (h *S3270) SubmitScreen() error {
 	h.mu.Lock()

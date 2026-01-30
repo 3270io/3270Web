@@ -19,3 +19,7 @@
 ## 2026-01-29 - Testing Vanilla JS Focus Management
 **Learning:** Testing vanilla JS focus management logic requires mocking the DOM structure expected by the script, as the scripts are often tightly coupled to specific selectors (e.g., `data-logs-modal`).
 **Action:** When testing frontend logic in isolation, create minimal HTML fixtures that replicate the `data-` attributes expected by the JS to verify focus transitions with Playwright.
+
+## 2026-02-04 - Feedback for Clipboard Actions
+**Learning:** When adding "Copy to Clipboard" functionality using icon-only buttons, visual feedback is critical but must not shift layout.
+**Action:** Use Tippy.js tooltips to provide temporary textual feedback ("Copied!") instead of changing the icon or button text, ensuring the layout remains stable while confirming the action.
