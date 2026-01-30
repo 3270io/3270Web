@@ -63,7 +63,7 @@ func TestGetModelDimensions(t *testing.T) {
 		{"3279-3-E", 32, 80, true},
 		{"3279-4-E", 43, 80, true},
 		{"3279-5-E", 27, 132, true},
-		{"3279", 0, 0, false},      // Incomplete model string
+		{"3279", 0, 0, false}, // Incomplete model string
 		{"invalid", 0, 0, false},
 		{"", 0, 0, false},
 	}

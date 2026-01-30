@@ -78,6 +78,33 @@
     button.addEventListener('click', openModal);
   });
 
+  const copyButton = modal.querySelector('[data-modal-copy]');
+  if (copyButton) {
+    copyButton.addEventListener('click', () => {
+      const preview = modal.querySelector('.workflow-preview');
+      if (!preview) {
+        return;
+      }
+      const text = preview.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            if (copyButton._tippy) {
+              copyButton._tippy.setContent('Copied!');
+              copyButton._tippy.show();
+              setTimeout(() => {
+                copyButton._tippy.setContent('Copy to clipboard');
+              }, 2000);
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to copy:', err);
+          });
+      }
+    });
+  }
+
   closeButtons.forEach((button) => {
     button.addEventListener('click', closeModal);
   });

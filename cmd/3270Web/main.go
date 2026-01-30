@@ -994,7 +994,6 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 	})
 }
 
-
 func (app *App) PrefsHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {

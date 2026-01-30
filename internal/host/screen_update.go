@@ -148,7 +148,7 @@ func getModelDimensions(model string) (int, int, bool) {
 			modelNum = parts[1]
 		}
 	}
-	
+
 	switch modelNum {
 	case "2":
 		return 24, 80, true
@@ -176,7 +176,7 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if len(parts) < 8 {
 		return 0, 0, false
 	}
-	
+
 	// Extract reported dimensions from s3270 status
 	rows, err := strconv.Atoi(parts[6])
 	if err != nil || rows <= 0 {
@@ -186,7 +186,7 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 	if err != nil || cols <= 0 {
 		return 0, 0, false
 	}
-	
+
 	// Extract model number from status (parts[5] is the model number 2-5)
 	// Status format: "U F P C(host) I 4 24 80 0 0 0x0 0.000"
 	//                 0 1 2 3        4 5 6  7  8 9 10  11
@@ -202,7 +202,7 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 			}
 		}
 	}
-	
+
 	return rows, cols, true
 }
 

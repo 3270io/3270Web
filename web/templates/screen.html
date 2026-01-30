@@ -41,7 +41,7 @@
     <script src="/static/keyboard.js?v=5" defer></script>
     <script src="/static/theme.js" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js?v=8" defer></script>
+    <script src="/static/workflow.js?v=9" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -196,7 +196,12 @@
         <div class="workflow-modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
             <div class="workflow-modal-header">
                 <h3 id="workflow-modal-title">Loaded Recording</h3>
-                <button type="button" data-modal-close>Close</button>
+                <div class="workflow-modal-actions">
+                    <button type="button" class="icon-button" data-modal-copy data-tippy-content="Copy content" aria-label="Copy content">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                    </button>
+                    <button type="button" data-modal-close>Close</button>
+                </div>
             </div>
             <div class="workflow-modal-body">
                 <div class="workflow-modal-meta">
