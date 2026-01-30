@@ -12,3 +12,8 @@ Action: Use declarative data structures (slices/maps) for classification logic t
 Learning: Helper functions for specific domains (like key parsing/normalization) tend to accumulate in `main.go`, obscuring the application flow.
 Risk: Logic buried in `main.go` is often untested and hard to reuse or reason about in isolation.
 Action: Extract such logic into domain-specific files (e.g., `keys.go`) within the same package to improve readability and testability without complex dependency changes.
+
+## 2025-05-25 - Extracted Status Parsing Logic
+Learning: Complex struct implementations (like emulator hosts) often mix process management with protocol parsing.
+Risk: Logic coupling makes it hard to test parsing in isolation and obscures the core process lifecycle flow.
+Action: Extract protocol parsing and helper functions into separate files (e.g., `*_helpers.go` or `status.go`) within the same package.
