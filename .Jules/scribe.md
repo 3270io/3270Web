@@ -17,3 +17,8 @@ Action: Added `TestWorkflowSpecialKeys` to explicitly verify that all documented
 Learning: Users modifying `3270Web-config.xml` `<model>` setting saw no effect because the generated `.env` file (defaulting to `3279-4-E`) silently overrides the XML configuration.
 Impact: Confusion and loss of trust in documentation which stated XML defaults.
 Action: Updated `docs/configuration.md` to explicitly warn about `.env` precedence and the effective default.
+
+## 2026-01-30 - Misleading Configuration Default
+Learning: The generated `.env` file documentation for `S3270_NO_VERIFY_CERT` claimed the default was `true` (insecure), but the actual default value used was `false` (secure).
+Impact: Users might assume the system is insecure by default or be confused about TLS behavior.
+Action: Fixed the default documentation in `internal/config/s3270_env.go` and verified with `TestEnvDocumentationDrift`.
