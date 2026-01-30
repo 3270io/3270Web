@@ -96,9 +96,9 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 
 	text := s.Text()
 	sb.WriteString(`<textarea name="field" class="unformatted" rows="`)
-	sb.WriteString(strconv.Itoa(rows))
+	r.writeInt(sb, rows)
 	sb.WriteString(`" cols="`)
-	sb.WriteString(strconv.Itoa(cols))
+	r.writeInt(sb, cols)
 	sb.WriteString(`">`)
 	r.writeEscaped(sb, text)
 	sb.WriteString("</textarea>")
@@ -145,11 +145,6 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		inputType = "password"
 	}
 
-	name := "field_" + strconv.Itoa(f.StartX) + "_" + strconv.Itoa(f.StartY)
-	if lineNum != -1 {
-		name += "_" + strconv.Itoa(lineNum)
-	}
-
 	class := "color-input"
 	if f.IsIntensified() {
 		class = "color-input-intensified"
@@ -167,22 +162,28 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 
 	sb.WriteString(`<input type="`)
 	sb.WriteString(inputType)
-	sb.WriteString(`" name="`)
-	sb.WriteString(name)
+	sb.WriteString(`" name="field_`)
+	r.writeInt(sb, f.StartX)
+	sb.WriteString("_")
+	r.writeInt(sb, f.StartY)
+	if lineNum != -1 {
+		sb.WriteString("_")
+		r.writeInt(sb, lineNum)
+	}
 	sb.WriteString(`" class="`)
 	sb.WriteString(class)
 	sb.WriteString(`" value="`)
 	r.writeEscaped(sb, val)
 	sb.WriteString(`" maxlength="`)
-	sb.WriteString(strconv.Itoa(width))
+	r.writeInt(sb, width)
 	sb.WriteString(`" size="`)
-	sb.WriteString(strconv.Itoa(width))
+	r.writeInt(sb, width)
 	sb.WriteString(`" data-x="`)
-	sb.WriteString(strconv.Itoa(dataX))
+	r.writeInt(sb, dataX)
 	sb.WriteString(`" data-y="`)
-	sb.WriteString(strconv.Itoa(dataY))
+	r.writeInt(sb, dataY)
 	sb.WriteString(`" data-w="`)
-	sb.WriteString(strconv.Itoa(width))
+	r.writeInt(sb, width)
 	sb.WriteString(`" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
 }
 
@@ -316,13 +317,18 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 			sb.WriteString(`    document.forms["`)
 			sb.WriteString(fn)
 			sb.WriteString(`"].field_`)
-			sb.WriteString(strconv.Itoa(focused.StartX))
+			r.writeInt(sb, focused.StartX)
 			sb.WriteString(`_`)
-			sb.WriteString(strconv.Itoa(focused.StartY))
+			r.writeInt(sb, focused.StartY)
 			sb.WriteString(suffix)
 			sb.WriteString(`.focus()` + "\n")
 		}
 	}
 	sb.WriteString("  });\n")
 	sb.WriteString("</script>\n")
+}
+
+func (r *HtmlRenderer) writeInt(sb *strings.Builder, n int) {
+	var buf [20]byte
+	sb.Write(strconv.AppendInt(buf[:0], int64(n), 10))
 }

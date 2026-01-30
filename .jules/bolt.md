@@ -13,3 +13,7 @@
 ## 2025-05-23 - [Refactor Screen Parsing to Avoid Allocations]
 **Learning:** Reconstructing strings from tokens only to parse them again (split/join/split) is a major waste of allocations in hot loops.
 **Action:** Pass tokenized data structures ([][]string) directly between producer and consumer functions instead of serializing to strings in between.
+
+## 2025-05-24 - [String Concatenation and Stack Allocation]
+**Learning:** String concatenation (e.g. `s := "a" + "b"`) does not always cause heap allocations in Go if the result does not escape (e.g. passed to `sb.WriteString`). The compiler can stack-allocate the backing array.
+**Action:** Do not assume replacing string concatenation with builder writes will reduce *heap* allocations count, but it still improves CPU performance by avoiding buffer copying and construction overhead (observed ~10% speedup).
