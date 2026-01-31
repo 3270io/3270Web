@@ -533,13 +533,15 @@ func parseBool(value string) bool {
 func splitArgs(input string) ([]string, error) {
 	var args []string
 	var current bytes.Buffer
-	var inSingle, inDouble, escaped bool
+	var inSingle, inDouble, escaped, inToken bool
 
 	flush := func() {
-		if current.Len() > 0 {
-			args = append(args, current.String())
-			current.Reset()
+		if !inToken {
+			return
 		}
+		args = append(args, current.String())
+		current.Reset()
+		inToken = false
 	}
 
 	for _, r := range input {
@@ -549,14 +551,18 @@ func splitArgs(input string) ([]string, error) {
 			escaped = false
 		case r == '\\' && !inSingle:
 			escaped = true
+			inToken = true
 		case r == '\'' && !inDouble:
 			inSingle = !inSingle
+			inToken = true
 		case r == '"' && !inSingle:
 			inDouble = !inDouble
+			inToken = true
 		case unicode.IsSpace(r) && !inSingle && !inDouble:
 			flush()
 		default:
 			current.WriteRune(r)
+			inToken = true
 		}
 	}
 	if escaped || inSingle || inDouble {

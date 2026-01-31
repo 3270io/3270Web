@@ -22,3 +22,8 @@ Action: Added `internal/host/screen_parsing_test.go` to enforce parsing resilien
 Learning: The `HtmlRenderer` uses a custom `writeEscaped` method for performance that manually handles HTML escaping and null-byte replacement. This logic was not explicitly tested, relying on indirect screen rendering tests that didn't cover all edge cases (like null bytes or mixed content).
 Risk: High. Flaws in escaping logic are a primary vector for XSS attacks, and mishandling null bytes can cause rendering issues or undefined browser behavior.
 Action: Added `TestWriteEscaped` in `internal/render/html_renderer_test.go` with comprehensive table-driven cases for HTML entities, null bytes, and unicode to ensure correctness and safety.
+
+## 2026-03-04 - Broken Shell Argument Splitting for Empty Quotes
+Learning: The custom `splitArgs` function logic relied on buffer length to decide whether to append arguments, causing it to silently drop explicitly empty quoted strings (like `""` or `''`) from the parsed argument list. Existing tests only covered "happy paths" with non-empty content.
+Risk: Moderate. Configuration overrides using `S3270_SET` or similar env vars could fail unpredictably if an empty value was intended (e.g. clearing a resource), potentially leading to misconfiguration or arguments shifting positions.
+Action: Added comprehensive table-driven tests in `internal/config/s3270_env_test.go` covering edge cases like empty quotes and nesting, and patched `splitArgs` to track token state explicitly.
