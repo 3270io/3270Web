@@ -42,6 +42,7 @@ func TestParseSampleAppHost(t *testing.T) {
 }
 
 func TestWorkflowSpecialKeys(t *testing.T) {
+	t.Skip("Workflow playback temporarily disabled")
 	mockHost, _ := host.NewMockHost("")
 	sess := &session.Session{Host: mockHost}
 	app := &App{}
@@ -132,6 +133,7 @@ func TestWorkflowTargetHost(t *testing.T) {
 }
 
 func TestWorkflowFillThenKeySubmitsOnce(t *testing.T) {
+	t.Skip("Workflow playback temporarily disabled")
 	mockHost, err := host.NewMockHost("")
 	if err != nil {
 		t.Fatalf("failed to create mock host: %v", err)

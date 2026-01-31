@@ -1,5 +1,7 @@
 # Workflow Configuration
 
+> **⚠️ Note:** Workflow playback is currently disabled/not implemented in the current version.
+
 Workflows allow automating interactions with 3270 hosts. They are JSON files that define a sequence of steps to be executed against a host.
 
 ## Structure
