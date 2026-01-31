@@ -17,3 +17,8 @@ Action: Extract such logic into domain-specific files (e.g., `keys.go`) within t
 Learning: Complex struct implementations (like emulator hosts) often mix process management with protocol parsing.
 Risk: Logic coupling makes it hard to test parsing in isolation and obscures the core process lifecycle flow.
 Action: Extract protocol parsing and helper functions into separate files (e.g., `*_helpers.go` or `status.go`) within the same package.
+
+## 2025-05-25 - Extracted Key Command Execution Logic
+Learning: Repetitive error handling and state checks (like connection status or keyboard locking) in sequential command attempts (try-fallback) duplicate code and obscure the core logic.
+Risk: Inconsistent error handling updates (e.g., fixing a reconnection bug in one block but missing the other) and reduced readability.
+Action: Encapsulate the common execution and check logic into a helper method that returns a "done/continue" signal, allowing the main flow to express the high-level strategy clearly.
