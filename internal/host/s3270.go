@@ -194,37 +194,19 @@ func (h *S3270) sendKeyOnce(key string) error {
 		key = "Enter"
 	}
 
-	data, status, err := h.doCommandLocked(key)
-	log.Printf("s3270: cmd=%q status=%q", key, status)
-	if err == nil && isDisconnectedStatus(status) {
-		if err := h.reconnectLocked(); err != nil {
-			return err
-		}
-		return nil
-	}
-	if err == nil && !isS3270Error(status, data) {
-		if isAidKey(key) && !isKeyboardUnlocked(status) {
-			return h.waitUnlockLocked()
-		}
-		return nil
+	isAid := isAidKey(key)
+	data, status, err, done := h.executeKeyCommand(key, isAid)
+	if done {
+		return err
 	}
 
 	keySpec := keyToKeySpec(key)
 	if keySpec != "" {
 		fallback := fmt.Sprintf("Key(%s)", keySpec)
-		data, status, err = h.doCommandLocked(fallback)
-		log.Printf("s3270: cmd=%q status=%q", fallback, status)
-		if err == nil && isDisconnectedStatus(status) {
-			if err := h.reconnectLocked(); err != nil {
-				return err
-			}
-			return nil
-		}
-		if err == nil && !isS3270Error(status, data) {
-			if isAidKey(key) && !isKeyboardUnlocked(status) {
-				return h.waitUnlockLocked()
-			}
-			return nil
+		// Use original key intent (isAid) for checking unlock status even on fallback
+		data, status, err, done = h.executeKeyCommand(fallback, isAid)
+		if done {
+			return err
 		}
 	}
 
@@ -235,6 +217,32 @@ func (h *S3270) sendKeyOnce(key string) error {
 		return fmt.Errorf("s3270 error: %s", status)
 	}
 	return nil
+}
+
+// executeKeyCommand attempts to execute a key command and handles common status checks.
+// It returns done=true if the command succeeded (or reconnection succeeded), and done=false
+// if the command failed and a fallback should be attempted.
+func (h *S3270) executeKeyCommand(cmd string, isAid bool) ([]string, string, error, bool) {
+	data, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+
+	if err == nil && isDisconnectedStatus(status) {
+		if rErr := h.reconnectLocked(); rErr != nil {
+			return data, status, rErr, true
+		}
+		return data, status, nil, true
+	}
+
+	if err == nil && !isS3270Error(status, data) {
+		if isAid && !isKeyboardUnlocked(status) {
+			if wErr := h.waitUnlockLocked(); wErr != nil {
+				return data, status, wErr, true
+			}
+		}
+		return data, status, nil, true
+	}
+
+	return data, status, err, false
 }
 
 func (h *S3270) writeStringAtOnce(row, col int, text string) error {
