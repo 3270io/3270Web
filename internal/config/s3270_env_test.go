@@ -164,3 +164,122 @@ func TestS3270EnvOverridesArgParsing(t *testing.T) {
 		t.Errorf("Did not find expected -set arguments. Args: %v", overrides.Args)
 	}
 }
+
+func TestSplitArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expected  []string
+		wantError bool
+	}{
+		{
+			name:     "Empty input",
+			input:    "",
+			expected: nil,
+		},
+		{
+			name:     "Simple args",
+			input:    "one two three",
+			expected: []string{"one", "two", "three"},
+		},
+		{
+			name:     "Multiple spaces",
+			input:    "one   two",
+			expected: []string{"one", "two"},
+		},
+		{
+			name:     "Leading and trailing spaces",
+			input:    "  one two  ",
+			expected: []string{"one", "two"},
+		},
+		{
+			name:     "Double quotes",
+			input:    `"one two" three`,
+			expected: []string{"one two", "three"},
+		},
+		{
+			name:     "Single quotes",
+			input:    `'one two' three`,
+			expected: []string{"one two", "three"},
+		},
+		{
+			name:     "Empty double quotes",
+			input:    `one "" two`,
+			expected: []string{"one", "", "two"},
+		},
+		{
+			name:     "Empty single quotes",
+			input:    `one '' two`,
+			expected: []string{"one", "", "two"},
+		},
+		{
+			name:     "Empty quotes at start",
+			input:    `"" one`,
+			expected: []string{"", "one"},
+		},
+		{
+			name:     "Empty quotes at end",
+			input:    `one ""`,
+			expected: []string{"one", ""},
+		},
+		{
+			name:     "Nested quotes (single in double)",
+			input:    `"one 'two' three"`,
+			expected: []string{"one 'two' three"},
+		},
+		{
+			name:     "Nested quotes (double in single)",
+			input:    `'one "two" three'`,
+			expected: []string{"one \"two\" three"},
+		},
+		{
+			name:     "Escaped double quote",
+			input:    `"one \"two\" three"`,
+			expected: []string{`one "two" three`},
+		},
+		{
+			name:     "Escaped backslash",
+			input:    `one\\two`,
+			expected: []string{`one\two`},
+		},
+		{
+			name:      "Unterminated double quote",
+			input:     `"one`,
+			wantError: true,
+		},
+		{
+			name:      "Unterminated single quote",
+			input:     `'one`,
+			wantError: true,
+		},
+		{
+			name:      "Unterminated escape",
+			input:     `one\`,
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := splitArgs(tt.input)
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("splitArgs(%q) expected error, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("splitArgs(%q) unexpected error: %v", tt.input, err)
+			}
+			if len(got) != len(tt.expected) {
+				t.Errorf("splitArgs(%q) length mismatch: got %d, want %d (got %q)", tt.input, len(got), len(tt.expected), got)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("splitArgs(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
