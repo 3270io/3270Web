@@ -172,3 +172,42 @@ func TestScreenDimensionsFromStatusEnforcesLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHexByte(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected byte
+		hasError bool
+	}{
+		{"00", 0x00, false},
+		{"FF", 0xFF, false},
+		{"ff", 0xFF, false},
+		{"A1", 0xA1, false},
+		{"1a", 0x1A, false},
+		{"9F", 0x9F, false},
+		{"G1", 0, true},
+		{"1G", 0, true},
+		{"1", 0x01, false}, // Current implementation allows "1", checking correctness for now
+		{"123", 0, true},
+		{"", 0, true},
+		{"-1", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseHexByte(tt.input)
+			if tt.hasError {
+				if err == nil {
+					t.Errorf("parseHexByte(%q) expected error, got nil", tt.input)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("parseHexByte(%q) expected no error, got %v", tt.input, err)
+				}
+				if got != tt.expected {
+					t.Errorf("parseHexByte(%q) = %x, want %x", tt.input, got, tt.expected)
+				}
+			}
+		})
+	}
+}

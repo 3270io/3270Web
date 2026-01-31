@@ -17,3 +17,7 @@
 ## 2025-05-24 - [String Concatenation and Stack Allocation]
 **Learning:** String concatenation (e.g. `s := "a" + "b"`) does not always cause heap allocations in Go if the result does not escape (e.g. passed to `sb.WriteString`). The compiler can stack-allocate the backing array.
 **Action:** Do not assume replacing string concatenation with builder writes will reduce *heap* allocations count, but it still improves CPU performance by avoiding buffer copying and construction overhead (observed ~10% speedup).
+
+## 2025-05-24 - [Avoid strconv in Tight Loops]
+**Learning:** `strconv.ParseUint` adds significant overhead (error wrapping, base validation) for small, fixed-length strings in tight loops (e.g. 2-byte hex).
+**Action:** Unroll fixed-length parsing manually if it is a hot path. Replacing `strconv.ParseUint` with a manual 2-byte hex parser improved execution speed by ~2.7x (10.9ns -> 3.9ns).

@@ -431,6 +431,36 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 }
 
 func parseHexByte(s string) (byte, error) {
+	if len(s) == 2 {
+		c0 := s[0]
+		c1 := s[1]
+		var v0, v1 byte
+
+		switch {
+		case c0 >= '0' && c0 <= '9':
+			v0 = c0 - '0'
+		case c0 >= 'a' && c0 <= 'f':
+			v0 = c0 - 'a' + 10
+		case c0 >= 'A' && c0 <= 'F':
+			v0 = c0 - 'A' + 10
+		default:
+			return 0, strconv.ErrSyntax
+		}
+
+		switch {
+		case c1 >= '0' && c1 <= '9':
+			v1 = c1 - '0'
+		case c1 >= 'a' && c1 <= 'f':
+			v1 = c1 - 'a' + 10
+		case c1 >= 'A' && c1 <= 'F':
+			v1 = c1 - 'A' + 10
+		default:
+			return 0, strconv.ErrSyntax
+		}
+
+		return (v0 << 4) | v1, nil
+	}
+
 	v, err := strconv.ParseUint(s, 16, 8)
 	if err != nil {
 		return 0, err
