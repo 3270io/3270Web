@@ -27,3 +27,8 @@ Action: Added `TestWriteEscaped` in `internal/render/html_renderer_test.go` with
 Learning: The custom `splitArgs` function logic relied on buffer length to decide whether to append arguments, causing it to silently drop explicitly empty quoted strings (like `""` or `''`) from the parsed argument list. Existing tests only covered "happy paths" with non-empty content.
 Risk: Moderate. Configuration overrides using `S3270_SET` or similar env vars could fail unpredictably if an empty value was intended (e.g. clearing a resource), potentially leading to misconfiguration or arguments shifting positions.
 Action: Added comprehensive table-driven tests in `internal/config/s3270_env_test.go` covering edge cases like empty quotes and nesting, and patched `splitArgs` to track token state explicitly.
+
+## 2026-03-10 - Untested Configuration Loading and Defaults
+Learning: The `Load` function in `internal/config/config.go`, responsible for parsing XML configuration and applying application defaults, was entirely untested. This left the application startup logic vulnerable to regression, particularly regarding default values for critical paths like `ExecPath` or `Model`.
+Risk: High. A regression in configuration loading could cause the application to start with incorrect settings (e.g., wrong model dimensions or missing fonts) or fail to start silently if invalid XML is not handled gracefully.
+Action: Added `internal/config/config_test.go` with comprehensive tests verifying XML parsing, default value application, and error handling for malformed or missing files.
