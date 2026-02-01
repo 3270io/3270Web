@@ -23,3 +23,7 @@
 ## 2026-02-04 - Feedback for Clipboard Actions
 **Learning:** When adding "Copy to Clipboard" functionality using icon-only buttons, visual feedback is critical but must not shift layout.
 **Action:** Use Tippy.js tooltips to provide temporary textual feedback ("Copied!") instead of changing the icon or button text, ensuring the layout remains stable while confirming the action.
+
+## 2026-02-04 - Feedback for Async Helpers
+**Learning:** Helper functions like `fetchLogs` often don't return their promise, preventing UI elements from knowing when the action completes to show/hide loading states.
+**Action:** Always return the promise from async helper functions to allow callers to attach `.finally()` for state restoration.

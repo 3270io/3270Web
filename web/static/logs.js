@@ -64,7 +64,7 @@
   };
 
   const fetchLogs = () => {
-    fetch('/logs', {
+    return fetch('/logs', {
       headers: {
         Accept: 'application/json',
         'Cache-Control': 'no-cache',
@@ -191,7 +191,17 @@
   }
 
   if (refreshButton) {
-    refreshButton.addEventListener('click', fetchLogs);
+    refreshButton.addEventListener('click', () => {
+      const originalHtml = refreshButton.innerHTML;
+      refreshButton.disabled = true;
+      refreshButton.innerHTML =
+        '<span class="spinner" aria-hidden="true"></span> Refreshing...';
+
+      fetchLogs().finally(() => {
+        refreshButton.innerHTML = originalHtml;
+        refreshButton.disabled = false;
+      });
+    });
   }
 
   if (clearButton) {
