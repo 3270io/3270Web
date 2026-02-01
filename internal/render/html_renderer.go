@@ -105,15 +105,12 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 }
 
 func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id string) {
-	lines := f.GetValueLines()
-
 	if !f.IsMultiline() {
-		val := ""
-		if len(lines) > 0 {
-			val = lines[0]
-		}
+		// Optimization: Avoid GetValueLines() allocation for single line fields
+		val, _, _ := strings.Cut(f.GetValue(), "\n")
 		r.createHtmlInput(sb, f, id, val, -1, f.EndX-f.StartX+1)
 	} else {
+		lines := f.GetValueLines()
 		for i := 0; i < f.Height(); i++ {
 			val := ""
 			if i < len(lines) {
