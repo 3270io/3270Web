@@ -173,25 +173,23 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 		return 0, 0, false
 	}
 	parts := strings.Fields(status)
-	if len(parts) < 8 {
+	if len(parts) <= statusIdxCols {
 		return 0, 0, false
 	}
 
 	// Extract reported dimensions from s3270 status
-	rows, err := strconv.Atoi(parts[6])
+	rows, err := strconv.Atoi(parts[statusIdxRows])
 	if err != nil || rows <= 0 {
 		return 0, 0, false
 	}
-	cols, err := strconv.Atoi(parts[7])
+	cols, err := strconv.Atoi(parts[statusIdxCols])
 	if err != nil || cols <= 0 {
 		return 0, 0, false
 	}
 
-	// Extract model number from status (parts[5] is the model number 2-5)
-	// Status format: "U F P C(host) I 4 24 80 0 0 0x0 0.000"
-	//                 0 1 2 3        4 5 6  7  8 9 10  11
-	if len(parts) > 5 {
-		modelNum := parts[5]
+	// Extract model number from status
+	if len(parts) > statusIdxModel {
+		modelNum := parts[statusIdxModel]
 		if expectedRows, expectedCols, ok := getModelDimensions(modelNum); ok {
 			// Validate and enforce model-specific dimension limits
 			if rows > expectedRows {
