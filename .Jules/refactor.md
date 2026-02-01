@@ -22,3 +22,8 @@ Action: Extract protocol parsing and helper functions into separate files (e.g.,
 Learning: Repetitive error handling and state checks (like connection status or keyboard locking) in sequential command attempts (try-fallback) duplicate code and obscure the core logic.
 Risk: Inconsistent error handling updates (e.g., fixing a reconnection bug in one block but missing the other) and reduced readability.
 Action: Encapsulate the common execution and check logic into a helper method that returns a "done/continue" signal, allowing the main flow to express the high-level strategy clearly.
+
+## 2025-05-25 - Standardized Status Line Parsing
+Learning: Implicit dependency on array indices (magic numbers) for parsing fixed-format strings (like status lines) makes code brittle and hard to read.
+Risk: Incorrect index usage or changes in status format can silently break logic in multiple places.
+Action: Define named constants for protocol field indices to document the data structure and ensure consistency across the codebase.

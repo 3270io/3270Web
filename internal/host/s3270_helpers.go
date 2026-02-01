@@ -6,6 +6,25 @@ import (
 	"strings"
 )
 
+const (
+	// s3270 status line indices.
+	// Status format example: "U F P C(localhost) I 4 24 80 0 0 0x0 0.000"
+	// See: http://x3270.bgp.nu/s3270-man.html
+	statusIdxKeyboard    = 0  // Keyboard state: U=Unlocked, L=Locked, E=Error
+	statusIdxFormatting  = 1  // Screen formatting: F=Formatted, U=Unformatted
+	statusIdxProtection  = 2  // Field protection: P=Protected, U=Unprotected
+	statusIdxConnection  = 3  // Connection state: C(host)=Connected, N=Not connected
+	statusIdxMode        = 4  // Emulator mode: I=Connected, C=Connected, N=Not connected
+	statusIdxModel       = 5  // Model number (2-5)
+	statusIdxRows        = 6  // Number of rows
+	statusIdxCols        = 7  // Number of columns
+	statusIdxCursorRow   = 8  // Cursor row (0-based)
+	statusIdxCursorCol   = 9  // Cursor col (0-based)
+	statusIdxWindowID    = 10 // Window ID
+	statusIdxCommandTime = 11 // Execution time
+	statusMinFields      = 12 // Minimum number of fields in a valid status line
+)
+
 // isAidKey checks if a key is an Attention Identifier (AID) key that interacts with the host.
 func isAidKey(key string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(key))
@@ -36,8 +55,8 @@ func isS3270Error(status string, data []string) bool {
 // isDisconnectedStatus checks if the status line indicates a disconnected state.
 func isDisconnectedStatus(status string) bool {
 	parts := strings.Fields(status)
-	if len(parts) >= 4 {
-		return parts[3] == "N"
+	if len(parts) > statusIdxConnection {
+		return parts[statusIdxConnection] == "N"
 	}
 	return false
 }
