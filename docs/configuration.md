@@ -117,6 +117,20 @@ Example: `pnfg` = **P**rotected **N**ormal **F**ore**g**round.
 </colorschemes>
 ```
 
+## Security Configuration
+
+### Log Access
+
+By default, access to the application logs via the web interface is disabled for security reasons.
+
+To enable the `/logs` endpoints (view, toggle, clear, download), you must set the `ALLOW_LOG_ACCESS` environment variable:
+
+```bash
+ALLOW_LOG_ACCESS=true
+```
+
+When enabled, logs are accessible at `/logs` and `/logs/download`.
+
 ## Complete Example
 
 ```xml
