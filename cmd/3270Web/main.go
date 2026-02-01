@@ -122,6 +122,7 @@ func main() {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
 	}
 	r.Use(SecurityHeadersMiddleware())
+	r.Use(OriginRefererCheckMiddleware())
 	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
@@ -2056,6 +2057,7 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;")
+		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		c.Next()
 	}
 }

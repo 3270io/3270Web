@@ -277,6 +277,7 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-Content-Type-Options":  "nosniff",
 		"Referrer-Policy":         "strict-origin-when-cross-origin",
 		"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;",
+		"Permissions-Policy":      "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
 	}
 
 	for k, v := range headers {
