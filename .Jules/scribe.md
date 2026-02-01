@@ -26,3 +26,8 @@ Action: Fixed the default documentation in `internal/config/s3270_env.go` and ve
 ## 2026-01-31 - Missing Workflow Implementation
 Learning: The `workflow_playback.go` file was deleted, breaking the build and the documented workflow playback feature, despite tests verifying the logic.
 Action: Restored `workflow_playback.go` with stubs and disabled the feature in docs/tests to resolve the build failure without adding unverified logic.
+
+## 2026-02-01 - Undocumented Security Configuration
+Learning: The `ALLOW_LOG_ACCESS` environment variable, which gates access to sensitive logs, was implemented in code but completely absent from documentation.
+Impact: Administrators might not know how to debug issues (by enabling logs) or might be unaware of the security control.
+Action: Documented the `ALLOW_LOG_ACCESS` variable in `docs/configuration.md`.
