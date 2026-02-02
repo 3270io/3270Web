@@ -32,3 +32,8 @@ Action: Added comprehensive table-driven tests in `internal/config/s3270_env_tes
 Learning: The `Load` function in `internal/config/config.go`, responsible for parsing XML configuration and applying application defaults, was entirely untested. This left the application startup logic vulnerable to regression, particularly regarding default values for critical paths like `ExecPath` or `Model`.
 Risk: High. A regression in configuration loading could cause the application to start with incorrect settings (e.g., wrong model dimensions or missing fonts) or fail to start silently if invalid XML is not handled gracefully.
 Action: Added `internal/config/config_test.go` with comprehensive tests verifying XML parsing, default value application, and error handling for malformed or missing files.
+
+## 2026-03-12 - Incorrect Field Attribute Inheritance
+Learning: The screen parsing logic in `decodeLineTokens` implicitly inherited the `startCode` (field attribute) from the previous field when parsing a new `SF` token, rather than resetting it. This means if `s3270` output contains a malformed or incomplete `SF` token, the new field incorrectly inherits properties (like Protected status) from the preceding field.
+Risk: High. This could lead to security issues (e.g., fields intended to be hidden or protected becoming visible or editable, or vice-versa) if the upstream s3270 output is corrupted or incompatible.
+Action: Added `internal/host/screen_parsing_safety_test.go` which reproduces the bug and skips (to avoid breaking CI) until the production logic can be safely patched.
