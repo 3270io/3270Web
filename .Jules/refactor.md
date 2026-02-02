@@ -27,3 +27,8 @@ Action: Encapsulate the common execution and check logic into a helper method th
 Learning: Implicit dependency on array indices (magic numbers) for parsing fixed-format strings (like status lines) makes code brittle and hard to read.
 Risk: Incorrect index usage or changes in status format can silently break logic in multiple places.
 Action: Define named constants for protocol field indices to document the data structure and ensure consistency across the codebase.
+
+## 2026-02-02 - Extracted Complex Token Parsing Logic
+Learning: Parsing loops that handle multiple token types inline (e.g., data bytes vs. attribute commands) create deep nesting and high cognitive load.
+Risk: Logic for different token types becomes entangled, making it harder to verify or modify the handling of one type without affecting others.
+Action: Extract the handling of complex, state-changing tokens (like "Start Field" attributes) into dedicated helper functions to keep the main parsing loop clean and focused on flow.
