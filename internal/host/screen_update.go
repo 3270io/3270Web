@@ -380,28 +380,34 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 			color := AttrColDefault
 			extHighlight := AttrEhDefault
 
-			attrs := strings.Split(inner, ",")
-			for _, attr := range attrs {
-				parts := strings.SplitN(attr, "=", 2)
-				if len(parts) != 2 {
-					continue
-				}
-				key := strings.TrimSpace(parts[0])
-				val := strings.TrimSpace(parts[1])
+			for {
+				var attr string
+				var found bool
+				attr, inner, found = strings.Cut(inner, ",")
 
-				switch key {
-				case "c0":
-					if b, err := parseHexByte(val); err == nil {
-						startCode = b
+				key, val, ok := strings.Cut(attr, "=")
+				if ok {
+					key = strings.TrimSpace(key)
+					val = strings.TrimSpace(val)
+
+					switch key {
+					case "c0":
+						if b, err := parseHexByte(val); err == nil {
+							startCode = b
+						}
+					case "41":
+						if b, err := parseHexByte(val); err == nil {
+							extHighlight = int(b)
+						}
+					case "42":
+						if b, err := parseHexByte(val); err == nil {
+							color = int(b)
+						}
 					}
-				case "41":
-					if b, err := parseHexByte(val); err == nil {
-						extHighlight = int(b)
-					}
-				case "42":
-					if b, err := parseHexByte(val); err == nil {
-						color = int(b)
-					}
+				}
+
+				if !found {
+					break
 				}
 			}
 
