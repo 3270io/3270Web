@@ -355,61 +355,8 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 			if !formatted {
 				return nil, fmt.Errorf("format information in unformatted screen")
 			}
-
 			result = append(result, ' ')
-
-			if state.fieldStartX != -1 {
-				endX := index - 1
-				endY := y
-				if endX < 0 {
-					if state.width > 0 {
-						endX = state.width - 1
-						endY = y - 1
-					} else {
-						endX = 0
-						endY = y - 1
-					}
-				}
-				if endY >= 0 {
-					s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
-				}
-			}
-
-			inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
-			startCode := state.fieldStartCode
-			color := AttrColDefault
-			extHighlight := AttrEhDefault
-
-			attrs := strings.Split(inner, ",")
-			for _, attr := range attrs {
-				parts := strings.SplitN(attr, "=", 2)
-				if len(parts) != 2 {
-					continue
-				}
-				key := strings.TrimSpace(parts[0])
-				val := strings.TrimSpace(parts[1])
-
-				switch key {
-				case "c0":
-					if b, err := parseHexByte(val); err == nil {
-						startCode = b
-					}
-				case "41":
-					if b, err := parseHexByte(val); err == nil {
-						extHighlight = int(b)
-					}
-				case "42":
-					if b, err := parseHexByte(val); err == nil {
-						color = int(b)
-					}
-				}
-			}
-
-			state.fieldStartX = index + 1
-			state.fieldStartY = y
-			state.fieldStartCode = startCode
-			state.color = color
-			state.extHighlight = extHighlight
+			processStartField(token, index, y, s, state)
 		} else {
 			b, err := parseHexByte(token)
 			if err != nil {
@@ -426,6 +373,61 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 	}
 
 	return result, nil
+}
+
+func processStartField(token string, index, y int, s *Screen, state *decodeState) {
+	if state.fieldStartX != -1 {
+		endX := index - 1
+		endY := y
+		if endX < 0 {
+			if state.width > 0 {
+				endX = state.width - 1
+				endY = y - 1
+			} else {
+				endX = 0
+				endY = y - 1
+			}
+		}
+		if endY >= 0 {
+			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+		}
+	}
+
+	inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
+	startCode := state.fieldStartCode
+	color := AttrColDefault
+	extHighlight := AttrEhDefault
+
+	attrs := strings.Split(inner, ",")
+	for _, attr := range attrs {
+		parts := strings.SplitN(attr, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "c0":
+			if b, err := parseHexByte(val); err == nil {
+				startCode = b
+			}
+		case "41":
+			if b, err := parseHexByte(val); err == nil {
+				extHighlight = int(b)
+			}
+		case "42":
+			if b, err := parseHexByte(val); err == nil {
+				color = int(b)
+			}
+		}
+	}
+
+	state.fieldStartX = index + 1
+	state.fieldStartY = y
+	state.fieldStartCode = startCode
+	state.color = color
+	state.extHighlight = extHighlight
 }
 
 func parseHexByte(s string) (byte, error) {
