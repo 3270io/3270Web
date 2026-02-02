@@ -619,7 +619,6 @@ func (app *App) SubmitHandler(c *gin.Context) {
 	}
 
 	key := c.PostForm("key")
-	log.Printf("Submit: raw key=%q", key)
 
 	if s.Host.GetScreen().IsFormatted {
 		// 1. Update fields from form data
