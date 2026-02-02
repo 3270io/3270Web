@@ -31,3 +31,8 @@ Action: Restored `workflow_playback.go` with stubs and disabled the feature in d
 Learning: The `ALLOW_LOG_ACCESS` environment variable, which gates access to sensitive logs, was implemented in code but completely absent from documentation.
 Impact: Administrators might not know how to debug issues (by enabling logs) or might be unaware of the security control.
 Action: Documented the `ALLOW_LOG_ACCESS` variable in `docs/configuration.md`.
+
+## 2026-02-02 - Orphaned Technical Documentation
+Learning: Detailed technical documentation (`terminal-model-limits.md`) existed but was not linked from the main configuration guide, effectively hiding the "why" behind model enforcement.
+Impact: Users might be confused by screen dimension enforcement logic despite documentation existing in the repo.
+Action: Linked the orphan document in `docs/configuration.md` to make it discoverable.
