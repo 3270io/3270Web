@@ -81,9 +81,9 @@
 
             const setLoading = () => {
                 if (connectBtn) {
-                    connectBtn.style.width = `${connectBtn.offsetWidth}px`;
-                    connectBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>';
+                    connectBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Connecting...';
                     connectBtn.setAttribute('aria-busy', 'true');
+                    connectBtn.disabled = true;
                 }
             };
 
