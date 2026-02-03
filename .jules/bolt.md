@@ -25,3 +25,11 @@
 ## 2025-05-25 - [Use strings.Cut to Avoid Slice Allocation]
 **Learning:** `strings.Split` allocates a slice even for a single split. In hot loops where only the first part is needed (or the string is expected to be single-line), this is wasteful.
 **Action:** Use `strings.Cut` (Go 1.18+) instead of `strings.Split` when possible. Replacing `GetValueLines()` (which calls `Split`) with `strings.Cut` in a hot rendering loop reduced allocations from 212/op to 20/op (~90% reduction).
+
+## 2025-05-25 - [Optimize String Trimming in Hot Loops]
+**Learning:** Generic `strings.Trim` with a cutset (like "\x00 _") incurs overhead from bitset construction or iteration. A specialized loop for small fixed cutsets is significantly faster (observed ~30% faster).
+**Action:** Use custom trim functions for known small cutsets in hot paths.
+
+## 2025-05-25 - [Fast Path for Int formatting]
+**Learning:** `strconv.AppendInt` is fast but still has function call and logic overhead. For frequently written small integers (e.g., coordinates), a manual fast path (0-999) can be ~30% faster.
+**Action:** Inline or use fast-path helpers for formatting small integers in tight loops.

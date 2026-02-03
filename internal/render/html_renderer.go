@@ -149,7 +149,7 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		class = "color-input-hidden"
 	}
 
-	val = strings.Trim(val, "\x00 _")
+	val = r.trimFieldVal(val)
 
 	dataX := f.StartX
 	dataY := f.StartY
@@ -326,6 +326,42 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 }
 
 func (r *HtmlRenderer) writeInt(sb *strings.Builder, n int) {
+	if n >= 0 && n < 1000 {
+		if n < 10 {
+			sb.WriteByte(byte(n) + '0')
+			return
+		}
+		if n < 100 {
+			sb.WriteByte(byte(n/10) + '0')
+			sb.WriteByte(byte(n%10) + '0')
+			return
+		}
+		// n < 1000
+		sb.WriteByte(byte(n/100) + '0')
+		sb.WriteByte(byte((n/10)%10) + '0')
+		sb.WriteByte(byte(n%10) + '0')
+		return
+	}
 	var buf [20]byte
 	sb.Write(strconv.AppendInt(buf[:0], int64(n), 10))
+}
+
+func (r *HtmlRenderer) trimFieldVal(s string) string {
+	start := 0
+	for start < len(s) {
+		c := s[start]
+		if c != 0 && c != ' ' && c != '_' {
+			break
+		}
+		start++
+	}
+	end := len(s)
+	for end > start {
+		c := s[end-1]
+		if c != 0 && c != ' ' && c != '_' {
+			break
+		}
+		end--
+	}
+	return s[start:end]
 }
