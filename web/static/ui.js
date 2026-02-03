@@ -6,17 +6,19 @@
     // Track buttons currently in loading state to allow restoration
     const loadingButtons = new Set();
 
-    // Apply loading state to icon-only submit buttons
+    // Apply loading state to submit buttons
     document.addEventListener('submit', (event) => {
         if (event.defaultPrevented) {
             return;
         }
 
-        const form = event.target;
         const submitter = event.submitter;
+        if (!submitter) {
+            return;
+        }
 
-        // Only affect buttons with .icon-button class
-        if (submitter && submitter.classList.contains('icon-button')) {
+        // Handle icon-only buttons
+        if (submitter.classList.contains('icon-button')) {
             // Lock width to prevent layout shift
             const width = submitter.offsetWidth;
             if (width > 0) {
@@ -52,6 +54,27 @@
             submitter.setAttribute('aria-busy', 'true');
 
             // Disable to prevent double submission
+            submitter.disabled = true;
+        }
+        // Handle regular buttons
+        else {
+            // Store original state
+            const originalContent = submitter.innerHTML;
+
+            // Save restoration logic
+            submitter._restoreState = () => {
+                submitter.innerHTML = originalContent;
+                submitter.removeAttribute('aria-busy');
+                submitter.disabled = false;
+                delete submitter._restoreState;
+            };
+
+            loadingButtons.add(submitter);
+
+            // Prepend spinner
+            submitter.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + originalContent;
+
+            submitter.setAttribute('aria-busy', 'true');
             submitter.disabled = true;
         }
     });
