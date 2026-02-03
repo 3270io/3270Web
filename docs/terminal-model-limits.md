@@ -17,8 +17,8 @@ IBM 3270 terminals come in different models, each with specific screen dimension
 
 The dimension limits are enforced in `internal/host/screen_update.go`:
 
-1. **Model Detection**: The terminal model is extracted from the s3270 status line (field 5)
-2. **Dimension Extraction**: Reported dimensions are extracted from the status line (fields 6-7)
+1. **Model Detection**: The terminal model is extracted from the s3270 status line (field index 5, which is the 6th field)
+2. **Dimension Extraction**: Reported dimensions are extracted from the status line (field indices 6 and 7)
 3. **Validation**: If reported dimensions exceed the model's standard limits, they are clamped to the maximum allowed
 4. **Rendering**: The validated dimensions are used for screen rendering
 
@@ -28,9 +28,11 @@ For Model 2, if s3270 reports dimensions of 30x90, they will be automatically li
 
 ```
 Status: "U F P C(localhost) I 2 30 90 0 0 0x0 0.000"
-         Model ↑           ↑ ↑  ↑  ↑
-                           2 30 90 (reported)
-                           
+                              ^ ^  ^
+                              | |  |
+                        Model | |  |
+                              2 30 90 (reported)
+
 Result: 24x80 (enforced to Model 2 limits)
 ```
 
