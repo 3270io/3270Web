@@ -407,31 +407,8 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 
 	resultCh := make(chan commandResult, 1)
 	go func() {
-		var lines []string
-		for {
-			if !h.stdout.Scan() {
-				if err := h.stdout.Err(); err != nil {
-					resultCh <- commandResult{err: err}
-					return
-				}
-				resultCh <- commandResult{err: h.terminalError("s3270 terminated")}
-				return
-			}
-			line := h.stdout.Text()
-			if line == "ok" {
-				break
-			}
-			lines = append(lines, line)
-		}
-
-		if len(lines) == 0 {
-			resultCh <- commandResult{err: h.terminalError("no status received")}
-			return
-		}
-
-		status := lines[len(lines)-1]
-		data := lines[:len(lines)-1]
-		resultCh <- commandResult{data: data, status: status}
+		data, status, err := h.readResponse()
+		resultCh <- commandResult{data: data, status: status, err: err}
 	}()
 
 	select {
@@ -460,6 +437,31 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 		}
 		return nil, "", fmt.Errorf("s3270 command timed out")
 	}
+}
+
+func (h *S3270) readResponse() ([]string, string, error) {
+	var lines []string
+	for {
+		if !h.stdout.Scan() {
+			if err := h.stdout.Err(); err != nil {
+				return nil, "", err
+			}
+			return nil, "", h.terminalError("s3270 terminated")
+		}
+		line := h.stdout.Text()
+		if line == "ok" {
+			break
+		}
+		lines = append(lines, line)
+	}
+
+	if len(lines) == 0 {
+		return nil, "", h.terminalError("no status received")
+	}
+
+	status := lines[len(lines)-1]
+	data := lines[:len(lines)-1]
+	return data, status, nil
 }
 
 func (h *S3270) captureStderr() {
