@@ -394,7 +394,7 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	}
 
 	inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
-	startCode := state.fieldStartCode
+	startCode := byte(0)
 	color := AttrColDefault
 	extHighlight := AttrEhDefault
 

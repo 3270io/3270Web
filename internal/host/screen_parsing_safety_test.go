@@ -37,10 +37,6 @@ ok`
 		t.Errorf("Field 1 should be protected (c0=60)")
 	}
 
-	if f2.IsProtected() {
-		t.Skip("Skipping: Known bug - Field 2 inherits Protected status from Field 1 on invalid SF token. Requires fix in internal/host/screen_update.go")
-	}
-
 	// Once fixed, this assertion should pass
 	if f2.IsProtected() {
 		t.Errorf("Field 2 should NOT be protected (should not inherit from Field 1)")
