@@ -27,3 +27,7 @@
 ## 2026-02-04 - Feedback for Async Helpers
 **Learning:** Helper functions like `fetchLogs` often don't return their promise, preventing UI elements from knowing when the action completes to show/hide loading states.
 **Action:** Always return the promise from async helper functions to allow callers to attach `.finally()` for state restoration.
+
+## 2026-02-04 - Loading State Context Loss
+**Learning:** Replacing text on standard buttons (e.g., "Connect") with just a spinner removes context for users (especially screen readers) who might miss what action is being performed.
+**Action:** Append the spinner to the action verb (e.g., "Connecting...") instead of replacing the text entirely.
