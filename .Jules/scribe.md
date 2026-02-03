@@ -36,3 +36,8 @@ Action: Documented the `ALLOW_LOG_ACCESS` variable in `docs/configuration.md`.
 Learning: Detailed technical documentation (`terminal-model-limits.md`) existed but was not linked from the main configuration guide, effectively hiding the "why" behind model enforcement.
 Impact: Users might be confused by screen dimension enforcement logic despite documentation existing in the repo.
 Action: Linked the orphan document in `docs/configuration.md` to make it discoverable.
+
+## 2026-02-04 - Misleading Visual Documentation
+Learning: The ASCII diagram in `terminal-model-limits.md` was visually misaligned, pointing to incorrect fields in the status line example.
+Impact: Users trying to understand the s3270 status line format from the docs would be confused or misled about which field represents the model.
+Action: Corrected the ASCII art alignment and clarified field indexing in the text.

@@ -84,6 +84,9 @@ func TestGetModelDimensions(t *testing.T) {
 	}
 }
 
+// TestScreenDimensionsFromStatusEnforcesLimits verifies that screen dimensions are clamped
+// to the standard limits for the detected model.
+// See docs/terminal-model-limits.md for details and examples.
 func TestScreenDimensionsFromStatusEnforcesLimits(t *testing.T) {
 	tests := []struct {
 		name         string
