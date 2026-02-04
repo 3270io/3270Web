@@ -258,3 +258,33 @@ if screen2.Width != 80 {
 t.Errorf("expected screen width to be truncated to 80 for model 2, got %d", screen2.Width)
 }
 }
+
+// TestOversizeScreenTruncation verifies that screens with oversize dimensions
+// are properly truncated to the model limits.
+func TestOversizeScreenTruncation(t *testing.T) {
+// Simulate model 2 (24x80 limit) with oversize reporting 30x100
+// s3270 might report these larger dimensions when using -oversize flag
+status := "U F P C(localhost) I 2 30 100 0 0 0x0 0.000"
+
+// Create a data line with 100 columns of data (exceeds model 2's 80 column limit)
+tokens := make([]string, 100)
+for i := 0; i < 100; i++ {
+tokens[i] = "41" // Character 'A'
+}
+dataLine := "data: " + strings.Join(tokens, " ")
+
+screen := &Screen{}
+err := screen.Update(status, []string{dataLine})
+if err != nil {
+t.Fatalf("Update failed: %v", err)
+}
+
+// Screen should be truncated to model 2 limits: 24 rows x 80 columns
+// (status reports 30 rows, but we only have 1 row of data, so Height should be 1)
+if screen.Width != 80 {
+t.Errorf("expected width to be truncated to 80 for model 2, got %d", screen.Width)
+}
+if screen.Height != 1 {
+t.Errorf("expected height to be 1 (one data line), got %d", screen.Height)
+}
+}
