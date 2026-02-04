@@ -218,73 +218,74 @@ func TestParseHexByte(t *testing.T) {
 // TestScreenWidthTruncation verifies that the screen width is properly truncated
 // to the model-specific dimension limits, even when the buffer contains more data.
 func TestScreenWidthTruncation(t *testing.T) {
-// Create a status line for model 2 (24x80) but with the backend reporting 24x80
-status := "U F P C(localhost) I 2 24 80 0 0 0x0 0.000"
+	// Create a status line for model 2 (24x80) with matching backend dimensions
+	status := "U F P C(localhost) I 2 24 80 0 0 0x0 0.000"
 
-// Create a data line with exactly 80 columns worth of data
-tokens := make([]string, 80)
-for i := 0; i < 80; i++ {
-tokens[i] = "41" // Character 'A'
-}
-dataLine := "data: " + strings.Join(tokens, " ")
+	// Create a data line with exactly 80 columns worth of data
+	tokens := make([]string, 80)
+	for i := 0; i < 80; i++ {
+		tokens[i] = "41" // Character 'A'
+	}
+	dataLine := "data: " + strings.Join(tokens, " ")
 
-screen := &Screen{}
-err := screen.Update(status, []string{dataLine})
-if err != nil {
-t.Fatalf("Update failed: %v", err)
-}
+	screen := &Screen{}
+	err := screen.Update(status, []string{dataLine})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
-// The screen width should be exactly 80, matching the model 2 limit
-if screen.Width != 80 {
-t.Errorf("expected screen width to be 80 for model 2, got %d", screen.Width)
-}
+	// The screen width should be exactly 80, matching the model 2 limit
+	if screen.Width != 80 {
+		t.Errorf("expected screen width to be 80 for model 2, got %d", screen.Width)
+	}
 
-// Now test with a wider buffer (simulating what happens when s3270 reports wrong dims)
-// Create status for model 2, but with buffer containing data beyond 80 columns
-wideTokens := make([]string, 100)
-for i := 0; i < 100; i++ {
-wideTokens[i] = "42" // Character 'B'
-}
-wideDataLine := "data: " + strings.Join(wideTokens, " ")
+	// Now test with a wider buffer (simulating what happens when s3270 reports
+// dimensions exceeding model limits, e.g., due to -oversize option)
+	// Create status for model 2, but with buffer containing data beyond 80 columns
+	wideTokens := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		wideTokens[i] = "42" // Character 'B'
+	}
+	wideDataLine := "data: " + strings.Join(wideTokens, " ")
 
-screen2 := &Screen{}
-err = screen2.Update(status, []string{wideDataLine})
-if err != nil {
-t.Fatalf("Update with wide buffer failed: %v", err)
-}
+	screen2 := &Screen{}
+	err = screen2.Update(status, []string{wideDataLine})
+	if err != nil {
+		t.Fatalf("Update with wide buffer failed: %v", err)
+	}
 
-// Even though we have 100 tokens, the width should be clamped to 80 for model 2
-if screen2.Width != 80 {
-t.Errorf("expected screen width to be truncated to 80 for model 2, got %d", screen2.Width)
-}
+	// Even though we have 100 tokens, the width should be clamped to 80 for model 2
+	if screen2.Width != 80 {
+		t.Errorf("expected screen width to be truncated to 80 for model 2, got %d", screen2.Width)
+	}
 }
 
 // TestOversizeScreenTruncation verifies that screens with oversize dimensions
 // are properly truncated to the model limits.
 func TestOversizeScreenTruncation(t *testing.T) {
-// Simulate model 2 (24x80 limit) with oversize reporting 30x100
-// s3270 might report these larger dimensions when using -oversize flag
-status := "U F P C(localhost) I 2 30 100 0 0 0x0 0.000"
+	// Simulate model 2 (24x80 limit) with oversize reporting 30x100
+	// s3270 might report these larger dimensions when using -oversize flag
+	status := "U F P C(localhost) I 2 30 100 0 0 0x0 0.000"
 
-// Create a data line with 100 columns of data (exceeds model 2's 80 column limit)
-tokens := make([]string, 100)
-for i := 0; i < 100; i++ {
-tokens[i] = "41" // Character 'A'
-}
-dataLine := "data: " + strings.Join(tokens, " ")
+	// Create a data line with 100 columns of data (exceeds model 2's 80 column limit)
+	tokens := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		tokens[i] = "41" // Character 'A'
+	}
+	dataLine := "data: " + strings.Join(tokens, " ")
 
-screen := &Screen{}
-err := screen.Update(status, []string{dataLine})
-if err != nil {
-t.Fatalf("Update failed: %v", err)
-}
+	screen := &Screen{}
+	err := screen.Update(status, []string{dataLine})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
 
-// Screen should be truncated to model 2 limits: 24 rows x 80 columns
-// (status reports 30 rows, but we only have 1 row of data, so Height should be 1)
-if screen.Width != 80 {
-t.Errorf("expected width to be truncated to 80 for model 2, got %d", screen.Width)
-}
-if screen.Height != 1 {
-t.Errorf("expected height to be 1 (one data line), got %d", screen.Height)
-}
+	// Screen should be truncated to model 2 limits: 24 rows x 80 columns
+	// (status reports 30 rows, but we only have 1 row of data, so Height should be 1)
+	if screen.Width != 80 {
+		t.Errorf("expected width to be truncated to 80 for model 2, got %d", screen.Width)
+	}
+	if screen.Height != 1 {
+		t.Errorf("expected height to be 1 (one data line), got %d", screen.Height)
+	}
 }
