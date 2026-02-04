@@ -63,6 +63,30 @@
     }
   };
 
+  const setLogsTooltip = (message) => {
+    if (!logsContent) {
+      return;
+    }
+    if (message) {
+      logsContent.setAttribute('data-tippy-content', message);
+      if (window.tippy) {
+        if (logsContent._tippy) {
+          logsContent._tippy.setContent(message);
+        } else {
+          window.tippy(logsContent, {
+            delay: [150, 0],
+            placement: 'top',
+          });
+        }
+      }
+    } else {
+      logsContent.removeAttribute('data-tippy-content');
+      if (logsContent._tippy) {
+        logsContent._tippy.destroy();
+      }
+    }
+  };
+
   const fetchLogs = () => {
     return fetch('/logs', {
       headers: {
@@ -70,7 +94,24 @@
         'Cache-Control': 'no-cache',
       },
     })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 403) {
+          if (logsContent) {
+            logsContent.textContent =
+              'Log access is disabled by the administrator.';
+            setLogsTooltip('Set ALLOW_LOG_ACCESS=true to enable log access.');
+          }
+          return null;
+        }
+        if (!res.ok) {
+          if (logsContent) {
+            logsContent.textContent = 'Unable to load logs right now.';
+            setLogsTooltip('');
+          }
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
         if (!data) {
           return;
@@ -80,7 +121,10 @@
         }
         if (logsContent) {
           const content = data.content || '';
-          logsContent.textContent = content || 'No logs yet. Enable verbose logging to capture S3270 commands and responses.';
+          logsContent.textContent =
+            content ||
+            'No logs yet. Enable verbose logging to capture S3270 commands and responses.';
+          setLogsTooltip('');
           // Auto-scroll to bottom
           logsContent.scrollTop = logsContent.scrollHeight;
         }
