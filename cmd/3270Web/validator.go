@@ -46,13 +46,19 @@ func isValidHostname(hostname string) bool {
 	// Extract port, if present.
 	if strings.HasPrefix(host, "[") {
 		h, p, err := net.SplitHostPort(host)
-		if err != nil {
-			return false
-		}
-		host = h
-		if p != "" {
-			n, err := strconv.Atoi(p)
-			if err != nil || n <= 0 || n > 65535 {
+		if err == nil {
+			host = h
+			if p != "" {
+				n, err := strconv.Atoi(p)
+				if err != nil || n <= 0 || n > 65535 {
+					return false
+				}
+			}
+		} else {
+			// Failed to split. Check if it is a bracketed IPv6 literal without port (e.g. "[::1]")
+			if strings.HasSuffix(host, "]") {
+				host = host[1 : len(host)-1]
+			} else {
 				return false
 			}
 		}
