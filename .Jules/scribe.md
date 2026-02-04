@@ -41,3 +41,8 @@ Action: Linked the orphan document in `docs/configuration.md` to make it discove
 Learning: The ASCII diagram in `terminal-model-limits.md` was visually misaligned, pointing to incorrect fields in the status line example.
 Impact: Users trying to understand the s3270 status line format from the docs would be confused or misled about which field represents the model.
 Action: Corrected the ASCII art alignment and clarified field indexing in the text.
+
+## 2026-02-05 - Undocumented Configuration Precedence
+Learning: The `.env` variables `S3270_CODE_PAGE` and `S3270_EXEC_COMMAND` had undocumented side effects: `S3270_CODE_PAGE` silently overrides XML `<charset>`, and `S3270_EXEC_COMMAND` disables the configured host connection.
+Impact: Users configuring charset via XML would be confused why it wasn't taking effect if `.env` had a value, and users using `S3270_EXEC_COMMAND` might not realize it replaces the connection logic entirely.
+Action: Documented these overrides in `docs/configuration.md` and added `TestBuildS3270Args_Precedence` to verify and enforce this behavior.
