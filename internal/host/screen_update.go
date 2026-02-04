@@ -347,7 +347,7 @@ func (s *Screen) updateBuffer(tokenRows [][]string) error {
 }
 
 func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
-	var result []rune
+	result := make([]rune, 0, len(tokens))
 	index := 0
 
 	for _, token := range tokens {
@@ -393,32 +393,52 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 		}
 	}
 
-	inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
 	startCode := byte(0)
 	color := AttrColDefault
 	extHighlight := AttrEhDefault
 
-	attrs := strings.Split(inner, ",")
-	for _, attr := range attrs {
-		parts := strings.SplitN(attr, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
+	// Optimization: Manual parsing to avoid allocation
+	// token is like "SF(c0=C8,41=00,42=F0)"
+	if len(token) > 4 && strings.HasPrefix(token, "SF(") && token[len(token)-1] == ')' {
+		inner := token[3 : len(token)-1]
 
-		switch key {
-		case "c0":
-			if b, err := parseHexByte(val); err == nil {
-				startCode = b
+		for inner != "" {
+			var attr string
+			var found bool
+
+			// Cut at comma
+			attr, inner, found = strings.Cut(inner, ",")
+
+			// Parse key=value
+			key, val, ok := strings.Cut(attr, "=")
+			if !ok {
+				if !found {
+					break
+				}
+				continue
 			}
-		case "41":
-			if b, err := parseHexByte(val); err == nil {
-				extHighlight = int(b)
+
+			// Using manual trim loop for short strings to avoid overhead
+			key = trimSpace(key)
+			val = trimSpace(val)
+
+			switch key {
+			case "c0":
+				if b, err := parseHexByte(val); err == nil {
+					startCode = b
+				}
+			case "41":
+				if b, err := parseHexByte(val); err == nil {
+					extHighlight = int(b)
+				}
+			case "42":
+				if b, err := parseHexByte(val); err == nil {
+					color = int(b)
+				}
 			}
-		case "42":
-			if b, err := parseHexByte(val); err == nil {
-				color = int(b)
+
+			if !found {
+				break
 			}
 		}
 	}
@@ -428,6 +448,29 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	state.fieldStartCode = startCode
 	state.color = color
 	state.extHighlight = extHighlight
+}
+
+func trimSpace(s string) string {
+	start := 0
+	for start < len(s) {
+		c := s[start]
+		if c != ' ' && c != '\t' {
+			break
+		}
+		start++
+	}
+	end := len(s)
+	for end > start {
+		c := s[end-1]
+		if c != ' ' && c != '\t' {
+			break
+		}
+		end--
+	}
+	if start >= end {
+		return ""
+	}
+	return s[start:end]
 }
 
 func parseHexByte(s string) (byte, error) {
