@@ -1064,7 +1064,7 @@ func (app *App) LogsToggleHandler(c *gin.Context) {
 	enabled := c.PostForm("enabled") == "true"
 	withSessionLock(s, func() {
 		s.Prefs.VerboseLogging = enabled
-		if h, ok := s.Host.(*host.S3270); ok {
+		if h, ok := s.Host.(interface{ SetVerboseLogging(bool) }); ok {
 			h.SetVerboseLogging(enabled)
 		}
 	})
@@ -1698,8 +1698,8 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 		s.TargetHost = hostName
 		s.TargetPort = port
 		// Apply verbose logging preference
-		if h3270, ok := h.(*host.S3270); ok {
-			h3270.SetVerboseLogging(s.Prefs.VerboseLogging)
+		if logger, ok := h.(interface{ SetVerboseLogging(bool) }); ok {
+			logger.SetVerboseLogging(s.Prefs.VerboseLogging)
 		}
 	})
 	return nil

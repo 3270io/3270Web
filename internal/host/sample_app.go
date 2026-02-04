@@ -14,8 +14,9 @@ type GoSampleAppHost struct {
 	Args     []string
 	Target   string
 
-	server *sampleapps.Server
-	client *S3270
+	server         *sampleapps.Server
+	client         *S3270
+	verboseLogging bool
 }
 
 const sampleAppClientNotStarted = "sample app client not started"
@@ -52,6 +53,7 @@ func (h *GoSampleAppHost) Start() error {
 	}
 	h.client = NewS3270(h.ExecPath, h.Args...)
 	h.client.TargetHost = h.Target
+	h.client.SetVerboseLogging(h.verboseLogging)
 	if err := h.client.Start(); err != nil {
 		h.server.Stop()
 		h.server = nil
@@ -126,4 +128,20 @@ func (h *GoSampleAppHost) SubmitUnformatted(data string) error {
 		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.SubmitUnformatted(data)
+}
+
+// SetVerboseLogging enables or disables verbose logging for the underlying client.
+func (h *GoSampleAppHost) SetVerboseLogging(enabled bool) {
+	h.verboseLogging = enabled
+	if h.client != nil {
+		h.client.SetVerboseLogging(enabled)
+	}
+}
+
+// GetVerboseLogging returns the current verbose logging setting.
+func (h *GoSampleAppHost) GetVerboseLogging() bool {
+	if h.client != nil {
+		return h.client.GetVerboseLogging()
+	}
+	return h.verboseLogging
 }
