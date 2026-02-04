@@ -174,7 +174,7 @@ func main() {
 	r.GET("/logs/download", app.LogsDownloadHandler)
 
 	// Disconnect handler
-	r.GET("/disconnect", app.DisconnectHandler)
+	r.POST("/disconnect", app.DisconnectHandler)
 
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {
