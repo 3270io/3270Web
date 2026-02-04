@@ -31,3 +31,7 @@
 ## 2026-02-04 - Loading State Context Loss
 **Learning:** Replacing text on standard buttons (e.g., "Connect") with just a spinner removes context for users (especially screen readers) who might miss what action is being performed.
 **Action:** Append the spinner to the action verb (e.g., "Connecting...") instead of replacing the text entirely.
+
+## 2026-02-27 - Generalizing Loading States
+**Learning:** Applying loading states to all submit buttons via global event delegation provides consistent feedback and prevents double-submission without requiring per-button logic.
+**Action:** Use `document.addEventListener('submit', ...)` to intercept form submissions and apply loading states based on button type (icon-only vs text), ensuring fallback restoration logic handles bfcache.
