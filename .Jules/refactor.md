@@ -32,3 +32,8 @@ Action: Define named constants for protocol field indices to document the data s
 Learning: Parsing loops that handle multiple token types inline (e.g., data bytes vs. attribute commands) create deep nesting and high cognitive load.
 Risk: Logic for different token types becomes entangled, making it harder to verify or modify the handling of one type without affecting others.
 Action: Extract the handling of complex, state-changing tokens (like "Start Field" attributes) into dedicated helper functions to keep the main parsing loop clean and focused on flow.
+
+## 2024-05-25 - Magic Strings and Manual Parsing
+Learning: Magic strings for protocol attributes (e.g., "c0", "41") and manual low-level parsing (like hex conversion) inline obscure intent and clutter logic.
+Risk: Typos in magic strings are hard to catch, and verbose inline parsing distracts from the higher-level data processing flow.
+Action: Define named constants for protocol keys and use focused helper functions for low-level parsing tasks.

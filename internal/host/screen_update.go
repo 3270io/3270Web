@@ -15,6 +15,12 @@ var (
 	)
 )
 
+const (
+	attrKeyStartField      = "c0" // 3270 Start Field attribute
+	attrKeyExtHighlight    = "41" // Extended Highlight attribute
+	attrKeyForegroundColor = "42" // Foreground Color attribute
+)
+
 func extractTokens(line string) []string {
 	fields := strings.Fields(line)
 	tokens := make([]string, 0, len(fields))
@@ -408,15 +414,15 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 		val := strings.TrimSpace(parts[1])
 
 		switch key {
-		case "c0":
+		case attrKeyStartField:
 			if b, err := parseHexByte(val); err == nil {
 				startCode = b
 			}
-		case "41":
+		case attrKeyExtHighlight:
 			if b, err := parseHexByte(val); err == nil {
 				extHighlight = int(b)
 			}
-		case "42":
+		case attrKeyForegroundColor:
 			if b, err := parseHexByte(val); err == nil {
 				color = int(b)
 			}
@@ -432,32 +438,11 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 
 func parseHexByte(s string) (byte, error) {
 	if len(s) == 2 {
-		c0 := s[0]
-		c1 := s[1]
-		var v0, v1 byte
-
-		switch {
-		case c0 >= '0' && c0 <= '9':
-			v0 = c0 - '0'
-		case c0 >= 'a' && c0 <= 'f':
-			v0 = c0 - 'a' + 10
-		case c0 >= 'A' && c0 <= 'F':
-			v0 = c0 - 'A' + 10
-		default:
+		v0, ok0 := hexVal(s[0])
+		v1, ok1 := hexVal(s[1])
+		if !ok0 || !ok1 {
 			return 0, strconv.ErrSyntax
 		}
-
-		switch {
-		case c1 >= '0' && c1 <= '9':
-			v1 = c1 - '0'
-		case c1 >= 'a' && c1 <= 'f':
-			v1 = c1 - 'a' + 10
-		case c1 >= 'A' && c1 <= 'F':
-			v1 = c1 - 'A' + 10
-		default:
-			return 0, strconv.ErrSyntax
-		}
-
 		return (v0 << 4) | v1, nil
 	}
 
@@ -466,4 +451,17 @@ func parseHexByte(s string) (byte, error) {
 		return 0, err
 	}
 	return byte(v), nil
+}
+
+func hexVal(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	default:
+		return 0, false
+	}
 }
