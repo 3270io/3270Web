@@ -104,8 +104,11 @@ func (s *Screen) Update(status string, lines []string) error {
 	}
 
 	var tokenRows [][]string
+	var enforcedRows, enforcedCols int
 	if rows, cols, ok := screenDimensionsFromStatus(status); ok {
 		tokenRows = normalizeScreenTokens(lines, rows, cols)
+		enforcedRows = rows
+		enforcedCols = cols
 	} else {
 		tokenRows = make([][]string, len(lines))
 		for i, line := range lines {
@@ -116,7 +119,7 @@ func (s *Screen) Update(status string, lines []string) error {
 		}
 	}
 
-	if err := s.updateBuffer(tokenRows); err != nil {
+	if err := s.updateBuffer(tokenRows, enforcedRows, enforcedCols); err != nil {
 		return err
 	}
 
@@ -306,7 +309,7 @@ func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
 	return true
 }
 
-func (s *Screen) updateBuffer(tokenRows [][]string) error {
+func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols int) error {
 	s.Height = len(tokenRows)
 	if s.Height == 0 {
 		s.Width = 0
@@ -339,7 +342,15 @@ func (s *Screen) updateBuffer(tokenRows [][]string) error {
 		}
 		s.Buffer[y] = row
 	}
-	s.Width = width
+	// Use enforced dimensions if available, otherwise use calculated width
+	if enforcedCols > 0 && width > enforcedCols {
+		s.Width = enforcedCols
+	} else {
+		s.Width = width
+	}
+	if enforcedRows > 0 && s.Height > enforcedRows {
+		s.Height = enforcedRows
+	}
 
 	if state.fieldStartX >= 0 && s.Width > 0 && s.Height > 0 {
 		endX := s.Width - 1

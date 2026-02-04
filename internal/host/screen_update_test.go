@@ -214,3 +214,47 @@ func TestParseHexByte(t *testing.T) {
 		})
 	}
 }
+
+// TestScreenWidthTruncation verifies that the screen width is properly truncated
+// to the model-specific dimension limits, even when the buffer contains more data.
+func TestScreenWidthTruncation(t *testing.T) {
+// Create a status line for model 2 (24x80) but with the backend reporting 24x80
+status := "U F P C(localhost) I 2 24 80 0 0 0x0 0.000"
+
+// Create a data line with exactly 80 columns worth of data
+tokens := make([]string, 80)
+for i := 0; i < 80; i++ {
+tokens[i] = "41" // Character 'A'
+}
+dataLine := "data: " + strings.Join(tokens, " ")
+
+screen := &Screen{}
+err := screen.Update(status, []string{dataLine})
+if err != nil {
+t.Fatalf("Update failed: %v", err)
+}
+
+// The screen width should be exactly 80, matching the model 2 limit
+if screen.Width != 80 {
+t.Errorf("expected screen width to be 80 for model 2, got %d", screen.Width)
+}
+
+// Now test with a wider buffer (simulating what happens when s3270 reports wrong dims)
+// Create status for model 2, but with buffer containing data beyond 80 columns
+wideTokens := make([]string, 100)
+for i := 0; i < 100; i++ {
+wideTokens[i] = "42" // Character 'B'
+}
+wideDataLine := "data: " + strings.Join(wideTokens, " ")
+
+screen2 := &Screen{}
+err = screen2.Update(status, []string{wideDataLine})
+if err != nil {
+t.Fatalf("Update with wide buffer failed: %v", err)
+}
+
+// Even though we have 100 tokens, the width should be clamped to 80 for model 2
+if screen2.Width != 80 {
+t.Errorf("expected screen width to be truncated to 80 for model 2, got %d", screen2.Width)
+}
+}
