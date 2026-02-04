@@ -23,6 +23,7 @@ Configures the underlying 3270 emulator process.
 ```xml
 <s3270-options>
     <!-- Character set (default: bracket) -->
+    <!-- Note: This may be overridden by S3270_CODE_PAGE in the .env file -->
     <charset>bracket</charset>
     <!-- IBM Model number, e.g., 2, 3, 4, 5 (default: 3) -->
     <!-- Note: This may be overridden by S3270_MODEL in the .env file -->
@@ -47,7 +48,12 @@ S3270_TRACE_FILE=/tmp/s3270.trace
 
 All supported options, defaults, and descriptions are listed in the generated `.env` file at the repo root. Update those values to change the arguments passed to `s3270`.
 
-> **Note:** The generated `.env` file typically sets `S3270_MODEL=3279-4-E` by default. If this value is present, it will override the `<model>` setting in `3270Web-config.xml`. See [Terminal Model Dimensions](terminal-model-limits.md) for details on how screen sizes are enforced for each model.
+> **Note:** The `.env` file can override key settings in `3270Web-config.xml`:
+> *   `S3270_MODEL` will override the `<model>` XML setting (defaults to `3279-4-E` in generated `.env`).
+> *   `S3270_CODE_PAGE` will override the `<charset>` XML setting.
+> *   `S3270_EXEC_COMMAND` will run the specified command *instead* of connecting to the configured target host.
+>
+> See [Terminal Model Dimensions](terminal-model-limits.md) for details on how screen sizes are enforced for each model.
 
 #### Argument Parsing
 

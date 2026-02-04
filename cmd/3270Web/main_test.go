@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -38,6 +39,77 @@ func TestParseSampleAppHost(t *testing.T) {
 		if gotPort != test.wantPort {
 			t.Fatalf("parseSampleAppHost(%q) port=%d, want %d", test.input, gotPort, test.wantPort)
 		}
+	}
+}
+
+func TestBuildS3270Args_Precedence(t *testing.T) {
+	// Setup environment
+	os.Setenv("S3270_CODE_PAGE", "cp037")
+	os.Setenv("S3270_MODEL", "2")
+	os.Setenv("S3270_EXEC_COMMAND", "echo hello")
+	defer os.Unsetenv("S3270_CODE_PAGE")
+	defer os.Unsetenv("S3270_MODEL")
+	defer os.Unsetenv("S3270_EXEC_COMMAND")
+
+	opts := config.S3270Options{
+		Model:   "4",
+		Charset: "bracket",
+	}
+	hostname := "localhost"
+
+	args := buildS3270Args(opts, hostname)
+
+	// Verify Model override
+	hasModel := false
+	for i, arg := range args {
+		if arg == "-model" && i+1 < len(args) {
+			if args[i+1] == "2" {
+				hasModel = true
+			} else {
+				t.Errorf("Expected model '2', got %q", args[i+1])
+			}
+		}
+	}
+	if !hasModel {
+		t.Error("Expected -model argument")
+	}
+
+	// Verify CodePage override (should use -codepage cp037, NOT -charset bracket)
+	hasCodePage := false
+	hasCharset := false
+	for i, arg := range args {
+		if arg == "-codepage" && i+1 < len(args) {
+			if args[i+1] == "cp037" {
+				hasCodePage = true
+			}
+		}
+		if arg == "-charset" {
+			hasCharset = true
+		}
+	}
+	if !hasCodePage {
+		t.Error("Expected -codepage cp037")
+	}
+	if hasCharset {
+		t.Error("Expected -charset to be suppressed by S3270_CODE_PAGE")
+	}
+
+	// Verify ExecCommand prevents hostname
+	hasHostname := false
+	hasExec := false
+	for _, arg := range args {
+		if arg == "localhost" {
+			hasHostname = true
+		}
+		if arg == "-e" {
+			hasExec = true
+		}
+	}
+	if hasHostname {
+		t.Error("Expected hostname to be suppressed by S3270_EXEC_COMMAND")
+	}
+	if !hasExec {
+		t.Error("Expected -e argument")
 	}
 }
 
