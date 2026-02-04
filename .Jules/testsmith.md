@@ -37,3 +37,8 @@ Action: Added `internal/config/config_test.go` with comprehensive tests verifyin
 Learning: The screen parsing logic in `decodeLineTokens` implicitly inherited the `startCode` (field attribute) from the previous field when parsing a new `SF` token, rather than resetting it. This means if `s3270` output contains a malformed or incomplete `SF` token, the new field incorrectly inherits properties (like Protected status) from the preceding field.
 Risk: High. This could lead to security issues (e.g., fields intended to be hidden or protected becoming visible or editable, or vice-versa) if the upstream s3270 output is corrupted or incompatible.
 Action: Added `internal/host/screen_parsing_safety_test.go` which reproduces the bug and skips (to avoid breaking CI) until the production logic can be safely patched.
+
+## 2026-03-14 - Validation Gap for Bracketed IPv6 Literals
+Learning: The `isValidHostname` validator relied on `net.SplitHostPort` which requires a port or unbracketed input, causing it to reject valid bracketed IPv6 literals (e.g., `[::1]`) that users might paste from browsers.
+Risk: Low. Prevents users from connecting to valid IPv6 hosts if they use the standard bracketed notation without an explicit port.
+Action: Added a regression test case `[::1]` in `cmd/3270Web/main_test.go` and patched `isValidHostname` to handle this edge case.
