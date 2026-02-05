@@ -415,14 +415,17 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	color := AttrColDefault
 	extHighlight := AttrEhDefault
 
-	attrs := strings.Split(inner, ",")
-	for _, attr := range attrs {
-		parts := strings.SplitN(attr, "=", 2)
-		if len(parts) != 2 {
+	for inner != "" {
+		var attr string
+		attr, inner, _ = strings.Cut(inner, ",")
+
+		key, val, ok := strings.Cut(attr, "=")
+		if !ok {
 			continue
 		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
+
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
 
 		switch key {
 		case attrKeyStartField:
