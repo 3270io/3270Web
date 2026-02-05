@@ -37,3 +37,8 @@ Action: Extract the handling of complex, state-changing tokens (like "Start Fiel
 Learning: Magic strings for protocol attributes (e.g., "c0", "41") and manual low-level parsing (like hex conversion) inline obscure intent and clutter logic.
 Risk: Typos in magic strings are hard to catch, and verbose inline parsing distracts from the higher-level data processing flow.
 Action: Define named constants for protocol keys and use focused helper functions for low-level parsing tasks.
+
+## 2026-02-05 - Extracted Process Launcher Logic
+Learning: Mixing application startup wiring with low-level process configuration (like binary path resolution and argument building) in `main.go` creates a "god object" anti-pattern.
+Risk: Logic for critical external dependencies (s3270 binary) becomes entangled with web server logic, making it harder to test, configure, or swap out the backend.
+Action: Extract cohesive process management logic into dedicated files (e.g., `s3270_launcher.go`) to clarify the boundary between the web application and the underlying emulator process.
