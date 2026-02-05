@@ -261,23 +261,23 @@ func TestSplitArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := splitArgs(tt.input)
+			got, err := SplitArgs(tt.input)
 			if tt.wantError {
 				if err == nil {
-					t.Errorf("splitArgs(%q) expected error, got nil", tt.input)
+					t.Errorf("SplitArgs(%q) expected error, got nil", tt.input)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("splitArgs(%q) unexpected error: %v", tt.input, err)
+				t.Fatalf("SplitArgs(%q) unexpected error: %v", tt.input, err)
 			}
 			if len(got) != len(tt.expected) {
-				t.Errorf("splitArgs(%q) length mismatch: got %d, want %d (got %q)", tt.input, len(got), len(tt.expected), got)
+				t.Errorf("SplitArgs(%q) length mismatch: got %d, want %d (got %q)", tt.input, len(got), len(tt.expected), got)
 				return
 			}
 			for i := range got {
 				if got[i] != tt.expected[i] {
-					t.Errorf("splitArgs(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.expected[i])
+					t.Errorf("SplitArgs(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.expected[i])
 				}
 			}
 		})

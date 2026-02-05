@@ -42,3 +42,8 @@ Action: Added `internal/host/screen_parsing_safety_test.go` which reproduces the
 Learning: The `isValidHostname` validator relied on `net.SplitHostPort` which requires a port or unbracketed input, causing it to reject valid bracketed IPv6 literals (e.g., `[::1]`) that users might paste from browsers.
 Risk: Low. Prevents users from connecting to valid IPv6 hosts if they use the standard bracketed notation without an explicit port.
 Action: Added a regression test case `[::1]` in `cmd/3270Web/main_test.go` and patched `isValidHostname` to handle this edge case.
+
+## 2026-03-20 - Unsafe Argument Splitting in Config
+Learning: The `buildS3270Args` function used `strings.Fields` to split configuration arguments from the `additional` XML field, which breaks quoted strings containing spaces.
+Risk: Moderate. Users cannot pass arguments with spaces (e.g., `-scriptport "127.0.0.1:4000"`) via XML config, leading to misconfiguration or arguments shifting positions.
+Action: Added `cmd/3270Web/args_test.go` to reproduce the issue, and refactored `internal/config` to export `SplitArgs` for safe argument parsing.
