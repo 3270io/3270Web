@@ -24,7 +24,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
-	"github.com/jnnngs/3270Web/internal/assets"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
@@ -1754,53 +1753,6 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	return nil
 }
 
-func resolveS3270Path(execPath string) string {
-	if runtime.GOOS == "windows" {
-		if execPath != "" {
-			candidate := execPath
-			if info, err := os.Stat(candidate); err == nil {
-				if info.IsDir() {
-					candidate = filepath.Join(candidate, s3270BinaryName())
-				}
-				if fileExists(candidate) {
-					return candidate
-				}
-			}
-		}
-
-		local := filepath.Join(".", "s3270-bin", s3270BinaryName())
-		if fileExists(local) {
-			return local
-		}
-
-		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
-		if embedded, err := assets.ExtractS3270(); err == nil {
-			return embedded
-		}
-	}
-
-	if execPath != "" && execPath != "/usr/local/bin" {
-		return filepath.Join(execPath, s3270BinaryName())
-	}
-
-	local := filepath.Join(".", "s3270-bin", s3270BinaryName())
-	if fileExists(local) {
-		return local
-	}
-
-	if path, err := exec.LookPath(s3270BinaryName()); err == nil {
-		return path
-	}
-
-	return filepath.Join("/usr/local/bin", "s3270")
-}
-
-func s3270BinaryName() string {
-	if runtime.GOOS == "windows" {
-		return "s3270.exe"
-	}
-	return "s3270"
-}
 
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
@@ -1876,42 +1828,6 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)
 }
 
-func buildS3270Args(opts config.S3270Options, hostname string) []string {
-	envOverrides, err := config.S3270EnvOverridesFromEnv()
-	if err != nil {
-		log.Printf("Warning: invalid .env s3270 options: %v", err)
-	}
-
-	model := opts.Model
-	if envOverrides.HasModel {
-		model = envOverrides.Model
-	}
-	args := []string{}
-	if model != "" {
-		args = append(args, "-model", model)
-	}
-
-	if envOverrides.HasCodePage {
-		if envOverrides.CodePage != "" {
-			args = append(args, "-codepage", envOverrides.CodePage)
-		}
-	} else if opts.Charset != "" && opts.Charset != "bracket" {
-		args = append(args, "-charset", opts.Charset)
-	}
-
-	args = append(args, envOverrides.Args...)
-	if opts.Additional != "" {
-		args = append(args, strings.Fields(opts.Additional)...)
-	}
-	if len(envOverrides.ExecArgs) > 0 {
-		args = append(args, envOverrides.ExecArgs...)
-		return args
-	}
-	if strings.TrimSpace(hostname) != "" {
-		args = append(args, hostname)
-	}
-	return args
-}
 
 func setSessionCookie(c *gin.Context, name, value string) {
 	secure := c.Request.TLS != nil
