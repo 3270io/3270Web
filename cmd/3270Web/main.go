@@ -169,6 +169,8 @@ func main() {
 
 	// Logging handlers
 	r.GET("/logs", app.LogsHandler)
+	r.GET("/logs/access", app.LogsAccessHandler)
+	r.POST("/logs/access", app.LogsAccessHandler)
 	r.POST("/logs/toggle", app.LogsToggleHandler)
 	r.POST("/logs/clear", app.LogsClearHandler)
 	r.GET("/logs/download", app.LogsDownloadHandler)
@@ -1016,6 +1018,27 @@ func (app *App) PrefsHandler(c *gin.Context) {
 	})
 
 	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) LogsAccessHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+
+	if c.Request.Method == http.MethodPost {
+		enabled := c.PostForm("enabled") == "true"
+		if enabled {
+			_ = os.Setenv("ALLOW_LOG_ACCESS", "true")
+		} else {
+			_ = os.Unsetenv("ALLOW_LOG_ACCESS")
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"enabled": os.Getenv("ALLOW_LOG_ACCESS") == "true",
+	})
 }
 
 func (app *App) LogsHandler(c *gin.Context) {

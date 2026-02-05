@@ -42,6 +42,36 @@ func TestLogAccessRestrictedByDefault(t *testing.T) {
 	}
 }
 
+func TestLogAccessToggleRequiresSession(t *testing.T) {
+	os.Unsetenv("ALLOW_LOG_ACCESS")
+
+	gin.SetMode(gin.TestMode)
+	app := &App{}
+
+	tests := []struct {
+		name       string
+		method     string
+		wantStatus int
+	}{
+		{"LogsAccessHandlerGET", http.MethodGet, http.StatusUnauthorized},
+		{"LogsAccessHandlerPOST", http.MethodPost, http.StatusUnauthorized},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(tt.method, "/logs/access", nil)
+
+			app.LogsAccessHandler(c)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("Expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+		})
+	}
+}
+
 func TestLogAccessAllowedWithEnv(t *testing.T) {
 	os.Setenv("ALLOW_LOG_ACCESS", "true")
 	defer os.Unsetenv("ALLOW_LOG_ACCESS")

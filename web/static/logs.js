@@ -8,6 +8,7 @@
   const closeButtons = modal.querySelectorAll('[data-logs-modal-close]');
   const logsContent = modal.querySelector('[data-logs-content]');
   const logsToggle = modal.querySelector('[data-logs-toggle-checkbox]');
+  const accessToggle = modal.querySelector('[data-logs-access-checkbox]');
   const refreshButton = modal.querySelector('[data-logs-refresh]');
   const clearButton = modal.querySelector('[data-logs-clear]');
   const copyButton = modal.querySelector('[data-logs-copy]');
@@ -21,6 +22,14 @@
   let autoRefreshInterval = null;
   let isMaximized = false;
   let lastFocusedElement = null;
+  let logAccessEnabled = true;
+
+  const logsToggleLabel = logsToggle
+    ? logsToggle.closest('.logs-toggle-label')
+    : null;
+  const accessToggleLabel = accessToggle
+    ? accessToggle.closest('.logs-toggle-label')
+    : null;
 
   const openModal = () => {
     lastFocusedElement = document.activeElement;
@@ -32,8 +41,12 @@
     if (firstFocusable) {
       firstFocusable.focus();
     }
-    fetchLogs();
-    startAutoRefresh();
+    fetchLogAccess().finally(() => {
+      if (logAccessEnabled) {
+        fetchLogs();
+        startAutoRefresh();
+      }
+    });
   };
 
   const closeModal = () => {
@@ -51,7 +64,12 @@
       return;
     }
     autoRefreshInterval = window.setInterval(() => {
-      if (!modal.hidden && logsToggle && logsToggle.checked) {
+      if (
+        !modal.hidden &&
+        logAccessEnabled &&
+        logsToggle &&
+        logsToggle.checked
+      ) {
         fetchLogs();
       }
     }, 2000);
@@ -97,11 +115,7 @@
     })
       .then((res) => {
         if (res.status === 403) {
-          if (logsContent) {
-            logsContent.textContent =
-              'Log access is disabled by the administrator.';
-            setLogsTooltip('Set ALLOW_LOG_ACCESS=true to enable log access.');
-          }
+          setLogAccessState(false, { skipFetch: true });
           return null;
         }
         if (!res.ok) {
@@ -132,6 +146,86 @@
       })
       .catch((err) => {
         console.error('Failed to fetch logs:', err);
+      });
+  };
+
+  const fetchLogAccess = () => {
+    return fetch('/logs/access', {
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) {
+          return;
+        }
+        setLogAccessState(!!data.enabled, { skipFetch: true });
+      })
+      .catch((err) => {
+        console.error('Failed to fetch log access state:', err);
+      });
+  };
+
+  const updateLogAccessUI = () => {
+    const disabled = !logAccessEnabled;
+    if (logsToggle) {
+      logsToggle.disabled = disabled;
+    }
+    if (logsToggleLabel) {
+      logsToggleLabel.classList.toggle('is-disabled', disabled);
+    }
+    [refreshButton, clearButton, copyButton, downloadButton].forEach(
+      (button) => {
+        if (button) {
+          button.disabled = disabled;
+        }
+      }
+    );
+
+    if (disabled) {
+      if (logsContent) {
+        logsContent.textContent =
+          'Log access is disabled by the administrator.';
+      }
+      setLogsTooltip('Set ALLOW_LOG_ACCESS=true to enable log access.');
+      stopAutoRefresh();
+    } else {
+      setLogsTooltip('');
+    }
+  };
+
+  const setLogAccessState = (enabled, options = {}) => {
+    logAccessEnabled = enabled;
+    if (accessToggle) {
+      accessToggle.checked = enabled;
+    }
+    if (accessToggleLabel) {
+      accessToggleLabel.classList.toggle('is-disabled', false);
+    }
+    updateLogAccessUI();
+    if (enabled && !options.skipFetch) {
+      fetchLogs();
+      startAutoRefresh();
+    }
+  };
+
+  const toggleLogAccess = (enabled) => {
+    const formData = new FormData();
+    formData.append('enabled', enabled ? 'true' : 'false');
+    fetch('/logs/access', {
+      method: 'POST',
+      body: formData,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setLogAccessState(!!data.enabled);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to toggle log access:', err);
       });
   };
 
@@ -232,6 +326,12 @@
   if (logsToggle) {
     logsToggle.addEventListener('change', () => {
       toggleVerboseLogging(logsToggle.checked);
+    });
+  }
+
+  if (accessToggle) {
+    accessToggle.addEventListener('change', () => {
+      toggleLogAccess(accessToggle.checked);
     });
   }
 
