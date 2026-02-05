@@ -46,3 +46,8 @@ Action: Corrected the ASCII art alignment and clarified field indexing in the te
 Learning: The `.env` variables `S3270_CODE_PAGE` and `S3270_EXEC_COMMAND` had undocumented side effects: `S3270_CODE_PAGE` silently overrides XML `<charset>`, and `S3270_EXEC_COMMAND` disables the configured host connection.
 Impact: Users configuring charset via XML would be confused why it wasn't taking effect if `.env` had a value, and users using `S3270_EXEC_COMMAND` might not realize it replaces the connection logic entirely.
 Action: Documented these overrides in `docs/configuration.md` and added `TestBuildS3270Args_Precedence` to verify and enforce this behavior.
+
+## 2026-02-06 - Undocumented Empty String Arguments
+Learning: The `.env` argument parser supports empty quoted strings (`""` or `''`) as valid empty arguments, but this was not documented, leading to ambiguity on how to pass empty values.
+Impact: Users needing to pass empty arguments (e.g. to reset flags or provide required empty values) had no reference on how to do so.
+Action: Documented the empty string behavior in `docs/configuration.md` after verifying it with `TestSplitArgs`.
