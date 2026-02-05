@@ -85,7 +85,11 @@ func buildS3270Args(opts config.S3270Options, hostname string) []string {
 
 	args = append(args, envOverrides.Args...)
 	if opts.Additional != "" {
-		args = append(args, strings.Fields(opts.Additional)...)
+		if additional, err := config.SplitArgs(opts.Additional); err == nil {
+			args = append(args, additional...)
+		} else {
+			log.Printf("Warning: invalid s3270-options additional arguments: %v", err)
+		}
 	}
 	if len(envOverrides.ExecArgs) > 0 {
 		args = append(args, envOverrides.ExecArgs...)

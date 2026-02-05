@@ -472,7 +472,7 @@ func S3270EnvOverridesFromEnv() (S3270EnvOverrides, error) {
 		case s3270OptionValue:
 			overrides.Args = append(overrides.Args, spec.Flag, value)
 		case s3270OptionArgs:
-			args, err := splitArgs(value)
+			args, err := SplitArgs(value)
 			if err != nil && parseErr == nil {
 				parseErr = err
 			}
@@ -530,7 +530,8 @@ func parseBool(value string) bool {
 	}
 }
 
-func splitArgs(input string) ([]string, error) {
+// SplitArgs parses a command-line string into arguments, handling quoted strings and escapes.
+func SplitArgs(input string) ([]string, error) {
 	var args []string
 	var current bytes.Buffer
 	var inSingle, inDouble, escaped, inToken bool
