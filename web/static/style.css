@@ -662,7 +662,6 @@ pre, pre input, textarea {
 }
 
 .stack {
-  display: grid;
   gap: 16px;
 }
 
