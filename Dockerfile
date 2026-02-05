@@ -26,6 +26,8 @@ COPY --from=build /out/3270Web /usr/local/bin/3270Web
 COPY web/ ./web/
 #COPY webapp/ ./webapp/
 
+ENV BIND_ADDRESS=0.0.0.0
+ENV PORT=8080
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/3270Web"]

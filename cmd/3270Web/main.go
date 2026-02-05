@@ -193,10 +193,15 @@ func main() {
 		requestShutdown()
 	}()
 
-	addr := ":8080"
-	if runtime.GOOS == "windows" {
-		addr = "127.0.0.1:8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	bindAddress := os.Getenv("BIND_ADDRESS")
+	if bindAddress == "" {
+		bindAddress = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(bindAddress, port)
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -230,7 +235,13 @@ func main() {
 			return
 		default:
 		}
-		runAppWindow("http://"+addr+"/", requestShutdown)
+
+		browserHost := bindAddress
+		if browserHost == "0.0.0.0" || browserHost == "" {
+			browserHost = "127.0.0.1"
+		}
+		browserURL := fmt.Sprintf("http://%s/", net.JoinHostPort(browserHost, port))
+		runAppWindow(browserURL, requestShutdown)
 		return
 	}
 
