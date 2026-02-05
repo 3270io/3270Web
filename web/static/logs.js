@@ -10,6 +10,7 @@
   const logsToggle = modal.querySelector('[data-logs-toggle-checkbox]');
   const refreshButton = modal.querySelector('[data-logs-refresh]');
   const clearButton = modal.querySelector('[data-logs-clear]');
+  const copyButton = modal.querySelector('[data-logs-copy]');
   const downloadButton = modal.querySelector('[data-logs-download]');
   const maximizeButton = modal.querySelector('[data-logs-maximize]');
   const minimizeButton = modal.querySelector('[data-logs-minimize]');
@@ -254,6 +255,33 @@
 
   if (downloadButton) {
     downloadButton.addEventListener('click', downloadLogs);
+  }
+
+  if (copyButton) {
+    copyButton.addEventListener('click', () => {
+      if (!logsContent) {
+        return;
+      }
+      const text = logsContent.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            if (copyButton._tippy) {
+              const original =
+                copyButton.getAttribute('data-tippy-content') || 'Copy logs';
+              copyButton._tippy.setContent('Copied!');
+              copyButton._tippy.show();
+              setTimeout(() => {
+                copyButton._tippy.setContent(original);
+              }, 2000);
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to copy logs:', err);
+          });
+      }
+    });
   }
 
   if (maximizeButton) {
