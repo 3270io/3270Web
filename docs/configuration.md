@@ -62,6 +62,7 @@ For options that accept multiple arguments (like `S3270_SET`, `S3270_XRM`, or `S
 1.  **Splitting**: The value is split by spaces into individual arguments.
 2.  **Quoting**: Use single (`'`) or double (`"`) quotes within the value to treat strings with spaces as a single argument.
 3.  **Escaping**: Use backslash (`\`) to escape characters (e.g., `\"` for a literal quote).
+4.  **Empty Strings**: Use empty quotes (`""` or `''`) to pass an empty string as an argument.
 
 **Examples:**
 
