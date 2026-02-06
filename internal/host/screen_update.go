@@ -35,6 +35,9 @@ func extractTokens(line string) []string {
 				if !strings.HasPrefix(token, "SA(") {
 					if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
 						tokens = append(tokens, token)
+					} else {
+						// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
+						tokens = append(tokens, "00")
 					}
 				}
 				start = -1
@@ -50,6 +53,9 @@ func extractTokens(line string) []string {
 		if !strings.HasPrefix(token, "SA(") {
 			if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
 				tokens = append(tokens, token)
+			} else {
+				// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
+				tokens = append(tokens, "00")
 			}
 		}
 	}
