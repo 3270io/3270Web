@@ -571,6 +571,8 @@ pre, pre input, textarea {
   outline: none !important;
   caret-color: var(--accent);
   padding: 0;
+  box-sizing: content-box;
+  min-width: 0;
 }
 
 /* Block cursor for compatible browsers */
