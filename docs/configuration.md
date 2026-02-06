@@ -81,12 +81,22 @@ S3270_SET="title \"My Session\""
 
 ### Target Host
 
-Sets the default host to connect to.
+Sets the default host to connect to. This value is also used as the default in the Connect dialog.
 
 ```xml
 <!-- autoconnect="true" automatically connects on startup -->
 <target-host autoconnect="true">localhost:3270</target-host>
 ```
+
+**Supported Formats:**
+
+*   `hostname:port` (e.g., `mainframe.example.com:23`)
+*   `IP:port` (e.g., `10.0.0.1:23` or `[::1]:23`)
+*   `sampleapp:<ID>` (e.g., `sampleapp:app1`) - Connects to embedded Go-based sample apps for testing.
+
+**Security Restrictions:**
+
+*   **SSRF Protection:** Link-local addresses (e.g., `169.254.x.x`, `fe80::`) and multicast addresses are rejected to prevent Server-Side Request Forgery attacks against cloud metadata services or local network segments.
 
 ### Fonts
 
