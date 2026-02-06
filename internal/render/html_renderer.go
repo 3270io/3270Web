@@ -33,6 +33,7 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	}
 
 	sb.WriteString(`<div><input type="hidden" name="key" /></div>`)
+	sb.WriteString(`<div><input type="hidden" name="cursor_row" /><input type="hidden" name="cursor_col" /></div>`)
 	sb.WriteString("\n")
 	if id != "" {
 		sb.WriteString(`<div><input type="hidden" name="TERMINAL" value="`)
@@ -128,7 +129,6 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id s
 			} else {
 				w = f.EndX + 1
 			}
-
 			r.createHtmlInput(sb, f, id, val, i, w)
 			if i < f.Height()-1 {
 				sb.WriteString("\n")
@@ -299,27 +299,50 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 		sb.WriteString(fn)
 		sb.WriteString(`"].field.focus()` + "\n")
 	} else {
-		var focused *host.Field
-		for _, f := range s.Fields {
-			if f.Focused {
-				focused = f
-				break
-			}
-		}
-
+		focused := s.GetInputFieldAt(s.CursorX, s.CursorY)
 		if focused != nil {
-			suffix := ""
+			lineOffset := 0
 			if focused.IsMultiline() {
-				suffix = "_0"
+				lineOffset = s.CursorY - focused.StartY
+				if lineOffset < 0 {
+					lineOffset = 0
+				} else if lineOffset >= focused.Height() {
+					lineOffset = focused.Height() - 1
+				}
 			}
-			sb.WriteString(`    document.forms["`)
+			caret := 0
+			inputStartX := focused.StartX + 1
+			if focused.IsMultiline() && lineOffset > 0 {
+				inputStartX = 0
+			}
+			caret = s.CursorX - inputStartX
+			if caret < 0 {
+				caret = 0
+			}
+			sb.WriteString("    (function () {\n")
+			sb.WriteString(`      var form = document.forms["`)
 			sb.WriteString(fn)
-			sb.WriteString(`"].field_`)
+			sb.WriteString(`"];` + "\n")
+			sb.WriteString("      if (!form) { return; }\n")
+			sb.WriteString(`      var el = form.elements["field_`)
 			r.writeInt(sb, focused.StartX)
-			sb.WriteString(`_`)
+			sb.WriteString("_")
 			r.writeInt(sb, focused.StartY)
-			sb.WriteString(suffix)
-			sb.WriteString(`.focus()` + "\n")
+			if focused.IsMultiline() {
+				sb.WriteString("_")
+				r.writeInt(sb, lineOffset)
+			}
+			sb.WriteString(`"];` + "\n")
+			sb.WriteString("      if (!el) { return; }\n")
+			sb.WriteString("      el.focus();\n")
+			sb.WriteString("      if (typeof el.setSelectionRange === \"function\") {\n")
+			sb.WriteString("        var pos = ")
+			r.writeInt(sb, caret)
+			sb.WriteString(";\n")
+			sb.WriteString("        if (pos > el.value.length) { pos = el.value.length; }\n")
+			sb.WriteString("        el.setSelectionRange(pos, pos);\n")
+			sb.WriteString("      }\n")
+			sb.WriteString("    })();\n")
 		}
 	}
 	sb.WriteString("  });\n")

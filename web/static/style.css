@@ -662,6 +662,8 @@ pre, pre input, textarea {
 }
 
 .stack {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 

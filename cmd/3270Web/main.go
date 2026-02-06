@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -620,6 +621,8 @@ func (app *App) SubmitHandler(c *gin.Context) {
 	}
 
 	key := c.PostForm("key")
+	cursorRow := strings.TrimSpace(c.PostForm("cursor_row"))
+	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))
 
 	if s.Host.GetScreen().IsFormatted {
 		// 1. Update fields from form data
@@ -636,6 +639,16 @@ func (app *App) SubmitHandler(c *gin.Context) {
 		if err := s.Host.SubmitUnformatted(data); err != nil {
 			c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Submit failed: %v", err)})
 			return
+		}
+	}
+
+	if cursorRow != "" && cursorCol != "" {
+		if row, err := strconv.Atoi(cursorRow); err == nil {
+			if col, err := strconv.Atoi(cursorCol); err == nil {
+				if row >= 0 && col >= 0 {
+					_ = s.Host.MoveCursor(row, col)
+				}
+			}
 		}
 	}
 
@@ -1776,7 +1789,6 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	return nil
 }
 
-
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
@@ -1850,7 +1862,6 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 	args := buildS3270Args(opts, "")
 	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)
 }
-
 
 func setSessionCookie(c *gin.Context, name, value string) {
 	secure := c.Request.TLS != nil

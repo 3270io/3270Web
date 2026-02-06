@@ -272,6 +272,19 @@ func (h *S3270) writeStringAtOnce(row, col int, text string) error {
 	return nil
 }
 
+func (h *S3270) MoveCursor(row, col int) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (h *S3270) waitUnlockLocked() error {
 	cmd := h.waitUnlockCommand()
 	_, status, err := h.doCommandLocked(cmd)

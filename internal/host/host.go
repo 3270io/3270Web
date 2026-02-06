@@ -12,6 +12,7 @@ type Host interface {
 	UpdateScreen() error
 	GetScreen() *Screen
 	SendKey(key string) error
+	MoveCursor(row, col int) error
 	WriteStringAt(row, col int, text string) error
 	SubmitScreen() error
 	SubmitUnformatted(data string) error
@@ -82,6 +83,15 @@ func (m *MockHost) GetScreen() *Screen {
 
 func (m *MockHost) SendKey(key string) error {
 	m.Commands = append(m.Commands, "key:"+key)
+	return nil
+}
+
+func (m *MockHost) MoveCursor(row, col int) error {
+	m.Commands = append(m.Commands, "movecursor")
+	if m.Screen != nil {
+		m.Screen.CursorY = row
+		m.Screen.CursorX = col
+	}
 	return nil
 }
 

@@ -42,13 +42,64 @@
     return form;
   }
 
-  function sendFormWithKey(key, formId) {
+  function setCursorInputs(form, row, col) {
+    if (!form) {
+      return;
+    }
+    var rowInput = form.querySelector('input[name="cursor_row"]');
+    var colInput = form.querySelector('input[name="cursor_col"]');
+    if (!rowInput || !colInput) {
+      return;
+    }
+    rowInput.value = String(row);
+    colInput.value = String(col);
+  }
+
+  function getLineOffsetFromName(name) {
+    if (!name) {
+      return 0;
+    }
+    var match = name.match(/^field_\d+_\d+_(\d+)$/);
+    if (!match) {
+      return 0;
+    }
+    var value = parseInt(match[1], 10);
+    return isNaN(value) ? 0 : value;
+  }
+
+  function setCursorFromTarget(form, target) {
+    if (!isScreenInput(target)) {
+      return;
+    }
+    if (typeof target.selectionStart !== "number") {
+      return;
+    }
+    var pos = getFieldPosition(target);
+    if (!pos) {
+      return;
+    }
+    var lineOffset = getLineOffsetFromName(target.name || "");
+    var inputStartX = pos.x + 1;
+    if (lineOffset > 0) {
+      inputStartX = 0;
+    }
+    var col = inputStartX + target.selectionStart;
+    if (col < 0) {
+      col = 0;
+    }
+    setCursorInputs(form, pos.y, col);
+  }
+
+  function sendFormWithKey(key, formId, target) {
     if (submitting) {
       return;
     }
     var form = findForm(formId);
     if (!form) {
       return;
+    }
+    if (target) {
+      setCursorFromTarget(form, target);
     }
     var keyInput = form.querySelector('input[name="key"]');
     if (!keyInput) {
@@ -327,6 +378,36 @@
     }
   }
 
+  function handleTypeoverKey(event) {
+    if (!event || event.isComposing) {
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+    if (!event.key || event.key.length !== 1) {
+      return;
+    }
+    var target = event.target;
+    if (!isScreenInput(target) || target.disabled || target.readOnly) {
+      return;
+    }
+    if (typeof target.selectionStart !== "number" || typeof target.selectionEnd !== "number") {
+      return;
+    }
+    if (target.selectionStart !== target.selectionEnd) {
+      return;
+    }
+    var pos = target.selectionStart;
+    var value = target.value || "";
+    if (pos >= value.length) {
+      return;
+    }
+    if (typeof target.setSelectionRange === "function") {
+      target.setSelectionRange(pos, pos + 1);
+    }
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
       return;
@@ -339,7 +420,7 @@
       if (form && event.target && (event.target.form === form || form.contains(event.target))) {
         // Allow Tab navigation within the terminal screen form
         event.preventDefault();
-        sendFormWithKey(event.shiftKey ? "BackTab" : "Tab", formId);
+          sendFormWithKey(event.shiftKey ? "BackTab" : "Tab", formId, event.target);
       }
       // Allow normal browser Tab navigation outside the terminal screen
       return;
@@ -359,31 +440,33 @@
         var arrowKey = mapSpecialKey(event);
         if (arrowKey) {
           event.preventDefault();
-          sendFormWithKey(arrowKey, formId);
+          sendFormWithKey(arrowKey, formId, event.target);
         }
         return;
       }
       return;
     }
 
+    handleTypeoverKey(event);
+
     var paKey = mapPaKeys(event);
     if (paKey) {
       event.preventDefault();
-      sendFormWithKey(paKey, formId);
+      sendFormWithKey(paKey, formId, event.target);
       return;
     }
 
     var special = mapSpecialKey(event);
     if (special) {
       event.preventDefault();
-      sendFormWithKey(special, formId);
+      sendFormWithKey(special, formId, event.target);
       return;
     }
 
     var pfKey = mapFunctionKey(event);
     if (pfKey) {
       event.preventDefault();
-      sendFormWithKey(pfKey, formId);
+      sendFormWithKey(pfKey, formId, event.target);
     }
   }
 

@@ -33,7 +33,7 @@ func extractTokens(line string) []string {
 			if start != -1 {
 				token := line[start:i]
 				if !strings.HasPrefix(token, "SA(") {
-					if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
+					if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || (len(token) == 2 && isHex(token)) {
 						tokens = append(tokens, token)
 					}
 				}
@@ -48,7 +48,7 @@ func extractTokens(line string) []string {
 	if start != -1 {
 		token := line[start:]
 		if !strings.HasPrefix(token, "SA(") {
-			if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
+			if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || (len(token) == 2 && isHex(token)) {
 				tokens = append(tokens, token)
 			}
 		}
@@ -389,19 +389,24 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 	index := 0
 
 	for _, token := range tokens {
-		if strings.HasPrefix(token, "SF(") {
+		if strings.HasPrefix(token, "SA(") {
+			// Set Attribute order does not consume a screen position.
+			continue
+		}
+		if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") {
 			if !formatted {
 				return nil, fmt.Errorf("format information in unformatted screen")
 			}
 			result = append(result, ' ')
 			processStartField(token, index, y, s, state)
-		} else {
-			b, err := parseHexByte(token)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, rune(b))
+			index++
+			continue
 		}
+		b, err := parseHexByte(token)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rune(b))
 		index++
 	}
 
@@ -431,7 +436,12 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 		}
 	}
 
-	inner := strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
+	inner := ""
+	if strings.HasPrefix(token, "SF(") {
+		inner = strings.TrimSuffix(strings.TrimPrefix(token, "SF("), ")")
+	} else if strings.HasPrefix(token, "SFE(") {
+		inner = strings.TrimSuffix(strings.TrimPrefix(token, "SFE("), ")")
+	}
 	startCode := byte(0)
 	color := AttrColDefault
 	extHighlight := AttrEhDefault
