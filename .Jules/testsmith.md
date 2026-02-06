@@ -47,3 +47,8 @@ Action: Added a regression test case `[::1]` in `cmd/3270Web/main_test.go` and p
 Learning: The `buildS3270Args` function used `strings.Fields` to split configuration arguments from the `additional` XML field, which breaks quoted strings containing spaces.
 Risk: Moderate. Users cannot pass arguments with spaces (e.g., `-scriptport "127.0.0.1:4000"`) via XML config, leading to misconfiguration or arguments shifting positions.
 Action: Added `cmd/3270Web/args_test.go` to reproduce the issue, and refactored `internal/config` to export `SplitArgs` for safe argument parsing.
+
+## 2026-02-06 - Screen Layout Collapse on Invalid Token
+Learning: The `extractTokens` function silently dropped invalid or unknown tokens (like corrupted hex or non-hex garbage), causing the screen token stream to shrink. This led to row alignment failure in `normalizeScreenTokens`, collapsing the entire screen to a single row or shifting content catastrophically.
+Risk: High. A single corrupted character from s3270 (or unexpected output) renders the entire screen unusable.
+Action: Added `internal/host/resiliency_test.go` to reproduce the collapse, and modified `extractTokens` to replace invalid tokens with null bytes (`00`) to preserve screen geometry.
