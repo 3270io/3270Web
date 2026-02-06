@@ -74,6 +74,9 @@ func isValidHostname(hostname string) bool {
 	}
 
 	if ip := net.ParseIP(host); ip != nil {
+		if isRestrictedIP(ip) {
+			return false
+		}
 		return true
 	}
 
@@ -100,6 +103,12 @@ func isValidDomainLabel(label string) bool {
 		return false
 	}
 	return true
+}
+
+func isRestrictedIP(ip net.IP) bool {
+	// Block link-local addresses (e.g. 169.254.x.x, fe80::) which include
+	// cloud metadata services and local network segments.
+	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
 }
 
 func parseSampleAppHost(hostname string) (string, int, bool) {
