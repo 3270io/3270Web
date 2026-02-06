@@ -258,17 +258,32 @@
     if (!confirm('Are you sure you want to clear all logs?')) {
       return;
     }
+
+    let originalHtml = '';
+    if (clearButton) {
+      originalHtml = clearButton.innerHTML;
+      clearButton.disabled = true;
+      clearButton.innerHTML =
+        '<span class="spinner" aria-hidden="true"></span> Clearing...';
+    }
+
     fetch('/logs/clear', {
       method: 'POST',
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success) {
-          fetchLogs();
+          return fetchLogs();
         }
       })
       .catch((err) => {
         console.error('Failed to clear logs:', err);
+      })
+      .finally(() => {
+        if (clearButton && originalHtml) {
+          clearButton.innerHTML = originalHtml;
+          clearButton.disabled = false;
+        }
       });
   };
 
