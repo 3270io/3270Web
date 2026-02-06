@@ -32,10 +32,8 @@ func extractTokens(line string) []string {
 		if c == ' ' || c == '\t' {
 			if start != -1 {
 				token := line[start:i]
-				if !strings.HasPrefix(token, "SA(") {
-					if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
-						tokens = append(tokens, token)
-					}
+				if shouldKeepToken(token) {
+					tokens = append(tokens, token)
 				}
 				start = -1
 			}
@@ -47,13 +45,18 @@ func extractTokens(line string) []string {
 	}
 	if start != -1 {
 		token := line[start:]
-		if !strings.HasPrefix(token, "SA(") {
-			if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
-				tokens = append(tokens, token)
-			}
+		if shouldKeepToken(token) {
+			tokens = append(tokens, token)
 		}
 	}
 	return tokens
+}
+
+func shouldKeepToken(token string) bool {
+	if strings.HasPrefix(token, "SA(") {
+		return false
+	}
+	return strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token))
 }
 
 func isHex(s string) bool {
