@@ -22,16 +22,35 @@ const (
 )
 
 func extractTokens(line string) []string {
-	fields := strings.Fields(line)
-	tokens := make([]string, 0, len(fields))
+	// Pre-allocate tokens with a heuristic (e.g. 1 token per 3 chars) to reduce re-allocations.
+	tokens := make([]string, 0, len(line)/3)
 
-	for _, field := range fields {
-		if strings.HasPrefix(field, "SA(") {
-			continue
+	start := -1
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		// Check for whitespace (space or tab, common in s3270 output)
+		if c == ' ' || c == '\t' {
+			if start != -1 {
+				token := line[start:i]
+				if !strings.HasPrefix(token, "SA(") {
+					if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
+						tokens = append(tokens, token)
+					}
+				}
+				start = -1
+			}
+		} else {
+			if start == -1 {
+				start = i
+			}
 		}
-		// formattedTokenPattern is SF(...) or 2 hex chars.
-		if strings.HasPrefix(field, "SF(") || (len(field) == 2 && isHex(field)) {
-			tokens = append(tokens, field)
+	}
+	if start != -1 {
+		token := line[start:]
+		if !strings.HasPrefix(token, "SA(") {
+			if strings.HasPrefix(token, "SF(") || (len(token) == 2 && isHex(token)) {
+				tokens = append(tokens, token)
+			}
 		}
 	}
 	return tokens
@@ -364,7 +383,9 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 }
 
 func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
-	var result []rune
+	// Pre-allocate result to avoid allocations during append.
+	// Each token maps to exactly one rune (either a character or a space for SF tokens).
+	result := make([]rune, 0, len(tokens))
 	index := 0
 
 	for _, token := range tokens {
