@@ -312,6 +312,21 @@
     focusNextScreenInput(target, form);
   }
 
+  function handleTypeoverOnFocus(event) {
+    var target = event.target;
+    if (!isScreenInput(target) || target.disabled || target.readOnly) {
+      return;
+    }
+    var max = target.maxLength;
+    var value = target.value || "";
+    if (!max || max < 1 || value.length < max) {
+      return;
+    }
+    if (typeof target.setSelectionRange === "function") {
+      target.setSelectionRange(0, value.length);
+    }
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
       return;
@@ -468,6 +483,7 @@
         form.addEventListener("input", function (event) {
           handleAutoAdvance(event, form);
         });
+        form.addEventListener("focusin", handleTypeoverOnFocus);
         form.dataset.keyHandlerInstalled = "1";
       }
     }
