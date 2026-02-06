@@ -109,7 +109,7 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id s
 	if !f.IsMultiline() {
 		// Optimization: Avoid GetValueLines() allocation for single line fields
 		val, _, _ := strings.Cut(f.GetValue(), "\n")
-		width := f.EndX - f.StartX
+		width := r.adjustFieldWidth(f.EndX - f.StartX)
 		r.createHtmlInput(sb, f, id, val, -1, width)
 	} else {
 		lines := f.GetValueLines()
@@ -129,12 +129,21 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id s
 			} else {
 				w = f.EndX + 1
 			}
+			w = r.adjustFieldWidth(w)
 			r.createHtmlInput(sb, f, id, val, i, w)
 			if i < f.Height()-1 {
 				sb.WriteString("\n")
 			}
 		}
 	}
+}
+
+func (r *HtmlRenderer) adjustFieldWidth(width int) int {
+	width -= 3
+	if width < 0 {
+		return 0
+	}
+	return width
 }
 
 func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, val string, lineNum, width int) {

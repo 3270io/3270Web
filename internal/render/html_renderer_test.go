@@ -84,7 +84,7 @@ func TestRenderCorrectness(t *testing.T) {
 	}
 
 	// Add one input field
-	// 10 chars width (10 is the attribute cell; input is 11 to 20)
+	// 7 chars width (10 is the attribute cell; input is 11 to 20, minus 3)
 	f := host.NewField(screen, 0, 10, 5, 20, 5, host.AttrColDefault, host.AttrEhDefault)
 	f.SetValue("Hello")
 	screen.Fields = append(screen.Fields, f)
@@ -94,7 +94,7 @@ func TestRenderCorrectness(t *testing.T) {
 
 	expectedSubstrings := []string{
 		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form">`,
-		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="10" size="10" data-x="10" data-y="5" data-w="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="7" size="7" data-x="10" data-y="5" data-w="7" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 		`installKeyHandler('screen-test_id');`,
 	}
 
