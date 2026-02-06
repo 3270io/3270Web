@@ -108,9 +108,9 @@ func TestRenderCorrectness(t *testing.T) {
 func TestRenderMultilineInputWidths(t *testing.T) {
 	screen := &host.Screen{
 		Width:       10,
-		Height:      2,
+		Height:      3,
 		IsFormatted: true,
-		Buffer:      make([][]rune, 2),
+		Buffer:      make([][]rune, 3),
 	}
 	for i := range screen.Buffer {
 		screen.Buffer[i] = make([]rune, 10)
@@ -119,8 +119,8 @@ func TestRenderMultilineInputWidths(t *testing.T) {
 		}
 	}
 
-	f := host.NewField(screen, 0, 3, 0, 4, 1, host.AttrColDefault, host.AttrEhDefault)
-	f.SetValue("ABC\nDEF")
+	f := host.NewField(screen, 0, 3, 0, 4, 2, host.AttrColDefault, host.AttrEhDefault)
+	f.SetValue("ABC\nDEF\nG")
 	screen.Fields = append(screen.Fields, f)
 
 	r := NewHtmlRenderer()
@@ -128,7 +128,8 @@ func TestRenderMultilineInputWidths(t *testing.T) {
 
 	expectedSubstrings := []string{
 		`<input type="text" name="field_3_0_0" class="color-input" value="ABC" maxlength="7" size="7" data-x="3" data-y="0" data-w="7" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="5" size="5" data-x="3" data-y="1" data-w="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="10" size="10" data-x="3" data-y="1" data-w="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_2" class="color-input" value="G" maxlength="5" size="5" data-x="3" data-y="2" data-w="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 	}
 
 	for _, expected := range expectedSubstrings {
