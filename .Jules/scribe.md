@@ -51,3 +51,8 @@ Action: Documented these overrides in `docs/configuration.md` and added `TestBui
 Learning: The `.env` argument parser supports empty quoted strings (`""` or `''`) as valid empty arguments, but this was not documented, leading to ambiguity on how to pass empty values.
 Impact: Users needing to pass empty arguments (e.g. to reset flags or provide required empty values) had no reference on how to do so.
 Action: Documented the empty string behavior in `docs/configuration.md` after verifying it with `TestSplitArgs`.
+
+## 2026-02-07 - Undocumented Connection Constraints
+Learning: The application enforces strict SSRF protections (blocking link-local IPs) and supports a special `sampleapp:` scheme for internal demos, but neither was documented in the configuration guide.
+Impact: Users connecting to internal link-local addresses would be rejected without explanation, and the `sampleapp` feature was mysterious.
+Action: Documented supported host formats and security restrictions in `docs/configuration.md`.
