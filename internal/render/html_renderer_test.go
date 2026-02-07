@@ -94,7 +94,7 @@ func TestRenderCorrectness(t *testing.T) {
 	output := r.Render(screen, "/submit", "test_id")
 
 	expectedSubstrings := []string{
-		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form">`,
+		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form" data-rows="24" data-cols="80">`,
 		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" data-x="10" data-y="5" data-w="11" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 		`installKeyHandler('screen-test_id');`,
 	}
