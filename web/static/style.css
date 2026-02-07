@@ -644,11 +644,60 @@ pre, pre input, textarea {
   background-color: transparent;
 }
 
+.color-blue {
+  color: #0000ff;
+}
+
+.color-red {
+  color: #ff0000;
+}
+
+.color-pink {
+  color: #ff77ff;
+}
+
+.color-green {
+  color: #00ff00;
+}
+
+.color-turquoise {
+  color: #00ffff;
+}
+
+.color-yellow {
+  color: #ffff00;
+}
+
+.color-white {
+  color: #ffffff;
+}
+
+.highlight-rev-video {
+  background-color: currentColor;
+  color: var(--bg);
+}
+
+.highlight-underscore {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.highlight-blink {
+  animation: blink-field 1s steps(1, end) infinite;
+}
+
 .h3270-input-hidden,
 .h3270-hidden,
 .color-input-hidden,
 .color-hidden {
   color: var(--bg);
+}
+
+@keyframes blink-field {
+  50% {
+    opacity: 0;
+  }
 }
 
 .h3270-unformatted,
