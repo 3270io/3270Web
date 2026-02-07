@@ -16,6 +16,7 @@ func NewHtmlRenderer() *HtmlRenderer {
 func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	var sb strings.Builder
 	formName := r.getFormName(id)
+	rows, cols := r.screenDimensions(s)
 
 	sb.WriteString(`<form id="`)
 	sb.WriteString(formName)
@@ -23,7 +24,11 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	sb.WriteString(formName)
 	sb.WriteString(`" action="`)
 	sb.WriteString(actionURL)
-	sb.WriteString(`" method="post" class="renderer-form">`)
+	sb.WriteString(`" method="post" class="renderer-form" data-rows="`)
+	r.writeInt(sb, rows)
+	sb.WriteString(`" data-cols="`)
+	r.writeInt(sb, cols)
+	sb.WriteString(`">`)
 	sb.WriteString("\n")
 
 	if s.IsFormatted {
@@ -86,14 +91,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 }
 
 func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
-	rows := s.Height
-	cols := s.Width
-	if rows <= 0 {
-		rows = 24
-	}
-	if cols <= 0 {
-		cols = 80
-	}
+	rows, cols := r.screenDimensions(s)
 
 	text := s.Text()
 	sb.WriteString(`<textarea name="field" class="unformatted" rows="`)
@@ -103,6 +101,21 @@ func (r *HtmlRenderer) renderUnformatted(s *host.Screen, sb *strings.Builder) {
 	sb.WriteString(`">`)
 	r.writeEscaped(sb, text)
 	sb.WriteString("</textarea>")
+}
+
+func (r *HtmlRenderer) screenDimensions(s *host.Screen) (int, int) {
+	rows := 24
+	cols := 80
+	if s == nil {
+		return rows, cols
+	}
+	if s.Height > 0 {
+		rows = s.Height
+	}
+	if s.Width > 0 {
+		cols = s.Width
+	}
+	return rows, cols
 }
 
 func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id string) {

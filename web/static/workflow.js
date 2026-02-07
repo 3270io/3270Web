@@ -621,6 +621,9 @@
           const formId = form ? (form.id || form.getAttribute('name')) : null;
           window.installKeyHandler(formId);
         }
+        if (typeof window.sizeScreenContainer === 'function') {
+          window.sizeScreenContainer();
+        }
       })
       .catch(() => {
         // ignore transient errors
