@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -170,6 +171,8 @@ func main() {
 	r.POST("/workflow/stop", app.StopWorkflowHandler)
 	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
 	r.GET("/workflow/status", app.WorkflowStatusHandler)
+	r.GET("/api/settings", app.SettingsHandler)
+	r.POST("/api/settings", app.SettingsHandler)
 
 	// Logging handlers
 	r.GET("/logs", app.LogsHandler)
@@ -1040,6 +1043,252 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"playbackDelayApplied": playbackDelayAppliedLabel(s),
 		"playbackEvents":       events,
 	})
+}
+
+type settingsPayload struct {
+	Settings map[string]string `json:"settings"`
+}
+
+type settingsResponse struct {
+	Settings map[string]string `json:"settings"`
+	Masked   []string          `json:"masked,omitempty"`
+}
+
+func (app *App) SettingsHandler(c *gin.Context) {
+	includeSensitive := c.Query("includeSensitive") == "true"
+	switch c.Request.Method {
+	case http.MethodGet:
+		app.writeSettingsResponse(c, includeSensitive)
+	case http.MethodPost:
+		app.updateSettings(c, includeSensitive)
+	default:
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
+	}
+}
+
+func (app *App) writeSettingsResponse(c *gin.Context, includeSensitive bool) {
+	settings, masked, err := app.settingsSnapshot(includeSensitive)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load settings"})
+		return
+	}
+	c.JSON(http.StatusOK, settingsResponse{
+		Settings: settings,
+		Masked:   masked,
+	})
+}
+
+func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []string, error) {
+	defaults := make(map[string]string)
+	for _, spec := range config.S3270OptionSpecs() {
+		defaults[spec.EnvVar] = spec.DefaultVal
+	}
+	defaults["ALLOW_LOG_ACCESS"] = "false"
+	defaults["APP_USE_KEYPAD"] = "false"
+
+	settings := make(map[string]string)
+	for key, value := range defaults {
+		settings[key] = value
+	}
+
+	if app.envPath != "" {
+		values, err := config.ReadDotEnv(app.envPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, nil, err
+			}
+		} else {
+			for key, value := range values {
+				settings[key] = value
+			}
+		}
+	}
+
+	masked := []string{}
+	if !includeSensitive {
+		for _, key := range []string{"S3270_KEY_PASSWORD"} {
+			if value, ok := settings[key]; ok && value != "" {
+				settings[key] = "********"
+				masked = append(masked, key)
+			}
+		}
+	}
+
+	return settings, masked, nil
+}
+
+func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
+	data, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request"})
+		return
+	}
+
+	var payload settingsPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	settings := payload.Settings
+	if settings == nil {
+		var raw map[string]string
+		if err := json.Unmarshal(data, &raw); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid settings payload"})
+			return
+		}
+		settings = raw
+	}
+
+	if len(settings) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no settings provided"})
+		return
+	}
+
+	specs := make(map[string]config.S3270OptionSpec)
+	for _, spec := range config.S3270OptionSpecs() {
+		specs[spec.EnvVar] = spec
+	}
+
+	errorsByKey := make(map[string]string)
+	for key, value := range settings {
+		if err := validateSettingValue(key, value, specs); err != nil {
+			errorsByKey[key] = err.Error()
+		}
+	}
+	if len(errorsByKey) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid settings",
+			"details": errorsByKey,
+		})
+		return
+	}
+
+	for key, value := range settings {
+		if err := config.UpsertDotEnvValue(app.envPath, key, value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to persist %s", key)})
+			return
+		}
+		app.applyRuntimeSetting(key, value)
+	}
+
+	app.writeSettingsResponse(c, includeSensitive)
+}
+
+func (app *App) applyRuntimeSetting(key, value string) {
+	switch key {
+	case "ALLOW_LOG_ACCESS":
+		if strings.EqualFold(value, "true") {
+			_ = os.Setenv(key, "true")
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	case "APP_USE_KEYPAD":
+		if value == "" {
+			_ = os.Unsetenv(key)
+		} else {
+			_ = os.Setenv(key, strings.ToLower(value))
+		}
+	}
+}
+
+func validateSettingValue(key, value string, specs map[string]config.S3270OptionSpec) error {
+	if value == "" {
+		return nil
+	}
+
+	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" {
+		if !isStrictBool(value) {
+			return fmt.Errorf("must be true or false")
+		}
+		return nil
+	}
+
+	if allowed := s3270EnumValues[key]; len(allowed) > 0 {
+		if _, ok := allowed[strings.ToLower(value)]; !ok {
+			return fmt.Errorf("must be one of %s", strings.Join(sortedKeys(allowed), ", "))
+		}
+		return nil
+	}
+
+	if numeric, ok := s3270NumericValidators[key]; ok {
+		if err := numeric(value); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if spec, ok := specs[key]; ok && spec.Kind == config.S3270OptionBool {
+		if !isStrictBool(value) {
+			return fmt.Errorf("must be true or false")
+		}
+	}
+
+	return nil
+}
+
+func isStrictBool(value string) bool {
+	switch strings.ToLower(value) {
+	case "true", "false":
+		return true
+	default:
+		return false
+	}
+}
+
+var s3270EnumValues = map[string]map[string]struct{}{
+	"S3270_CERT_FILE_TYPE": {
+		"pem":  {},
+		"asn1": {},
+	},
+	"S3270_KEY_FILE_TYPE": {
+		"pem":  {},
+		"asn1": {},
+	},
+	"S3270_TLS_MIN_PROTOCOL": {
+		"tls1.0": {},
+		"tls1.1": {},
+		"tls1.2": {},
+		"tls1.3": {},
+	},
+	"S3270_TLS_MAX_PROTOCOL": {
+		"tls1.0": {},
+		"tls1.1": {},
+		"tls1.2": {},
+		"tls1.3": {},
+	},
+}
+
+var s3270NumericValidators = map[string]func(string) error{
+	"S3270_PORT": func(value string) error {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 65535 {
+			return fmt.Errorf("must be a valid TCP port")
+		}
+		return nil
+	},
+	"S3270_CONNECT_TIMEOUT": func(value string) error {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			return fmt.Errorf("must be a non-negative number")
+		}
+		return nil
+	},
+	"S3270_TRACE_FILE_SIZE": func(value string) error {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			return fmt.Errorf("must be a non-negative number")
+		}
+		return nil
+	},
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (app *App) PrefsHandler(c *gin.Context) {

@@ -11,31 +11,31 @@ import (
 	"unicode"
 )
 
-type s3270OptionKind int
+type S3270OptionKind int
 
 const (
-	s3270OptionBool s3270OptionKind = iota
-	s3270OptionValue
-	s3270OptionArgs
+	S3270OptionBool S3270OptionKind = iota
+	S3270OptionValue
+	S3270OptionArgs
 )
 
-type s3270OptionSpec struct {
+type S3270OptionSpec struct {
 	EnvVar      string
 	Flag        string
 	Description string
 	Default     string
 	DefaultVal  string
-	Kind        s3270OptionKind
+	Kind        S3270OptionKind
 }
 
-var s3270OptionSpecs = []s3270OptionSpec{
+var s3270OptionSpecs = []S3270OptionSpec{
 	{
 		EnvVar:      "S3270_HELP",
 		Flag:        "--help",
 		Description: "Display basic command-line help and then exit",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_PREFER_IPV4",
@@ -43,7 +43,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Prefer IPv4 addresses",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_PREFER_IPV6",
@@ -51,7 +51,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Prefer IPv6 addresses",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_ACCEPT_HOSTNAME",
@@ -59,7 +59,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Name to match in the host's TLS certificate",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CA_DIR",
@@ -67,7 +67,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Directory containing CA root certificates for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CA_FILE",
@@ -75,7 +75,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "File containing CA root certificate for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CALLBACK",
@@ -83,7 +83,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Connect to the specified port for an s3270 protocol session",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CERT_FILE",
@@ -91,7 +91,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "File containing client certificate for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CERT_FILE_TYPE",
@@ -99,7 +99,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Type of client certificate file (pem or asn1) for TLS",
 		Default:     "pem",
 		DefaultVal:  "pem",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CHAIN_FILE",
@@ -107,7 +107,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "File containing chain of CA certificates for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CLEAR",
@@ -115,7 +115,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Set a Boolean resource to false",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionArgs,
+		Kind:        S3270OptionArgs,
 	},
 	{
 		EnvVar:      "S3270_CLIENT_CERT",
@@ -123,7 +123,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Name of client certificate for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CODE_PAGE",
@@ -131,7 +131,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Host EBCDIC code page",
 		Default:     "bracket",
 		DefaultVal:  "bracket",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_CONNECT_TIMEOUT",
@@ -139,7 +139,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Timeout before giving up on a host connection",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_COOKIE_FILE",
@@ -147,7 +147,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Specifies the security cookie file",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_DEV_NAME",
@@ -155,7 +155,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Device name (workstation ID) response to TELNET NEW-ENVIRON request",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_EXEC_COMMAND",
@@ -163,7 +163,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Command to run instead of connecting to a host",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionArgs,
+		Kind:        S3270OptionArgs,
 	},
 	{
 		EnvVar:      "S3270_HTTPD",
@@ -171,7 +171,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Start HTTP server",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_KEY_FILE",
@@ -179,7 +179,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Key file for TLS client certificate",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_KEY_FILE_TYPE",
@@ -187,7 +187,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Type of client certificate key file (pem or asn1) for TLS",
 		Default:     "pem",
 		DefaultVal:  "pem",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_KEY_PASSWORD",
@@ -195,7 +195,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Password for the key file (OpenSSL) or certificate file (macOS) for TLS",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_LOGIN_MACRO",
@@ -203,7 +203,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Actions to run when host connection is established",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_MIN_VERSION",
@@ -211,7 +211,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Minimum version number required (major.minor type iteration)",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_MODEL",
@@ -219,7 +219,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Model of 3270 to emulate",
 		Default:     "3279-4-E",
 		DefaultVal:  "3279-4-E",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_NO_VERIFY_CERT",
@@ -227,7 +227,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Do not verify the TLS host certificate",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_NVT",
@@ -235,7 +235,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Force NVT mode -- do not negotiate 3270 mode",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_OVERSIZE",
@@ -243,7 +243,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Make the display larger than the default for the 3270 model",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionArgs,
+		Kind:        S3270OptionArgs,
 	},
 	{
 		EnvVar:      "S3270_PORT",
@@ -251,7 +251,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "TCP port to connect to",
 		Default:     "23",
 		DefaultVal:  "23",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_PROXY",
@@ -259,7 +259,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Type of proxy and proxy server to use",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_SCRIPT_PORT",
@@ -267,7 +267,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Accept TCP connections for s3270 protocol sessions",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_SCRIPT_PORT_ONCE",
@@ -275,7 +275,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Accept only one -scriptport session",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_SET",
@@ -283,7 +283,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Set a Boolean resource to true or set a resource to some value",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionArgs,
+		Kind:        S3270OptionArgs,
 	},
 	{
 		EnvVar:      "S3270_SOCKET",
@@ -291,7 +291,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Accept s3270 protocol sessions on the Unix-domain socket /tmp/x3sck.PID",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_TLS_MAX_PROTOCOL",
@@ -299,7 +299,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Set the maximum TLS protocol",
 		Default:     "varies",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_TLS_MIN_PROTOCOL",
@@ -307,7 +307,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Set the minimum TLS protocol",
 		Default:     "varies",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_TERMINAL_NAME",
@@ -315,7 +315,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Use terminal-name as the terminal name reported to the host",
 		Default:     "varies",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_TRACE",
@@ -323,7 +323,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Turn on data stream and action tracing",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_TRACE_FILE",
@@ -331,7 +331,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Use file-name as the file for data stream and action tracing",
 		Default:     "POSIX: /tmp/x3trc.PID; Windows: x3trc.PID.txt",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_TRACE_FILE_SIZE",
@@ -339,7 +339,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Limit trace files to bytes bytes in size",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_USER",
@@ -347,7 +347,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Use user-name in the reply to TELNET NEW-ENVIRON sub-negotiation",
 		Default:     "varies",
 		DefaultVal:  "",
-		Kind:        s3270OptionValue,
+		Kind:        S3270OptionValue,
 	},
 	{
 		EnvVar:      "S3270_UTENV",
@@ -355,7 +355,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Allow unit-test-specific environment variables to have effect",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_UTF8",
@@ -363,7 +363,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Use UTF-8 encoding for all I/O on the workstation",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_VERSION",
@@ -371,7 +371,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Display version information on standard output and then exit",
 		Default:     "false",
 		DefaultVal:  "false",
-		Kind:        s3270OptionBool,
+		Kind:        S3270OptionBool,
 	},
 	{
 		EnvVar:      "S3270_XRM",
@@ -379,7 +379,7 @@ var s3270OptionSpecs = []s3270OptionSpec{
 		Description: "Set the value of a resource",
 		Default:     "(none)",
 		DefaultVal:  "",
-		Kind:        s3270OptionArgs,
+		Kind:        S3270OptionArgs,
 	},
 }
 
@@ -390,6 +390,12 @@ type S3270EnvOverrides struct {
 	ExecArgs    []string
 	HasModel    bool
 	HasCodePage bool
+}
+
+func S3270OptionSpecs() []S3270OptionSpec {
+	specs := make([]S3270OptionSpec, len(s3270OptionSpecs))
+	copy(specs, s3270OptionSpecs)
+	return specs
 }
 
 // EnsureDotEnv writes a default .env file if none exists.
@@ -465,6 +471,36 @@ func UpsertDotEnvValue(path, key, value string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+// ReadDotEnv reads key=value pairs from a .env file.
+func ReadDotEnv(path string) (map[string]string, error) {
+	values := make(map[string]string)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "export ") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		}
+		key, value, ok := parseEnvLine(line)
+		if !ok {
+			continue
+		}
+		values[key] = value
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
 // LoadDotEnv loads environment variables from a .env file without overriding existing variables.
 func LoadDotEnv(path string) error {
 	file, err := os.Open(path)
@@ -527,13 +563,13 @@ func S3270EnvOverridesFromEnv() (S3270EnvOverrides, error) {
 		}
 
 		switch spec.Kind {
-		case s3270OptionBool:
+		case S3270OptionBool:
 			if parseBool(value) {
 				overrides.Args = append(overrides.Args, spec.Flag)
 			}
-		case s3270OptionValue:
+		case S3270OptionValue:
 			overrides.Args = append(overrides.Args, spec.Flag, value)
-		case s3270OptionArgs:
+		case S3270OptionArgs:
 			args, err := SplitArgs(value)
 			if err != nil && parseErr == nil {
 				parseErr = err
