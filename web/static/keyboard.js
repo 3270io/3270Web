@@ -470,12 +470,16 @@
     }
   }
 
-  function createButton(key, label) {
+  function createButton(key, label, options) {
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "h3270-key";
     btn.dataset.key = key;
     btn.textContent = label || key;
+    if (options && options.title) {
+      btn.title = options.title;
+      btn.setAttribute("aria-label", options.title);
+    }
     btn.addEventListener("click", function () {
       sendFormWithKey(key);
     });
@@ -492,19 +496,51 @@
 
     container.innerHTML = "";
 
-    var pfBlock = document.createElement("div");
-    pfBlock.className = "h3270-keypad-row";
-    for (var i = 1; i <= 24; i++) {
-      pfBlock.appendChild(createButton("PF" + i, "PF" + i));
-    }
-    container.appendChild(pfBlock);
+    var pfLabels = {
+      PF1: "PF1 Help",
+      PF3: "PF3 Exit",
+      PF4: "PF4 Return",
+      PF5: "PF5 Refresh",
+      PF7: "PF7 Up",
+      PF8: "PF8 Down",
+      PF12: "PF12 Cancel"
+    };
 
+    var pfGroup = document.createElement("div");
+    pfGroup.className = "h3270-keypad-group";
+
+    var pfRowTop = document.createElement("div");
+    pfRowTop.className = "h3270-keypad-row h3270-keypad-row--pf";
+    for (var i = 1; i <= 12; i++) {
+      var pfKeyTop = "PF" + i;
+      pfRowTop.appendChild(
+        createButton(pfKeyTop, pfKeyTop, { title: pfLabels[pfKeyTop] })
+      );
+    }
+    pfGroup.appendChild(pfRowTop);
+
+    var pfRowBottom = document.createElement("div");
+    pfRowBottom.className = "h3270-keypad-row h3270-keypad-row--pf";
+    for (var j = 13; j <= 24; j++) {
+      var pfKeyBottom = "PF" + j;
+      pfRowBottom.appendChild(
+        createButton(pfKeyBottom, pfKeyBottom, {
+          title: pfLabels[pfKeyBottom]
+        })
+      );
+    }
+    pfGroup.appendChild(pfRowBottom);
+    container.appendChild(pfGroup);
+
+    var paGroup = document.createElement("div");
+    paGroup.className = "h3270-keypad-group";
     var paBlock = document.createElement("div");
     paBlock.className = "h3270-keypad-row";
     paBlock.appendChild(createButton("PA1", "PA1"));
     paBlock.appendChild(createButton("PA2", "PA2"));
     paBlock.appendChild(createButton("PA3", "PA3"));
-    container.appendChild(paBlock);
+    paGroup.appendChild(paBlock);
+    container.appendChild(paGroup);
 
     var common = [
       "Enter",
@@ -528,12 +564,15 @@
       "Left",
       "Right"
     ];
+    var commonGroup = document.createElement("div");
+    commonGroup.className = "h3270-keypad-group";
     var commonBlock = document.createElement("div");
     commonBlock.className = "h3270-keypad-row";
     common.forEach(function (key) {
       commonBlock.appendChild(createButton(key, key));
     });
-    container.appendChild(commonBlock);
+    commonGroup.appendChild(commonBlock);
+    container.appendChild(commonGroup);
   }
 
   window.sendKey = function (key, formId) {

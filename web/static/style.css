@@ -712,8 +712,19 @@ pre, pre input, textarea {
 .h3270-keypad-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
+}
+
+.h3270-keypad-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.h3270-keypad-row--pf {
+  gap: 10px;
 }
 
 .controls button,
