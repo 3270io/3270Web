@@ -3,6 +3,7 @@
 
   var themes = [
     { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
+    { id: "theme-authentic", name: "Authentic 3270" },
     { id: "theme-classic", name: "Classic 3270" },
     { id: "theme-dark", name: "Dark Mode" },
     { id: "theme-light", name: "Light Mode" },
@@ -11,6 +12,27 @@
     { id: "theme-slick", name: "Slick 3270" },
     { id: "theme-not3270", name: "Not 3270" }
   ];
+  var authenticThemeId = "theme-authentic";
+  var authenticChromeKey = "3270Web.authenticChromeHidden";
+
+  function applyAuthenticChromeState(isAuthentic) {
+    var body = document.body;
+    var control = document.getElementById("authentic-controls");
+    var toggle = document.getElementById("authentic-chrome-toggle");
+    if (!control || !toggle) {
+      body.classList.remove("authentic-chrome-hidden");
+      return;
+    }
+    if (isAuthentic) {
+      control.hidden = false;
+      var stored = localStorage.getItem(authenticChromeKey) === "1";
+      toggle.checked = stored;
+      body.classList.toggle("authentic-chrome-hidden", stored);
+    } else {
+      control.hidden = true;
+      body.classList.remove("authentic-chrome-hidden");
+    }
+  }
 
   function applyTheme(themeId) {
     var body = document.body;
@@ -19,6 +41,7 @@
     });
     body.classList.add(themeId);
     localStorage.setItem("3270Web.theme", themeId);
+    applyAuthenticChromeState(themeId === authenticThemeId);
     if (
       window.ThreeSeventyWeb &&
       typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function"
@@ -54,6 +77,15 @@
     select.addEventListener("change", function () {
       applyTheme(select.value);
     });
+
+    var chromeToggle = document.getElementById("authentic-chrome-toggle");
+    if (chromeToggle) {
+      chromeToggle.addEventListener("change", function () {
+        var hidden = chromeToggle.checked;
+        document.body.classList.toggle("authentic-chrome-hidden", hidden);
+        localStorage.setItem(authenticChromeKey, hidden ? "1" : "0");
+      });
+    }
   }
 
   document.addEventListener("DOMContentLoaded", initThemeSelector);

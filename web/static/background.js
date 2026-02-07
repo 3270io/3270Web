@@ -52,6 +52,7 @@
   var CARD_RESET_PADDING = 40;
 
   var themeConfigs = {
+    "theme-authentic": { mode: "characters", density: 0.6, speed: 0.6 },
     "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
     "theme-dark": { mode: "characters", density: 0.9, speed: 0.8 },
     "theme-light": { mode: "characters", density: 0.95, speed: 0.9 },
