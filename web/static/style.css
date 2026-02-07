@@ -587,6 +587,28 @@ pre, pre input, textarea {
   padding: 0;
 }
 
+.screen-status-line {
+  background-color: var(--fg);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  color: var(--bg);
+  display: flex;
+  font-family: var(--mono);
+  font-size: var(--terminal-cell-size);
+  gap: 16px;
+  line-height: var(--terminal-cell-size);
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.screen-status-field {
+  flex: 0 0 auto;
+}
+
 .h3270-input,
 .h3270-input-intensified,
 .color-input,

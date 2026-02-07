@@ -493,6 +493,32 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	snap := app.snapshotSession(s)
 	themeCSS := app.buildThemeCSS(snap.Prefs)
 
+	keyboardLabel := "UNKNOWN"
+	if state, ok := screen.StatusKeyboardState(); ok {
+		switch state {
+		case "U":
+			keyboardLabel = "UNLOCKED"
+		case "L":
+			keyboardLabel = "LOCKED"
+		case "E":
+			keyboardLabel = "ERROR"
+		default:
+			keyboardLabel = state
+		}
+	}
+	modelLabel := "--"
+	if model, ok := screen.StatusModel(); ok {
+		modelLabel = model
+	}
+	dimensionLabel := "--x--"
+	if rows, cols, ok := screen.StatusDimensions(); ok {
+		dimensionLabel = fmt.Sprintf("%dx%d", rows, cols)
+	}
+	cursorLabel := "--,--"
+	if row, col, ok := screen.StatusCursor(); ok {
+		cursorLabel = fmt.Sprintf("%d,%d", row+1, col+1)
+	}
+
 	sampleAppName := ""
 	sampleAppPort := 0
 	if id, _, ok := parseSampleAppHost(snap.TargetHost); ok {
@@ -529,6 +555,10 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"LoadedWorkflowName":    snap.LoadedWorkflowName,
 		"LoadedWorkflowPreview": snap.LoadedWorkflowPreview,
 		"LoadedWorkflowSize":    snap.LoadedWorkflowSize,
+		"StatusKeyboard":        keyboardLabel,
+		"StatusModel":           modelLabel,
+		"StatusDimensions":      dimensionLabel,
+		"StatusCursor":          cursorLabel,
 		"SampleAppName":         sampleAppName,
 		"SampleAppPort":         sampleAppPort,
 	})

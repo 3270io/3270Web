@@ -192,6 +192,12 @@
                 <div class="screen-container">
                     {{ .ScreenContent }}
                 </div>
+                <div class="screen-status-line" role="status" aria-live="polite">
+                    <span class="screen-status-field">KB {{ .StatusKeyboard }}</span>
+                    <span class="screen-status-field">MODEL {{ .StatusModel }}</span>
+                    <span class="screen-status-field">SIZE {{ .StatusDimensions }}</span>
+                    <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
+                </div>
                 {{ if .UseKeypad }}
                 <div id="keypad" class="controls"></div>
                 {{ end }}
