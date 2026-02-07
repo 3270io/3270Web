@@ -68,6 +68,9 @@
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
+                <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+                </button>
                 <span class="status-indicator" data-recording-indicator {{ if not .RecordingActive }}hidden{{ end }}>
                     <span class="recording-indicator" aria-hidden="true"></span>
                     <span class="status-text">REC</span>
@@ -361,6 +364,27 @@
                 <button type="button" data-logs-clear>Clear Logs</button>
                 <button type="button" data-logs-copy data-tippy-content="Copy logs to clipboard">Copy Logs</button>
                 <button type="button" data-logs-download>Download Logs</button>
+            </div>
+        </div>
+    </div>
+    <div class="settings-modal" data-settings-modal hidden>
+        <div class="settings-modal-backdrop" data-settings-close></div>
+        <div class="settings-modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+            <div class="settings-modal-header">
+                <h3 id="settings-modal-title">Settings</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" data-settings-refresh>Refresh</button>
+                    <button type="button" data-settings-close>Close</button>
+                </div>
+            </div>
+            <div class="settings-modal-body">
+                <div class="settings-status" data-settings-status aria-live="polite"></div>
+                <form class="settings-form" data-settings-form>
+                    <div class="settings-groups" data-settings-groups></div>
+                    <div class="settings-actions">
+                        <button type="submit" data-settings-save>Save settings</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
