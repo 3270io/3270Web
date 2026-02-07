@@ -203,6 +203,26 @@ body.theme-yorkshire .yorkshire-accent:hover {
   text-shadow: 0 0 4px #ffc1074d;
 }
 
+body.theme-authentic {
+  --bg-overlay-opacity: 0.02;
+  font-family: var(--mono);
+}
+
+body.theme-authentic .bg-overlay {
+  display: none;
+}
+
+body.theme-authentic .card,
+body.theme-authentic .screen-container {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.authentic-chrome-hidden .card > .card-header,
+body.authentic-chrome-hidden .card > .toolbar {
+  display: none;
+}
+
 body.theme-not3270 {
   --bg: #f6f7fb;
   --panel: #ffffff;
@@ -667,6 +687,24 @@ pre, pre input, textarea {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.authentic-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.authentic-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.authentic-controls input {
+  margin: 0;
 }
 
 .connect-row {
