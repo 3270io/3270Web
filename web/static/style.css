@@ -629,7 +629,7 @@ pre, pre input, textarea {
   gap: 16px;
   line-height: var(--terminal-cell-size);
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 8px;
   white-space: nowrap;
   width: 100%;
   box-sizing: border-box;
@@ -1004,6 +1004,17 @@ pre, pre input, textarea {
   width: 140px;
   accent-color: var(--accent);
   padding: 0;
+}
+
+.terminal-size-step {
+  width: 24px;
+  height: 24px;
+}
+
+.terminal-size-step svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .terminal-control-btn {

@@ -67,8 +67,8 @@ type SampleAppOption struct {
 const sampleAppPrefix = "sampleapp:"
 
 var sampleAppConfigs = []SampleAppConfig{
-	{ID: "app1", Name: "Sample App 1"},
-	{ID: "app2", Name: "Sample App 2"},
+	{ID: "app1", Name: "Sample App 1 - Name Entry & Validation"},
+	{ID: "app2", Name: "Sample App 2 - RSS Newsreader"},
 }
 
 const defaultSampleAppPort = 3270

@@ -19,6 +19,8 @@
       shell: shell,
       container: container,
       slider: controls.querySelector("[data-terminal-size-slider]"),
+      stepDown: controls.querySelector("[data-terminal-size-down]"),
+      stepUp: controls.querySelector("[data-terminal-size-up]"),
       label: controls.querySelector("[data-terminal-size-label]"),
       fit: controls.querySelector("[data-terminal-fit]"),
       zoomReset: controls.querySelector("[data-terminal-zoom-reset]"),
@@ -38,12 +40,22 @@
     return size;
   }
 
-  function writeCellSize(px) {
-    var clamped = Math.max(minCellSizePx, Math.min(maxCellSizePx, Math.round(px)));
-    document.documentElement.style.setProperty("--terminal-cell-size", clamped + "px");
+  function clampCellSize(px) {
+    return Math.max(minCellSizePx, Math.min(maxCellSizePx, px));
+  }
+
+  function applyCellSize(px) {
+    var clamped = clampCellSize(px);
+    document.documentElement.style.setProperty("--terminal-cell-size", clamped.toFixed(3) + "px");
     if (typeof window.sizeScreenContainer === "function") {
       window.sizeScreenContainer();
     }
+    return clamped;
+  }
+
+  function writeCellSize(px) {
+    var clamped = Math.round(clampCellSize(px));
+    applyCellSize(clamped);
     return clamped;
   }
 
@@ -121,8 +133,69 @@
 
   function init() {
     var elements = getElements();
-    if (!elements || !elements.slider || !elements.zoomReset || !elements.maximize || !elements.fit) {
+    if (!elements || !elements.slider || !elements.zoomReset || !elements.maximize || !elements.fit || !elements.stepDown || !elements.stepUp) {
       return;
+    }
+    var animationFrameId = 0;
+
+    function stopAnimation() {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+        animationFrameId = 0;
+      }
+    }
+
+    function animateToCellSize(targetPx, durationMs, done) {
+      stopAnimation();
+      var start = readCellSizeFromRoot();
+      var target = Math.round(clampCellSize(targetPx));
+      if (Math.abs(start - target) < 0.01 || durationMs <= 0) {
+        writeCellSize(target);
+        if (done) {
+          done();
+        }
+        return;
+      }
+      var startedAt = performance.now();
+      var duration = Math.max(40, durationMs);
+      var step = function (now) {
+        var t = (now - startedAt) / duration;
+        if (t < 0) {
+          t = 0;
+        }
+        if (t > 1) {
+          t = 1;
+        }
+        var eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        var value = start + (target - start) * eased;
+        applyCellSize(value);
+        if (t < 1) {
+          animationFrameId = window.requestAnimationFrame(step);
+          return;
+        }
+        animationFrameId = 0;
+        writeCellSize(target);
+        if (done) {
+          done();
+        }
+      };
+      animationFrameId = window.requestAnimationFrame(step);
+    }
+
+    function setManualSize(next, durationMs) {
+      maximized = false;
+      setMaximizedState(elements.maximize, false);
+      current = Math.round(clampCellSize(next));
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+      animateToCellSize(current, durationMs, function () {
+        if (!fitsViewport(elements.shell)) {
+          current = fitToLargestSize(elements);
+          updateSlider(elements.slider, current);
+          updateSizeLabel(elements.label, current, baseline);
+        }
+        persistSize(current, false);
+      });
     }
 
     elements.slider.min = String(minCellSizePx);
@@ -146,27 +219,29 @@
     updateSizeLabel(elements.label, current, baseline);
 
     elements.slider.addEventListener("input", function () {
-      maximized = false;
-      setMaximizedState(elements.maximize, false);
-      current = writeCellSize(Number.parseFloat(elements.slider.value));
-      if (!fitsViewport(elements.shell)) {
-        current = fitToLargestSize(elements);
-      }
-      persistSize(current, false);
-      updateSlider(elements.slider, current);
+      current = Math.round(clampCellSize(Number.parseFloat(elements.slider.value)));
       updateSizeLabel(elements.label, current, baseline);
+      animateToCellSize(current, 120);
+    });
+
+    elements.slider.addEventListener("change", function () {
+      setManualSize(Number.parseFloat(elements.slider.value), 90);
+    });
+
+    elements.stepDown.addEventListener("click", function () {
+      setManualSize(current - 1, 90);
+    });
+
+    elements.stepUp.addEventListener("click", function () {
+      setManualSize(current + 1, 90);
     });
 
     elements.zoomReset.addEventListener("click", function () {
-      maximized = false;
-      setMaximizedState(elements.maximize, false);
-      current = writeCellSize(baseline);
-      persistSize(current, false);
-      updateSlider(elements.slider, current);
-      updateSizeLabel(elements.label, current, baseline);
+      setManualSize(baseline, 120);
     });
 
     elements.fit.addEventListener("click", function () {
+      stopAnimation();
       maximized = false;
       setMaximizedState(elements.maximize, false);
       current = fitToLargestSize(elements);
@@ -176,6 +251,7 @@
     });
 
     elements.maximize.addEventListener("click", function () {
+      stopAnimation();
       maximized = !maximized;
       if (maximized) {
         manualSizeBeforeMaximize = current;
@@ -191,6 +267,7 @@
     });
 
     window.addEventListener("resize", function () {
+      stopAnimation();
       if (!maximized) {
         return;
       }
@@ -202,6 +279,7 @@
 
     if (typeof MutationObserver !== "undefined") {
       var observer = new MutationObserver(function () {
+        stopAnimation();
         if (maximized) {
           current = fitToLargestSize(elements);
           persistSize(current, true);

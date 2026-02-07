@@ -82,6 +82,14 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
                     </button>
                 </form>
+                {{ if not .LoadedWorkflow }}
+                <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
+                    <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
+                    <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
+                    </button>
+                </form>
+                {{ end }}
                 <span class="icon-button-wrapper" data-tippy-content="Stop playback to start a recording" data-recording-start-disabled {{ if or .RecordingActive (not .PlaybackActive) }}hidden{{ end }}>
                     <button type="button" disabled class="icon-button icon-button-record" aria-label="Start recording">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
@@ -147,11 +155,17 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm1 3v2h2V9H5zm3 0v2h2V9H8zm3 0v2h2V9h-2zm3 0v2h2V9h-2zm3 0v2h2V9h-2zM5 12v2h11v-2H5zm12 0v2h2v-2h-2z"/></svg>
                     </button>
                     <div class="terminal-controls-group" role="group" aria-label="Terminal zoom controls">
-                        <label class="terminal-size-control" for="terminal-size-slider">
+                        <div class="terminal-size-control" role="group" aria-label="Terminal size">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 17h2v4H3v-4zm4-6h2v10H7V11zm4-8h2v18h-2V3zm4 5h2v13h-2V8zm4 4h2v9h-2v-9z"/></svg>
+                            <button type="button" class="icon-button terminal-size-step" data-terminal-size-down aria-label="Decrease terminal size" data-tippy-content="Decrease terminal size">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 11h14v2H5z"/></svg>
+                            </button>
                             <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
+                            <button type="button" class="icon-button terminal-size-step" data-terminal-size-up aria-label="Increase terminal size" data-tippy-content="Increase terminal size">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
+                            </button>
                             <span class="terminal-size-label" data-terminal-size-label>100%</span>
-                        </label>
+                        </div>
                         <button type="button" class="icon-button terminal-control-btn" data-terminal-fit aria-label="Fit terminal to available space" data-tippy-content="Fit terminal to available space">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9V4h5v2H6v3H4zm10-5h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 4v-4h2v6h-6v-2h4z"/></svg>
                         </button>
@@ -188,12 +202,6 @@
                         </button>
                     </form>
                     {{ else }}
-                    <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
-                        <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
-                        <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 15v4H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4zM11 3h2v9l3-3 1.4 1.4L12 16l-5.4-5.6L8 9l3 3V3z" /></svg>
-                        </button>
-                    </form>
                     {{ end }}
                 </div>
             </div>
