@@ -1,0 +1,219 @@
+(function () {
+  "use strict";
+
+  var minCellSizePx = 12;
+  var maxCellSizePx = 36;
+  var storageSizeKey = "h3270TerminalCellSizePx";
+  var storageMaximizedKey = "h3270TerminalMaximized";
+  var manualSizeBeforeMaximize = null;
+
+  function getElements() {
+    var controls = document.querySelector("[data-terminal-controls]");
+    var shell = document.querySelector(".terminal-shell");
+    var container = document.querySelector(".screen-container");
+    if (!controls || !shell || !container) {
+      return null;
+    }
+    return {
+      controls: controls,
+      shell: shell,
+      container: container,
+      slider: controls.querySelector("[data-terminal-size-slider]"),
+      label: controls.querySelector("[data-terminal-size-label]"),
+      fit: controls.querySelector("[data-terminal-fit]"),
+      zoomReset: controls.querySelector("[data-terminal-zoom-reset]"),
+      maximize: controls.querySelector("[data-terminal-maximize]")
+    };
+  }
+
+  function readCellSizeFromRoot() {
+    var pre = document.querySelector(".screen-container pre, .screen-container textarea, .screen-container input");
+    if (!pre) {
+      return 16;
+    }
+    var size = Number.parseFloat(window.getComputedStyle(pre).fontSize);
+    if (!Number.isFinite(size) || size <= 0) {
+      return 16;
+    }
+    return size;
+  }
+
+  function writeCellSize(px) {
+    var clamped = Math.max(minCellSizePx, Math.min(maxCellSizePx, Math.round(px)));
+    document.documentElement.style.setProperty("--terminal-cell-size", clamped + "px");
+    if (typeof window.sizeScreenContainer === "function") {
+      window.sizeScreenContainer();
+    }
+    return clamped;
+  }
+
+  function updateSizeLabel(label, current, baseline) {
+    if (!label || !baseline || baseline <= 0) {
+      return;
+    }
+    var pct = Math.round((current / baseline) * 100);
+    label.textContent = pct + "%";
+  }
+
+  function updateSlider(slider, current) {
+    if (!slider) {
+      return;
+    }
+    slider.value = String(current);
+  }
+
+  function setMaximizedState(button, enabled) {
+    if (!button) {
+      return;
+    }
+    var label = enabled ? "Restore standard size" : "Maximize terminal";
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+    button.setAttribute("data-tippy-content", label);
+    button.setAttribute("aria-pressed", enabled ? "true" : "false");
+    button.classList.toggle("is-active", enabled);
+    if (button._tippy && typeof button._tippy.setContent === "function") {
+      button._tippy.setContent(label);
+    }
+    document.body.classList.toggle("terminal-fit-active", enabled);
+  }
+
+  function viewportHasNoScrollbars() {
+    var de = document.documentElement;
+    return de.scrollWidth <= de.clientWidth + 1 && de.scrollHeight <= de.clientHeight + 1;
+  }
+
+  function shellFullyVisible(shell) {
+    if (!shell) {
+      return false;
+    }
+    var rect = shell.getBoundingClientRect();
+    return rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1;
+  }
+
+  function fitsViewport(shell) {
+    return viewportHasNoScrollbars() && shellFullyVisible(shell);
+  }
+
+  function fitToLargestSize(elements) {
+    var low = minCellSizePx;
+    var high = maxCellSizePx;
+    var best = minCellSizePx;
+
+    while (low <= high) {
+      var mid = Math.floor((low + high) / 2);
+      writeCellSize(mid);
+      if (fitsViewport(elements.shell)) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return writeCellSize(best);
+  }
+
+  function persistSize(current, maximized) {
+    localStorage.setItem(storageSizeKey, String(current));
+    localStorage.setItem(storageMaximizedKey, maximized ? "1" : "0");
+  }
+
+  function init() {
+    var elements = getElements();
+    if (!elements || !elements.slider || !elements.zoomReset || !elements.maximize || !elements.fit) {
+      return;
+    }
+
+    elements.slider.min = String(minCellSizePx);
+    elements.slider.max = String(maxCellSizePx);
+
+    var baseline = readCellSizeFromRoot();
+    var stored = Number.parseFloat(localStorage.getItem(storageSizeKey) || "");
+    var current = Number.isFinite(stored) && stored > 0 ? writeCellSize(stored) : writeCellSize(baseline);
+    var maximized = localStorage.getItem(storageMaximizedKey) === "1";
+
+    if (maximized) {
+      manualSizeBeforeMaximize = current;
+      current = fitToLargestSize(elements);
+      persistSize(current, true);
+    } else {
+      persistSize(current, false);
+    }
+
+    setMaximizedState(elements.maximize, maximized);
+    updateSlider(elements.slider, current);
+    updateSizeLabel(elements.label, current, baseline);
+
+    elements.slider.addEventListener("input", function () {
+      maximized = false;
+      setMaximizedState(elements.maximize, false);
+      current = writeCellSize(Number.parseFloat(elements.slider.value));
+      if (!fitsViewport(elements.shell)) {
+        current = fitToLargestSize(elements);
+      }
+      persistSize(current, false);
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+    });
+
+    elements.zoomReset.addEventListener("click", function () {
+      maximized = false;
+      setMaximizedState(elements.maximize, false);
+      current = writeCellSize(baseline);
+      persistSize(current, false);
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+    });
+
+    elements.fit.addEventListener("click", function () {
+      maximized = false;
+      setMaximizedState(elements.maximize, false);
+      current = fitToLargestSize(elements);
+      persistSize(current, false);
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+    });
+
+    elements.maximize.addEventListener("click", function () {
+      maximized = !maximized;
+      if (maximized) {
+        manualSizeBeforeMaximize = current;
+        current = fitToLargestSize(elements);
+      } else {
+        var restore = Number.isFinite(manualSizeBeforeMaximize) ? manualSizeBeforeMaximize : baseline;
+        current = writeCellSize(restore);
+      }
+      persistSize(current, maximized);
+      setMaximizedState(elements.maximize, maximized);
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+    });
+
+    window.addEventListener("resize", function () {
+      if (!maximized) {
+        return;
+      }
+      current = fitToLargestSize(elements);
+      persistSize(current, true);
+      updateSlider(elements.slider, current);
+      updateSizeLabel(elements.label, current, baseline);
+    });
+
+    if (typeof MutationObserver !== "undefined") {
+      var observer = new MutationObserver(function () {
+        if (maximized) {
+          current = fitToLargestSize(elements);
+          persistSize(current, true);
+        } else if (typeof window.sizeScreenContainer === "function") {
+          window.sizeScreenContainer();
+        }
+        updateSlider(elements.slider, current);
+        updateSizeLabel(elements.label, current, baseline);
+      });
+      observer.observe(elements.container, { childList: true, subtree: true });
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();

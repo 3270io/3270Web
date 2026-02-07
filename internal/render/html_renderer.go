@@ -25,9 +25,9 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	sb.WriteString(`" action="`)
 	sb.WriteString(actionURL)
 	sb.WriteString(`" method="post" class="renderer-form" data-rows="`)
-	r.writeInt(sb, rows)
+	r.writeInt(&sb, rows)
 	sb.WriteString(`" data-cols="`)
-	r.writeInt(sb, cols)
+	r.writeInt(&sb, cols)
 	sb.WriteString(`">`)
 	sb.WriteString("\n")
 

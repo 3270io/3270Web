@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -38,6 +39,7 @@ type App struct {
 	themeCache     map[string]string
 	themeCacheMu   sync.RWMutex
 	logFilePath    string
+	envPath        string
 }
 
 type WorkflowConfig struct {
@@ -115,6 +117,7 @@ func main() {
 		Config:         cfg,
 		themeCache:     make(map[string]string),
 		logFilePath:    filepath.Join(baseDir, "3270Web.log"),
+		envPath:        envPath,
 	}
 
 	r := gin.Default()
@@ -155,6 +158,7 @@ func main() {
 	r.GET("/screen/content", app.ScreenContentHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/prefs", app.PrefsHandler)
+	r.POST("/prefs/keypad", app.KeypadPrefHandler)
 	r.POST("/record/start", app.RecordStartHandler)
 	r.POST("/record/stop", app.RecordStopHandler)
 	r.GET("/record/download", app.RecordDownloadHandler)
@@ -1062,6 +1066,34 @@ func (app *App) PrefsHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/screen")
 }
 
+func (app *App) KeypadPrefHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+
+	enabled := parseBoolFormValue(c.PostForm("keypad"))
+	withSessionLock(s, func() {
+		app.ensurePrefs(s)
+		s.Prefs.UseKeypad = enabled
+	})
+
+	_ = os.Setenv("APP_USE_KEYPAD", strconv.FormatBool(enabled))
+	persisted := true
+	if app.envPath != "" {
+		if err := config.UpsertDotEnvValue(app.envPath, "APP_USE_KEYPAD", strconv.FormatBool(enabled)); err != nil {
+			persisted = false
+			log.Printf("Warning: could not persist APP_USE_KEYPAD to .env: %v", err)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"useKeypad": enabled,
+		"persisted": persisted,
+	})
+}
+
 func (app *App) LogsAccessHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -1298,23 +1330,41 @@ func normalizeInputValue(value string) string {
 
 func recordActionKey(s *session.Session, key string) {
 	trimmed := strings.TrimSpace(key)
-	if trimmed == "" || strings.EqualFold(trimmed, "enter") {
-		withSessionLock(s, func() {
-			if s.Recording == nil || !s.Recording.Active {
-				return
-			}
-			s.Recording.Steps = append(s.Recording.Steps, session.WorkflowStep{Type: "PressEnter"})
-		})
+	step := session.WorkflowStep{Type: "PressEnter"}
+	if trimmed != "" && !strings.EqualFold(trimmed, "enter") {
+		mapped := workflowStepForKey(key)
+		if mapped == nil {
+			return
+		}
+		step = *mapped
+	}
+	now := time.Now()
+	withSessionLock(s, func() {
+		if s.Recording == nil || !s.Recording.Active {
+			return
+		}
+		updateRecordingDelayStats(s.Recording, now)
+		s.Recording.Steps = append(s.Recording.Steps, step)
+	})
+}
+
+func updateRecordingDelayStats(r *session.WorkflowRecording, now time.Time) {
+	if r == nil {
 		return
 	}
-	if step := workflowStepForKey(key); step != nil {
-		withSessionLock(s, func() {
-			if s.Recording == nil || !s.Recording.Active {
-				return
+	if !r.LastStepAt.IsZero() {
+		delay := now.Sub(r.LastStepAt).Seconds()
+		if delay > 0 {
+			if r.DelaySamples == 0 || delay < r.DelayMin {
+				r.DelayMin = delay
 			}
-			s.Recording.Steps = append(s.Recording.Steps, *step)
-		})
+			if r.DelaySamples == 0 || delay > r.DelayMax {
+				r.DelayMax = delay
+			}
+			r.DelaySamples++
+		}
 	}
+	r.LastStepAt = now
 }
 
 func buildWorkflowConfig(s *session.Session) *WorkflowConfig {
@@ -1332,16 +1382,30 @@ func buildWorkflowConfig(s *session.Session) *WorkflowConfig {
 	if port == 0 {
 		port = 3270
 	}
+	everyStepDelay := &session.WorkflowDelayRange{Min: 0.1, Max: 0.3}
+	if s.Recording.DelaySamples > 0 {
+		everyStepDelay = &session.WorkflowDelayRange{
+			Min: roundDelaySeconds(s.Recording.DelayMin),
+			Max: roundDelaySeconds(s.Recording.DelayMax),
+		}
+	}
 	return &WorkflowConfig{
 		Host:            host,
 		Port:            port,
-		EveryStepDelay:  &session.WorkflowDelayRange{Min: 0.1, Max: 0.3},
+		EveryStepDelay:  everyStepDelay,
 		OutputFilePath:  s.Recording.OutputFilePath,
 		RampUpBatchSize: 50,
 		RampUpDelay:     1.5,
 		EndOfTaskDelay:  &session.WorkflowDelayRange{Min: 60, Max: 120},
 		Steps:           s.Recording.Steps,
 	}
+}
+
+func roundDelaySeconds(v float64) float64 {
+	if v <= 0 {
+		return 0
+	}
+	return math.Round(v*1000) / 1000
 }
 
 func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
@@ -1918,7 +1982,17 @@ func (app *App) applyDefaultPrefs(s *session.Session) {
 	}
 	withSessionLock(s, func() {
 		app.ensurePrefs(s)
+		s.Prefs.UseKeypad = parseBoolFormValue(os.Getenv("APP_USE_KEYPAD"))
 	})
+}
+
+func parseBoolFormValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func (app *App) isValidColorScheme(name string) bool {

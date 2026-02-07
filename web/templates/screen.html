@@ -43,6 +43,7 @@
     <script src="/static/background.js" defer></script>
     <script src="/static/workflow.js?v=9" defer></script>
     <script src="/static/screen-size.js" defer></script>
+    <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/ui.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
@@ -141,6 +142,27 @@
                 {{ if .RecordingFile }}
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
+                <div class="terminal-controls toolbar-terminal-controls" data-terminal-controls>
+                    <button type="button" class="icon-button terminal-control-btn" data-keypad-toggle aria-pressed="{{ if .UseKeypad }}true{{ else }}false{{ end }}" aria-label="{{ if .UseKeypad }}Hide virtual keyboard{{ else }}Show virtual keyboard{{ end }}" data-tippy-content="{{ if .UseKeypad }}Hide virtual keyboard{{ else }}Show virtual keyboard{{ end }}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm1 3v2h2V9H5zm3 0v2h2V9H8zm3 0v2h2V9h-2zm3 0v2h2V9h-2zm3 0v2h2V9h-2zM5 12v2h11v-2H5zm12 0v2h2v-2h-2z"/></svg>
+                    </button>
+                    <div class="terminal-controls-group" role="group" aria-label="Terminal zoom controls">
+                        <label class="terminal-size-control" for="terminal-size-slider">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 17h2v4H3v-4zm4-6h2v10H7V11zm4-8h2v18h-2V3zm4 5h2v13h-2V8zm4 4h2v9h-2v-9z"/></svg>
+                            <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
+                            <span class="terminal-size-label" data-terminal-size-label>100%</span>
+                        </label>
+                        <button type="button" class="icon-button terminal-control-btn" data-terminal-fit aria-label="Fit terminal to available space" data-tippy-content="Fit terminal to available space">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9V4h5v2H6v3H4zm10-5h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 4v-4h2v6h-6v-2h4z"/></svg>
+                        </button>
+                        <button type="button" class="icon-button terminal-control-btn" data-terminal-zoom-reset aria-label="Reset terminal size" data-tippy-content="Reset terminal size">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V1L7 6l5 5V7a5 5 0 1 1-4.9 6h-2.1A7 7 0 1 0 12 5z"/></svg>
+                        </button>
+                        <button type="button" class="icon-button terminal-control-btn terminal-control-btn-primary" data-terminal-maximize aria-pressed="false" aria-label="Maximize terminal" data-tippy-content="Maximize terminal">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h7v2H6v5H4V4zm10 0h6v7h-2V6h-4V4zM4 13h2v5h5v2H4v-7zm14 0h2v7h-7v-2h5v-5z"/></svg>
+                        </button>
+                    </div>
+                </div>
                 <div class="workflow-controls">
                     {{ if .LoadedWorkflow }}
                     <span class="workflow-status">
@@ -189,18 +211,18 @@
                         Hide header &amp; toolbar
                     </label>
                 </div>
-                <div class="screen-container">
-                    {{ .ScreenContent }}
+                <div class="terminal-shell">
+                    <div class="screen-container">
+                        {{ .ScreenContent }}
+                    </div>
+                    <div class="screen-status-line" role="status" aria-live="polite">
+                        <span class="screen-status-field">KB {{ .StatusKeyboard }}</span>
+                        <span class="screen-status-field">MODEL {{ .StatusModel }}</span>
+                        <span class="screen-status-field">SIZE {{ .StatusDimensions }}</span>
+                        <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
+                    </div>
                 </div>
-                <div class="screen-status-line" role="status" aria-live="polite">
-                    <span class="screen-status-field">KB {{ .StatusKeyboard }}</span>
-                    <span class="screen-status-field">MODEL {{ .StatusModel }}</span>
-                    <span class="screen-status-field">SIZE {{ .StatusDimensions }}</span>
-                    <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
-                </div>
-                {{ if .UseKeypad }}
-                <div id="keypad" class="controls"></div>
-                {{ end }}
+                <div id="keypad" class="controls" {{ if not .UseKeypad }}hidden{{ end }}></div>
             </div>
         </div>
     </div>

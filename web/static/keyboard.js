@@ -3,6 +3,9 @@
 
   var submitting = false;
   var keydownInstalled = false;
+  var keySubmitDelayMs = 65;
+  var keypadCompactStorageKey = "h3270KeypadCompact";
+  var keypadModeStorageKey = "h3270KeypadMode";
 
   var specialKeys = {
     Enter: "Enter",
@@ -105,9 +108,42 @@
     if (!keyInput) {
       return;
     }
+    animateVirtualKey(key);
     keyInput.value = key;
     submitting = true;
-    form.submit();
+    window.setTimeout(function () {
+      form.submit();
+    }, keySubmitDelayMs);
+  }
+
+  function insertTextIntoFocusedInput(text) {
+    var target = document.activeElement;
+    if (!isEditableTarget(target) || target.disabled || target.readOnly) {
+      return false;
+    }
+    var value = target.value || "";
+    var start = typeof target.selectionStart === "number" ? target.selectionStart : value.length;
+    var end = typeof target.selectionEnd === "number" ? target.selectionEnd : start;
+    if (start > end) {
+      var temp = start;
+      start = end;
+      end = temp;
+    }
+    var next = value.slice(0, start) + text + value.slice(end);
+    if (typeof target.maxLength === "number" && target.maxLength > 0 && next.length > target.maxLength) {
+      return false;
+    }
+    target.value = next;
+    var caret = start + text.length;
+    if (typeof target.setSelectionRange === "function") {
+      target.setSelectionRange(caret, caret);
+    }
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    var form = findForm();
+    if (form) {
+      setCursorFromTarget(form, target);
+    }
+    return true;
   }
 
   function mapFunctionKey(event) {
@@ -190,6 +226,34 @@
     }
     if (event.key === "F3" || event.keyCode === 114) {
       return specialKeys.PA3;
+    }
+    return "";
+  }
+
+  function mapVisualKey(event) {
+    if (!event) {
+      return "";
+    }
+    var special = mapSpecialKey(event);
+    if (special) {
+      return normalizeVirtualKey(special);
+    }
+    var pa = mapPaKeys(event);
+    if (pa) {
+      return normalizeVirtualKey(pa);
+    }
+    var pf = mapFunctionKey(event);
+    if (pf) {
+      return normalizeVirtualKey(pf);
+    }
+    if (event.key === "Tab") {
+      return event.shiftKey ? "BACKTAB" : "TAB";
+    }
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key && event.key.length === 1) {
+      if (event.key === " ") {
+        return "CHAR_SPACE";
+      }
+      return "CHAR_" + event.key.toUpperCase();
     }
     return "";
   }
@@ -412,6 +476,10 @@
     if (!event) {
       return;
     }
+    var visualKey = mapVisualKey(event);
+    if (visualKey) {
+      animateVirtualKey(visualKey);
+    }
 
     // Handle Tab key to restrict it to terminal screen inputs only
     var code = event.keyCode || event.which;
@@ -474,16 +542,208 @@
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "h3270-key";
-    btn.dataset.key = key;
-    btn.textContent = label || key;
+    btn.dataset.key = key || "";
+    var normalized = options && options.normalizedKey ? options.normalizedKey : normalizeVirtualKey(key || label || "");
+    btn.dataset.keyNormalized = normalized;
+
+    var mainLabel = document.createElement("span");
+    mainLabel.className = "h3270-key-label";
+    mainLabel.textContent = label || key;
+    btn.appendChild(mainLabel);
+
+    if (options && options.mapping) {
+      var mapping = document.createElement("span");
+      mapping.className = "h3270-key-mapping";
+      mapping.textContent = options.mapping;
+      btn.appendChild(mapping);
+    }
+
     if (options && options.title) {
       btn.title = options.title;
       btn.setAttribute("aria-label", options.title);
     }
     btn.addEventListener("click", function () {
+      if (options && Object.prototype.hasOwnProperty.call(options, "inputText")) {
+        animateVirtualKey(normalized);
+        insertTextIntoFocusedInput(options.inputText);
+        return;
+      }
       sendFormWithKey(key);
     });
     return btn;
+  }
+
+  function normalizeVirtualKey(key) {
+    if (!key) {
+      return "";
+    }
+    var upper = String(key).trim().toUpperCase();
+    var pfParen = upper.match(/^PF\((\d{1,2})\)$/);
+    if (pfParen) {
+      return "PF" + pfParen[1];
+    }
+    var paParen = upper.match(/^PA\((\d)\)$/);
+    if (paParen) {
+      return "PA" + paParen[1];
+    }
+    return upper;
+  }
+
+  function animateVirtualKey(key) {
+    var normalized = normalizeVirtualKey(key);
+    if (!normalized) {
+      return;
+    }
+    var selector = '.h3270-key[data-key-normalized="' + normalized + '"]';
+    var matches = document.querySelectorAll(selector);
+    if (!matches || matches.length === 0) {
+      return;
+    }
+    for (var i = 0; i < matches.length; i++) {
+      var btn = matches[i];
+      if (btn._activeTimer) {
+        clearTimeout(btn._activeTimer);
+      }
+      btn.classList.add("is-active");
+      btn._activeTimer = window.setTimeout(
+        (function (el) {
+          return function () {
+            el.classList.remove("is-active");
+          };
+        })(btn),
+        170
+      );
+    }
+  }
+
+  function getStoredKeypadMode() {
+    var mode = "max";
+    try {
+      var storedMode = window.localStorage.getItem(keypadModeStorageKey);
+      if (storedMode === "compact" || storedMode === "full" || storedMode === "max") {
+        mode = storedMode;
+      } else if (window.localStorage.getItem(keypadCompactStorageKey) === "1") {
+        mode = "compact";
+      }
+    } catch (err) {
+      mode = "max";
+    }
+    return mode;
+  }
+
+  function setStoredKeypadMode(mode) {
+    try {
+      window.localStorage.setItem(keypadModeStorageKey, mode);
+      window.localStorage.setItem(keypadCompactStorageKey, mode === "compact" ? "1" : "0");
+    } catch (err) {
+      // ignore persistence errors
+    }
+  }
+
+  function applyKeypadMode(container, mode, buttons) {
+    container.classList.toggle("is-compact", mode === "compact");
+    container.classList.toggle("is-max", mode === "max");
+    if (buttons) {
+      for (var i = 0; i < buttons.length; i++) {
+        var btn = buttons[i];
+        var active = btn.dataset.mode === mode;
+        btn.classList.toggle("is-active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+      }
+    }
+  }
+
+  function createTextKey(label, text, options) {
+    var normalized = "CHAR_" + (text === " " ? "SPACE" : String(text).toUpperCase());
+    var opts = options || {};
+    opts.inputText = text;
+    opts.normalizedKey = normalized;
+    return createButton("", label, opts);
+  }
+
+  function appendMaxKeyboardLayout(container) {
+    var maxGroup = document.createElement("div");
+    maxGroup.className = "h3270-keypad-group h3270-keypad-max";
+
+    var layout = document.createElement("div");
+    layout.className = "h3270-max-layout";
+
+    var main = document.createElement("div");
+    main.className = "h3270-max-main";
+
+    var rows = [
+      [{ l: "`", t: "`" }, { l: "1", t: "1" }, { l: "2", t: "2" }, { l: "3", t: "3" }, { l: "4", t: "4" }, { l: "5", t: "5" }, { l: "6", t: "6" }, { l: "7", t: "7" }, { l: "8", t: "8" }, { l: "9", t: "9" }, { l: "0", t: "0" }, { l: "-", t: "-" }, { l: "=", t: "=" }],
+      [{ l: "Q", t: "q" }, { l: "W", t: "w" }, { l: "E", t: "e" }, { l: "R", t: "r" }, { l: "T", t: "t" }, { l: "Y", t: "y" }, { l: "U", t: "u" }, { l: "I", t: "i" }, { l: "O", t: "o" }, { l: "P", t: "p" }, { l: "[", t: "[" }, { l: "]", t: "]" }, { l: "\\", t: "\\" }],
+      [{ l: "A", t: "a" }, { l: "S", t: "s" }, { l: "D", t: "d" }, { l: "F", t: "f" }, { l: "G", t: "g" }, { l: "H", t: "h" }, { l: "J", t: "j" }, { l: "K", t: "k" }, { l: "L", t: "l" }, { l: ";", t: ";" }, { l: "'", t: "'" }],
+      [{ l: "Z", t: "z" }, { l: "X", t: "x" }, { l: "C", t: "c" }, { l: "V", t: "v" }, { l: "B", t: "b" }, { l: "N", t: "n" }, { l: "M", t: "m" }, { l: ",", t: "," }, { l: ".", t: "." }, { l: "/", t: "/" }]
+    ];
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = document.createElement("div");
+      row.className = "h3270-max-row";
+      for (var c = 0; c < rows[r].length; c++) {
+        row.appendChild(createTextKey(rows[r][c].l, rows[r][c].t));
+      }
+      main.appendChild(row);
+    }
+
+    var bottom = document.createElement("div");
+    bottom.className = "h3270-max-row";
+    var backspace = createButton("BackSpace", "Backspace", { mapping: "Backspace" });
+    backspace.classList.add("h3270-max-wide");
+    bottom.appendChild(backspace);
+    var tab = createButton("Tab", "Tab", { mapping: "Tab" });
+    tab.classList.add("h3270-max-medium");
+    bottom.appendChild(tab);
+    var space = createTextKey("Space", " ", { mapping: "Space" });
+    space.classList.add("h3270-max-space");
+    bottom.appendChild(space);
+    var enter = createButton("Enter", "Enter", { mapping: "Enter" });
+    enter.classList.add("h3270-max-medium");
+    bottom.appendChild(enter);
+    main.appendChild(bottom);
+
+    var nav = document.createElement("div");
+    nav.className = "h3270-max-nav";
+    var navTop = document.createElement("div");
+    navTop.className = "h3270-max-row";
+    navTop.appendChild(createButton("Insert", "Ins", { mapping: "Insert" }));
+    navTop.appendChild(createButton("Delete", "Del", { mapping: "Delete" }));
+    navTop.appendChild(createButton("Home", "Home", { mapping: "Home" }));
+    nav.appendChild(navTop);
+    var arrows = document.createElement("div");
+    arrows.className = "h3270-max-arrows";
+    arrows.appendChild(createButton("Up", "↑", { mapping: "ArrowUp" }));
+    var middle = document.createElement("div");
+    middle.className = "h3270-max-row";
+    middle.appendChild(createButton("Left", "←", { mapping: "ArrowLeft" }));
+    middle.appendChild(createButton("Down", "↓", { mapping: "ArrowDown" }));
+    middle.appendChild(createButton("Right", "→", { mapping: "ArrowRight" }));
+    arrows.appendChild(middle);
+    nav.appendChild(arrows);
+
+    var numpad = document.createElement("div");
+    numpad.className = "h3270-max-numpad";
+    var numRows = [
+      ["7", "8", "9"],
+      ["4", "5", "6"],
+      ["1", "2", "3"],
+      ["0", ".", "+"]
+    ];
+    for (var n = 0; n < numRows.length; n++) {
+      var nr = document.createElement("div");
+      nr.className = "h3270-max-row";
+      for (var m = 0; m < numRows[n].length; m++) {
+        nr.appendChild(createTextKey(numRows[n][m], numRows[n][m], { mapping: "Numpad" }));
+      }
+      numpad.appendChild(nr);
+    }
+
+    layout.appendChild(main);
+    layout.appendChild(nav);
+    layout.appendChild(numpad);
+    maxGroup.appendChild(layout);
+    container.appendChild(maxGroup);
   }
 
   function renderKeypad(containerId) {
@@ -494,7 +754,43 @@
       return;
     }
 
+    var mode = getStoredKeypadMode();
+
     container.innerHTML = "";
+    container.classList.add("h3270-keypad");
+
+    var header = document.createElement("div");
+    header.className = "h3270-keypad-header";
+
+    var title = document.createElement("strong");
+    title.className = "h3270-keypad-title";
+    title.textContent = "3270 Virtual Keyboard";
+    header.appendChild(title);
+
+    var modeSwitch = document.createElement("div");
+    modeSwitch.className = "h3270-keypad-mode-switch";
+    var modes = [
+      { id: "compact", label: "Compact" },
+      { id: "full", label: "Full" },
+      { id: "max", label: "MAX" }
+    ];
+    var modeButtons = [];
+    for (var mb = 0; mb < modes.length; mb++) {
+      var modeButton = document.createElement("button");
+      modeButton.type = "button";
+      modeButton.className = "h3270-keypad-toggle h3270-keypad-mode-btn";
+      modeButton.dataset.mode = modes[mb].id;
+      modeButton.textContent = modes[mb].label;
+      modeButton.addEventListener("click", function () {
+        var nextMode = this.dataset.mode || "full";
+        applyKeypadMode(container, nextMode, modeButtons);
+        setStoredKeypadMode(nextMode);
+      });
+      modeButtons.push(modeButton);
+      modeSwitch.appendChild(modeButton);
+    }
+    header.appendChild(modeSwitch);
+    container.appendChild(header);
 
     var pfLabels = {
       PF1: "PF1 Help",
@@ -506,6 +802,31 @@
       PF12: "PF12 Cancel"
     };
 
+    var keyMappings = {
+      Enter: "Enter",
+      Tab: "Tab",
+      BackTab: "Shift+Tab",
+      Clear: "Esc",
+      BackSpace: "Backspace",
+      Delete: "Delete",
+      Insert: "Insert",
+      Home: "Home",
+      Up: "ArrowUp",
+      Down: "ArrowDown",
+      Left: "ArrowLeft",
+      Right: "ArrowRight",
+      PA1: "Alt+F1",
+      PA2: "Alt+F2",
+      PA3: "Alt+F3"
+    };
+
+    function pfMapping(pfNum) {
+      if (pfNum >= 1 && pfNum <= 12) {
+        return "F" + pfNum;
+      }
+      return "Shift+F" + (pfNum - 12);
+    }
+
     var pfGroup = document.createElement("div");
     pfGroup.className = "h3270-keypad-group";
 
@@ -514,18 +835,22 @@
     for (var i = 1; i <= 12; i++) {
       var pfKeyTop = "PF" + i;
       pfRowTop.appendChild(
-        createButton(pfKeyTop, pfKeyTop, { title: pfLabels[pfKeyTop] })
+        createButton(pfKeyTop, pfKeyTop, {
+          title: pfLabels[pfKeyTop] || pfMapping(i),
+          mapping: pfMapping(i)
+        })
       );
     }
     pfGroup.appendChild(pfRowTop);
 
     var pfRowBottom = document.createElement("div");
-    pfRowBottom.className = "h3270-keypad-row h3270-keypad-row--pf";
+    pfRowBottom.className = "h3270-keypad-row h3270-keypad-row--pf h3270-keypad-extra";
     for (var j = 13; j <= 24; j++) {
       var pfKeyBottom = "PF" + j;
       pfRowBottom.appendChild(
         createButton(pfKeyBottom, pfKeyBottom, {
-          title: pfLabels[pfKeyBottom]
+          title: pfLabels[pfKeyBottom] || pfMapping(j),
+          mapping: pfMapping(j)
         })
       );
     }
@@ -533,12 +858,12 @@
     container.appendChild(pfGroup);
 
     var paGroup = document.createElement("div");
-    paGroup.className = "h3270-keypad-group";
+    paGroup.className = "h3270-keypad-group h3270-keypad-extra";
     var paBlock = document.createElement("div");
     paBlock.className = "h3270-keypad-row";
-    paBlock.appendChild(createButton("PA1", "PA1"));
-    paBlock.appendChild(createButton("PA2", "PA2"));
-    paBlock.appendChild(createButton("PA3", "PA3"));
+    paBlock.appendChild(createButton("PA1", "PA1", { mapping: keyMappings.PA1 }));
+    paBlock.appendChild(createButton("PA2", "PA2", { mapping: keyMappings.PA2 }));
+    paBlock.appendChild(createButton("PA3", "PA3", { mapping: keyMappings.PA3 }));
     paGroup.appendChild(paBlock);
     container.appendChild(paGroup);
 
@@ -569,10 +894,88 @@
     var commonBlock = document.createElement("div");
     commonBlock.className = "h3270-keypad-row";
     common.forEach(function (key) {
-      commonBlock.appendChild(createButton(key, key));
+      var options = {
+        mapping: keyMappings[key] || ""
+      };
+      var btn = createButton(key, key, options);
+      if (
+        key === "Reset" ||
+        key === "EraseEOF" ||
+        key === "EraseInput" ||
+        key === "Dup" ||
+        key === "FieldMark" ||
+        key === "SysReq" ||
+        key === "Attn" ||
+        key === "NewLine" ||
+        key === "BackSpace" ||
+        key === "Delete" ||
+        key === "Insert" ||
+        key === "Home"
+      ) {
+        btn.classList.add("h3270-keypad-extra");
+      }
+      commonBlock.appendChild(btn);
     });
     commonGroup.appendChild(commonBlock);
     container.appendChild(commonGroup);
+
+    appendMaxKeyboardLayout(container);
+    applyKeypadMode(container, mode, modeButtons);
+  }
+
+  function syncKeypadToggleUi(visible) {
+    var toggle = document.querySelector("[data-keypad-toggle]");
+    if (!toggle) {
+      return;
+    }
+    var label = visible ? "Hide virtual keyboard" : "Show virtual keyboard";
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    toggle.setAttribute("data-tippy-content", label);
+    toggle.setAttribute("aria-pressed", visible ? "true" : "false");
+    toggle.classList.toggle("is-active", visible);
+    if (toggle._tippy && typeof toggle._tippy.setContent === "function") {
+      toggle._tippy.setContent(label);
+    }
+  }
+
+  function initKeypadVisibilityToggle() {
+    var toggle = document.querySelector("[data-keypad-toggle]");
+    var keypad = document.getElementById("keypad");
+    if (!toggle || !keypad) {
+      return;
+    }
+
+    syncKeypadToggleUi(!keypad.hidden);
+
+    toggle.addEventListener("click", function () {
+      var previousHidden = keypad.hidden;
+      var nextVisible = keypad.hidden;
+      keypad.hidden = !nextVisible;
+      syncKeypadToggleUi(nextVisible);
+
+      if (nextVisible && keypad.children.length === 0) {
+        renderKeypad();
+      }
+
+      if (typeof window.sizeScreenContainer === "function") {
+        window.sizeScreenContainer();
+      }
+
+      var body = "keypad=" + encodeURIComponent(nextVisible ? "on" : "off");
+      fetch("/prefs/keypad", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: body
+      }).then(function (response) {
+        if (!response.ok) {
+          throw new Error("failed");
+        }
+      }).catch(function () {
+        keypad.hidden = previousHidden;
+        syncKeypadToggleUi(!keypad.hidden);
+      });
+    });
   }
 
   window.sendKey = function (key, formId) {
@@ -617,5 +1020,6 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     renderKeypad();
+    initKeypadVisibilityToggle();
   });
 })();

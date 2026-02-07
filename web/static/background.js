@@ -52,15 +52,15 @@
   var CARD_RESET_PADDING = 40;
 
   var themeConfigs = {
-    "theme-authentic": { mode: "characters", density: 0.6, speed: 0.6 },
-    "theme-classic": { mode: "characters", density: 1.05, speed: 1 },
-    "theme-dark": { mode: "characters", density: 0.9, speed: 0.8 },
-    "theme-light": { mode: "characters", density: 0.95, speed: 0.9 },
-    "theme-modern": { mode: "pixels", density: 1, speed: 1 },
-    "theme-minimal": { mode: "characters", density: 0.7, speed: 0.75 },
-    "theme-slick": { mode: "pixels", density: 1.15, speed: 1.15 },
+    "theme-authentic": { mode: "characters", density: 0.55, speed: 0.55 },
+    "theme-classic": { mode: "characters", density: 0.85, speed: 0.7 },
+    "theme-dark": { mode: "characters", density: 0.9, speed: 0.85 },
+    "theme-light": { mode: "characters", density: 0.6, speed: 0.55 },
+    "theme-modern": { mode: "pixels", density: 1.15, speed: 1.2 },
+    "theme-minimal": { mode: "characters", density: 0.9, speed: 0.85 },
+    "theme-slick": { mode: "pixels", density: 0.9, speed: 0.95 },
     "theme-yorkshire": { mode: "blocks", density: 0.6, speed: 0.6 },
-    "theme-not3270": { mode: "characters", density: 1, speed: 0.9 }
+    "theme-not3270": { mode: "characters", density: 0.6, speed: 0.55 }
   };
 
   var state = {

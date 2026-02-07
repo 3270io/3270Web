@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode"
@@ -403,6 +404,67 @@ func EnsureDotEnv(path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+// UpsertDotEnvValue writes or updates a key=value pair in a .env file.
+func UpsertDotEnvValue(path, key, value string) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("empty key")
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				return err
+			}
+			return os.WriteFile(path, []byte(key+"="+value+"\n"), 0644)
+		}
+		return err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	found := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		check := trimmed
+		if strings.HasPrefix(check, "export ") {
+			check = strings.TrimSpace(strings.TrimPrefix(check, "export "))
+		}
+		k, _, ok := parseEnvLine(check)
+		if !ok {
+			continue
+		}
+		if k == key {
+			lines[i] = key + "=" + value
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		if len(lines) == 0 {
+			lines = []string{key + "=" + value}
+		} else {
+			if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+				lines = append(lines, "")
+			}
+			lines = append(lines, key+"="+value)
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
 // LoadDotEnv loads environment variables from a .env file without overriding existing variables.
 func LoadDotEnv(path string) error {
 	file, err := os.Open(path)
@@ -498,6 +560,9 @@ func buildDotEnvContent() string {
 		buf.WriteString(fmt.Sprintf("# %s: %s (default: %s)\n", spec.Flag, spec.Description, spec.Default))
 		buf.WriteString(fmt.Sprintf("%s=%s\n\n", spec.EnvVar, spec.DefaultVal))
 	}
+	buf.WriteString("# 3270Web UI preferences.\n")
+	buf.WriteString("# Show virtual keyboard by default for new sessions.\n")
+	buf.WriteString("APP_USE_KEYPAD=false\n")
 	return buf.String()
 }
 

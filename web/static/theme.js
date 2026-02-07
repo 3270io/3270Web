@@ -4,16 +4,35 @@
   var themes = [
     { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
     { id: "theme-authentic", name: "Authentic 3270" },
-    { id: "theme-classic", name: "Classic 3270" },
-    { id: "theme-dark", name: "Dark Mode" },
-    { id: "theme-light", name: "Light Mode" },
-    { id: "theme-modern", name: "Super Modern 3270" },
-    { id: "theme-minimal", name: "Minimal 3270" },
-    { id: "theme-slick", name: "Slick 3270" },
-    { id: "theme-not3270", name: "Not 3270" }
+    { id: "theme-classic", name: "Amber Phosphor" },
+    { id: "theme-dark", name: "Midnight Cyan" },
+    { id: "theme-light", name: "Paper Terminal" },
+    { id: "theme-modern", name: "Neon Grid" },
+    { id: "theme-slick", name: "Ocean Ops" }
   ];
+  var themeAliases = {
+    "theme-minimal": "theme-dark",
+    "theme-not3270": "theme-light"
+  };
   var authenticThemeId = "theme-authentic";
   var authenticChromeKey = "3270Web.authenticChromeHidden";
+
+  function hasTheme(themeId) {
+    for (var i = 0; i < themes.length; i++) {
+      if (themes[i].id === themeId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function normalizeThemeId(themeId) {
+    var candidate = themeAliases[themeId] || themeId;
+    if (hasTheme(candidate)) {
+      return candidate;
+    }
+    return "theme-yorkshire";
+  }
 
   function applyAuthenticChromeState(isAuthentic) {
     var body = document.body;
@@ -35,24 +54,25 @@
   }
 
   function applyTheme(themeId) {
+    var normalized = normalizeThemeId(themeId);
     var body = document.body;
     themes.forEach(function (theme) {
       body.classList.remove(theme.id);
     });
-    body.classList.add(themeId);
-    localStorage.setItem("3270Web.theme", themeId);
-    applyAuthenticChromeState(themeId === authenticThemeId);
+    body.classList.add(normalized);
+    localStorage.setItem("3270Web.theme", normalized);
+    applyAuthenticChromeState(normalized === authenticThemeId);
     if (
       window.ThreeSeventyWeb &&
       typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function"
     ) {
-      window.ThreeSeventyWeb.updateBackgroundTheme(themeId);
+      window.ThreeSeventyWeb.updateBackgroundTheme(normalized);
     }
-    document.dispatchEvent(new CustomEvent("themechange", { detail: themeId }));
+    document.dispatchEvent(new CustomEvent("themechange", { detail: normalized }));
   }
 
   function getStoredTheme() {
-    return localStorage.getItem("3270Web.theme") || "theme-yorkshire";
+    return normalizeThemeId(localStorage.getItem("3270Web.theme") || "theme-yorkshire");
   }
 
   function initThemeSelector() {

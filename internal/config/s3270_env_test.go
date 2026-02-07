@@ -283,3 +283,50 @@ func TestSplitArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestUpsertDotEnvValueUpdatesExistingKey(t *testing.T) {
+	tempDir := t.TempDir()
+	envPath := filepath.Join(tempDir, ".env")
+	initial := "A=1\nAPP_USE_KEYPAD=false\nB=2\n"
+	if err := os.WriteFile(envPath, []byte(initial), 0644); err != nil {
+		t.Fatalf("write initial: %v", err)
+	}
+
+	if err := UpsertDotEnvValue(envPath, "APP_USE_KEYPAD", "true"); err != nil {
+		t.Fatalf("UpsertDotEnvValue failed: %v", err)
+	}
+
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		t.Fatalf("read .env: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "APP_USE_KEYPAD=true") {
+		t.Fatalf("expected updated key, got: %q", text)
+	}
+	if strings.Contains(text, "APP_USE_KEYPAD=false") {
+		t.Fatalf("old key value still present: %q", text)
+	}
+}
+
+func TestUpsertDotEnvValueAppendsMissingKey(t *testing.T) {
+	tempDir := t.TempDir()
+	envPath := filepath.Join(tempDir, ".env")
+	initial := "A=1\nB=2\n"
+	if err := os.WriteFile(envPath, []byte(initial), 0644); err != nil {
+		t.Fatalf("write initial: %v", err)
+	}
+
+	if err := UpsertDotEnvValue(envPath, "APP_USE_KEYPAD", "true"); err != nil {
+		t.Fatalf("UpsertDotEnvValue failed: %v", err)
+	}
+
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		t.Fatalf("read .env: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "APP_USE_KEYPAD=true") {
+		t.Fatalf("expected appended key, got: %q", text)
+	}
+}

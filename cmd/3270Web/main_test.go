@@ -12,6 +12,55 @@ import (
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
+func TestBuildWorkflowConfig_UsesRecordedDelayRange(t *testing.T) {
+	s := &session.Session{
+		TargetHost: "localhost",
+		TargetPort: 3270,
+		Recording: &session.WorkflowRecording{
+			Host:           "localhost",
+			Port:           3270,
+			OutputFilePath: "output.html",
+			DelayMin:       0.1234,
+			DelayMax:       1.9876,
+			DelaySamples:   2,
+			Steps:          []session.WorkflowStep{{Type: "Connect"}, {Type: "PressEnter"}},
+		},
+	}
+
+	workflow := buildWorkflowConfig(s)
+	if workflow.EveryStepDelay == nil {
+		t.Fatalf("EveryStepDelay should not be nil")
+	}
+	if workflow.EveryStepDelay.Min != 0.123 {
+		t.Fatalf("expected min delay 0.123, got %v", workflow.EveryStepDelay.Min)
+	}
+	if workflow.EveryStepDelay.Max != 1.988 {
+		t.Fatalf("expected max delay 1.988, got %v", workflow.EveryStepDelay.Max)
+	}
+}
+
+func TestBuildWorkflowConfig_FallbackDelayRangeWhenNoSamples(t *testing.T) {
+	s := &session.Session{
+		TargetHost: "localhost",
+		TargetPort: 3270,
+		Recording: &session.WorkflowRecording{
+			Host:           "localhost",
+			Port:           3270,
+			OutputFilePath: "output.html",
+			DelaySamples:   0,
+			Steps:          []session.WorkflowStep{{Type: "Connect"}, {Type: "PressEnter"}},
+		},
+	}
+
+	workflow := buildWorkflowConfig(s)
+	if workflow.EveryStepDelay == nil {
+		t.Fatalf("EveryStepDelay should not be nil")
+	}
+	if workflow.EveryStepDelay.Min != 0.1 || workflow.EveryStepDelay.Max != 0.3 {
+		t.Fatalf("expected fallback delay range 0.1-0.3, got %v-%v", workflow.EveryStepDelay.Min, workflow.EveryStepDelay.Max)
+	}
+}
+
 func TestParseSampleAppHost(t *testing.T) {
 	tests := []struct {
 		input    string

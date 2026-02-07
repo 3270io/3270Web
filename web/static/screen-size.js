@@ -1,4 +1,32 @@
 (() => {
+  const measureCellMetrics = (reference) => {
+    if (!reference) {
+      return null;
+    }
+    const probe = document.createElement("span");
+    probe.textContent = "MMMMMMMMMM";
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.pointerEvents = "none";
+    probe.style.whiteSpace = "pre";
+    const styles = window.getComputedStyle(reference);
+    probe.style.fontFamily = styles.fontFamily;
+    probe.style.fontSize = styles.fontSize;
+    probe.style.fontWeight = styles.fontWeight;
+    probe.style.fontStyle = styles.fontStyle;
+    probe.style.letterSpacing = styles.letterSpacing;
+    probe.style.lineHeight = styles.lineHeight;
+    document.body.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    const charWidth = rect.width / 10;
+    const rowHeight = rect.height;
+    probe.remove();
+    if (!Number.isFinite(charWidth) || charWidth <= 0 || !Number.isFinite(rowHeight) || rowHeight <= 0) {
+      return null;
+    }
+    return { charWidth, rowHeight };
+  };
+
   const sizeScreenContainer = () => {
     const container = document.querySelector('.screen-container');
     if (!container) {
@@ -20,12 +48,16 @@
     if (!reference) {
       return;
     }
-    const lineHeight = Number.parseFloat(window.getComputedStyle(reference).lineHeight);
-    if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+
+    const metrics = measureCellMetrics(reference);
+    if (!metrics) {
       return;
     }
-    container.style.width = `${cols}ch`;
-    container.style.height = `${rows * lineHeight}px`;
+
+    const widthPx = Math.ceil(cols * metrics.charWidth + 2);
+    const heightPx = Math.ceil(rows * metrics.rowHeight);
+    container.style.width = `${widthPx}px`;
+    container.style.height = `${heightPx}px`;
   };
 
   window.sizeScreenContainer = sizeScreenContainer;

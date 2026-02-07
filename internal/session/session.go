@@ -63,6 +63,10 @@ type WorkflowRecording struct {
 	Steps          []WorkflowStep
 	FilePath       string
 	StartedAt      time.Time
+	LastStepAt     time.Time
+	DelayMin       float64
+	DelayMax       float64
+	DelaySamples   int
 }
 
 type WorkflowPlayback struct {
