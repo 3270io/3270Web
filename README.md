@@ -10,6 +10,13 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 - Docker image and GHCR workflow
 - Windows build script
 
+## Screenshots
+![Connect screen](web/static/images/connect_image.png)
+![Yorkshire screen](web/static/images/yorkshire_image.png)
+![Logging screen](web/static/images/logging_image.png)
+![Sample app screen](web/static/images/sampleapp1_image.png)
+
+
 ## Requirements
 - Go 1.22+
 - Access to a 3270 host
