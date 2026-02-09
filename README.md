@@ -5,8 +5,8 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 ## Features
 - Web UI for 3270 sessions
 - Embedded s3270 binary support (Windows)
-- Record sessions to workflow.json (Connect/FillString/Press keys/Disconnect)
-- Load workflow.json and play it back (currently disabled)
+- Record sessions to workflow.json, compatible with 3270Connect (Connect/FillString/Press keys/Disconnect)
+- Load workflow.json and play it back
 - Docker image and GHCR workflow
 - Windows build script
 
@@ -42,8 +42,6 @@ The Docker image installs the `s3270` package so it is available at `/usr/bin/s3
 
 To replay a workflow, use **Load workflow and Play** on the session screen.
 
-> **Note:** Playback is currently disabled.
-
 The output matches the 3270Connect workflow format. See [Workflow Configuration](docs/workflow.md) for file format details.
 
 ## Sample applications
@@ -58,6 +56,3 @@ See the [Configuration Reference](docs/configuration.md) for details on availabl
 - Defining custom color schemes and fonts
 
 An optional `.env` file (created with defaults on first run) lets you override the full set of `s3270` command-line options using `S3270_*` environment variables.
-
-## GitHub Actions
-A workflow is included to build and push images to GHCR on pushes to `main`.
