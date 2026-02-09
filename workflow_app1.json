@@ -1,0 +1,42 @@
+{
+  "Host": "sampleapp:app1",
+  "Port": 3270,
+  "EveryStepDelay": {
+    "Min": 1,
+    "Max": 2
+  },
+  "OutputFilePath": "output.html",
+  "RampUpBatchSize": 50,
+  "RampUpDelay": 1.5,
+  "EndOfTaskDelay": {
+    "Min": 5,
+    "Max": 8
+  },
+  "Steps": [
+    {
+      "Type": "Connect"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": {
+        "Row": 5,
+        "Column": 21
+      },
+      "Text": "Paul"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": {
+        "Row": 6,
+        "Column": 21
+      },
+      "Text": "Jennings"
+    },
+    {
+      "Type": "PressEnter"
+    },
+    {
+      "Type": "Disconnect"
+    }
+  ]
+}

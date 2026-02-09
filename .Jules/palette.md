@@ -1,0 +1,3 @@
+## 2026-02-05 - Consistent Loading States
+**Learning:** Inconsistent loading states between global form submissions (`ui.js`) and manual fetch interactions (like `logs.js`) can create a jarring user experience. The "Clear Logs" action lacked feedback compared to the "Refresh" action or form submissions, making the application feel unresponsive during server delays.
+**Action:** When implementing manual fetch requests triggered by buttons, explicitly apply the existing spinner pattern: disabled state, `aria-busy="true"`, and the `.spinner` class. Ensure the state is restored in a `finally` block.

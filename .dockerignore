@@ -1,0 +1,12 @@
+.git
+.github
+**/.DS_Store
+**/*.log
+**/*.out
+**/*.tmp
+**/node_modules
+**/bin
+**/obj
+s3270-bin/*.exe
+s3270-bin/s3270
+old_java_app

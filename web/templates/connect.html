@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3270Web - Connect</title>
+    <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
+    <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <script src="/static/theme.js" defer></script>
+    <script src="/static/background.js" defer></script>
+    <script src="/static/ui.js" defer></script>
+</head>
+<body>
+    <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+    <div class="page-wrap">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h1>3270Web</h1>
+                    <div class="subtle">Connect to a TN3270 host</div>
+                </div>
+                <div class="toolbar">
+                    {{ if .SampleApps }}
+                    <button type="button" data-open-sample-modal>Start Sample App</button>
+                    {{ end }}
+                    <button type="button" data-about-open>About</button>
+                    <button type="button" data-settings-open>Settings</button>
+                    <label for="theme-select">Theme</label>
+                    <select id="theme-select"></select>
+                </div>
+            </div>
+            {{ if .ConnectError }}
+            <div class="alert">
+                <strong>Connection error</strong>
+                <span>{{ .ConnectError }}</span>
+            </div>
+            {{ end }}
+            <form action="/connect" method="post" id="connect-form">
+                <fieldset class="connect-row">
+                    <label for="hostname-input">Hostname / IP</label>
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required autofocus placeholder="hostname:port">
+                    <button type="submit" id="connect-btn">Connect</button>
+                </fieldset>
+            </form>
+        </div>
+    </div>
+    <div class="settings-modal" data-settings-modal hidden>
+        <div class="settings-modal-backdrop" data-settings-close></div>
+        <div class="settings-modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+            <div class="settings-modal-header">
+                <h3 id="settings-modal-title">Settings</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" data-settings-refresh>Refresh</button>
+                    <button type="button" data-settings-maximize aria-pressed="false">Maximize</button>
+                    <button type="button" data-settings-close>Close</button>
+                </div>
+            </div>
+            <div class="settings-modal-body">
+                <div class="settings-status" data-settings-status aria-live="polite"></div>
+                <form class="settings-form" data-settings-form>
+                    <div class="settings-tabs" data-settings-tabs role="tablist" aria-label="Settings sections"></div>
+                    <div class="settings-groups" data-settings-groups></div>
+                    <div class="settings-actions">
+                        <button type="submit" data-settings-save>Save settings</button>
+                    </div>
+                </form>
+            </div>
+            <div class="settings-confirm-modal" data-settings-restart-confirm hidden>
+                <div class="settings-confirm-backdrop" data-settings-restart-cancel></div>
+                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="settings-restart-title">
+                    <h4 id="settings-restart-title">Restart 3270Web?</h4>
+                    <p>Settings saved. Restart now to apply changes?</p>
+                    <div class="settings-confirm-actions">
+                        <button type="button" data-settings-restart-cancel>Not now</button>
+                        <button type="button" data-settings-restart-accept>Restart now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{ if .SampleApps }}
+    <div class="modal-backdrop" data-sample-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sample-app-title">
+            <div class="modal-header">
+                <h3 id="sample-app-title">Start Sample App</h3>
+                <button type="button" class="modal-close" data-sample-close>Close</button>
+            </div>
+            <div class="stack">
+                <label for="sample-app-select">Sample application</label>
+                <select id="sample-app-select">
+                    {{ range .SampleApps }}
+                    <option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
+                </select>
+                <label for="sample-app-port">Port</label>
+                <select id="sample-app-port">
+                    {{ range .SamplePorts }}
+                    <option value="{{ . }}">{{ . }}</option>
+                    {{ end }}
+                </select>
+                <button type="button" data-sample-start>Start Sample App</button>
+            </div>
+        </div>
+    </div>
+    {{ end }}
+    <div class="modal-backdrop" data-about-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="about-modal-title" aria-describedby="about-modal-desc">
+            <div class="modal-header">
+                <h3 id="about-modal-title">About 3270Web</h3>
+                <button type="button" class="modal-close" data-about-close>Close</button>
+            </div>
+            <p id="about-modal-desc">3270Web is a web-based TN3270 terminal interface for connecting to and interacting with IBM mainframe applications.</p>
+            <div class="stack">
+                <div>Part of the <strong>3270.io</strong> suite of open source solutions.</div>
+                <div><strong>Version:</strong> {{ .Version }}</div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/about-modal.js" defer></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const hostInput = document.querySelector("[data-host-input]");
+            const modal = document.querySelector("[data-sample-modal]");
+            const openModal = document.querySelector("[data-open-sample-modal]");
+            const closeModal = document.querySelector("[data-sample-close]");
+            const startButton = document.querySelector("[data-sample-start]");
+            const appSelect = document.querySelector("#sample-app-select");
+            const portSelect = document.querySelector("#sample-app-port");
+            const connectForm = document.getElementById("connect-form");
+            const connectBtn = document.getElementById("connect-btn");
+
+            const setLoading = () => {
+                if (connectBtn) {
+                    connectBtn.textContent = 'Connecting...';
+                    connectBtn.setAttribute('aria-busy', 'true');
+                    connectBtn.disabled = true;
+                }
+            };
+
+            if (connectForm) {
+                connectForm.addEventListener("submit", (e) => {
+                    setLoading();
+                });
+            }
+
+            let lastFocusedElement;
+            const hideModal = () => {
+                if (modal) {
+                    modal.hidden = true;
+                    if (lastFocusedElement) {
+                        lastFocusedElement.focus();
+                        lastFocusedElement = null;
+                    }
+                }
+            };
+
+            if (openModal && modal) {
+                openModal.addEventListener("click", () => {
+                    lastFocusedElement = document.activeElement;
+                    modal.hidden = false;
+                    const firstInput = modal.querySelector('select, input, button:not(.modal-close)');
+                    if (firstInput) {
+                        firstInput.focus();
+                    }
+                });
+            }
+            if (closeModal) {
+                closeModal.addEventListener("click", hideModal);
+            }
+            if (modal) {
+                modal.addEventListener("click", (event) => {
+                    if (event.target === modal) {
+                        hideModal();
+                    }
+                });
+            }
+            const allowedAppIds = appSelect
+                ? new Set(Array.from(appSelect.options).map((option) => option.value))
+                : null;
+            const allowedPorts = portSelect
+                ? new Set(Array.from(portSelect.options).map((option) => Number(option.value)))
+                : null;
+
+            if (startButton && hostInput && appSelect && portSelect) {
+                startButton.addEventListener("click", () => {
+                    const appId = appSelect.value || "";
+                    const port = Number(portSelect.value || 0);
+                    if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
+                        return;
+                    }
+                    hostInput.value = "sampleapp:" + appId + ":" + port;
+                    hideModal();
+                    if (hostInput.form) {
+                        setLoading();
+                        hostInput.form.submit();
+                    }
+                });
+            }
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape" && modal && !modal.hidden) {
+                    hideModal();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

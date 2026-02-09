@@ -1,0 +1,43 @@
+# Binaries
+/3270Web
+3270Web.exe
+*.exe
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Build artifacts
+dist/
+build/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Workflow files
+workflow.json
+
+# Log files
+*.log
+
+# Old binary names (backward compatibility during transition)
+h3270-web
+h3270-web.exe
+3270Web_test
+.jules/sentinel.md
+
+!cmd/3270Web/workflow_playback.go
+!cmd/3270Web/workflow_playback_test.go

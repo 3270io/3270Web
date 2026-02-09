@@ -1,0 +1,537 @@
+package host
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"log"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
+)
+
+// S3270 implements the Host interface using the s3270 subprocess.
+type S3270 struct {
+	ExecPath   string
+	Args       []string
+	TargetHost string
+
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout *bufio.Scanner
+	stderr *bufio.Scanner
+
+	lastErrMu sync.Mutex
+	lastErr   string
+
+	screen         *Screen
+	mu             sync.Mutex // Protects command execution
+	verboseLogging bool
+}
+
+const (
+	waitUnlockTimeoutSeconds = 10
+	commandTimeout           = 15 * time.Second
+)
+
+// NewS3270 creates a new S3270 host instance.
+func NewS3270(execPath string, args ...string) *S3270 {
+	targetHost := ""
+	if len(args) > 0 {
+		targetHost = args[len(args)-1]
+	}
+	return &S3270{
+		ExecPath:   execPath,
+		Args:       args,
+		TargetHost: targetHost,
+		screen:     &Screen{},
+	}
+}
+
+func (h *S3270) Start() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.cmd = exec.Command(h.ExecPath, h.Args...)
+	configureCmd(h.cmd)
+
+	var err error
+	h.stdin, err = h.cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	stdoutPipe, err := h.cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	h.stdout = bufio.NewScanner(stdoutPipe)
+	h.stdout.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	stderrPipe, err := h.cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+	h.stderr = bufio.NewScanner(stderrPipe)
+	h.stderr.Buffer(make([]byte, 0, 64*1024), 256*1024)
+
+	// Start the process
+	if err := h.cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start s3270: %w", err)
+	}
+
+	go h.captureStderr()
+
+	if h.TargetHost == "" {
+		return nil
+	}
+
+	// If a target host wasn't provided as a command arg, connect explicitly.
+	if len(h.Args) == 0 || h.Args[len(h.Args)-1] != h.TargetHost {
+		return h.reconnectLocked()
+	}
+
+	// Wait for formatted screen like Java, but keep it bounded.
+	return h.waitFormattedLocked()
+}
+
+func (h *S3270) Stop() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.stdin != nil {
+		// Send quit just in case
+		fmt.Fprintln(h.stdin, "quit")
+		h.stdin.Close()
+		h.stdin = nil
+	}
+	if h.cmd != nil {
+		// Kill if still running
+		if h.cmd.ProcessState == nil {
+			h.cmd.Process.Kill()
+		}
+		h.cmd.Wait()
+		h.cmd = nil
+	}
+	return nil
+}
+
+func (h *S3270) IsConnected() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.cmd != nil && h.cmd.ProcessState == nil && h.stdin != nil
+}
+
+func (h *S3270) UpdateScreen() error {
+	return h.withRetry(func() error {
+		return h.updateScreenOnce()
+	})
+}
+
+func (h *S3270) updateScreenOnce() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for i := 0; i < 50; i++ {
+		lines, status, err := h.doCommandLocked("readbuffer ascii")
+		if err != nil {
+			return err
+		}
+		if isDisconnectedStatus(status) {
+			if err := h.reconnectLocked(); err != nil {
+				return err
+			}
+			continue
+		}
+		if len(lines) > 0 && strings.HasPrefix(lines[0], "data: Keyboard locked") {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		return h.screen.Update(status, lines)
+	}
+	return fmt.Errorf("keyboard locked timeout")
+}
+
+func (h *S3270) GetScreen() *Screen {
+	return h.screen
+}
+
+func (h *S3270) SendKey(key string) error {
+	return h.withRetry(func() error {
+		return h.sendKeyOnce(key)
+	})
+}
+
+func (h *S3270) WriteStringAt(row, col int, text string) error {
+	return h.withRetry(func() error {
+		return h.writeStringAtOnce(row, col, text)
+	})
+}
+
+func (h *S3270) withRetry(op func() error) error {
+	if err := op(); err != nil {
+		if !h.IsConnected() || isConnectionError(err) {
+			if restartErr := h.Start(); restartErr == nil {
+				return op()
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (h *S3270) sendKeyOnce(key string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Sentinel: Prevent command injection via s3270 pipe
+	if strings.ContainsAny(key, "\n\r\t;") {
+		return fmt.Errorf("security error: invalid characters in key command")
+	}
+
+	if key == "" {
+		key = "Enter"
+	}
+
+	isAid := isAidKey(key)
+	data, status, err, done := h.executeKeyCommand(key, isAid)
+	if done {
+		return err
+	}
+
+	keySpec := keyToKeySpec(key)
+	if keySpec != "" {
+		fallback := fmt.Sprintf("Key(%s)", keySpec)
+		// Use original key intent (isAid) for checking unlock status even on fallback
+		data, status, err, done = h.executeKeyCommand(fallback, isAid)
+		if done {
+			return err
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+	if isS3270Error(status, data) {
+		return fmt.Errorf("s3270 error: %s", status)
+	}
+	return nil
+}
+
+// executeKeyCommand attempts to execute a key command and handles common status checks.
+// It returns done=true if the command succeeded (or reconnection succeeded), and done=false
+// if the command failed and a fallback should be attempted.
+func (h *S3270) executeKeyCommand(cmd string, isAid bool) ([]string, string, error, bool) {
+	data, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+
+	if err == nil && isDisconnectedStatus(status) {
+		if rErr := h.reconnectLocked(); rErr != nil {
+			return data, status, rErr, true
+		}
+		return data, status, nil, true
+	}
+
+	if err == nil && !isS3270Error(status, data) {
+		if isAid && !isKeyboardUnlocked(status) {
+			if wErr := h.waitUnlockLocked(); wErr != nil {
+				return data, status, wErr, true
+			}
+		}
+		return data, status, nil, true
+	}
+
+	return data, status, err, false
+}
+
+func (h *S3270) writeStringAtOnce(row, col int, text string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if text == "" {
+		return nil
+	}
+	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return err
+	}
+	for _, r := range []rune(text) {
+		keyCmd := fmt.Sprintf("key(0x%x)", r)
+		_, status, err = h.doCommandLocked(keyCmd)
+		log.Printf("s3270: cmd=%q status=%q", keyCmd, status)
+		if err != nil {
+			return err
+		}
+		if isDisconnectedStatus(status) {
+			return fmt.Errorf("not connected")
+		}
+	}
+	return nil
+}
+
+func (h *S3270) MoveCursor(row, col int) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *S3270) waitUnlockLocked() error {
+	cmd := h.waitUnlockCommand()
+	_, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// waitUnlockCommand returns a bounded Wait(Unlock) command to avoid indefinite hangs.
+func (h *S3270) waitUnlockCommand() string {
+	return fmt.Sprintf("Wait(Unlock,%d)", waitUnlockTimeoutSeconds)
+}
+
+func (h *S3270) SubmitScreen() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, f := range h.screen.Fields {
+		if !f.IsProtected() && f.Changed {
+			// Move cursor to field start
+			cmd := fmt.Sprintf("movecursor(%d, %d)", f.StartY, f.StartX)
+			if _, _, err := h.doCommandLocked(cmd); err != nil {
+				return err
+			}
+
+			// Erase to End of Field
+			if _, _, err := h.doCommandLocked("eraseeof"); err != nil {
+				return err
+			}
+
+			// Send characters
+			// TODO: Optimize by sending strings instead of individual keys if possible?
+			// s3270 "string" command exists.
+			// But Java used "key(0x..)". Let's try to be safer with "string" or keys.
+			// Using "string" command handles escaping.
+			// For now, let's mimic Java logic (char by char) for fidelity.
+			for _, r := range f.Value {
+				if r == '\n' {
+					if _, _, err := h.doCommandLocked("newline"); err != nil {
+						return err
+					}
+				} else {
+					// Encode as hex key to avoid escaping issues
+					cmd := fmt.Sprintf("key(0x%x)", r)
+					if f.IsHidden() {
+						if _, _, err := h.doCommandLockedRedacted(cmd, "key(***)"); err != nil {
+							return err
+						}
+					} else {
+						if _, _, err := h.doCommandLocked(cmd); err != nil {
+							return err
+						}
+					}
+				}
+			}
+
+			// Reset changed flag
+			f.Changed = false
+		}
+	}
+	return nil
+}
+
+func (h *S3270) SubmitFieldUpdates(updates map[string]string) error {
+	// Not implemented yet
+	return nil
+}
+
+func (h *S3270) SubmitUnformatted(data string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.screen == nil {
+		return fmt.Errorf("screen not initialized")
+	}
+
+	index := 0
+	runes := []rune(data)
+	for y := 0; y < h.screen.Height && index < len(runes); y++ {
+		for x := 0; x < h.screen.Width && index < len(runes); x++ {
+			newCh := runes[index]
+			oldCh := h.screen.CharAt(x, y)
+			if newCh != oldCh {
+				cmd := fmt.Sprintf("movecursor(%d, %d)", y, x)
+				if _, _, err := h.doCommandLocked(cmd); err != nil {
+					return err
+				}
+				if newCh != 0 {
+					if _, _, err := h.doCommandLocked(fmt.Sprintf("key(0x%x)", newCh)); err != nil {
+						return err
+					}
+				}
+			}
+			index++
+		}
+		index++ // skip newline
+	}
+
+	return nil
+}
+
+// doCommandLocked executes a command and reads response until "ok".
+func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
+	return h.executeCommandLocked(cmd, cmd)
+}
+
+func (h *S3270) doCommandLockedRedacted(cmd string, logCmd string) ([]string, string, error) {
+	return h.executeCommandLocked(cmd, logCmd)
+}
+
+func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, string, error) {
+	if h.stdin == nil {
+		return nil, "", fmt.Errorf("not connected")
+	}
+
+	if h.verboseLogging {
+		log.Printf("[VERBOSE] s3270 command: %q", logCmd)
+	}
+
+	_, err := fmt.Fprintln(h.stdin, cmd)
+	if err != nil {
+		h.stdin = nil
+		return nil, "", err
+	}
+
+	type commandResult struct {
+		data   []string
+		status string
+		err    error
+	}
+
+	resultCh := make(chan commandResult, 1)
+	go func() {
+		data, status, err := h.readResponse()
+		resultCh <- commandResult{data: data, status: status, err: err}
+	}()
+
+	select {
+	case result := <-resultCh:
+		if h.verboseLogging {
+			log.Printf("[VERBOSE] s3270 response - status: %q, data lines: %d", result.status, len(result.data))
+			for i, line := range result.data {
+				log.Printf("[VERBOSE] s3270 response data[%d]: %s", i, line)
+			}
+			if result.err != nil {
+				log.Printf("[VERBOSE] s3270 error: %v", result.err)
+			}
+		}
+		return result.data, result.status, result.err
+	case <-time.After(commandTimeout):
+		if h.cmd != nil && h.cmd.Process != nil {
+			_ = h.cmd.Process.Kill()
+		}
+		// Clean up stdin to prevent "broken pipe" on subsequent calls
+		if h.stdin != nil {
+			h.stdin.Close()
+			h.stdin = nil
+		}
+		if h.verboseLogging {
+			log.Printf("[VERBOSE] s3270 command timed out")
+		}
+		return nil, "", fmt.Errorf("s3270 command timed out")
+	}
+}
+
+func (h *S3270) readResponse() ([]string, string, error) {
+	var lines []string
+	for {
+		if !h.stdout.Scan() {
+			if err := h.stdout.Err(); err != nil {
+				return nil, "", err
+			}
+			return nil, "", h.terminalError("s3270 terminated")
+		}
+		line := h.stdout.Text()
+		if line == "ok" {
+			break
+		}
+		lines = append(lines, line)
+	}
+
+	if len(lines) == 0 {
+		return nil, "", h.terminalError("no status received")
+	}
+
+	status := lines[len(lines)-1]
+	data := lines[:len(lines)-1]
+	return data, status, nil
+}
+
+func (h *S3270) captureStderr() {
+	for h.stderr.Scan() {
+		msg := strings.TrimSpace(h.stderr.Text())
+		if msg == "" {
+			continue
+		}
+		h.lastErrMu.Lock()
+		h.lastErr = msg
+		h.lastErrMu.Unlock()
+	}
+}
+
+func (h *S3270) terminalError(fallback string) error {
+	h.lastErrMu.Lock()
+	defer h.lastErrMu.Unlock()
+	if h.lastErr != "" {
+		return fmt.Errorf("%s: %s", fallback, h.lastErr)
+	}
+	return fmt.Errorf("%s", fallback)
+}
+
+func (h *S3270) waitFormattedLocked() error {
+	for i := 0; i < 50; i++ {
+		_, status, err := h.doCommandLocked("")
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(status, "U F") {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("formatted screen not ready")
+}
+
+func (h *S3270) reconnectLocked() error {
+	if h.TargetHost == "" {
+		return fmt.Errorf("target host not set")
+	}
+	if _, _, err := h.doCommandLocked(fmt.Sprintf("Connect(%s)", h.TargetHost)); err != nil {
+		return err
+	}
+	return h.waitFormattedLocked()
+}
+
+// SetVerboseLogging enables or disables verbose logging of S3270 commands and responses.
+func (h *S3270) SetVerboseLogging(enabled bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.verboseLogging = enabled
+}
+
+// GetVerboseLogging returns whether verbose logging is enabled.
+func (h *S3270) GetVerboseLogging() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.verboseLogging
+}
