@@ -10,6 +10,11 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 - Docker image and GHCR workflow
 - Windows build script
 
+> **Windows SmartScreen notice**  
+> This app is digitally signed.  
+> If Windows shows **“protected your PC”**, click **More info → Run anyway**.  
+> The warning disappears automatically as usage grows.
+
 ## Screenshots
 ![Connect screen](web/static/images/connect_image.png)
 ![Yorkshire screen](web/static/images/yorkshire_image.png)
