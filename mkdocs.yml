@@ -1,0 +1,28 @@
+site_name: 3270Web
+site_url: https://3270Web.3270.io
+site_description: Web-based 3270 terminal interface in Go
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Configuration: configuration.md
+  - Workflow Configuration: workflow.md
+  - Terminal Model Limits: terminal-model-limits.md

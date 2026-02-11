@@ -63,3 +63,16 @@ See the [Configuration Reference](docs/configuration.md) for details on availabl
 - Defining custom color schemes and fonts
 
 An optional `.env` file (created with defaults on first run) lets you override the full set of `s3270` command-line options using `S3270_*` environment variables.
+
+## Documentation Site
+
+Project documentation is built with MkDocs and published from `gh-pages` at:
+
+`https://3270Web.3270.io`
+
+Local docs commands:
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve
+```
