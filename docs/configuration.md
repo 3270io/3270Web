@@ -1,180 +1,143 @@
-# Configuration Reference
+# Connect and Use 3270Web
 
-3270Web loads configuration from an XML file located at `webapp/WEB-INF/3270Web-config.xml` and a `.env` file stored alongside the executable.
+This page explains connection setup and the full Settings modal from a user perspective.
 
-If the XML file is missing, the application uses default values. If the `.env` file is missing, it is created with defaults at startup.
+## Connect to a Host
 
-## Structure
+You can connect to:
 
-The root element is `<config>`.
+- `hostname:port` (example: `mainframe.example.com:23`)
+- `IPv4:port` (example: `10.0.0.5:23`)
+- `IPv6:port` (example: `[::1]:23`)
+- `sampleapp:<id>` for bundled sample targets
 
-### Execution Path
+If autoconnect is enabled, 3270Web will connect automatically on startup.
 
-Specifies the location of the `s3270` binary.
+## Open Settings
 
-```xml
-<exec-path>/usr/bin</exec-path>
-```
+1. Click the Settings icon in the toolbar.
+2. Use tabs to switch sections.
+3. Edit values.
+4. Click **Save settings**.
+5. If prompted, restart 3270Web to apply startup-level changes.
 
-### s3270 Options
+You can also use:
 
-Configures the underlying 3270 emulator process.
+- **Refresh** to reload current values
+- **Reset to defaults** inside each settings section
+- **Maximize** for easier editing of long values
 
-```xml
-<s3270-options>
-    <!-- Character set (default: bracket) -->
-    <!-- Note: This may be overridden by S3270_CODE_PAGE in the .env file -->
-    <charset>bracket</charset>
-    <!-- IBM Model number, e.g., 2, 3, 4, 5 (default: 3) -->
-    <!-- Note: This may be overridden by S3270_MODEL in the .env file -->
-    <!-- See terminal-model-limits.md for screen dimension details -->
-    <model>3</model>
-    <!-- Additional command-line arguments for s3270 -->
-    <additional>-trace</additional>
-</s3270-options>
-```
+## Toolbar Callouts
 
-### .env Overrides
+![Toolbar screenshot](images/toolbar-real.png)
 
-At startup, 3270Web loads a `.env` file (created with defaults if missing) alongside the executable. Each variable maps to a specific `s3270` command-line option using the `S3270_<OPTION_NAME>` convention, plus application settings like `ALLOW_LOG_ACCESS`. Values in `.env` are applied after the XML config and do not overwrite existing environment variables set by the shell.
+1. Disconnect
+2. Logs
+3. Settings
+4. Start recording
+5. View recording (when a recording is loaded)
 
-Example (overrides TLS and tracing):
+## Settings Modal Callouts
 
-```dotenv
-S3270_NO_VERIFY_CERT=true
-S3270_TRACE=true
-S3270_TRACE_FILE=/tmp/s3270.trace
-```
+![Settings modal screenshot](images/settings-modal-real.png)
 
-All supported options, defaults, and descriptions are listed in the generated `.env` file at the repo root. Update those values to change the arguments passed to `s3270`.
+1. Refresh values
+2. Maximize/restore modal
+3. Close settings
+4. Section tabs
+5. Active section content
+6. Reset section to defaults
+7. Save settings
 
-> **Note:** The `.env` file can override key settings in `3270Web-config.xml`:
-> *   `S3270_MODEL` will override the `<model>` XML setting (defaults to `3279-4-E` in generated `.env`).
-> *   `S3270_CODE_PAGE` will override the `<charset>` XML setting.
-> *   `S3270_EXEC_COMMAND` will run the specified command *instead* of connecting to the configured target host.
->
-> See [Terminal Model Dimensions](terminal-model-limits.md) for details on how screen sizes are enforced for each model.
+## Settings Sections (Full)
 
-#### Argument Parsing
+### Connectivity
 
-For options that accept multiple arguments (like `S3270_SET`, `S3270_XRM`, or `S3270_EXEC_COMMAND`), values are parsed using shell-like quoting rules:
+Controls how 3270Web reaches the host.
 
-1.  **Splitting**: The value is split by spaces into individual arguments.
-2.  **Quoting**: Use single (`'`) or double (`"`) quotes within the value to treat strings with spaces as a single argument.
-3.  **Escaping**: Use backslash (`\`) to escape characters (e.g., `\"` for a literal quote).
-4.  **Empty Strings**: Use empty quotes (`""` or `''`) to pass an empty string as an argument.
+Includes:
 
-**Examples:**
+- Port, connect timeout
+- IPv4/IPv6 preference
+- Proxy settings
+- callback/script port and socket options
 
-To pass `-set title "My Session"` (where "My Session" is a single argument):
+Use this section when you need alternate network routing or script protocol listeners.
 
-```dotenv
-# Option 1: Unquoted value in .env, using quotes for the argument
-S3270_SET=title "My Session"
+### TLS/Security
 
-# Option 2: Quoted value in .env, using single quotes for the argument
-S3270_SET="title 'My Session'"
+Controls TLS certificate and protocol behavior.
 
-# Option 3: Quoted value in .env, escaping inner double quotes
-S3270_SET="title \"My Session\""
-```
+Includes:
 
-### Target Host
+- Certificate verification toggle
+- Min/max TLS protocol
+- Client certificate and key files
+- CA file/directory/chain
+- Accepted hostname and client certificate name
 
-Sets the default host to connect to. This value is also used as the default in the Connect dialog.
+Use this when connecting to secured hosts with custom certificate requirements.
 
-```xml
-<!-- autoconnect="true" automatically connects on startup -->
-<target-host autoconnect="true">localhost:3270</target-host>
-```
+### Emulation
 
-**Supported Formats:**
+Controls terminal identity and data representation.
 
-*   `hostname:port` (e.g., `mainframe.example.com:23`)
-*   `IP:port` (e.g., `10.0.0.1:23` or `[::1]:23`)
-*   `sampleapp:<ID>` (e.g., `sampleapp:app1`) - Connects to embedded Go-based sample apps for testing.
+Includes:
 
-**Security Restrictions:**
+- Terminal model (`3278`/`3279` variants)
+- Host code page
+- Terminal/device/user identity options
+- NVT mode and oversize behavior
 
-*   **SSRF Protection:** Link-local addresses (e.g., `169.254.x.x`, `fe80::`) and multicast addresses are rejected to prevent Server-Side Request Forgery attacks against cloud metadata services or local network segments.
+This section directly affects screen size, field positions, and recording reliability.
 
-### Fonts
+### Automation/Startup
 
-Defines available fonts for the terminal display. The `default` attribute specifies which font is selected by default.
+Controls startup and command automation behavior.
 
-```xml
-<fonts default="Terminus">
-    <font name="Terminus" description="Terminus Font" />
-    <font name="Courier" description="Courier New" />
-</fonts>
-```
+Includes:
 
-### Color Schemes
+- Exec command override
+- Login macro
+- HTTPD binding
+- Minimum required s3270 version
 
-Defines visual themes. Attributes control colors for different field types using two-letter codes:
+Use this for scripted startup flows and custom launch behavior.
 
-*   **P**: Protected (static text)
-*   **U**: Unprotected (input fields)
-*   **N**: Normal intensity
-*   **I**: Intensified (bright/bold)
-*   **H**: Hidden (no display)
+### Diagnostics
 
-Combined with **Fg** (Foreground) and **Bg** (Background).
+Controls trace and diagnostic output.
 
-Example: `pnfg` = **P**rotected **N**ormal **F**ore**g**round.
+Includes:
 
-```xml
-<colorschemes default="Green">
-    <scheme name="Green"
-            pnfg="green" pnbg="black"
-            pifg="lime" pibg="black"
-            phfg="black" phbg="black"
-            unfg="lime" unbg="black"
-            uifg="white" uibg="black"
-            uhfg="black" uhbg="black" />
-</colorschemes>
-```
+- Trace enable/disable
+- Trace file and max size
+- Help/version/unit-test environment flags
 
-## Security Configuration
+Use this section when troubleshooting host interaction issues.
 
-### Log Access
+### App
 
-By default, access to the application logs via the web interface is disabled for security reasons.
+Controls application-level UI features.
 
-To enable the `/logs` endpoints (view, toggle, clear, download), you must set the `ALLOW_LOG_ACCESS` environment variable (typically in `.env`):
+Includes:
 
-```bash
-ALLOW_LOG_ACCESS=true
-```
+- `Allow log access`
+- `Use keypad` (show virtual keypad by default)
 
-When enabled, logs are accessible at `/logs` and `/logs/download`.
+Use this section to control log visibility and default keyboard UI behavior.
 
-## Complete Example
+## Log Access
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<config>
-    <exec-path>/usr/local/bin</exec-path>
+If log access is enabled in settings, you can open the Logs modal from the toolbar and:
 
-    <s3270-options>
-        <model>4</model>
-        <charset>bracket</charset>
-    </s3270-options>
+- Turn verbose logging on/off
+- Refresh logs
+- Copy/download logs
+- Clear logs
 
-    <target-host autoconnect="false">mainframe.example.com:23</target-host>
+## Best Practices
 
-    <fonts default="Monospace">
-        <font name="Monospace" description="Standard Monospace" />
-    </fonts>
-
-    <colorschemes default="Classic">
-        <scheme name="Classic"
-                pnfg="#00ff00" pnbg="#000000"
-                pifg="#ffffff" pibg="#000000"
-                phfg="#000000" phbg="#000000"
-                unfg="#00ff00" unbg="#000000"
-                uifg="#ffffff" uibg="#000000"
-                uhfg="#000000" uhbg="#000000" />
-    </colorschemes>
-</config>
-```
+- Keep one known-good model/code page profile per host environment.
+- Apply TLS changes carefully and verify certificate paths.
+- Prefer debug playback for new recordings before running full play mode.

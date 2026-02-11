@@ -3,6 +3,10 @@
 3270Web.exe
 *.exe
 
+#node
+node_modules/
+npm-debug.log
+
 # Go workspace file
 go.work
 go.work.sum

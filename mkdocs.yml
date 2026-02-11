@@ -1,28 +1,109 @@
-site_name: 3270Web
+﻿site_name: 3270Web
+site_description: User Guide for the 3270Web terminal client
+site_author: 3270.io
+copyright: "(c) Since 2023 3270.io"
 site_url: https://3270Web.3270.io
-site_description: Web-based 3270 terminal interface in Go
-
-docs_dir: docs
+repo_url: https://github.com/jnnngs/3270Web
+repo_name: GitHub
+edit_uri: edit/main/docs/
 site_dir: site
+docs_dir: docs
+use_directory_urls: true
 
 theme:
   name: material
   language: en
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  icon:
+    repo: fontawesome/brands/github
   features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.expand
     - navigation.sections
+    - navigation.tabs
     - navigation.top
+    - navigation.footer
+    - header.autohide
+    - search.suggest
+    - search.highlight
     - content.code.copy
-
-markdown_extensions:
-  - admonition
-  - attr_list
-  - def_list
-  - md_in_html
-  - toc:
-      permalink: true
+    - content.action.edit
+    - content.action.view
+    - toc.integrate
+    - content.tabs.link
+    - content.footnotes
+  palette:
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
 
 nav:
   - Home: index.md
-  - Configuration: configuration.md
-  - Workflow Configuration: workflow.md
-  - Terminal Model Limits: terminal-model-limits.md
+  - Connect and Use 3270Web: configuration.md
+  - Recordings and Playback: workflow.md
+  - Keyboard and Controls: keyboard-and-controls.md
+  - Screen Size and Model Guide: terminal-model-limits.md
+
+plugins:
+  - search
+  - mkdocs-video:
+      is_video: true
+      video_autoplay: false
+  - tags:
+      enabled: true
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.keys
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.tasklist
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - def_list
+  - md_in_html
+  - pymdownx.snippets:
+      base_path: docs
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - footnotes
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  version: 1.6
+  CNAME: 3270.io
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/3270io
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/company/3270io
+    - icon: fontawesome/brands/twitter
+      link: https://x.com/3270io

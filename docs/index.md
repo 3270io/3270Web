@@ -1,25 +1,24 @@
-# 3270Web Documentation
+# 3270Web User Guide
 
-3270Web is a web-based IBM 3270 terminal interface written in Go.
+3270Web is a browser-based IBM 3270 terminal client.
 
-## What You Can Do
+This guide focuses on daily use:
 
-- Connect to 3270 hosts through a browser UI
-- Record terminal interactions into `workflow.json`
-- Replay workflows against sample apps or configured targets
-- Configure terminal model, colors, fonts, and runtime `s3270` options
+- Connect to a host
+- Use terminal controls and keyboard shortcuts
+- Record, load, play, and debug workflows
+- Configure settings from the UI
 
-## Documentation
+## Quick Start
 
-- [Configuration Reference](configuration.md)
-- [Workflow Configuration](workflow.md)
-- [Terminal Model Limits](terminal-model-limits.md)
+1. Open 3270Web in your browser.
+2. Connect to your target TN3270 host.
+3. Use the terminal session normally.
+4. Optional: record and replay repeatable tasks.
 
-## Local Docs Build
+## Guide Sections
 
-```bash
-pip install -r requirements-docs.txt
-mkdocs serve
-```
-
-Open `http://127.0.0.1:8000`.
+- [Connect and Use 3270Web](configuration.md)
+- [Recordings and Playback](workflow.md)
+- [Keyboard and Controls](keyboard-and-controls.md)
+- [Screen Size and Model Guide](terminal-model-limits.md)

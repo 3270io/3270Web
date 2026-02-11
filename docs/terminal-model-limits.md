@@ -1,67 +1,40 @@
-# IBM 3270 Terminal Model Dimension Limits
+# Screen Size and Model Guide
 
-## Overview
+3270 screen size depends on the terminal model in use.
 
-IBM 3270 terminals come in different models, each with specific screen dimensions. This document describes how 3270Web enforces these standard dimensions to ensure proper terminal emulation.
+## Model Sizes
 
-## Model Specifications
+| Model | Rows | Columns | Typical use |
+|---|---:|---:|---|
+| 2 | 24 | 80 | Standard 3270 screens |
+| 3 | 32 | 80 | Extra rows |
+| 4 | 43 | 80 | Large-screen workflows |
+| 5 | 27 | 132 | Wide-screen workflows |
 
-| Model | Rows | Columns | Description |
-|-------|------|---------|-------------|
-| 2     | 24   | 80      | Standard terminal (default ISPF/TSO size) |
-| 3     | 32   | 80      | Extended rows |
-| 4     | 43   | 80      | Large screen |
-| 5     | 27   | 132     | Wide screen |
+## Why This Matters
 
-## Implementation
+Your model affects:
 
-The dimension limits are enforced in `internal/host/screen_update.go`:
+- How much of a screen is visible
+- Cursor coordinates used in recordings
+- Compatibility with host applications that expect a specific size
 
-1. **Model Detection**: The terminal model is extracted from the s3270 status line (field index 5, which is the 6th field)
-2. **Dimension Extraction**: Reported dimensions are extracted from the status line (field indices 6 and 7)
-3. **Validation**: If reported dimensions exceed the model's standard limits, they are clamped to the maximum allowed
-4. **Rendering**: The validated dimensions are used for screen rendering
+If a host app expects 24x80, use Model 2 unless instructed otherwise.
 
-## Example
+## Choosing a Model
 
-For Model 2, if s3270 reports dimensions of 30x90, they will be automatically limited to 24x80:
+Set your model in configuration or `.env`.
 
-```
-Status: "U F P C(localhost) I 2 30 90 0 0 0x0 0.000"
-                              ^ ^  ^
-                              | |  |
-                        Model | |  |
-                              2 30 90 (reported)
+Example:
 
-Result: 24x80 (enforced to Model 2 limits)
+```dotenv
+S3270_MODEL=2
 ```
 
-## Configuration
+Alternative values are also accepted (for example `3279-4-E`).
 
-The terminal model is configured via the `.env` file:
+## Practical Guidance
 
-```bash
-S3270_MODEL=2        # For model 2 (24x80)
-S3270_MODEL=3279-2   # Alternative format for model 2
-S3270_MODEL=3279-4-E # Model 4 extended (43x80)
-```
-
-Or in the XML configuration:
-
-```xml
-<s3270-options>
-    <model>2</model>
-</s3270-options>
-```
-
-## Testing
-
-Test coverage is provided in `internal/host/screen_update_test.go`:
-
-- `TestGetModelDimensions`: Verifies model-to-dimension mapping
-- `TestScreenDimensionsFromStatusEnforcesLimits`: Validates dimension enforcement
-
-## References
-
-- [IBM 3270 Terminal Specifications](https://en.wikipedia.org/wiki/IBM_3270)
-- [s3270 Documentation](http://x3270.bgp.nu/Unix/s3270-man.html)
+- When recordings fail at `FillString` coordinates, confirm the same model is active.
+- Keep the same model across environments (dev/test/prod) for reliable playback.
+- If text alignment looks wrong, check both model and code page settings.

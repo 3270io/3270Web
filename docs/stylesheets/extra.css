@@ -1,0 +1,20 @@
+﻿/* Shared 3270 suite docs refinements */
+:root {
+  --md-primary-fg-color: #0f766e;
+  --md-accent-fg-color: #06b6d4;
+}
+
+.md-header__title {
+  font-weight: 600;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  letter-spacing: -0.01em;
+}
+
+.md-typeset img {
+  border-radius: 10px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+}

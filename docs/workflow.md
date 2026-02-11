@@ -1,110 +1,103 @@
-# Workflow Configuration
+# Recordings and Playback
 
-> **⚠️ Note:** Workflow playback is currently disabled/not implemented in the current version.
+3270Web can capture terminal actions as JSON recordings and run them later.
 
-Workflows allow automating interactions with 3270 hosts. They are JSON files that define a sequence of steps to be executed against a host.
+## Recording and Playback Callouts
 
-## Structure
+![Recording and playback screenshot](images/workflow-controls-real.png)
 
-The root object contains configuration for the session and a list of steps.
+1. Start recording
+2. Play recording
+3. Debug recording
+4. View recording JSON
+5. Remove loaded recording
+6. Workflow status indicator/widget
 
-```json
-{
-  "Host": "hostname:port",
-  "Steps": [ ... ]
-}
-```
+## Record a Session
 
-### Top-Level Fields
+1. Connect to the target host.
+2. Click **Start recording**.
+3. Perform your terminal actions.
+4. Click **Stop recording**.
+5. Optional: click **Download** to save the generated JSON file.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Host` | String | Target host (e.g., `localhost:3270` or `sampleapp:app1`). Optional; if omitted, the current session host is used. |
-| `Port` | Integer | Target port. Optional. |
-| `Steps` | Array | List of [Step](#step-objects) objects. Required. |
-| `EveryStepDelay` | Object | Default delay between steps. See [Delay Object](#delay-object). |
-| `OutputFilePath` | String | (Internal) Path used during recording. |
-| `RampUpBatchSize` | Integer | (Internal) Batch size for load testing. |
-| `RampUpDelay` | Float | (Internal) Delay for ramp-up. |
-| `EndOfTaskDelay` | Object | Delay after the workflow completes. See [Delay Object](#delay-object). |
+## Load a Recording
 
-### Step Objects
+1. Click **Load recording**.
+2. Choose a `.json` file.
+3. Confirm the filename appears as loaded in the toolbar.
+4. Click **View recording** to inspect the full JSON.
 
-Each step represents an action.
+## Play a Recording
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Type` | String | The type of action (see [Step Types](#step-types)). Required. |
-| `Coordinates` | Object | Target coordinates for `FillString`. See [Coordinates Object](#coordinates-object). |
-| `Text` | String | Text to type for `FillString`. |
-| `StepDelay` | Object | Delay after this step. Overrides `EveryStepDelay`. See [Delay Object](#delay-object). |
+1. Load a recording.
+2. Click **Play recording**.
+3. Watch playback status in the toolbar and Workflow Status widget.
+4. Use **Pause/Resume** in play mode if needed.
+5. Click **Stop playback** to end execution.
 
-### Coordinates Object
+## Debug a Recording (Step-by-step)
 
-Used by `FillString` to specify where to type.
+1. Load a recording.
+2. Click **Debug recording**.
+3. Use **Step** to execute one action at a time.
+4. Watch current step number/type in the status indicators.
+5. Click **Stop playback** when done.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Row` | Integer | Row number (1-based). |
-| `Column` | Integer | Column number (1-based). |
+Debug mode is recommended for new or edited recordings.
 
-### Delay Object
+## Remove a Loaded Recording
 
-Defines a random delay duration range.
+Click **Remove recording** to clear the currently loaded file from the session.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Min` | Float | Minimum delay in seconds. |
-| `Max` | Float | Maximum delay in seconds. |
+## Workflow Status Widget
 
-## Step Types
+The Workflow Status panel shows:
 
-Most step types are supported for playback, but the recorder currently only captures a subset of keys. Unrecorded keys can be manually added to the JSON file.
+- Current step and total steps
+- Current action type
+- Delay range and applied delay (when present)
+- Recent playback events
 
-| Type | Description | Recorded? |
-|------|-------------|-----------|
-| `Connect` | Recorded at start. Ignored during playback (session connects automatically). | Yes |
-| `Disconnect` | Recorded at end. Ignored during playback to keep the session alive. | Yes |
-| `FillString` | Types text into a field at the specified `Coordinates`. | Yes |
-| `PressEnter` | Sends the Enter key. | Yes |
-| `PressTab` | Sends the Tab key. | Yes |
-| `PressPF<n>` | Sends a PF key (e.g., `PressPF1`, `PressPF12`). | Yes |
-| `PressPA<n>` | Sends a PA key (e.g., `PressPA1`). | No |
-| `PressClear` | Sends the Clear key. | No |
-| `PressReset` | Sends the Reset key. | No |
-| `PressEraseInput` | Sends the Erase Input key. | No |
-| `PressEraseEOF` | Sends the Erase EOF key. | No |
-| `PressHome` | Sends the Home key. | No |
-| `PressUp`, `PressDown`, `PressLeft`, `PressRight` | Sends cursor movement keys. | No |
+You can:
 
-## Example
+- Open it from the status indicator
+- Minimize/maximize it
+- Enable or disable tracking
+
+## Recording JSON Basics
+
+A recording includes a `Steps` array of actions.
+
+Example:
 
 ```json
 {
   "Host": "sampleapp:app1",
-  "Port": 3270,
-  "EveryStepDelay": {
-    "Min": 0.5,
-    "Max": 1.0
-  },
   "Steps": [
-    {
-      "Type": "Connect"
-    },
+    { "Type": "Connect" },
     {
       "Type": "FillString",
-      "Coordinates": {
-        "Row": 5,
-        "Column": 21
-      },
+      "Coordinates": { "Row": 5, "Column": 21 },
       "Text": "User"
     },
-    {
-      "Type": "PressEnter"
-    },
-    {
-      "Type": "Disconnect"
-    }
+    { "Type": "PressEnter" },
+    { "Type": "Disconnect" }
   ]
 }
 ```
+
+Common action types:
+
+- `FillString`
+- `PressEnter`
+- `PressTab`
+- `PressPF<n>` (for example `PressPF3`)
+
+## Troubleshooting Playback
+
+- Confirm host and port are correct.
+- Confirm terminal model matches the one used when recording.
+- Confirm screen layout and field coordinates still match host screens.
+- Add delays for timing-sensitive screens.
+- Use Debug mode to find the first failing step.
