@@ -100,6 +100,7 @@
     const openButton = document.querySelector('[data-settings-open]');
     const closeButtons = modal.querySelectorAll('[data-settings-close]');
     const refreshButton = modal.querySelector('[data-settings-refresh]');
+    const maximizeButton = modal.querySelector('[data-settings-maximize]');
     const form = modal.querySelector('[data-settings-form]');
     const tabsContainer = modal.querySelector('[data-settings-tabs]');
     const groupsContainer = modal.querySelector('[data-settings-groups]');
@@ -107,6 +108,7 @@
     const restartConfirmModal = modal.querySelector('[data-settings-restart-confirm]');
     const restartConfirmButton = modal.querySelector('[data-settings-restart-accept]');
     const restartCancelButtons = modal.querySelectorAll('[data-settings-restart-cancel]');
+    const maximizedStorageKey = 'h3270SettingsModalMaximized';
     const extraOptionsPrefix = 'APP_SETTINGS_OPTIONS_';
 
     const defaults = {
@@ -303,6 +305,7 @@
     const fieldExtraOptionsMap = new Map();
     const fieldExtrasListMap = new Map();
     let activeGroupId = '';
+    let maximized = false;
     let restartConfirmResolver = null;
 
     const setStatus = (message, isError = false) => {
@@ -317,6 +320,17 @@
         status.textContent = message;
         status.classList.add('is-visible');
         status.classList.toggle('is-error', isError);
+    };
+
+    const setMaximizeUi = (enabled) => {
+        maximized = enabled;
+        modal.classList.toggle('is-maximized', enabled);
+        if (!maximizeButton) {
+            return;
+        }
+        maximizeButton.textContent = enabled ? 'Restore' : 'Maximize';
+        maximizeButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        maximizeButton.setAttribute('title', enabled ? 'Restore modal size' : 'Maximize modal');
     };
 
     const setActiveGroup = (groupId) => {
@@ -855,6 +869,8 @@
     };
 
     try {
+        const storedMaximized = window.localStorage.getItem(maximizedStorageKey);
+        setMaximizeUi(storedMaximized === '1');
         buildGroups();
     } catch (error) {
         setStatus('Failed to initialize settings form.', true);
@@ -870,6 +886,17 @@
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             saveSettings();
+        });
+    }
+
+    if (maximizeButton) {
+        maximizeButton.addEventListener('click', () => {
+            setMaximizeUi(!maximized);
+            try {
+                window.localStorage.setItem(maximizedStorageKey, maximized ? '1' : '0');
+            } catch (err) {
+                // ignore persistence errors
+            }
         });
     }
 
