@@ -1760,11 +1760,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   z-index: 1;
 }
 
-.settings-modal.is-maximized .settings-modal-content {
-  width: calc(100vw - 24px);
-  height: calc(100vh - 24px);
-}
-
 .settings-modal-header {
   display: flex;
   align-items: center;
