@@ -30,7 +30,7 @@
   height: auto;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .md-typeset .doc-medal-wrap img.doc-medal {
     width: 960px;
     max-width: none;
