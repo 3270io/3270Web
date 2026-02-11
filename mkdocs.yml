@@ -1,0 +1,10 @@
+site_name: 3270Web Documentation
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Workflow Recording: workflow-recording.md
+  - API: api.md
+  - Development: development.md
+  - License: LICENSE.md
