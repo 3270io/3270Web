@@ -467,6 +467,8 @@ body.terminal-fit-active .card {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .workflow-modal-meta {
@@ -481,10 +483,13 @@ body.terminal-fit-active .card {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  overflow: hidden;
-  max-height: 48vh;
+  overflow: auto;
+  max-height: none;
+  flex: 1;
+  min-height: 0;
   font-size: 0.9rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .error-title {
