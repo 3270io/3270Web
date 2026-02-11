@@ -4,7 +4,8 @@
 
 ## Recording and Playback Callouts
 
-![Recording and playback screenshot](images/workflow-controls-real.png)
+![Recording and playback screenshot](images/workflow-controls-real.png){: .doc-medal }
+{: .doc-medal-wrap }
 
 1. Start recording
 2. Play recording

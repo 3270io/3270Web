@@ -14,7 +14,8 @@ Main toolbar actions include:
 - Play/debug/view/remove recording
 - Playback pause/resume/stop controls (when active)
 
-![Toolbar screenshot](images/toolbar-real.png)
+![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
+{: .doc-medal-wrap }
 
 ## Virtual Keyboard (Keypad)
 
@@ -30,7 +31,8 @@ Keypad features:
 
 The keypad visibility preference can be saved in Settings (`Use keypad`).
 
-![Virtual keyboard screenshot](images/keypad-real.png)
+![Virtual keyboard screenshot](images/keypad-real.png){: .doc-medal }
+{: .doc-medal-wrap }
 
 1. Keypad title area
 2. Compact/full mode toggle
