@@ -1,8 +1,8 @@
 # Configuration Reference
 
-3270Web uses an XML configuration file located at `webapp/WEB-INF/3270Web-config.xml`.
+3270Web loads configuration from an XML file located at `webapp/WEB-INF/3270Web-config.xml` and a `.env` file stored alongside the executable.
 
-If this file is missing, the application uses default values.
+If the XML file is missing, the application uses default values. If the `.env` file is missing, it is created with defaults at startup.
 
 ## Structure
 
@@ -36,7 +36,7 @@ Configures the underlying 3270 emulator process.
 
 ### .env Overrides
 
-At startup, 3270Web loads a `.env` file (created with defaults if missing) alongside the executable. Each variable maps to a specific `s3270` command-line option using the `S3270_<OPTION_NAME>` convention. Values in `.env` are applied after the XML config and do not overwrite existing environment variables set by the shell.
+At startup, 3270Web loads a `.env` file (created with defaults if missing) alongside the executable. Each variable maps to a specific `s3270` command-line option using the `S3270_<OPTION_NAME>` convention, plus application settings like `ALLOW_LOG_ACCESS`. Values in `.env` are applied after the XML config and do not overwrite existing environment variables set by the shell.
 
 Example (overrides TLS and tracing):
 
@@ -141,7 +141,7 @@ Example: `pnfg` = **P**rotected **N**ormal **F**ore**g**round.
 
 By default, access to the application logs via the web interface is disabled for security reasons.
 
-To enable the `/logs` endpoints (view, toggle, clear, download), you must set the `ALLOW_LOG_ACCESS` environment variable:
+To enable the `/logs` endpoints (view, toggle, clear, download), you must set the `ALLOW_LOG_ACCESS` environment variable (typically in `.env`):
 
 ```bash
 ALLOW_LOG_ACCESS=true
