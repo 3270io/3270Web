@@ -18,3 +18,21 @@
   border-radius: 10px;
   border: 1px solid var(--md-default-fg-color--lightest);
 }
+
+.md-typeset .doc-medal-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.md-typeset img.doc-medal {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 768px) {
+  .md-typeset .doc-medal-wrap img.doc-medal {
+    width: 960px;
+    max-width: none;
+  }
+}

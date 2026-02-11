@@ -29,7 +29,8 @@ You can also use:
 
 ## Toolbar Callouts
 
-![Toolbar screenshot](images/toolbar-real.png)
+![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
+{: .doc-medal-wrap }
 
 1. Disconnect
 2. Logs
@@ -39,7 +40,8 @@ You can also use:
 
 ## Settings Modal Callouts
 
-![Settings modal screenshot](images/settings-modal-real.png)
+![Settings modal screenshot](images/settings-modal-real.png){: .doc-medal }
+{: .doc-medal-wrap }
 
 1. Refresh values
 2. Maximize/restore modal
