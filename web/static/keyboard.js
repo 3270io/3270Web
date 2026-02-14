@@ -8,6 +8,14 @@
   var keypadModeStorageKey = "h3270KeypadMode";
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
+  var focusLockSelectors = [
+    ".card-header .toolbar",
+    ".card > .toolbar",
+    ".terminal-tools-widget",
+    ".workflow-status-widget",
+    ".authentic-controls",
+    "#keypad"
+  ];
 
   var specialKeys = {
     Enter: "Enter",
@@ -306,6 +314,125 @@
       }
       target.setSelectionRange(caret, caret);
     }
+  }
+
+  function focusTerminalInput() {
+    var form = findForm();
+    if (!form) {
+      return false;
+    }
+    var active = document.activeElement;
+    if (active && form.contains(active) && isEditableTarget(active)) {
+      return true;
+    }
+
+    var target = null;
+    var caret = null;
+    if (
+      typeof lastKnownCursorRow === "number" &&
+      isFinite(lastKnownCursorRow) &&
+      lastKnownCursorRow >= 0 &&
+      typeof lastKnownCursorCol === "number" &&
+      isFinite(lastKnownCursorCol) &&
+      lastKnownCursorCol >= 0
+    ) {
+      var located = findInputAtCursor(form, lastKnownCursorRow, lastKnownCursorCol);
+      if (located && located.input) {
+        target = located.input;
+        caret = located.caret;
+      }
+    }
+
+    if (!target) {
+      target =
+        form.querySelector("input[data-x][data-y]:not([disabled]):not([readonly])") ||
+        form.querySelector("textarea.unformatted");
+    }
+    if (!target || typeof target.focus !== "function") {
+      return false;
+    }
+
+    target.focus();
+    if (
+      caret !== null &&
+      typeof target.setSelectionRange === "function" &&
+      typeof target.value === "string"
+    ) {
+      var clamped = caret;
+      if (clamped < 0) {
+        clamped = 0;
+      }
+      if (clamped > target.value.length) {
+        clamped = target.value.length;
+      }
+      target.setSelectionRange(clamped, clamped);
+    }
+    return true;
+  }
+
+  function isModalOpen() {
+    var selectors = [
+      "[data-settings-modal]",
+      "[data-logs-modal]",
+      "[data-disconnect-modal]",
+      "[data-about-modal]",
+      "[data-modal]"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && !el.hidden) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function shouldKeepTerminalFocus(target) {
+    if (!target || typeof target.closest !== "function") {
+      return false;
+    }
+    if (isModalOpen()) {
+      return false;
+    }
+    var control = target.closest("button, a[href], [role='button']");
+    if (!control) {
+      return false;
+    }
+    if (control.closest(".screen-container, .renderer-form")) {
+      return false;
+    }
+    for (var i = 0; i < focusLockSelectors.length; i++) {
+      if (control.closest(focusLockSelectors[i])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function installTerminalFocusLock() {
+    document.addEventListener(
+      "pointerdown",
+      function (event) {
+        if (!shouldKeepTerminalFocus(event.target)) {
+          return;
+        }
+        event.preventDefault();
+      },
+      true
+    );
+
+    document.addEventListener(
+      "click",
+      function (event) {
+        if (!shouldKeepTerminalFocus(event.target)) {
+          return;
+        }
+        window.requestAnimationFrame(function () {
+          focusTerminalInput();
+        });
+      },
+      true
+    );
   }
 
   function findInputAtCursor(form, row, col) {
@@ -1274,5 +1401,6 @@
   document.addEventListener("DOMContentLoaded", function () {
     renderKeypad();
     initKeypadVisibilityToggle();
+    installTerminalFocusLock();
   });
 })();
