@@ -61,17 +61,15 @@
                 </div>
                 <div class="toolbar">
                     <button type="button" data-about-open>About</button>
-                    <label for="theme-select">Theme</label>
-                    <select id="theme-select"></select>
+                    <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+                    </button>
                 </div>
             </div>
             <div class="toolbar" style="margin-bottom: 16px;">
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                </button>
-                <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
                 </button>
                 <span class="status-indicator" data-recording-indicator {{ if not .RecordingActive }}hidden{{ end }}>
                     <span class="recording-indicator" aria-hidden="true"></span>
@@ -414,6 +412,7 @@
             <div class="settings-modal-body">
                 <div class="settings-status" data-settings-status aria-live="polite"></div>
                 <form class="settings-form" data-settings-form>
+                    <div class="settings-theme-slot" data-settings-theme-slot></div>
                     <div class="settings-tabs" data-settings-tabs role="tablist" aria-label="Settings sections"></div>
                     <div class="settings-groups" data-settings-groups></div>
                     <div class="settings-actions">

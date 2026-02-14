@@ -592,9 +592,57 @@
         if (!groupsContainer || !tabsContainer) {
             return;
         }
+        const themeSlot = form ? form.querySelector('[data-settings-theme-slot]') : null;
+        const builtGroupIds = [];
         const previousActive = activeGroupId;
         tabsContainer.innerHTML = '';
         groupsContainer.innerHTML = '';
+
+        if (themeSlot) {
+            const groupId = 'theme';
+            const tabId = `settings-tab-${groupId}`;
+            const panelId = `settings-panel-${groupId}`;
+
+            const tabButton = document.createElement('button');
+            tabButton.type = 'button';
+            tabButton.className = 'settings-tab';
+            tabButton.dataset.settingsTab = '1';
+            tabButton.dataset.groupId = groupId;
+            tabButton.id = tabId;
+            tabButton.setAttribute('role', 'tab');
+            tabButton.setAttribute('aria-controls', panelId);
+            tabButton.textContent = 'Theme';
+            tabButton.addEventListener('click', () => {
+                setActiveGroup(groupId);
+            });
+            tabsContainer.appendChild(tabButton);
+
+            const fieldset = document.createElement('fieldset');
+            fieldset.className = 'settings-group';
+            fieldset.id = panelId;
+            fieldset.dataset.settingsGroup = '1';
+            fieldset.dataset.groupId = groupId;
+            fieldset.setAttribute('role', 'tabpanel');
+            fieldset.setAttribute('aria-labelledby', tabId);
+
+            const header = document.createElement('div');
+            header.className = 'settings-group-header';
+            const title = document.createElement('span');
+            title.className = 'settings-group-title';
+            title.textContent = 'Theme';
+            header.appendChild(title);
+
+            const description = document.createElement('div');
+            description.className = 'subtle';
+            description.textContent = 'Select a system theme, then create, load, or save custom themes.';
+
+            fieldset.appendChild(header);
+            fieldset.appendChild(description);
+            fieldset.appendChild(themeSlot);
+            groupsContainer.appendChild(fieldset);
+            builtGroupIds.push(groupId);
+        }
+
         groups.forEach((group) => {
             const tabId = `settings-tab-${group.id}`;
             const panelId = `settings-panel-${group.id}`;
@@ -749,10 +797,11 @@
             fieldset.appendChild(description);
             fieldset.appendChild(fieldsWrap);
             groupsContainer.appendChild(fieldset);
+            builtGroupIds.push(group.id);
         });
 
-        const hasPrevious = groups.some((group) => group.id === previousActive);
-        const initialGroupId = hasPrevious ? previousActive : (groups[0] ? groups[0].id : '');
+        const hasPrevious = builtGroupIds.includes(previousActive);
+        const initialGroupId = hasPrevious ? previousActive : (builtGroupIds[0] || '');
         if (initialGroupId) {
             setActiveGroup(initialGroupId);
         }

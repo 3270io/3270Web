@@ -26,8 +26,6 @@
                     {{ end }}
                     <button type="button" data-about-open>About</button>
                     <button type="button" data-settings-open>Settings</button>
-                    <label for="theme-select">Theme</label>
-                    <select id="theme-select"></select>
                 </div>
             </div>
             {{ if .ConnectError }}
@@ -40,9 +38,44 @@
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP</label>
                     <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required autofocus placeholder="hostname:port">
+                    <button type="button" data-host-save>Save Host</button>
+                    <button type="button" data-host-load>Load Host</button>
                     <button type="submit" id="connect-btn">Connect</button>
                 </fieldset>
             </form>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-hosts-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hosts-modal-title">
+            <div class="modal-header">
+                <h3 id="hosts-modal-title">Saved Hosts</h3>
+                <button type="button" class="modal-close" data-hosts-close>Close</button>
+            </div>
+            <div class="stack">
+                <div class="saved-hosts-row">
+                    <label for="saved-host-select">Saved host profiles</label>
+                    <select id="saved-host-select" data-saved-host-select></select>
+                </div>
+                <div class="saved-hosts-row">
+                    <label for="saved-host-name">Profile name</label>
+                    <input id="saved-host-name" type="text" data-saved-host-name placeholder="Optional display name">
+                </div>
+                <div class="saved-hosts-row">
+                    <label for="saved-host-value">Host</label>
+                    <input id="saved-host-value" type="text" data-saved-host-value placeholder="hostname:port">
+                </div>
+                <div class="modal-actions saved-host-actions">
+                    <button type="button" data-hosts-apply>Use Host</button>
+                    <button type="button" data-hosts-connect>Use &amp; Connect</button>
+                    <button type="button" data-hosts-delete>Delete</button>
+                </div>
+                <div class="modal-actions saved-host-actions">
+                    <button type="button" data-hosts-export>Export Hosts</button>
+                    <button type="button" data-hosts-import>Import Hosts</button>
+                    <input type="file" accept="application/json,.json" data-hosts-import-file hidden>
+                </div>
+                <div class="subtle" data-hosts-status aria-live="polite"></div>
+            </div>
         </div>
     </div>
     <div class="settings-modal" data-settings-modal hidden>
@@ -59,6 +92,7 @@
             <div class="settings-modal-body">
                 <div class="settings-status" data-settings-status aria-live="polite"></div>
                 <form class="settings-form" data-settings-form>
+                    <div class="settings-theme-slot" data-settings-theme-slot></div>
                     <div class="settings-tabs" data-settings-tabs role="tablist" aria-label="Settings sections"></div>
                     <div class="settings-groups" data-settings-groups></div>
                     <div class="settings-actions">
@@ -121,60 +155,395 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const hostInput = document.querySelector("[data-host-input]");
-            const modal = document.querySelector("[data-sample-modal]");
-            const openModal = document.querySelector("[data-open-sample-modal]");
-            const closeModal = document.querySelector("[data-sample-close]");
-            const startButton = document.querySelector("[data-sample-start]");
-            const appSelect = document.querySelector("#sample-app-select");
-            const portSelect = document.querySelector("#sample-app-port");
             const connectForm = document.getElementById("connect-form");
             const connectBtn = document.getElementById("connect-btn");
+            const saveHostButton = document.querySelector("[data-host-save]");
+            const loadHostButton = document.querySelector("[data-host-load]");
+            const hostsModal = document.querySelector("[data-hosts-modal]");
+            const hostsCloseButton = document.querySelector("[data-hosts-close]");
+            const savedHostSelect = document.querySelector("[data-saved-host-select]");
+            const savedHostNameInput = document.querySelector("[data-saved-host-name]");
+            const savedHostValueInput = document.querySelector("[data-saved-host-value]");
+            const hostsApplyButton = document.querySelector("[data-hosts-apply]");
+            const hostsConnectButton = document.querySelector("[data-hosts-connect]");
+            const hostsDeleteButton = document.querySelector("[data-hosts-delete]");
+            const hostsExportButton = document.querySelector("[data-hosts-export]");
+            const hostsImportButton = document.querySelector("[data-hosts-import]");
+            const hostsImportFileInput = document.querySelector("[data-hosts-import-file]");
+            const hostsStatus = document.querySelector("[data-hosts-status]");
+            const savedHostsStorageKey = "3270Web.savedHosts.v1";
+
+            const sampleModal = document.querySelector("[data-sample-modal]");
+            const sampleOpenButton = document.querySelector("[data-open-sample-modal]");
+            const sampleCloseButton = document.querySelector("[data-sample-close]");
+            const sampleStartButton = document.querySelector("[data-sample-start]");
+            const appSelect = document.querySelector("#sample-app-select");
+            const portSelect = document.querySelector("#sample-app-port");
+
+            let lastFocusedElement = null;
 
             const setLoading = () => {
                 if (connectBtn) {
-                    connectBtn.textContent = 'Connecting...';
-                    connectBtn.setAttribute('aria-busy', 'true');
+                    connectBtn.textContent = "Connecting...";
+                    connectBtn.setAttribute("aria-busy", "true");
                     connectBtn.disabled = true;
                 }
             };
 
+            const normalizeHost = (value) => String(value || "").trim();
+            const normalizeName = (value, fallback) => {
+                const name = String(value || "").trim();
+                return name || fallback;
+            };
+
+            const readSavedHosts = () => {
+                try {
+                    const parsed = JSON.parse(localStorage.getItem(savedHostsStorageKey) || "[]");
+                    if (!Array.isArray(parsed)) {
+                        return [];
+                    }
+                    return parsed
+                        .map((item) => {
+                            if (typeof item === "string") {
+                                const hostname = normalizeHost(item);
+                                if (!hostname) {
+                                    return null;
+                                }
+                                return { name: hostname, hostname, updatedAt: Date.now() };
+                            }
+                            if (!item || typeof item !== "object") {
+                                return null;
+                            }
+                            const hostname = normalizeHost(item.hostname);
+                            if (!hostname) {
+                                return null;
+                            }
+                            return {
+                                name: normalizeName(item.name, hostname),
+                                hostname,
+                                updatedAt: Number(item.updatedAt || Date.now()),
+                            };
+                        })
+                        .filter(Boolean)
+                        .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+                } catch (err) {
+                    return [];
+                }
+            };
+
+            const writeSavedHosts = (hosts) => {
+                localStorage.setItem(savedHostsStorageKey, JSON.stringify(Array.isArray(hosts) ? hosts : []));
+            };
+
+            const setHostsStatus = (message) => {
+                if (hostsStatus) {
+                    hostsStatus.textContent = message || "";
+                }
+            };
+
+            const populateSavedHostInputs = () => {
+                if (!savedHostSelect || !savedHostNameInput || !savedHostValueInput) {
+                    return;
+                }
+                const hosts = readSavedHosts();
+                savedHostSelect.innerHTML = "";
+                if (hosts.length === 0) {
+                    const option = document.createElement("option");
+                    option.value = "";
+                    option.textContent = "No saved hosts yet";
+                    savedHostSelect.appendChild(option);
+                    savedHostSelect.disabled = true;
+                    savedHostNameInput.value = "";
+                    savedHostValueInput.value = "";
+                    return;
+                }
+                savedHostSelect.disabled = false;
+                hosts.forEach((item, index) => {
+                    const option = document.createElement("option");
+                    option.value = item.hostname;
+                    option.dataset.hostName = item.name;
+                    option.textContent = `${item.name} (${item.hostname})`;
+                    savedHostSelect.appendChild(option);
+                    if (index === 0) {
+                        savedHostNameInput.value = item.name;
+                        savedHostValueInput.value = item.hostname;
+                    }
+                });
+            };
+
+            const upsertSavedHost = (name, hostname) => {
+                const normalizedHost = normalizeHost(hostname);
+                if (!normalizedHost) {
+                    return false;
+                }
+                const hosts = readSavedHosts();
+                const key = normalizedHost.toLowerCase();
+                const now = Date.now();
+                const existing = hosts.find((item) => item.hostname.toLowerCase() === key);
+                if (existing) {
+                    existing.name = normalizeName(name, normalizedHost);
+                    existing.hostname = normalizedHost;
+                    existing.updatedAt = now;
+                } else {
+                    hosts.push({
+                        name: normalizeName(name, normalizedHost),
+                        hostname: normalizedHost,
+                        updatedAt: now,
+                    });
+                }
+                hosts.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+                writeSavedHosts(hosts);
+                return true;
+            };
+
+            const removeSavedHost = (hostname) => {
+                const key = normalizeHost(hostname).toLowerCase();
+                if (!key) {
+                    return;
+                }
+                const next = readSavedHosts().filter((item) => item.hostname.toLowerCase() !== key);
+                writeSavedHosts(next);
+            };
+
+            const openHostsModal = () => {
+                if (!hostsModal) {
+                    return;
+                }
+                lastFocusedElement = document.activeElement;
+                hostsModal.hidden = false;
+                populateSavedHostInputs();
+                setHostsStatus("");
+                if (savedHostSelect && !savedHostSelect.disabled) {
+                    savedHostSelect.focus();
+                } else if (savedHostValueInput) {
+                    savedHostValueInput.focus();
+                }
+            };
+
+            const closeHostsModal = () => {
+                if (!hostsModal) {
+                    return;
+                }
+                hostsModal.hidden = true;
+                if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+                    lastFocusedElement.focus();
+                }
+                lastFocusedElement = null;
+            };
+
+            const applySelectedHost = () => {
+                const host = normalizeHost(savedHostValueInput ? savedHostValueInput.value : "");
+                if (!host || !hostInput) {
+                    setHostsStatus("Enter a host value first.");
+                    return "";
+                }
+                hostInput.value = host;
+                return host;
+            };
+
+            const downloadJson = (filename, data) => {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = filename;
+                document.body.appendChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
+                URL.revokeObjectURL(url);
+            };
+
+            const mergeImportedHosts = (payload) => {
+                const source = Array.isArray(payload)
+                    ? payload
+                    : (payload && Array.isArray(payload.hosts) ? payload.hosts : []);
+                const existing = readSavedHosts();
+                const map = new Map();
+                existing.forEach((item) => map.set(item.hostname.toLowerCase(), item));
+                source.forEach((entry) => {
+                    let hostname = "";
+                    let name = "";
+                    if (typeof entry === "string") {
+                        hostname = normalizeHost(entry);
+                        name = hostname;
+                    } else if (entry && typeof entry === "object") {
+                        hostname = normalizeHost(entry.hostname);
+                        name = normalizeName(entry.name, hostname);
+                    }
+                    if (!hostname) {
+                        return;
+                    }
+                    map.set(hostname.toLowerCase(), {
+                        hostname,
+                        name: normalizeName(name, hostname),
+                        updatedAt: Date.now(),
+                    });
+                });
+                const merged = Array.from(map.values()).sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+                writeSavedHosts(merged);
+                return merged.length;
+            };
+
             if (connectForm) {
-                connectForm.addEventListener("submit", (e) => {
+                connectForm.addEventListener("submit", () => {
                     setLoading();
                 });
             }
 
-            let lastFocusedElement;
-            const hideModal = () => {
-                if (modal) {
-                    modal.hidden = true;
-                    if (lastFocusedElement) {
-                        lastFocusedElement.focus();
-                        lastFocusedElement = null;
+            if (saveHostButton) {
+                saveHostButton.addEventListener("click", () => {
+                    const host = normalizeHost(hostInput ? hostInput.value : "");
+                    if (!host) {
+                        return;
                     }
+                    upsertSavedHost("", host);
+                    if (hostsModal && !hostsModal.hidden) {
+                        populateSavedHostInputs();
+                        setHostsStatus("Host saved.");
+                    }
+                });
+            }
+
+            if (loadHostButton) {
+                loadHostButton.addEventListener("click", openHostsModal);
+            }
+
+            if (hostsCloseButton) {
+                hostsCloseButton.addEventListener("click", closeHostsModal);
+            }
+
+            if (hostsModal) {
+                hostsModal.addEventListener("click", (event) => {
+                    if (event.target === hostsModal) {
+                        closeHostsModal();
+                    }
+                });
+            }
+
+            if (savedHostSelect) {
+                savedHostSelect.addEventListener("change", () => {
+                    const selectedHost = normalizeHost(savedHostSelect.value);
+                    const selectedName = savedHostSelect.options[savedHostSelect.selectedIndex]
+                        ? savedHostSelect.options[savedHostSelect.selectedIndex].dataset.hostName || selectedHost
+                        : selectedHost;
+                    if (savedHostNameInput) {
+                        savedHostNameInput.value = selectedName || "";
+                    }
+                    if (savedHostValueInput) {
+                        savedHostValueInput.value = selectedHost || "";
+                    }
+                });
+            }
+
+            if (hostsApplyButton) {
+                hostsApplyButton.addEventListener("click", () => {
+                    const host = applySelectedHost();
+                    if (!host) {
+                        return;
+                    }
+                    upsertSavedHost(savedHostNameInput ? savedHostNameInput.value : "", host);
+                    closeHostsModal();
+                });
+            }
+
+            if (hostsConnectButton) {
+                hostsConnectButton.addEventListener("click", () => {
+                    const host = applySelectedHost();
+                    if (!host || !hostInput || !hostInput.form) {
+                        return;
+                    }
+                    upsertSavedHost(savedHostNameInput ? savedHostNameInput.value : "", host);
+                    closeHostsModal();
+                    setLoading();
+                    hostInput.form.submit();
+                });
+            }
+
+            if (hostsDeleteButton) {
+                hostsDeleteButton.addEventListener("click", () => {
+                    const host = normalizeHost(savedHostValueInput ? savedHostValueInput.value : "");
+                    if (!host) {
+                        setHostsStatus("Select a host first.");
+                        return;
+                    }
+                    removeSavedHost(host);
+                    populateSavedHostInputs();
+                    setHostsStatus("Host removed.");
+                });
+            }
+
+            if (hostsExportButton) {
+                hostsExportButton.addEventListener("click", () => {
+                    const hosts = readSavedHosts();
+                    downloadJson("3270web-hosts.json", {
+                        schema: "3270web.hosts.v1",
+                        exportedAt: new Date().toISOString(),
+                        hosts,
+                    });
+                    setHostsStatus("Hosts exported.");
+                });
+            }
+
+            if (hostsImportButton && hostsImportFileInput) {
+                hostsImportButton.addEventListener("click", () => {
+                    hostsImportFileInput.click();
+                });
+                hostsImportFileInput.addEventListener("change", () => {
+                    const file = hostsImportFileInput.files && hostsImportFileInput.files[0];
+                    if (!file) {
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        try {
+                            const parsed = JSON.parse(String(reader.result || ""));
+                            const count = mergeImportedHosts(parsed);
+                            populateSavedHostInputs();
+                            setHostsStatus(`Imported ${count} host profile(s).`);
+                        } catch (err) {
+                            setHostsStatus("Import failed: invalid connection file.");
+                        }
+                    };
+                    reader.onerror = () => {
+                        setHostsStatus("Import failed: unable to read file.");
+                    };
+                    reader.readAsText(file);
+                    hostsImportFileInput.value = "";
+                });
+            }
+
+            const hideSampleModal = () => {
+                if (!sampleModal) {
+                    return;
                 }
+                sampleModal.hidden = true;
+                if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+                    lastFocusedElement.focus();
+                }
+                lastFocusedElement = null;
             };
 
-            if (openModal && modal) {
-                openModal.addEventListener("click", () => {
+            if (sampleOpenButton && sampleModal) {
+                sampleOpenButton.addEventListener("click", () => {
                     lastFocusedElement = document.activeElement;
-                    modal.hidden = false;
-                    const firstInput = modal.querySelector('select, input, button:not(.modal-close)');
+                    sampleModal.hidden = false;
+                    const firstInput = sampleModal.querySelector("select, input, button:not(.modal-close)");
                     if (firstInput) {
                         firstInput.focus();
                     }
                 });
             }
-            if (closeModal) {
-                closeModal.addEventListener("click", hideModal);
+            if (sampleCloseButton) {
+                sampleCloseButton.addEventListener("click", hideSampleModal);
             }
-            if (modal) {
-                modal.addEventListener("click", (event) => {
-                    if (event.target === modal) {
-                        hideModal();
+            if (sampleModal) {
+                sampleModal.addEventListener("click", (event) => {
+                    if (event.target === sampleModal) {
+                        hideSampleModal();
                     }
                 });
             }
+
             const allowedAppIds = appSelect
                 ? new Set(Array.from(appSelect.options).map((option) => option.value))
                 : null;
@@ -182,24 +551,28 @@
                 ? new Set(Array.from(portSelect.options).map((option) => Number(option.value)))
                 : null;
 
-            if (startButton && hostInput && appSelect && portSelect) {
-                startButton.addEventListener("click", () => {
+            if (sampleStartButton && hostInput && appSelect && portSelect) {
+                sampleStartButton.addEventListener("click", () => {
                     const appId = appSelect.value || "";
                     const port = Number(portSelect.value || 0);
                     if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
                         return;
                     }
                     hostInput.value = "sampleapp:" + appId + ":" + port;
-                    hideModal();
+                    hideSampleModal();
                     if (hostInput.form) {
                         setLoading();
                         hostInput.form.submit();
                     }
                 });
             }
+
             document.addEventListener("keydown", (event) => {
-                if (event.key === "Escape" && modal && !modal.hidden) {
-                    hideModal();
+                if (event.key === "Escape" && sampleModal && !sampleModal.hidden) {
+                    hideSampleModal();
+                }
+                if (event.key === "Escape" && hostsModal && !hostsModal.hidden) {
+                    closeHostsModal();
                 }
             });
         });

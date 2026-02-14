@@ -1166,6 +1166,21 @@ pre, pre input, textarea {
   padding: 10px 16px;
 }
 
+.saved-hosts-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saved-hosts-row label {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+.saved-host-actions {
+  justify-content: flex-start;
+}
+
 @media (max-width: 640px) {
   .connect-row {
     flex-direction: column;
@@ -1844,6 +1859,130 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex: 1;
 }
 
+.settings-theme-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-theme-row label {
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.settings-theme-row select {
+  min-width: 260px;
+  max-width: 100%;
+}
+
+.settings-custom-theme-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.settings-custom-theme-hint {
+  margin: 0;
+}
+
+.settings-custom-theme-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+.settings-theme-palettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-theme-palette,
+.settings-theme-reset {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.settings-theme-palette.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.settings-theme-reset {
+  align-self: flex-start;
+}
+
+.settings-theme-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-theme-action {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.settings-theme-action.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.settings-custom-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.settings-custom-theme-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-custom-theme-field label {
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.settings-custom-theme-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-custom-theme-color {
+  width: 44px;
+  min-width: 44px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.settings-custom-theme-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .settings-tabs {
   display: flex;
   align-items: center;
@@ -1925,10 +2064,18 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .settings-field label {
   font-weight: 600;
+}
+
+.settings-field > label {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
 }
 
 .settings-field input,
@@ -1944,14 +2091,19 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-select-custom {
   display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .settings-select-custom input {
   flex: 1;
+  min-width: 0;
 }
 
 .settings-select-custom button {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 6px 10px;
   background: var(--panel);
   color: var(--fg);
@@ -2010,6 +2162,14 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 34px;
+}
+
+.settings-checkbox-row label {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
 }
 
 .settings-helper {

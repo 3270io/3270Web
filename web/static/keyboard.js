@@ -8,15 +8,6 @@
   var keypadModeStorageKey = "h3270KeypadMode";
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
-  var focusLockSelectors = [
-    ".card-header .toolbar",
-    ".card > .toolbar",
-    ".terminal-tools-widget",
-    ".workflow-status-widget",
-    ".authentic-controls",
-    "#keypad"
-  ];
-
   var specialKeys = {
     Enter: "Enter",
     BackSpace: "BackSpace",
@@ -387,6 +378,21 @@
     return false;
   }
 
+  function getTerminalShell() {
+    return document.querySelector(".terminal-shell");
+  }
+
+  function isInsideTerminalShell(target) {
+    if (!target || typeof target.closest !== "function") {
+      return false;
+    }
+    var shell = getTerminalShell();
+    if (!shell) {
+      return false;
+    }
+    return !!target.closest(".terminal-shell");
+  }
+
   function shouldKeepTerminalFocus(target) {
     if (!target || typeof target.closest !== "function") {
       return false;
@@ -394,19 +400,22 @@
     if (isModalOpen()) {
       return false;
     }
-    var control = target.closest("button, a[href], [role='button']");
+    if (isInsideTerminalShell(target)) {
+      return false;
+    }
+    if (target.closest("[data-terminal-size-slider]")) {
+      return false;
+    }
+    var control = target.closest(
+      "button, a[href], [role='button'], input, select, textarea, [tabindex]"
+    );
     if (!control) {
       return false;
     }
-    if (control.closest(".screen-container, .renderer-form")) {
+    if (control.matches('input[type="range"]')) {
       return false;
     }
-    for (var i = 0; i < focusLockSelectors.length; i++) {
-      if (control.closest(focusLockSelectors[i])) {
-        return true;
-      }
-    }
-    return false;
+    return true;
   }
 
   function installTerminalFocusLock() {
@@ -425,6 +434,31 @@
       "click",
       function (event) {
         if (!shouldKeepTerminalFocus(event.target)) {
+          return;
+        }
+        window.requestAnimationFrame(function () {
+          if (isModalOpen()) {
+            return;
+          }
+          focusTerminalInput();
+        });
+      },
+      true
+    );
+
+    document.addEventListener(
+      "focusin",
+      function (event) {
+        if (isModalOpen()) {
+          return;
+        }
+        if (isInsideTerminalShell(event.target)) {
+          return;
+        }
+        if (event.target.closest("[data-terminal-size-slider]")) {
+          return;
+        }
+        if (event.target.matches && event.target.matches('input[type="range"]')) {
           return;
         }
         window.requestAnimationFrame(function () {
@@ -1402,5 +1436,14 @@
     renderKeypad();
     initKeypadVisibilityToggle();
     installTerminalFocusLock();
+
+    var sizeSlider = document.querySelector("[data-terminal-size-slider]");
+    if (sizeSlider) {
+      sizeSlider.addEventListener("change", function () {
+        window.requestAnimationFrame(function () {
+          focusTerminalInput();
+        });
+      });
+    }
   });
 })();
