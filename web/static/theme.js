@@ -8,15 +8,15 @@
     { id: "theme-dark", name: "Midnight Cyan" },
     { id: "theme-light", name: "Paper Terminal" },
     { id: "theme-modern", name: "Neon Grid" },
-    { id: "theme-slick", name: "Ocean Ops" },
-    { id: "theme-custom", name: "Custom Theme (Editor)" }
+    { id: "theme-slick", name: "Ocean Ops" }
   ];
 
   var fileThemes = [];
 
   var themeAliases = {
     "theme-minimal": "theme-dark",
-    "theme-not3270": "theme-light"
+    "theme-not3270": "theme-light",
+    "theme-custom": "theme-yorkshire"
   };
 
   var authenticThemeId = "theme-authentic";
@@ -274,11 +274,7 @@
       applyCustomThemeCss(normalizeCustomTheme(fileTheme.customTheme || {}));
     } else {
       body.classList.add(normalized);
-      if (normalized === "theme-custom") {
-        applyCustomThemeCss(readCustomTheme());
-      } else {
-        clearCustomThemeCss();
-      }
+      clearCustomThemeCss();
     }
 
     localStorage.setItem(themeStorageKey, normalized);
@@ -290,11 +286,15 @@
   }
 
   function getStoredTheme() {
+    var current = localStorage.getItem(themeStorageKey);
+    if (current) {
+      return current;
+    }
     var startup = localStorage.getItem(defaultThemeStorageKey);
     if (startup) {
       return startup;
     }
-    return localStorage.getItem(themeStorageKey) || "theme-yorkshire";
+    return "theme-yorkshire";
   }
 
   function loadFileThemes() {
@@ -350,6 +350,14 @@
 
     var editor = document.createElement("div");
     editor.className = "settings-custom-theme-editor";
+    editor.hidden = true;
+
+    var editorToggle = document.createElement("button");
+    editorToggle.type = "button";
+    editorToggle.className = "settings-theme-editor-toggle";
+    editorToggle.textContent = "Custom Theme Editor";
+    editorToggle.setAttribute("aria-pressed", "false");
+    hostRow.appendChild(editorToggle);
 
     var hint = document.createElement("p");
     hint.className = "settings-custom-theme-hint subtle";
@@ -396,6 +404,9 @@
     fieldsSection.appendChild(grid);
 
     var currentCustomTheme = readCustomTheme();
+    var themeDirty = false;
+    var editorOpen = false;
+    var previewActive = false;
     var fieldRefs = {};
     var paletteButtons = [];
     var editorStatus = document.createElement("p");
@@ -405,6 +416,27 @@
     function showStatus(message) {
       editorStatus.textContent = message;
       editorStatus.hidden = !message;
+    }
+
+    function setThemeDirty(value) {
+      themeDirty = !!value;
+    }
+
+    function updateToggleState() {
+      editorToggle.classList.toggle("is-active", editorOpen);
+      editorToggle.setAttribute("aria-pressed", editorOpen ? "true" : "false");
+      editorToggle.textContent = editorOpen ? "Hide Theme Editor" : "Custom Theme Editor";
+      editor.hidden = !editorOpen;
+    }
+
+    function setEditorOpen(value) {
+      editorOpen = !!value;
+      updateToggleState();
+      if (!editorOpen && previewActive) {
+        previewActive = false;
+        applyTheme(select.value || "theme-yorkshire");
+      }
+      updateDefaultButtonState();
     }
 
     function paletteMatches(themeValues, paletteValues) {
@@ -446,12 +478,10 @@
     function saveAndApplyCustomTheme(nextTheme, forceApply) {
       currentCustomTheme = normalizeCustomTheme(nextTheme);
       writeCustomTheme(currentCustomTheme);
-      if (forceApply || getStoredTheme() === "theme-custom") {
+      setThemeDirty(true);
+      if (forceApply) {
         applyCustomThemeCss(currentCustomTheme);
-        if (getStoredTheme() !== "theme-custom") {
-          applyTheme("theme-custom");
-          select.value = "theme-custom";
-        }
+        previewActive = true;
       }
       syncEditorInputs(currentCustomTheme);
     }
@@ -489,6 +519,16 @@
     defaultButton.className = "settings-theme-action";
     defaultButton.textContent = "Set as startup default";
 
+    var editSelectedButton = document.createElement("button");
+    editSelectedButton.type = "button";
+    editSelectedButton.className = "settings-theme-action";
+    editSelectedButton.textContent = "Edit Selected Theme";
+
+    var newThemeButton = document.createElement("button");
+    newThemeButton.type = "button";
+    newThemeButton.className = "settings-theme-action";
+    newThemeButton.textContent = "New Theme";
+
     var saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.className = "settings-theme-action";
@@ -515,6 +555,8 @@
     saveMetaRow.appendChild(saveNameInput);
 
     actionRow.appendChild(defaultButton);
+    actionRow.appendChild(editSelectedButton);
+    actionRow.appendChild(newThemeButton);
     actionRow.appendChild(saveButton);
     actionRow.appendChild(importButton);
     actionRow.appendChild(importInput);
@@ -538,12 +580,46 @@
       showStatus("Startup default saved.");
     });
 
+    editSelectedButton.addEventListener("click", function () {
+      var selected = normalizeThemeId(select.value || "");
+      var fileTheme = findFileTheme(selected);
+      if (!fileTheme) {
+        showStatus("Select a saved custom theme in Theme list first.");
+        return;
+      }
+      currentCustomTheme = normalizeCustomTheme(fileTheme.customTheme || {});
+      writeCustomTheme(currentCustomTheme);
+      saveNameInput.value = fileTheme.name || "Custom Theme";
+      syncEditorInputs(currentCustomTheme);
+      setThemeDirty(false);
+      setEditorOpen(true);
+      applyCustomThemeCss(currentCustomTheme);
+      previewActive = true;
+      showStatus("Editing selected theme.");
+    });
+
+    newThemeButton.addEventListener("click", function () {
+      currentCustomTheme = normalizeCustomTheme(defaultCustomTheme);
+      writeCustomTheme(currentCustomTheme);
+      saveNameInput.value = "New Theme";
+      syncEditorInputs(currentCustomTheme);
+      setThemeDirty(false);
+      setEditorOpen(true);
+      applyCustomThemeCss(currentCustomTheme);
+      previewActive = true;
+      showStatus("New theme started.");
+    });
+
     saveButton.addEventListener("click", async function () {
+      await saveThemeToFolder();
+    });
+
+    async function saveThemeToFolder() {
       var name = String(saveNameInput.value || "").trim();
       if (!name) {
         showStatus("Save failed: theme name is required.");
         saveNameInput.focus();
-        return;
+        return false;
       }
       try {
         var response = await fetch("/api/themes/save", {
@@ -559,12 +635,74 @@
         if (result && result.id && hasTheme(result.id)) {
           select.value = result.id;
           applyTheme(result.id);
+          previewActive = false;
         }
+        setThemeDirty(false);
         showStatus("Saved to app themes folder.");
+        return true;
       } catch (err) {
         showStatus("Save failed: " + (err && err.message ? err.message : "unknown error"));
+        return false;
       }
-    });
+    }
+
+    function askThemeSaveConfirmation() {
+      return new Promise(function (resolve) {
+        var backdrop = document.createElement("div");
+        backdrop.className = "theme-save-confirm-backdrop";
+        var modal = document.createElement("div");
+        modal.className = "theme-save-confirm-modal";
+
+        var title = document.createElement("h4");
+        title.textContent = "Save custom theme first?";
+        var text = document.createElement("p");
+        text.textContent = "You have unsaved custom theme changes. Do you want to save the theme before saving settings?";
+
+        var actions = document.createElement("div");
+        actions.className = "theme-save-confirm-actions";
+        var saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.textContent = "Save Theme";
+        var skipBtn = document.createElement("button");
+        skipBtn.type = "button";
+        skipBtn.textContent = "Don't Save Theme";
+        var cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.textContent = "Cancel";
+
+        actions.appendChild(saveBtn);
+        actions.appendChild(skipBtn);
+        actions.appendChild(cancelBtn);
+        modal.appendChild(title);
+        modal.appendChild(text);
+        modal.appendChild(actions);
+        backdrop.appendChild(modal);
+        document.body.appendChild(backdrop);
+
+        function cleanup(result) {
+          document.body.removeChild(backdrop);
+          resolve(result);
+        }
+
+        saveBtn.addEventListener("click", async function () {
+          var saved = await saveThemeToFolder();
+          if (saved) {
+            cleanup("saved");
+          }
+        });
+        skipBtn.addEventListener("click", function () {
+          cleanup("skip");
+        });
+        cancelBtn.addEventListener("click", function () {
+          cleanup("cancel");
+        });
+        backdrop.addEventListener("click", function (event) {
+          if (event.target === backdrop) {
+            cleanup("cancel");
+          }
+        });
+      });
+    }
 
     importButton.addEventListener("click", function () {
       importInput.click();
@@ -582,8 +720,7 @@
           var source = parsed && parsed.customTheme ? parsed.customTheme : parsed;
           var normalized = normalizeCustomTheme(source || {});
           saveAndApplyCustomTheme(normalized, true);
-          applyTheme("theme-custom");
-          select.value = "theme-custom";
+          setEditorOpen(true);
           if (parsed && parsed.name && typeof parsed.name === "string") {
             saveNameInput.value = parsed.name;
           }
@@ -661,20 +798,46 @@
 
     hostRow.appendChild(editor);
 
-    function syncEditorVisibility() {
-      var customActive = select.value === "theme-custom";
-      editor.hidden = !customActive;
-      updateDefaultButtonState();
-      if (!customActive) {
-        return;
+    editorToggle.addEventListener("click", function () {
+      setEditorOpen(!editorOpen);
+      if (editorOpen) {
+        currentCustomTheme = readCustomTheme();
+        syncEditorInputs(currentCustomTheme);
       }
-      currentCustomTheme = readCustomTheme();
-      syncEditorInputs(currentCustomTheme);
+    });
+
+    function syncEditorState() {
+      updateDefaultButtonState();
+      if (previewActive && !editorOpen) {
+        previewActive = false;
+      }
     }
 
-    select.addEventListener("change", syncEditorVisibility);
+    window.h3270ThemeConfirmBeforeSettingsSave = async function () {
+      if (!editorOpen) {
+        return true;
+      }
+      if (!themeDirty) {
+        return true;
+      }
+      var choice = await askThemeSaveConfirmation();
+      if (choice === "cancel") {
+        return false;
+      }
+      if (choice === "saved" || choice === "skip") {
+        return true;
+      }
+      return false;
+    };
+
+    select.addEventListener("change", function () {
+      if (previewActive && editorOpen) {
+        previewActive = false;
+      }
+      syncEditorState();
+    });
     syncEditorInputs(currentCustomTheme);
-    syncEditorVisibility();
+    setEditorOpen(false);
   }
 
   async function initThemeSelector() {

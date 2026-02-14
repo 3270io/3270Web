@@ -215,6 +215,11 @@ body.theme-authentic .screen-container {
   box-shadow: none;
 }
 
+body.theme-custom .screen-container,
+body.theme-custom .screen-status-line {
+  border-radius: 0;
+}
+
 body.authentic-chrome-hidden .card > .card-header,
 body.authentic-chrome-hidden .card > .toolbar {
   display: none;
@@ -1876,6 +1881,21 @@ html.workflow-status-minimized .workflow-status-widget-header {
   max-width: 100%;
 }
 
+.settings-theme-editor-toggle {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.settings-theme-editor-toggle.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 .settings-custom-theme-editor {
   width: 100%;
   display: flex;
@@ -1895,7 +1915,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-custom-theme-top {
   display: grid;
-  grid-template-columns: 1.7fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -1941,15 +1961,17 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-theme-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   justify-content: flex-start;
   min-width: 0;
+  margin-bottom: 8px;
 }
 
 .settings-theme-action {
   flex: 0 0 auto;
+  white-space: nowrap;
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1967,13 +1989,15 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-theme-save-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  margin-bottom: 10px;
 }
 
 .settings-theme-save-name {
   flex: 1 1 220px;
-  min-width: 160px;
+  min-width: 0;
 }
 
 .settings-theme-save-destination {
@@ -1989,7 +2013,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-custom-theme-field {
   display: grid;
-  grid-template-columns: minmax(110px, auto) 42px minmax(0, 1fr);
+  grid-template-columns: minmax(92px, auto) 42px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -2069,7 +2093,9 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-groups {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .settings-group {
@@ -2080,6 +2106,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: none;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .settings-group.is-active {
@@ -2321,4 +2348,43 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-confirm-actions button:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+.theme-save-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.theme-save-confirm-modal {
+  width: min(460px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.theme-save-confirm-modal h4 {
+  margin: 0;
+  color: var(--accent);
+}
+
+.theme-save-confirm-modal p {
+  margin: 0;
+  color: var(--fg-muted);
+}
+
+.theme-save-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }

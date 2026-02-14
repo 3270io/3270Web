@@ -932,8 +932,14 @@
     }
 
     if (form) {
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
             event.preventDefault();
+            if (typeof window.h3270ThemeConfirmBeforeSettingsSave === 'function') {
+                const proceed = await window.h3270ThemeConfirmBeforeSettingsSave();
+                if (!proceed) {
+                    return;
+                }
+            }
             saveSettings();
         });
     }

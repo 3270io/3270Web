@@ -406,6 +406,9 @@
     if (target.closest("[data-terminal-size-slider]")) {
       return false;
     }
+    if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
+      return true;
+    }
     var control = target.closest(
       "button, a[href], [role='button'], input, select, textarea, [tabindex]"
     );
@@ -418,11 +421,23 @@
     return true;
   }
 
+  function shouldPreventPointerDefaultForFocusLock(target) {
+    if (!shouldKeepTerminalFocus(target)) {
+      return false;
+    }
+    // Allow terminal tools interactions (size buttons, fit, reset, widget toggle)
+    // to run normally; focus is restored on click handler.
+    if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
+      return false;
+    }
+    return true;
+  }
+
   function installTerminalFocusLock() {
     document.addEventListener(
       "pointerdown",
       function (event) {
-        if (!shouldKeepTerminalFocus(event.target)) {
+        if (!shouldPreventPointerDefaultForFocusLock(event.target)) {
           return;
         }
         event.preventDefault();
@@ -456,6 +471,9 @@
           return;
         }
         if (event.target.closest("[data-terminal-size-slider]")) {
+          return;
+        }
+        if (event.target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
           return;
         }
         if (event.target.matches && event.target.matches('input[type="range"]')) {

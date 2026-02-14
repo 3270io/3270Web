@@ -1,0 +1,16 @@
+{
+  "customTheme": {
+    "accent": "rgb(75, 255, 207)",
+    "accent2": "rgb(255, 209, 102)",
+    "bg": "rgb(18, 7, 30)",
+    "border": "rgb(118, 153, 20)",
+    "fg": "rgb(154, 147, 71)",
+    "fgMuted": "rgb(117, 103, 10)",
+    "panel": "rgb(27, 15, 45)",
+    "panel2": "rgb(37, 22, 61)"
+  },
+  "name": "Custom Theme X",
+  "savedAt": "2026-02-14T11:20:28Z",
+  "schema": "3270web.custom-theme.v1",
+  "theme": "theme-custom"
+}
