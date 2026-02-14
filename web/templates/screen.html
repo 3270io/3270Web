@@ -39,13 +39,13 @@
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
     <script src="/static/keyboard.js?v=5" defer></script>
-    <script src="/static/theme.js" defer></script>
+    <script src="/static/theme.js?v=4" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/workflow.js?v=9" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
-    <script src="/static/ui.js" defer></script>
+    <script src="/static/ui.js?v=4" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -342,9 +342,6 @@
                     </button>
                     <button type="button" class="icon-button terminal-control-btn" data-terminal-zoom-reset aria-label="Reset terminal size" data-tippy-content="Reset terminal size">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V1L7 6l5 5V7a5 5 0 1 1-4.9 6h-2.1A7 7 0 1 0 12 5z"/></svg>
-                    </button>
-                    <button type="button" class="icon-button terminal-control-btn terminal-control-btn-primary" data-terminal-maximize aria-pressed="false" aria-label="Maximize terminal" data-tippy-content="Maximize terminal">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h7v2H6v5H4V4zm10 0h6v7h-2V6h-4V4zM4 13h2v5h5v2H4v-7zm14 0h2v7h-7v-2h5v-5z"/></svg>
                     </button>
                 </div>
             </div>

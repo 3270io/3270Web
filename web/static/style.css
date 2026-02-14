@@ -1880,16 +1880,28 @@ html.workflow-status-minimized .workflow-status-widget-header {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-top: 8px;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--panel-2);
+  min-width: 0;
 }
 
 .settings-custom-theme-hint {
   margin: 0;
+}
+
+.settings-custom-theme-top {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.settings-custom-theme-section {
+  min-width: 0;
 }
 
 .settings-custom-theme-title {
@@ -1898,6 +1910,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--fg-muted);
+  margin-bottom: 6px;
 }
 
 .settings-theme-palettes {
@@ -1928,11 +1941,15 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-theme-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
 .settings-theme-action {
+  flex: 0 0 auto;
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1947,40 +1964,81 @@ html.workflow-status-minimized .workflow-status-widget-header {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+.settings-theme-save-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-theme-save-name {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.settings-theme-save-destination {
+  flex: 1 1 260px;
+  min-width: 180px;
+}
+
 .settings-custom-theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
 }
 
 .settings-custom-theme-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 42px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 0;
 }
 
 .settings-custom-theme-field label {
   font-weight: 600;
   color: var(--fg-muted);
+  margin: 0;
 }
 
 .settings-custom-theme-inputs {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  display: contents;
 }
 
 .settings-custom-theme-color {
-  width: 44px;
-  min-width: 44px;
-  height: 34px;
-  padding: 3px;
+  width: 42px;
+  min-width: 42px;
+  height: 30px;
+  padding: 2px;
   border-radius: 6px;
 }
 
 .settings-custom-theme-text {
-  flex: 1;
+  width: 100%;
   min-width: 0;
+}
+
+@media (max-width: 980px) {
+  .settings-custom-theme-top {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-theme-actions {
+    flex-wrap: wrap;
+  }
+
+  .settings-theme-save-meta {
+    flex-wrap: wrap;
+  }
+
+  .settings-custom-theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-custom-theme-field {
+    grid-template-columns: minmax(100px, auto) 40px minmax(0, 1fr);
+  }
 }
 
 .settings-tabs {

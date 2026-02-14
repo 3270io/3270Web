@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var themes = [
+  var builtInThemes = [
     { id: "theme-yorkshire", name: "Yorkshire Mainframe Terminal" },
     { id: "theme-authentic", name: "Authentic 3270" },
     { id: "theme-classic", name: "Amber Phosphor" },
@@ -9,8 +9,10 @@
     { id: "theme-light", name: "Paper Terminal" },
     { id: "theme-modern", name: "Neon Grid" },
     { id: "theme-slick", name: "Ocean Ops" },
-    { id: "theme-custom", name: "Custom Theme" }
+    { id: "theme-custom", name: "Custom Theme (Editor)" }
   ];
+
+  var fileThemes = [];
 
   var themeAliases = {
     "theme-minimal": "theme-dark",
@@ -118,13 +120,27 @@
     }
   ];
 
+  function getAllThemes() {
+    return builtInThemes.concat(fileThemes);
+  }
+
   function hasTheme(themeId) {
-    for (var i = 0; i < themes.length; i++) {
-      if (themes[i].id === themeId) {
+    var all = getAllThemes();
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id === themeId) {
         return true;
       }
     }
     return false;
+  }
+
+  function findFileTheme(themeId) {
+    for (var i = 0; i < fileThemes.length; i++) {
+      if (fileThemes[i].id === themeId) {
+        return fileThemes[i];
+      }
+    }
+    return null;
   }
 
   function normalizeThemeId(themeId) {
@@ -225,7 +241,7 @@
     try {
       localStorage.setItem(customThemeStorageKey, JSON.stringify(theme));
     } catch (err) {
-      // ignore persistence errors
+      // ignore
     }
   }
 
@@ -247,23 +263,27 @@
   function applyTheme(themeId) {
     var normalized = normalizeThemeId(themeId);
     var body = document.body;
-    themes.forEach(function (theme) {
-      body.classList.remove(theme.id);
-    });
-    body.classList.add(normalized);
 
-    if (normalized === "theme-custom") {
-      applyCustomThemeCss(readCustomTheme());
+    for (var i = 0; i < builtInThemes.length; i++) {
+      body.classList.remove(builtInThemes[i].id);
+    }
+
+    var fileTheme = findFileTheme(normalized);
+    if (fileTheme) {
+      body.classList.add("theme-custom");
+      applyCustomThemeCss(normalizeCustomTheme(fileTheme.customTheme || {}));
     } else {
-      clearCustomThemeCss();
+      body.classList.add(normalized);
+      if (normalized === "theme-custom") {
+        applyCustomThemeCss(readCustomTheme());
+      } else {
+        clearCustomThemeCss();
+      }
     }
 
     localStorage.setItem(themeStorageKey, normalized);
     applyAuthenticChromeState(normalized === authenticThemeId);
-    if (
-      window.ThreeSeventyWeb &&
-      typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function"
-    ) {
+    if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function") {
       window.ThreeSeventyWeb.updateBackgroundTheme(normalized);
     }
     document.dispatchEvent(new CustomEvent("themechange", { detail: normalized }));
@@ -272,12 +292,57 @@
   function getStoredTheme() {
     var startup = localStorage.getItem(defaultThemeStorageKey);
     if (startup) {
-      return normalizeThemeId(startup);
+      return startup;
     }
-    return normalizeThemeId(localStorage.getItem(themeStorageKey) || "theme-yorkshire");
+    return localStorage.getItem(themeStorageKey) || "theme-yorkshire";
   }
 
-  function initCustomThemeEditor(select) {
+  function loadFileThemes() {
+    return fetch("/api/themes", {
+      headers: { Accept: "application/json", "Cache-Control": "no-cache" }
+    })
+      .then(function (res) {
+        if (!res.ok) {
+          return { themes: [] };
+        }
+        return res.json();
+      })
+      .then(function (payload) {
+        var incoming = payload && Array.isArray(payload.themes) ? payload.themes : [];
+        fileThemes = incoming
+          .map(function (entry) {
+            if (!entry || typeof entry !== "object") {
+              return null;
+            }
+            if (!entry.id || !entry.name || !entry.customTheme) {
+              return null;
+            }
+            return {
+              id: String(entry.id),
+              name: String(entry.name),
+              fileName: String(entry.fileName || ""),
+              customTheme: normalizeCustomTheme(entry.customTheme)
+            };
+          })
+          .filter(Boolean);
+      })
+      .catch(function () {
+        fileThemes = [];
+      });
+  }
+
+  function renderThemeSelectOptions(select) {
+    select.innerHTML = "";
+    var all = getAllThemes();
+    for (var i = 0; i < all.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = all[i].id;
+      opt.textContent = all[i].name;
+      select.appendChild(opt);
+    }
+  }
+
+  function initCustomThemeEditor(select, refreshThemes) {
     var hostRow = select.closest(".settings-theme-row");
     if (!hostRow) {
       return;
@@ -288,26 +353,47 @@
 
     var hint = document.createElement("p");
     hint.className = "settings-custom-theme-hint subtle";
-    hint.textContent = "Use palettes or enter colors as #hex or rgb(...).";
+    hint.textContent = "Create a theme, then save it. Saved themes appear automatically in Theme list.";
     editor.appendChild(hint);
+
+    var topRow = document.createElement("div");
+    topRow.className = "settings-custom-theme-top";
+    editor.appendChild(topRow);
+
+    var paletteSection = document.createElement("div");
+    paletteSection.className = "settings-custom-theme-section settings-custom-theme-palettes-section";
+    topRow.appendChild(paletteSection);
 
     var paletteTitle = document.createElement("div");
     paletteTitle.className = "settings-custom-theme-title";
     paletteTitle.textContent = "Palettes";
-    editor.appendChild(paletteTitle);
+    paletteSection.appendChild(paletteTitle);
 
     var paletteRow = document.createElement("div");
     paletteRow.className = "settings-theme-palettes";
-    editor.appendChild(paletteRow);
+    paletteSection.appendChild(paletteRow);
+
+    var actionsSection = document.createElement("div");
+    actionsSection.className = "settings-custom-theme-section settings-custom-theme-actions-section";
+    topRow.appendChild(actionsSection);
+
+    var actionsTitle = document.createElement("div");
+    actionsTitle.className = "settings-custom-theme-title";
+    actionsTitle.textContent = "Actions";
+    actionsSection.appendChild(actionsTitle);
+
+    var fieldsSection = document.createElement("div");
+    fieldsSection.className = "settings-custom-theme-section settings-custom-theme-colors-section";
+    editor.appendChild(fieldsSection);
 
     var fieldsTitle = document.createElement("div");
     fieldsTitle.className = "settings-custom-theme-title";
     fieldsTitle.textContent = "Colors";
-    editor.appendChild(fieldsTitle);
+    fieldsSection.appendChild(fieldsTitle);
 
     var grid = document.createElement("div");
     grid.className = "settings-custom-theme-grid";
-    editor.appendChild(grid);
+    fieldsSection.appendChild(grid);
 
     var currentCustomTheme = readCustomTheme();
     var fieldRefs = {};
@@ -393,19 +479,20 @@
       saveAndApplyCustomTheme(defaultCustomTheme, true);
       showStatus("Custom theme reset.");
     });
-    editor.appendChild(resetBtn);
+    actionsSection.appendChild(resetBtn);
 
     var actionRow = document.createElement("div");
     actionRow.className = "settings-theme-actions";
+
     var defaultButton = document.createElement("button");
     defaultButton.type = "button";
     defaultButton.className = "settings-theme-action";
     defaultButton.textContent = "Set as startup default";
 
-    var exportButton = document.createElement("button");
-    exportButton.type = "button";
-    exportButton.className = "settings-theme-action";
-    exportButton.textContent = "Save Custom";
+    var saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "settings-theme-action";
+    saveButton.textContent = "Save Custom";
 
     var importButton = document.createElement("button");
     importButton.type = "button";
@@ -417,11 +504,22 @@
     importInput.accept = "application/json,.json";
     importInput.hidden = true;
 
+    var saveMetaRow = document.createElement("div");
+    saveMetaRow.className = "settings-theme-save-meta";
+    var saveNameInput = document.createElement("input");
+    saveNameInput.type = "text";
+    saveNameInput.className = "settings-theme-save-name";
+    saveNameInput.placeholder = "Theme name";
+    saveNameInput.value = "Custom Theme";
+    saveNameInput.setAttribute("aria-label", "Custom theme name");
+    saveMetaRow.appendChild(saveNameInput);
+
     actionRow.appendChild(defaultButton);
-    actionRow.appendChild(exportButton);
+    actionRow.appendChild(saveButton);
     actionRow.appendChild(importButton);
     actionRow.appendChild(importInput);
-    editor.appendChild(actionRow);
+    actionsSection.appendChild(actionRow);
+    actionsSection.appendChild(saveMetaRow);
     editor.appendChild(editorStatus);
 
     function updateDefaultButtonState() {
@@ -433,18 +531,6 @@
       defaultButton.classList.toggle("is-active", !!isDefault);
     }
 
-    function downloadJson(filename, data) {
-      var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
     defaultButton.addEventListener("click", function () {
       var selected = normalizeThemeId(select.value || "theme-yorkshire");
       localStorage.setItem(defaultThemeStorageKey, selected);
@@ -452,13 +538,32 @@
       showStatus("Startup default saved.");
     });
 
-    exportButton.addEventListener("click", function () {
-      downloadJson("3270web-custom-theme.json", {
-        schema: "3270web.custom-theme.v1",
-        theme: "theme-custom",
-        customTheme: readCustomTheme()
-      });
-      showStatus("Custom theme saved to file.");
+    saveButton.addEventListener("click", async function () {
+      var name = String(saveNameInput.value || "").trim();
+      if (!name) {
+        showStatus("Save failed: theme name is required.");
+        saveNameInput.focus();
+        return;
+      }
+      try {
+        var response = await fetch("/api/themes/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name, customTheme: readCustomTheme() })
+        });
+        var result = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to save theme.");
+        }
+        await refreshThemes();
+        if (result && result.id && hasTheme(result.id)) {
+          select.value = result.id;
+          applyTheme(result.id);
+        }
+        showStatus("Saved to app themes folder.");
+      } catch (err) {
+        showStatus("Save failed: " + (err && err.message ? err.message : "unknown error"));
+      }
     });
 
     importButton.addEventListener("click", function () {
@@ -479,8 +584,11 @@
           saveAndApplyCustomTheme(normalized, true);
           applyTheme("theme-custom");
           select.value = "theme-custom";
+          if (parsed && parsed.name && typeof parsed.name === "string") {
+            saveNameInput.value = parsed.name;
+          }
           updateDefaultButtonState();
-          showStatus("Custom theme loaded.");
+          showStatus("Custom theme loaded into editor. Save to add it to themes folder.");
         } catch (err) {
           showStatus("Load failed: invalid JSON theme file.");
         }
@@ -518,7 +626,6 @@
         controls.appendChild(textInput);
         item.appendChild(controls);
         grid.appendChild(item);
-
         fieldRefs[field.key] = { color: colorInput, text: textInput };
 
         colorInput.addEventListener("input", function () {
@@ -570,7 +677,7 @@
     syncEditorVisibility();
   }
 
-  function initThemeSelector() {
+  async function initThemeSelector() {
     var select = document.getElementById("theme-select");
     if (!select) {
       var slot = document.querySelector("[data-settings-theme-slot]");
@@ -588,23 +695,31 @@
       }
     }
 
+    var refreshThemes = async function () {
+      await loadFileThemes();
+      if (select) {
+        var previous = select.value;
+        renderThemeSelectOptions(select);
+        if (previous && hasTheme(previous)) {
+          select.value = previous;
+        }
+      }
+    };
+
+    await refreshThemes();
+
     if (!select) {
-      applyTheme(getStoredTheme());
+      applyTheme(normalizeThemeId(getStoredTheme()));
       return;
     }
 
-    select.innerHTML = "";
-    themes.forEach(function (theme) {
-      var opt = document.createElement("option");
-      opt.value = theme.id;
-      opt.textContent = theme.name;
-      select.appendChild(opt);
-    });
-
-    var current = getStoredTheme();
+    var current = normalizeThemeId(getStoredTheme());
+    if (!hasTheme(current)) {
+      current = "theme-yorkshire";
+    }
     select.value = current;
     applyTheme(current);
-    initCustomThemeEditor(select);
+    initCustomThemeEditor(select, refreshThemes);
 
     select.addEventListener("change", function () {
       applyTheme(select.value);
@@ -620,5 +735,7 @@
     }
   }
 
-  document.addEventListener("DOMContentLoaded", initThemeSelector);
+  document.addEventListener("DOMContentLoaded", function () {
+    initThemeSelector();
+  });
 })();

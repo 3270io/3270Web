@@ -41,6 +41,7 @@ type App struct {
 	themeCacheMu   sync.RWMutex
 	logFilePath    string
 	envPath        string
+	baseDir        string
 	shutdown       func()
 }
 
@@ -124,6 +125,7 @@ func main() {
 		themeCache:     make(map[string]string),
 		logFilePath:    filepath.Join(baseDir, "3270Web.log"),
 		envPath:        envPath,
+		baseDir:        baseDir,
 	}
 
 	r := gin.Default()
@@ -179,6 +181,8 @@ func main() {
 	r.GET("/workflow/status", app.WorkflowStatusHandler)
 	r.GET("/api/settings", app.SettingsHandler)
 	r.POST("/api/settings", app.SettingsHandler)
+	r.GET("/api/themes", app.ThemeListHandler)
+	r.POST("/api/themes/save", app.ThemeSaveHandler)
 	r.POST("/app/restart", app.RestartHandler)
 
 	// Logging handlers
@@ -1090,6 +1094,18 @@ type settingsResponse struct {
 	Masked   []string          `json:"masked,omitempty"`
 }
 
+type themeSavePayload struct {
+	Name        string            `json:"name"`
+	CustomTheme map[string]string `json:"customTheme"`
+}
+
+type themeListItem struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	FileName    string            `json:"fileName"`
+	CustomTheme map[string]string `json:"customTheme"`
+}
+
 func (app *App) SettingsHandler(c *gin.Context) {
 	includeSensitive := c.Query("includeSensitive") == "true"
 	switch c.Request.Method {
@@ -1225,6 +1241,167 @@ func (app *App) RestartHandler(c *gin.Context) {
 		}
 		os.Exit(0)
 	}()
+}
+
+func (app *App) ThemeSaveHandler(c *gin.Context) {
+	var payload themeSavePayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+
+	name := strings.TrimSpace(payload.Name)
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "theme name is required"})
+		return
+	}
+
+	if len(payload.CustomTheme) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "customTheme is required"})
+		return
+	}
+
+	fileStem := sanitizeThemeFileName(name)
+	if fileStem == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "theme name is invalid"})
+		return
+	}
+
+	dir := app.themesDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create themes folder: %v", err)})
+		return
+	}
+
+	filePath := filepath.Join(dir, fileStem+".json")
+	content := map[string]interface{}{
+		"schema":      "3270web.custom-theme.v1",
+		"name":        name,
+		"theme":       "theme-custom",
+		"customTheme": payload.CustomTheme,
+		"savedAt":     time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode theme JSON"})
+		return
+	}
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to write theme file: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"saved":      true,
+		"id":         themeIDFromFile(filepath.Base(filePath)),
+		"name":       name,
+		"path":       filePath,
+		"themesDir":  dir,
+		"fileName":   filepath.Base(filePath),
+		"themeType":  "custom",
+		"savedAtUtc": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (app *App) ThemeListHandler(c *gin.Context) {
+	dir := app.themesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusOK, gin.H{"themes": []themeListItem{}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read themes folder: %v", err)})
+		return
+	}
+
+	items := make([]themeListItem, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".json") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var raw struct {
+			Name        string            `json:"name"`
+			CustomTheme map[string]string `json:"customTheme"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			continue
+		}
+		if len(raw.CustomTheme) == 0 {
+			continue
+		}
+		displayName := strings.TrimSpace(raw.Name)
+		if displayName == "" {
+			displayName = strings.TrimSuffix(name, filepath.Ext(name))
+		}
+		items = append(items, themeListItem{
+			ID:          themeIDFromFile(name),
+			Name:        displayName,
+			FileName:    name,
+			CustomTheme: raw.CustomTheme,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+	})
+
+	c.JSON(http.StatusOK, gin.H{"themes": items})
+}
+
+func sanitizeThemeFileName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range trimmed {
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		if isLetter || isDigit {
+			b.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if r == '-' || r == '_' || r == ' ' {
+			if !lastUnderscore {
+				b.WriteRune('_')
+				lastUnderscore = true
+			}
+		}
+	}
+	out := strings.Trim(b.String(), "_")
+	if out == "" {
+		return ""
+	}
+	return out
+}
+
+func themeIDFromFile(fileName string) string {
+	base := strings.TrimSpace(fileName)
+	if base == "" {
+		return ""
+	}
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	return "theme-file:" + base
+}
+
+func (app *App) themesDir() string {
+	base := strings.TrimSpace(app.baseDir)
+	if base == "" {
+		base = resolveBaseDir()
+	}
+	return filepath.Join(base, "themes")
 }
 
 func scheduleSelfRestart() error {

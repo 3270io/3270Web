@@ -4,8 +4,6 @@
   var minCellSizePx = 12;
   var maxCellSizePx = 36;
   var storageSizeKey = "h3270TerminalCellSizePx";
-  var storageMaximizedKey = "h3270TerminalMaximized";
-  var manualSizeBeforeMaximize = null;
 
   function getElements() {
     var controls = document.querySelector("[data-terminal-controls]");
@@ -23,8 +21,7 @@
       stepUp: controls.querySelector("[data-terminal-size-up]"),
       label: controls.querySelector("[data-terminal-size-label]"),
       fit: controls.querySelector("[data-terminal-fit]"),
-      zoomReset: controls.querySelector("[data-terminal-zoom-reset]"),
-      maximize: controls.querySelector("[data-terminal-maximize]")
+      zoomReset: controls.querySelector("[data-terminal-zoom-reset]")
     };
   }
 
@@ -74,22 +71,6 @@
     slider.value = String(current);
   }
 
-  function setMaximizedState(button, enabled) {
-    if (!button) {
-      return;
-    }
-    var label = enabled ? "Restore standard size" : "Maximize terminal";
-    button.setAttribute("aria-label", label);
-    button.setAttribute("title", label);
-    button.setAttribute("data-tippy-content", label);
-    button.setAttribute("aria-pressed", enabled ? "true" : "false");
-    button.classList.toggle("is-active", enabled);
-    if (button._tippy && typeof button._tippy.setContent === "function") {
-      button._tippy.setContent(label);
-    }
-    document.body.classList.toggle("terminal-fit-active", enabled);
-  }
-
   function viewportHasNoScrollbars() {
     var de = document.documentElement;
     return de.scrollWidth <= de.clientWidth + 1 && de.scrollHeight <= de.clientHeight + 1;
@@ -126,14 +107,13 @@
     return writeCellSize(best);
   }
 
-  function persistSize(current, maximized) {
+  function persistSize(current) {
     localStorage.setItem(storageSizeKey, String(current));
-    localStorage.setItem(storageMaximizedKey, maximized ? "1" : "0");
   }
 
   function init() {
     var elements = getElements();
-    if (!elements || !elements.slider || !elements.zoomReset || !elements.maximize || !elements.fit || !elements.stepDown || !elements.stepUp) {
+    if (!elements || !elements.slider || !elements.zoomReset || !elements.fit || !elements.stepDown || !elements.stepUp) {
       return;
     }
     var animationFrameId = 0;
@@ -191,8 +171,6 @@
     }
 
     function setManualSize(next, durationMs) {
-      maximized = false;
-      setMaximizedState(elements.maximize, false);
       current = Math.round(clampCellSize(next));
       updateSlider(elements.slider, current);
       updateSizeLabel(elements.label, current, baseline);
@@ -202,7 +180,7 @@
           updateSlider(elements.slider, current);
           updateSizeLabel(elements.label, current, baseline);
         }
-        persistSize(current, false);
+        persistSize(current);
       });
     }
 
@@ -211,12 +189,12 @@
       var canGrow = allowGrow === true;
       var previous = current;
       var fitted = fitToLargestSize(elements);
-      if (!canGrow && !maximized && Number.isFinite(previous) && fitted > previous) {
+      if (!canGrow && Number.isFinite(previous) && fitted > previous) {
         current = writeCellSize(previous);
       } else {
         current = fitted;
       }
-      persistSize(current, maximized);
+      persistSize(current);
       updateSlider(elements.slider, current);
       updateSizeLabel(elements.label, current, baseline);
     }
@@ -238,17 +216,8 @@
     var baseline = readCellSizeFromRoot();
     var stored = Number.parseFloat(localStorage.getItem(storageSizeKey) || "");
     var current = Number.isFinite(stored) && stored > 0 ? writeCellSize(stored) : writeCellSize(baseline);
-    var maximized = localStorage.getItem(storageMaximizedKey) === "1";
-
-    if (maximized) {
-      manualSizeBeforeMaximize = current;
-      current = fitToLargestSize(elements);
-      persistSize(current, true);
-    } else {
-      persistSize(current, false);
-    }
-
-    setMaximizedState(elements.maximize, maximized);
+    persistSize(current);
+    document.body.classList.remove("terminal-fit-active");
     updateSlider(elements.slider, current);
     updateSizeLabel(elements.label, current, baseline);
 
@@ -276,33 +245,14 @@
 
     elements.fit.addEventListener("click", function () {
       stopAnimation();
-      maximized = false;
-      setMaximizedState(elements.maximize, false);
       fitForCurrentLayout(true);
-    });
-
-    elements.maximize.addEventListener("click", function () {
-      stopAnimation();
-      maximized = !maximized;
-      if (maximized) {
-        manualSizeBeforeMaximize = current;
-        current = fitToLargestSize(elements);
-      } else {
-        var restore = Number.isFinite(manualSizeBeforeMaximize) ? manualSizeBeforeMaximize : baseline;
-        current = writeCellSize(restore);
-      }
-      persistSize(current, maximized);
-      setMaximizedState(elements.maximize, maximized);
-      updateSlider(elements.slider, current);
-      updateSizeLabel(elements.label, current, baseline);
     });
 
     window.addEventListener("resize", function () {
       stopAnimation();
-      if (!maximized) {
-        return;
+      if (typeof window.sizeScreenContainer === "function") {
+        window.sizeScreenContainer();
       }
-      fitForCurrentLayout();
     });
 
     window.addEventListener("h3270:layout-changed", function () {
@@ -312,10 +262,7 @@
     if (typeof MutationObserver !== "undefined") {
       var observer = new MutationObserver(function () {
         stopAnimation();
-        if (maximized) {
-          current = fitToLargestSize(elements);
-          persistSize(current, true);
-        } else if (typeof window.sizeScreenContainer === "function") {
+        if (typeof window.sizeScreenContainer === "function") {
           window.sizeScreenContainer();
         }
         updateSlider(elements.slider, current);
