@@ -25,12 +25,16 @@ type Transition struct {
 
 // Status is a snapshot of the engine's current state.
 type Status struct {
-	Active      bool      `json:"active"`
-	StepsRun    int       `json:"stepsRun"`
-	StartedAt   time.Time `json:"startedAt,omitempty"`
-	StoppedAt   time.Time `json:"stoppedAt,omitempty"`
-	Transitions int       `json:"transitions"`
-	Error       string    `json:"error,omitempty"`
+	Active        bool           `json:"active"`
+	StepsRun      int            `json:"stepsRun"`
+	StartedAt     time.Time      `json:"startedAt,omitempty"`
+	StoppedAt     time.Time      `json:"stoppedAt,omitempty"`
+	Transitions   int            `json:"transitions"`
+	UniqueScreens int            `json:"uniqueScreens"`
+	UniqueInputs  int            `json:"uniqueInputs"`
+	AIDKeyCounts  map[string]int `json:"aidKeyCounts,omitempty"`
+	LoadedRunID   string         `json:"loadedRunID,omitempty"`
+	Error         string         `json:"error,omitempty"`
 }
 
 // Engine is the chaos exploration engine. It runs a loop that reads the
@@ -43,15 +47,19 @@ type Engine struct {
 	h      host.Host
 	rng    *rand.Rand
 
-	mu          sync.Mutex
-	active      bool
-	stopCh      chan struct{}
-	stepsRun    int
-	startedAt   time.Time
-	stoppedAt   time.Time
-	lastErr     string
-	transitions []Transition
-	steps       []session.WorkflowStep
+	mu           sync.Mutex
+	active       bool
+	stopCh       chan struct{}
+	stepsRun     int
+	startedAt    time.Time
+	stoppedAt    time.Time
+	lastErr      string
+	transitions  []Transition
+	steps        []session.WorkflowStep
+	screenHashes map[string]bool
+	uniqueInputs map[string]bool
+	aidKeyCounts map[string]int
+	loadedRunID  string
 }
 
 // New creates a new Engine with the given host and configuration.
@@ -89,6 +97,10 @@ func (e *Engine) Start() error {
 	e.transitions = nil
 	e.steps = nil
 	e.lastErr = ""
+	e.screenHashes = make(map[string]bool)
+	e.uniqueInputs = make(map[string]bool)
+	e.aidKeyCounts = make(map[string]int)
+	e.loadedRunID = ""
 	e.stopCh = make(chan struct{})
 
 	go e.run()
@@ -111,13 +123,21 @@ func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	aidCopy := make(map[string]int, len(e.aidKeyCounts))
+	for k, v := range e.aidKeyCounts {
+		aidCopy[k] = v
+	}
 	return Status{
-		Active:      e.active,
-		StepsRun:    e.stepsRun,
-		StartedAt:   e.startedAt,
-		StoppedAt:   e.stoppedAt,
-		Transitions: len(e.transitions),
-		Error:       e.lastErr,
+		Active:        e.active,
+		StepsRun:      e.stepsRun,
+		StartedAt:     e.startedAt,
+		StoppedAt:     e.stoppedAt,
+		Transitions:   len(e.transitions),
+		UniqueScreens: len(e.screenHashes),
+		UniqueInputs:  len(e.uniqueInputs),
+		AIDKeyCounts:  aidCopy,
+		LoadedRunID:   e.loadedRunID,
+		Error:         e.lastErr,
 	}
 }
 
@@ -141,6 +161,93 @@ func (e *Engine) ExportWorkflow(hostName string, port int) ([]byte, error) {
 		Port:  port,
 		Steps: steps,
 	}, "", "  ")
+}
+
+// Snapshot returns a SavedRun capturing the engine's current accumulated
+// state. It is safe to call while the engine is running.
+func (e *Engine) Snapshot(runID string) *SavedRun {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	hashes := make(map[string]bool, len(e.screenHashes))
+	for k, v := range e.screenHashes {
+		hashes[k] = v
+	}
+	inputs := make(map[string]bool, len(e.uniqueInputs))
+	for k, v := range e.uniqueInputs {
+		inputs[k] = v
+	}
+	aid := make(map[string]int, len(e.aidKeyCounts))
+	for k, v := range e.aidKeyCounts {
+		aid[k] = v
+	}
+	transitions := make([]Transition, len(e.transitions))
+	copy(transitions, e.transitions)
+	steps := make([]session.WorkflowStep, len(e.steps))
+	copy(steps, e.steps)
+
+	return &SavedRun{
+		SavedRunMeta: SavedRunMeta{
+			ID:            runID,
+			StartedAt:     e.startedAt,
+			StoppedAt:     e.stoppedAt,
+			StepsRun:      e.stepsRun,
+			Transitions:   len(transitions),
+			UniqueScreens: len(hashes),
+			UniqueInputs:  len(inputs),
+			Error:         e.lastErr,
+		},
+		ScreenHashes:   hashes,
+		TransitionList: transitions,
+		Steps:          steps,
+		AIDKeyCounts:   aid,
+		UniqueInputValues: inputs,
+	}
+}
+
+// Resume starts the engine from a previously saved run, merging the existing
+// state (screen hashes, transitions, steps) into the new exploration.
+// It returns an error if exploration is already running or the host is not
+// connected.
+func (e *Engine) Resume(saved *SavedRun) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.active {
+		return fmt.Errorf("chaos exploration is already running")
+	}
+	if !e.h.IsConnected() {
+		return fmt.Errorf("not connected to host")
+	}
+
+	// Seed state from the saved run.
+	e.screenHashes = make(map[string]bool, len(saved.ScreenHashes))
+	for k, v := range saved.ScreenHashes {
+		e.screenHashes[k] = v
+	}
+	e.uniqueInputs = make(map[string]bool, len(saved.UniqueInputValues))
+	for k, v := range saved.UniqueInputValues {
+		e.uniqueInputs[k] = v
+	}
+	e.aidKeyCounts = make(map[string]int, len(saved.AIDKeyCounts))
+	for k, v := range saved.AIDKeyCounts {
+		e.aidKeyCounts[k] = v
+	}
+	e.transitions = make([]Transition, len(saved.TransitionList))
+	copy(e.transitions, saved.TransitionList)
+	e.steps = make([]session.WorkflowStep, len(saved.Steps))
+	copy(e.steps, saved.Steps)
+	e.stepsRun = saved.StepsRun
+	e.loadedRunID = saved.ID
+
+	e.active = true
+	e.startedAt = time.Now()
+	e.stoppedAt = time.Time{}
+	e.lastErr = ""
+	e.stopCh = make(chan struct{})
+
+	go e.run()
+	return nil
 }
 
 // run is the main exploration loop executed in a goroutine.
@@ -251,6 +358,16 @@ func (e *Engine) run() {
 		e.mu.Lock()
 		e.stepsRun++
 		e.steps = append(e.steps, batchSteps...)
+		e.screenHashes[currentHash] = true
+		if newHash != "" {
+			e.screenHashes[newHash] = true
+		}
+		e.aidKeyCounts[aidKey]++
+		for _, bs := range batchSteps {
+			if bs.Type == "FillString" && bs.Text != "" {
+				e.uniqueInputs[bs.Text] = true
+			}
+		}
 		if newHash != "" && newHash != currentHash {
 			e.transitions = append(e.transitions, Transition{
 				FromHash: currentHash,

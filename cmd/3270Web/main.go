@@ -44,6 +44,7 @@ type App struct {
 	baseDir        string
 	shutdown       func()
 	chaosEngines   *chaosEngineStore
+	chaosRunsDir   string
 }
 
 type WorkflowConfig struct {
@@ -128,6 +129,7 @@ func main() {
 		envPath:        envPath,
 		baseDir:        baseDir,
 		chaosEngines:   newChaosEngineStore(),
+		chaosRunsDir:   filepath.Join(baseDir, "chaos-runs"),
 	}
 
 	r := gin.Default()
@@ -203,6 +205,9 @@ func main() {
 	r.POST("/chaos/stop", app.ChaosStopHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
+	r.GET("/chaos/runs", app.ChaosListRunsHandler)
+	r.POST("/chaos/load", app.ChaosLoadHandler)
+	r.POST("/chaos/resume", app.ChaosResumeHandler)
 
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {

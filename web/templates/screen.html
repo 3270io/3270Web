@@ -187,6 +187,12 @@
                 <button type="button" class="icon-button icon-button-stop" data-chaos-stop hidden data-tippy-content="Stop chaos exploration" aria-label="Stop chaos exploration">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
                 </button>
+                <button type="button" class="icon-button" data-chaos-load data-tippy-content="Load previous chaos run" aria-label="Load previous chaos run">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5v-2z"/></svg>
+                </button>
+                <button type="button" class="icon-button" data-chaos-resume hidden data-tippy-content="Resume chaos exploration from loaded run" aria-label="Resume chaos exploration from loaded run">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+                </button>
                 <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Export chaos workflow" aria-label="Export chaos workflow">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
                 </button>
@@ -276,6 +282,20 @@
             <div class="stack">
                 <div>Part of the <strong>3270.io</strong> suite of open source solutions.</div>
                 <div><strong>Version:</strong> {{ .Version }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-runs-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-runs-modal-title">
+            <div class="modal-header">
+                <h3 id="chaos-runs-modal-title">Saved Chaos Runs</h3>
+                <button type="button" class="modal-close" data-chaos-runs-close>Close</button>
+            </div>
+            <div class="chaos-runs-list" data-chaos-runs-list>
+                <p class="subtle">Loading…</p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-runs-close>Cancel</button>
             </div>
         </div>
     </div>

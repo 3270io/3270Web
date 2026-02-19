@@ -103,12 +103,16 @@ type LoadedWorkflow struct {
 // layer; this struct carries only the observable fields needed by API
 // handlers.
 type ChaosState struct {
-	Active      bool
-	StepsRun    int
-	StartedAt   time.Time
-	StoppedAt   time.Time
-	Transitions int
-	Error       string
+	Active        bool
+	StepsRun      int
+	StartedAt     time.Time
+	StoppedAt     time.Time
+	Transitions   int
+	UniqueScreens int
+	UniqueInputs  int
+	AIDKeyCounts  map[string]int
+	LoadedRunID   string
+	Error         string
 }
 
 // Manager manages sessions.
