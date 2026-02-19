@@ -20,6 +20,7 @@ type Session struct {
 	TargetPort               int
 	Recording                *WorkflowRecording
 	Playback                 *WorkflowPlayback
+	Chaos                    *ChaosState
 	LoadedWorkflow           *LoadedWorkflow
 	PlaybackCompletedAt      time.Time
 	PlaybackEvents           []WorkflowEvent
@@ -95,6 +96,19 @@ type LoadedWorkflow struct {
 	Payload  []byte
 	Preview  string
 	LoadedAt time.Time
+}
+
+// ChaosState holds the persisted status snapshot for a chaos exploration
+// run attached to a session. The actual engine lives in the application
+// layer; this struct carries only the observable fields needed by API
+// handlers.
+type ChaosState struct {
+	Active      bool
+	StepsRun    int
+	StartedAt   time.Time
+	StoppedAt   time.Time
+	Transitions int
+	Error       string
 }
 
 // Manager manages sessions.
