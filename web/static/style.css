@@ -384,6 +384,21 @@ body.terminal-fit-active .card {
   box-shadow: 0 0 8px rgba(255, 210, 77, 0.7);
 }
 
+.chaos-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background-color: #a855f7;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.7);
+  animation: chaos-spin 2s linear infinite;
+}
+
+@keyframes chaos-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(0.8); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
 @keyframes pulse {
   0%, 50% {
     opacity: 1;

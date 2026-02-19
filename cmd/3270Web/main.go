@@ -756,6 +756,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 func (app *App) DisconnectHandler(c *gin.Context) {
 	if s := app.getSession(c); s != nil {
 		cleanupRecordingFile(s)
+		app.chaosEngines.delete(s.ID)
 		app.SessionManager.RemoveSession(s.ID)
 	}
 	setSessionCookie(c, "3270Web_session", "")

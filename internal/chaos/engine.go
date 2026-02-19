@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -153,6 +154,9 @@ func (e *Engine) run() {
 
 		if outputFile != "" {
 			if data, err := e.ExportWorkflow("", 0); err == nil {
+				if dir := filepath.Dir(outputFile); dir != "" {
+					_ = os.MkdirAll(dir, 0750)
+				}
 				_ = os.WriteFile(outputFile, data, 0600)
 			}
 		}
@@ -162,8 +166,6 @@ func (e *Engine) run() {
 	if e.cfg.TimeBudget > 0 {
 		deadline = time.Now().Add(e.cfg.TimeBudget)
 	}
-
-	prevHash := ""
 
 	for {
 		// Check for stop signal.
@@ -202,7 +204,6 @@ func (e *Engine) run() {
 		// Fill unprotected fields with random values.
 		var batchSteps []session.WorkflowStep
 		fields := unprotectedFields(screen)
-		hasFills := false
 
 		for _, f := range fields {
 			value := e.generateValue(f)
@@ -213,7 +214,6 @@ func (e *Engine) run() {
 				// Non-fatal: skip this field.
 				continue
 			}
-			hasFills = true
 			batchSteps = append(batchSteps, session.WorkflowStep{
 				Type: "FillString",
 				Coordinates: &session.WorkflowCoordinates{
@@ -222,17 +222,6 @@ func (e *Engine) run() {
 				},
 				Text: value,
 			})
-		}
-
-		// Submit any pending field values before sending the AID key
-		// (mirrors the workflow playback submitWorkflowPendingInput pattern).
-		if hasFills {
-			if err := e.h.SubmitScreen(); err != nil {
-				e.mu.Lock()
-				e.lastErr = err.Error()
-				e.mu.Unlock()
-				return
-			}
 		}
 
 		// Choose and send an AID key.
@@ -262,7 +251,7 @@ func (e *Engine) run() {
 		e.mu.Lock()
 		e.stepsRun++
 		e.steps = append(e.steps, batchSteps...)
-		if newHash != "" && newHash != currentHash && prevHash != "" {
+		if newHash != "" && newHash != currentHash {
 			e.transitions = append(e.transitions, Transition{
 				FromHash: currentHash,
 				ToHash:   newHash,
@@ -270,8 +259,6 @@ func (e *Engine) run() {
 			})
 		}
 		e.mu.Unlock()
-
-		prevHash = newHash
 
 		// Inter-step delay (cancellable).
 		if e.cfg.StepDelay > 0 {
@@ -291,8 +278,12 @@ func (e *Engine) generateValue(f *host.Field) string {
 	if length <= 0 {
 		return ""
 	}
-	if length > 40 {
-		length = 40
+	maxLen := e.cfg.MaxFieldLength
+	if maxLen <= 0 {
+		maxLen = 40
+	}
+	if length > maxLen {
+		length = maxLen
 	}
 
 	if f.IsNumeric() {
