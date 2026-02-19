@@ -45,12 +45,13 @@ func (s *chaosEngineStore) delete(sessionID string) {
 
 // chaosStartRequest is the JSON body accepted by POST /chaos/start.
 type chaosStartRequest struct {
-	MaxSteps      int            `json:"maxSteps"`
-	TimeBudgetSec float64        `json:"timeBudgetSec"`
-	StepDelaySec  float64        `json:"stepDelaySec"`
-	Seed          int64          `json:"seed"`
-	AIDKeyWeights map[string]int `json:"aidKeyWeights"`
-	OutputFile    string         `json:"outputFile"`
+	MaxSteps       int            `json:"maxSteps"`
+	TimeBudgetSec  float64        `json:"timeBudgetSec"`
+	StepDelaySec   float64        `json:"stepDelaySec"`
+	Seed           int64          `json:"seed"`
+	AIDKeyWeights  map[string]int `json:"aidKeyWeights"`
+	OutputFile     string         `json:"outputFile"`
+	MaxFieldLength int            `json:"maxFieldLength"`
 }
 
 // ChaosStartHandler handles POST /chaos/start.
@@ -82,6 +83,9 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 		if req.OutputFile != "" {
 			cfg.OutputFile = req.OutputFile
+		}
+		if req.MaxFieldLength > 0 {
+			cfg.MaxFieldLength = req.MaxFieldLength
 		}
 	}
 
@@ -212,7 +216,8 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 
 // syncChaosStatus runs in a background goroutine and copies engine status
 // snapshots into the session's ChaosState so that the session store always
-// reflects the latest values.
+// reflects the latest values. It removes the engine from the store once the
+// run completes to avoid memory growth.
 func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 	for {
 		st := eng.Status()
@@ -227,6 +232,7 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 			}
 		})
 		if !st.Active {
+			app.chaosEngines.delete(s.ID)
 			return
 		}
 		time.Sleep(500 * time.Millisecond)

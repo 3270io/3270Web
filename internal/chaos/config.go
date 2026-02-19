@@ -23,14 +23,19 @@ type Config struct {
 	// OutputFile is a path where the learned workflow JSON is persisted on stop
 	// (empty = do not persist).
 	OutputFile string `json:"outputFile"`
+
+	// MaxFieldLength is the maximum number of characters generated per unprotected
+	// field. Defaults to 40.
+	MaxFieldLength int `json:"maxFieldLength"`
 }
 
 // DefaultConfig returns sensible defaults for a chaos exploration run.
 func DefaultConfig() Config {
 	return Config{
-		MaxSteps:  100,
-		TimeBudget: 5 * time.Minute,
-		StepDelay:  500 * time.Millisecond,
+		MaxSteps:       100,
+		TimeBudget:     5 * time.Minute,
+		StepDelay:      500 * time.Millisecond,
+		MaxFieldLength: 40,
 		AIDKeyWeights: map[string]int{
 			"Enter":  70,
 			"PF(1)":  5,

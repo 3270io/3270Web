@@ -38,6 +38,9 @@ func TestDefaultConfig(t *testing.T) {
 	if len(cfg.AIDKeyWeights) == 0 {
 		t.Error("DefaultConfig.AIDKeyWeights must not be empty")
 	}
+	if cfg.MaxFieldLength <= 0 {
+		t.Error("DefaultConfig.MaxFieldLength must be positive")
+	}
 }
 
 func TestHashScreen(t *testing.T) {
@@ -247,5 +250,21 @@ func TestGenerateValue_Numeric(t *testing.T) {
 		if c < '0' || c > '9' {
 			t.Errorf("generateValue for numeric field contains non-digit %q", c)
 		}
+	}
+}
+
+func TestGenerateValue_RespectsMaxFieldLength(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	// Wide unprotected field: col 0-49 = length 50
+	f := host.NewField(s, 0x00, 0, 0, 49, 0, 0, 0)
+
+	cfg := DefaultConfig()
+	cfg.MaxFieldLength = 5
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(1)) //nolint:gosec
+
+	v := e.generateValue(f)
+	if len(v) > 5 {
+		t.Errorf("generateValue produced %d chars, want at most 5", len(v))
 	}
 }
