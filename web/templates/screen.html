@@ -180,6 +180,23 @@
                 {{ if .RecordingFile }}
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
+                <!-- Chaos exploration controls -->
+                <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                </button>
+                <button type="button" class="icon-button icon-button-stop" data-chaos-stop hidden data-tippy-content="Stop chaos exploration" aria-label="Stop chaos exploration">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                </button>
+                <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Export chaos workflow" aria-label="Export chaos workflow">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+                </button>
+                <span class="status-indicator" data-chaos-indicator hidden>
+                    <span class="chaos-indicator" aria-hidden="true"></span>
+                    <span class="status-text">CHAOS</span>
+                </span>
+                <span class="status-indicator" data-chaos-stats-indicator hidden>
+                    <span class="status-text" data-chaos-stats-text></span>
+                </span>
             </div>
             {{ if .SampleAppName }}
             <div class="sample-status">

@@ -153,6 +153,12 @@
         S3270_UTENV: 'false',
         ALLOW_LOG_ACCESS: 'true',
         APP_USE_KEYPAD: 'false',
+        CHAOS_MAX_STEPS: '100',
+        CHAOS_TIME_BUDGET_SEC: '300',
+        CHAOS_STEP_DELAY_SEC: '0.5',
+        CHAOS_SEED: '0',
+        CHAOS_MAX_FIELD_LENGTH: '40',
+        CHAOS_OUTPUT_FILE: '',
     };
 
     const modelOptions = [
@@ -295,6 +301,19 @@
             fields: [
                 { key: 'ALLOW_LOG_ACCESS', label: 'Allow log access', type: 'checkbox', helper: 'Enable viewing log output in the UI.' },
                 { key: 'APP_USE_KEYPAD', label: 'Use keypad', type: 'checkbox', helper: 'Show the virtual keypad by default.' },
+            ],
+        },
+        {
+            id: 'chaos',
+            title: 'Chaos Explorer',
+            description: 'Configuration for chaos exploration runs. Values are used when starting a chaos run from the toolbar.',
+            fields: [
+                { key: 'CHAOS_MAX_STEPS', label: 'Max steps', type: 'text', helper: 'Maximum number of AID key submissions before stopping (0 = unlimited).' },
+                { key: 'CHAOS_TIME_BUDGET_SEC', label: 'Time budget (seconds)', type: 'text', helper: 'Maximum wall-clock seconds before stopping (0 = unlimited).' },
+                { key: 'CHAOS_STEP_DELAY_SEC', label: 'Step delay (seconds)', type: 'text', helper: 'Pause between submissions in seconds (e.g. 0.5).' },
+                { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
+                { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
+                { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
             ],
         },
     ];
@@ -968,4 +987,187 @@
             closeRestartConfirm(false);
         }
     });
+})();
+
+/**
+ * Chaos exploration toolbar controls.
+ * Handles start/stop/export for chaos runs and polls /chaos/status.
+ */
+(() => {
+    const startBtn = document.querySelector('[data-chaos-start]');
+    const stopBtn = document.querySelector('[data-chaos-stop]');
+    const exportBtn = document.querySelector('[data-chaos-export]');
+    const indicator = document.querySelector('[data-chaos-indicator]');
+    const statsIndicator = document.querySelector('[data-chaos-stats-indicator]');
+    const statsText = document.querySelector('[data-chaos-stats-text]');
+
+    if (!startBtn && !stopBtn && !exportBtn) {
+        return;
+    }
+
+    let pollTimer = null;
+    let hasData = false;
+
+    const setButtonBusy = (btn, busy) => {
+        if (!btn) {
+            return;
+        }
+        btn.disabled = busy;
+        btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    };
+
+    const updateUI = (status) => {
+        const running = !!(status && status.active);
+        hasData = !!(status && status.stepsRun > 0);
+
+        if (startBtn) {
+            startBtn.hidden = running;
+        }
+        if (stopBtn) {
+            stopBtn.hidden = !running;
+        }
+        if (exportBtn) {
+            exportBtn.hidden = running || !hasData;
+        }
+        if (indicator) {
+            indicator.hidden = !running;
+        }
+        if (statsIndicator) {
+            const hasStats = !!(status && (status.stepsRun > 0 || status.transitions > 0));
+            statsIndicator.hidden = !hasStats;
+            if (statsText && hasStats) {
+                let txt = `${status.stepsRun} steps`;
+                if (status.transitions > 0) {
+                    txt += `, ${status.transitions} transitions`;
+                }
+                if (status.error) {
+                    txt += ` \u2014 ${status.error}`;
+                }
+                statsText.textContent = txt;
+            }
+        }
+    };
+
+    const pollStatus = async () => {
+        clearTimeout(pollTimer);
+        try {
+            const resp = await fetch('/chaos/status');
+            if (!resp.ok) {
+                return;
+            }
+            const status = await resp.json();
+            updateUI(status);
+            if (status.active) {
+                pollTimer = setTimeout(pollStatus, 1000);
+            }
+        } catch (_err) {
+            // Network error – stop polling
+        }
+    };
+
+    // Read chaos config from the settings modal fields (populated from CHAOS_* settings).
+    const readChaosConfig = () => {
+        const getVal = (key) => {
+            const el = document.querySelector(`[data-setting-key="${key}"]`);
+            return el ? el.value.trim() : '';
+        };
+
+        const cfg = {};
+
+        const maxSteps = parseInt(getVal('CHAOS_MAX_STEPS'), 10);
+        if (!isNaN(maxSteps) && maxSteps >= 0) {
+            cfg.maxSteps = maxSteps;
+        }
+
+        const timeBudgetSec = parseFloat(getVal('CHAOS_TIME_BUDGET_SEC'));
+        if (!isNaN(timeBudgetSec) && timeBudgetSec >= 0) {
+            cfg.timeBudgetSec = timeBudgetSec;
+        }
+
+        const stepDelaySec = parseFloat(getVal('CHAOS_STEP_DELAY_SEC'));
+        if (!isNaN(stepDelaySec) && stepDelaySec >= 0) {
+            cfg.stepDelaySec = stepDelaySec;
+        }
+
+        const seed = parseInt(getVal('CHAOS_SEED'), 10);
+        if (!isNaN(seed)) {
+            cfg.seed = seed;
+        }
+
+        const maxFieldLength = parseInt(getVal('CHAOS_MAX_FIELD_LENGTH'), 10);
+        if (!isNaN(maxFieldLength) && maxFieldLength > 0) {
+            cfg.maxFieldLength = maxFieldLength;
+        }
+
+        const outputFile = getVal('CHAOS_OUTPUT_FILE');
+        if (outputFile) {
+            cfg.outputFile = outputFile;
+        }
+
+        return cfg;
+    };
+
+    // Initial status check on page load.
+    pollStatus();
+
+    if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+            setButtonBusy(startBtn, true);
+            try {
+                const cfg = readChaosConfig();
+                const resp = await fetch('/chaos/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg),
+                });
+                if (resp.ok) {
+                    updateUI({ active: true, stepsRun: 0, transitions: 0 });
+                    pollStatus();
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(startBtn, false);
+            }
+        });
+    }
+
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            setButtonBusy(stopBtn, true);
+            try {
+                await fetch('/chaos/stop', { method: 'POST' });
+                await pollStatus();
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(stopBtn, false);
+            }
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            setButtonBusy(exportBtn, true);
+            try {
+                const resp = await fetch('/chaos/export', { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.text();
+                    const blob = new Blob([data], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'chaos-workflow.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(exportBtn, false);
+            }
+        });
+    }
 })();
