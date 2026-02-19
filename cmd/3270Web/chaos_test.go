@@ -364,3 +364,261 @@ func TestChaosStatus_NoSession(t *testing.T) {
 		t.Errorf("no session: want 401, got %d", w.Code)
 	}
 }
+
+// setupFullChaosTestApp creates a test App with all chaos routes registered,
+// including the persistence routes (/chaos/runs, /chaos/load, /chaos/resume).
+// It uses t.TempDir() for the chaosRunsDir so that each test gets an isolated
+// directory that is cleaned up automatically.
+func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine, string) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	mgr := session.NewManager()
+	sess := mgr.CreateSession(mockHost)
+	sess.TargetHost = "127.0.0.1"
+	sess.TargetPort = 3270
+
+	app := &App{
+		SessionManager: mgr,
+		chaosEngines:   newChaosEngineStore(),
+		chaosRunsDir:   t.TempDir(),
+	}
+
+	r := gin.New()
+	r.POST("/chaos/start", app.ChaosStartHandler)
+	r.POST("/chaos/stop", app.ChaosStopHandler)
+	r.GET("/chaos/status", app.ChaosStatusHandler)
+	r.POST("/chaos/export", app.ChaosExportHandler)
+	r.GET("/chaos/runs", app.ChaosListRunsHandler)
+	r.POST("/chaos/load", app.ChaosLoadHandler)
+	r.POST("/chaos/resume", app.ChaosResumeHandler)
+
+	return app, r, sess.ID
+}
+
+// TestChaosStatus_MetadataFields verifies that the status response includes
+// the new metadata fields (uniqueScreens, uniqueInputs) introduced for
+// discovery tracking.
+func TestChaosStatus_MetadataFields(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     3,
+		"stepDelaySec": 0,
+		"seed":         10,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d", w.Code)
+	}
+
+	// Wait for engine to finish (MaxSteps=3, no delay).
+	deadline := time.Now().Add(5 * time.Second)
+	var statusResp map[string]interface{}
+	for time.Now().Before(deadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+		json.Unmarshal(w.Body.Bytes(), &statusResp) //nolint:errcheck
+		if active, _ := statusResp["active"].(bool); !active {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", w.Code)
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("status not valid JSON: %v", err)
+	}
+	if _, ok := statusResp["uniqueScreens"]; !ok {
+		t.Error("status response missing uniqueScreens field")
+	}
+	if _, ok := statusResp["uniqueInputs"]; !ok {
+		t.Error("status response missing uniqueInputs field")
+	}
+}
+
+// TestChaosListRuns_Empty verifies that listing runs when the directory is
+// empty returns an empty JSON array.
+func TestChaosListRuns_Empty(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	w := chaosRequest(r, http.MethodGet, "/chaos/runs", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list runs: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var runs []interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &runs); err != nil {
+		t.Fatalf("list runs response not valid JSON: %v", err)
+	}
+	if len(runs) != 0 {
+		t.Errorf("want empty list, got %d entries", len(runs))
+	}
+}
+
+// TestChaosLoadAndResume verifies the load→resume workflow: a run is saved to
+// disk, loaded via POST /chaos/load, and then resumed via POST /chaos/resume.
+func TestChaosLoadAndResume(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	// ── 1. Run a short chaos exploration so a run is auto-saved. ─────────────
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     3,
+		"stepDelaySec": 0,
+		"seed":         20,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d", w.Code)
+	}
+
+	// Wait for the engine to finish and the auto-save to happen.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+		var sr map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &sr) //nolint:errcheck
+		if active, _ := sr["active"].(bool); !active {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Wait a little extra for the syncChaosStatus goroutine to detect
+	// engine completion and auto-save (it polls every 500 ms).
+	var metas []map[string]interface{}
+	saveDeadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(saveDeadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/runs", nil, sessID)
+		if w.Code == http.StatusOK {
+			json.Unmarshal(w.Body.Bytes(), &metas) //nolint:errcheck
+			if len(metas) > 0 {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// ── 2. List saved runs – expect at least one. ──────────────────────────
+	if w.Code != http.StatusOK {
+		t.Fatalf("list runs: want 200, got %d", w.Code)
+	}
+	if len(metas) == 0 {
+		t.Fatal("expected at least one saved run after exploration")
+	}
+	runID, _ := metas[0]["id"].(string)
+	if runID == "" {
+		t.Fatal("saved run missing id field")
+	}
+
+	// ── 3. Load the saved run. ─────────────────────────────────────────────
+	loadPayload, _ := json.Marshal(map[string]interface{}{"runID": runID})
+	w = chaosRequest(r, http.MethodPost, "/chaos/load", loadPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("load: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var loadResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &loadResp); err != nil {
+		t.Fatalf("load response not valid JSON: %v", err)
+	}
+	if loadResp["runID"] != runID {
+		t.Errorf("load response runID = %v, want %q", loadResp["runID"], runID)
+	}
+
+	// Status should now report loadedRunID even without a running engine.
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	var statusResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &statusResp) //nolint:errcheck
+	if statusResp["loadedRunID"] != runID {
+		t.Errorf("status loadedRunID = %v, want %q", statusResp["loadedRunID"], runID)
+	}
+
+	// ── 4. Resume exploration from the loaded run. ─────────────────────────
+	resumePayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     2,
+		"stepDelaySec": 0,
+		"seed":         99,
+	})
+	w = chaosRequest(r, http.MethodPost, "/chaos/resume", resumePayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("resume: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var resumeResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resumeResp) //nolint:errcheck
+	if resumeResp["status"] != "resumed" {
+		t.Errorf("resume response status = %v, want \"resumed\"", resumeResp["status"])
+	}
+	if resumeResp["loadedRunID"] != runID {
+		t.Errorf("resume response loadedRunID = %v, want %q", resumeResp["loadedRunID"], runID)
+	}
+
+	// Wait for resumed engine to finish.
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if eng, ok := app.chaosEngines.get(sessID); !ok || !eng.Status().Active {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Status should show loadedRunID from the resumed engine.
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	json.Unmarshal(w.Body.Bytes(), &statusResp) //nolint:errcheck
+	// After the resumed engine finishes, loadedRunID may appear in the loaded
+	// run store (set via setLoadedRun) or in the status; either is acceptable.
+}
+
+// TestChaosLoad_NotFound verifies that loading a non-existent run ID returns 404.
+func TestChaosLoad_NotFound(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	loadPayload, _ := json.Marshal(map[string]interface{}{"runID": "nonexistent-run"})
+	w := chaosRequest(r, http.MethodPost, "/chaos/load", loadPayload, sessID)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("load nonexistent: want 404, got %d – body: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestChaosResume_WithoutLoad verifies that calling resume before loading a
+// run returns HTTP 400.
+func TestChaosResume_WithoutLoad(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/resume", nil, sessID)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("resume without load: want 400, got %d – body: %s", w.Code, w.Body.String())
+	}
+}

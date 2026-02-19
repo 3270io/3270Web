@@ -991,15 +991,20 @@
 
 /**
  * Chaos exploration toolbar controls.
- * Handles start/stop/export for chaos runs and polls /chaos/status.
+ * Handles start/stop/export/load/resume for chaos runs and polls /chaos/status.
  */
 (() => {
     const startBtn = document.querySelector('[data-chaos-start]');
     const stopBtn = document.querySelector('[data-chaos-stop]');
     const exportBtn = document.querySelector('[data-chaos-export]');
+    const loadBtn = document.querySelector('[data-chaos-load]');
+    const resumeBtn = document.querySelector('[data-chaos-resume]');
     const indicator = document.querySelector('[data-chaos-indicator]');
     const statsIndicator = document.querySelector('[data-chaos-stats-indicator]');
     const statsText = document.querySelector('[data-chaos-stats-text]');
+    const runsModal = document.querySelector('[data-chaos-runs-modal]');
+    const runsModalClose = document.querySelectorAll('[data-chaos-runs-close]');
+    const runsList = document.querySelector('[data-chaos-runs-list]');
 
     if (!startBtn && !stopBtn && !exportBtn) {
         return;
@@ -1007,6 +1012,7 @@
 
     let pollTimer = null;
     let hasData = false;
+    let loadedRunID = null;
 
     const setButtonBusy = (btn, busy) => {
         if (!btn) {
@@ -1019,12 +1025,18 @@
     const updateUI = (status) => {
         const running = !!(status && status.active);
         hasData = !!(status && status.stepsRun > 0);
+        if (status && status.loadedRunID) {
+            loadedRunID = status.loadedRunID;
+        }
 
         if (startBtn) {
             startBtn.hidden = running;
         }
         if (stopBtn) {
             stopBtn.hidden = !running;
+        }
+        if (resumeBtn) {
+            resumeBtn.hidden = running || !loadedRunID;
         }
         if (exportBtn) {
             exportBtn.hidden = running || !hasData;
@@ -1039,6 +1051,12 @@
                 let txt = `${status.stepsRun} steps`;
                 if (status.transitions > 0) {
                     txt += `, ${status.transitions} transitions`;
+                }
+                if (status.uniqueScreens > 0) {
+                    txt += `, ${status.uniqueScreens} screens`;
+                }
+                if (status.uniqueInputs > 0) {
+                    txt += `, ${status.uniqueInputs} inputs`;
                 }
                 if (status.error) {
                     txt += ` \u2014 ${status.error}`;
@@ -1064,6 +1082,86 @@
             // Network error – stop polling
         }
     };
+
+    // Open/close the runs modal.
+    const openRunsModal = async () => {
+        if (!runsModal || !runsList) {
+            return;
+        }
+        runsList.innerHTML = '<p class="subtle">Loading\u2026</p>';
+        runsModal.hidden = false;
+        try {
+            const resp = await fetch('/chaos/runs');
+            if (!resp.ok) {
+                runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
+                return;
+            }
+            const runs = await resp.json();
+            if (!runs || runs.length === 0) {
+                runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
+                return;
+            }
+            const items = runs.map((r) => {
+                const date = r.startedAt ? new Date(r.startedAt).toLocaleString() : '';
+                const meta = [
+                    r.stepsRun > 0 ? `${r.stepsRun} steps` : null,
+                    r.transitions > 0 ? `${r.transitions} transitions` : null,
+                    r.uniqueScreens > 0 ? `${r.uniqueScreens} screens` : null,
+                ].filter(Boolean).join(', ');
+                return `<div class="chaos-run-item" data-run-id="${r.id}">
+                    <div class="chaos-run-meta">
+                        <strong class="chaos-run-id">${r.id}</strong>
+                        <span class="subtle">${date}</span>
+                    </div>
+                    <div class="chaos-run-stats subtle">${meta}</div>
+                    <button type="button" class="chaos-run-load-btn" data-load-run-id="${r.id}">Load</button>
+                </div>`;
+            });
+            runsList.innerHTML = items.join('');
+            runsList.querySelectorAll('[data-load-run-id]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const rid = btn.getAttribute('data-load-run-id');
+                    try {
+                        const r2 = await fetch('/chaos/load', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ runID: rid }),
+                        });
+                        if (r2.ok) {
+                            const data = await r2.json();
+                            loadedRunID = data.runID || rid;
+                            updateUI({
+                                active: false,
+                                stepsRun: data.stepsRun || 0,
+                                transitions: data.transitions || 0,
+                                uniqueScreens: data.uniqueScreens || 0,
+                                uniqueInputs: data.uniqueInputs || 0,
+                                loadedRunID,
+                            });
+                        }
+                    } catch (_e) {
+                        // Ignore
+                    }
+                    if (runsModal) {
+                        runsModal.hidden = true;
+                    }
+                });
+            });
+        } catch (_err) {
+            runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
+        }
+    };
+
+    if (runsModal) {
+        runsModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => { runsModal.hidden = true; });
+        });
+        runsModal.addEventListener('click', (e) => {
+            if (e.target === runsModal) {
+                runsModal.hidden = true;
+            }
+        });
+    }
 
     // Read chaos config from the settings modal fields (populated from CHAOS_* settings).
     const readChaosConfig = () => {
@@ -1142,6 +1240,37 @@
                 // Ignore
             } finally {
                 setButtonBusy(stopBtn, false);
+            }
+        });
+    }
+
+    if (loadBtn) {
+        loadBtn.addEventListener('click', () => {
+            openRunsModal();
+        });
+    }
+
+    if (resumeBtn) {
+        resumeBtn.addEventListener('click', async () => {
+            if (!loadedRunID) {
+                return;
+            }
+            setButtonBusy(resumeBtn, true);
+            try {
+                const cfg = readChaosConfig();
+                const resp = await fetch('/chaos/resume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg),
+                });
+                if (resp.ok) {
+                    updateUI({ active: true, stepsRun: 0, transitions: 0, loadedRunID });
+                    pollStatus();
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(resumeBtn, false);
             }
         });
     }
