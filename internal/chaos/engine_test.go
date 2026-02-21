@@ -60,11 +60,20 @@ func TestHashScreen(t *testing.T) {
 		t.Error("hashScreen is not deterministic for the same screen")
 	}
 
-	// Changing the cursor position must change the hash.
+	// Changing only the cursor position must NOT change the hash: on 3270
+	// terminals the cursor moves between input fields (e.g. via Tab) without
+	// changing the logical screen, so cursor is not part of screen identity.
 	s.CursorX = 5
 	h3 := hashScreen(s)
-	if h1 == h3 {
-		t.Error("hashScreen did not change when cursor moved")
+	if h1 != h3 {
+		t.Error("hashScreen changed when only cursor moved; cursor is not part of screen identity")
+	}
+
+	// Adding a field must change the hash (field count is part of screen identity).
+	s.Fields = append(s.Fields, host.NewField(s, 0x00, 20, 5, 29, 5, 0, 0))
+	h4 := hashScreen(s)
+	if h1 == h4 {
+		t.Error("hashScreen did not change when a field was added")
 	}
 
 	// nil screen must return empty string without panicking.
@@ -816,13 +825,17 @@ func TestSnapshotAreaValuesLocked(t *testing.T) {
 }
 
 // TestSnapshotKeyBoostsLocked verifies that snapshotKeyBoostsLocked scales
-// boosts proportionally to observed progressions.
+// boosts proportionally to observed progressions and applies penalties to keys
+// that have been pressed many times without causing any transition.
 func TestSnapshotKeyBoostsLocked(t *testing.T) {
 	e := New(nil, DefaultConfig())
 	e.mindMap = newMindMap()
 	area := e.mindMap.ensureArea("hash1")
 	area.KeyPresses["Enter"] = &MindMapKeyPress{Presses: 5, Progressions: 3}
+	// PF(3): 2 presses, 0 progressions → below penalty threshold, no boost/penalty.
 	area.KeyPresses["PF(3)"] = &MindMapKeyPress{Presses: 2, Progressions: 0}
+	// Clear: many presses, 0 progressions → should receive a penalty.
+	area.KeyPresses["Clear"] = &MindMapKeyPress{Presses: minPressesForPenalty + 3, Progressions: 0}
 
 	boosts := e.snapshotKeyBoostsLocked("hash1")
 	if boosts == nil {
@@ -832,6 +845,35 @@ func TestSnapshotKeyBoostsLocked(t *testing.T) {
 		t.Errorf("Enter boost = %d, want 30 (3 progressions × 10)", boosts["Enter"])
 	}
 	if _, ok := boosts["PF(3)"]; ok {
-		t.Error("PF(3) should not appear in boosts when progressions = 0")
+		t.Error("PF(3) should not appear in boosts when progressions = 0 and presses below penalty threshold")
+	}
+	// Clear has been pressed >= minPressesForPenalty times with 0 progressions.
+	if boosts["Clear"] >= 0 {
+		t.Errorf("Clear should have a negative boost (penalty) after %d presses with no progression, got %d",
+			minPressesForPenalty+3, boosts["Clear"])
+	}
+}
+
+// TestChooseAIDKeyBoosted_Clamp verifies that a large negative boost is clamped
+// to a minimum effective weight of 1, keeping the penalised key selectable for
+// exploration breadth rather than silently excluding it.
+func TestChooseAIDKeyBoosted_Clamp(t *testing.T) {
+	cfg := DefaultConfig()
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(42)) //nolint:gosec
+
+	// Apply a large negative boost to Clear (config weight 5 − 1000 → clamped to 1).
+	boosts := map[string]int{"Clear": -1000}
+	counts := make(map[string]int)
+	for i := 0; i < 1000; i++ {
+		counts[e.chooseAIDKeyBoosted(boosts)]++
+	}
+	// Clear must still be selected occasionally (clamped to min weight 1, not zero).
+	if counts["Clear"] == 0 {
+		t.Error("Clear should remain selectable even with a large negative boost")
+	}
+	// Clear's effective weight is 1 vs Enter's 70 → Clear should be chosen far less.
+	if counts["Clear"] >= counts["Enter"] {
+		t.Errorf("penalised Clear (%d) should be chosen much less than Enter (%d)", counts["Clear"], counts["Enter"])
 	}
 }

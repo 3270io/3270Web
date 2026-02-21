@@ -69,6 +69,12 @@ type Attempt struct {
 
 const maxRecentAttempts = 40
 
+// minPressesForPenalty is the number of times a key must be pressed from a
+// screen without causing any transition before it receives a negative boost.
+// Below this threshold the engine gives a key the benefit of the doubt; above
+// it the key is progressively de-prioritised in favour of untried keys.
+const minPressesForPenalty = 5
+
 // Engine is the chaos exploration engine. It runs a loop that reads the
 // current 3270 screen, fills unprotected fields with random values, and
 // submits a randomly chosen AID key. Observed state transitions and
@@ -578,8 +584,12 @@ func (e *Engine) snapshotAreaValuesLocked(hash string) map[string][]string {
 }
 
 // snapshotKeyBoostsLocked returns a map of AID key → boost amount derived
-// from the number of times each key has caused a screen transition from the
-// given area.  Must be called with e.mu held.
+// from the MindMap statistics for the given area.  Keys that previously caused
+// screen transitions receive a positive boost proportional to their
+// progression count.  Keys that have been pressed at least minPressesForPenalty
+// times from this screen without ever causing a transition receive a negative
+// boost (penalty) to steer the engine toward less-explored alternatives.
+// Must be called with e.mu held.
 func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
 	if e.mindMap == nil || hash == "" {
 		return nil
@@ -590,10 +600,15 @@ func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
 	}
 	boosts := make(map[string]int, len(area.KeyPresses))
 	for key, kp := range area.KeyPresses {
-		if kp == nil || kp.Progressions == 0 {
+		if kp == nil {
 			continue
 		}
-		boosts[key] += kp.Progressions * 10
+		if kp.Progressions > 0 {
+			boosts[key] += kp.Progressions * 10
+		} else if kp.Presses >= minPressesForPenalty {
+			// Penalise keys pressed many times without causing any transition.
+			boosts[key] -= kp.Presses
+		}
 	}
 	if len(boosts) == 0 {
 		return nil
@@ -777,6 +792,8 @@ func (e *Engine) chooseAIDKey() string {
 // any extra boosts supplied by the caller (e.g. derived from MindMap
 // transition statistics for the current screen area).  Keys are sorted before
 // sampling so that results are deterministic for a given RNG seed.
+// Each effective weight is clamped to a minimum of 1 so that all configured
+// keys remain selectable for exploration breadth even when penalties apply.
 func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 	weights := e.cfg.AIDKeyWeights
 	if len(weights) == 0 {
@@ -794,6 +811,13 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 		}
 		for k, b := range boosts {
 			effective[k] += b
+		}
+		// Clamp to minimum weight of 1 so that penalised keys remain selectable
+		// (preserving exploration breadth) rather than being silently excluded.
+		for k := range effective {
+			if effective[k] < 1 {
+				effective[k] = 1
+			}
 		}
 	}
 
@@ -823,13 +847,18 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 	return "Enter"
 }
 
-// hashScreen produces a short stable fingerprint of the screen state.
+// hashScreen produces a short stable fingerprint of the screen state based on
+// its text content and field structure. Cursor position is intentionally
+// excluded: on 3270 terminals the cursor moves freely between input fields
+// (e.g. via Tab) without changing the logical screen, so including it would
+// cause the same screen to appear as many different "areas" in the MindMap and
+// make Tab key presses register as false screen transitions.
 func hashScreen(s *host.Screen) string {
 	if s == nil {
 		return ""
 	}
 	h := sha256.New()
-	fmt.Fprintf(h, "%s|%d,%d|%d", s.Text(), s.CursorX, s.CursorY, len(s.Fields))
+	fmt.Fprintf(h, "%s|%d", s.Text(), len(s.Fields))
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
