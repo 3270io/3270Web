@@ -932,6 +932,8 @@ func (app *App) LoadWorkflowHandler(c *gin.Context) {
 			LoadedAt: time.Now(),
 		}
 	})
+	// Loading a recording should reset active-run playback summary metadata.
+	clearWorkflowStatus(s)
 	c.Redirect(http.StatusFound, "/screen")
 }
 

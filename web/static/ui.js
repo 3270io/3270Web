@@ -1617,6 +1617,9 @@
                                 uniqueInputs: data.uniqueInputs || 0,
                                 loadedRunID,
                             });
+                            if (typeof window.refreshWorkflowStatus === 'function') {
+                                await window.refreshWorkflowStatus();
+                            }
                         }
                     } catch (_e) {
                         // Ignore
@@ -1835,6 +1838,9 @@
                         uniqueInputs: data.uniqueInputs || 0,
                         loadedRunID,
                     });
+                    if (typeof window.refreshWorkflowStatus === 'function') {
+                        await window.refreshWorkflowStatus();
+                    }
                 }
             } catch (_err) {
                 // Ignore

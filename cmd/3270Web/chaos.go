@@ -471,6 +471,10 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 
 	app.chaosEngines.clearRemoved(s.ID)
 	app.chaosEngines.setLoadedRun(s.ID, run)
+	withSessionLock(s, func() {
+		// Loading a chaos run should clear stale active-run status metadata.
+		s.Chaos = nil
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"runID":         run.ID,
 		"stepsRun":      run.StepsRun,
@@ -514,6 +518,10 @@ func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
 	run := chaosSeedRunFromWorkflow(workflow)
 	app.chaosEngines.clearRemoved(s.ID)
 	app.chaosEngines.setLoadedRun(s.ID, run)
+	withSessionLock(s, func() {
+		// Loading a recording into chaos should clear stale active-run metadata.
+		s.Chaos = nil
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":        "loaded",

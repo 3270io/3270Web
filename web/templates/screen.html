@@ -41,11 +41,11 @@
     <script src="/static/keyboard.js?v=7" defer></script>
     <script src="/static/theme.js?v=7" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js?v=12" defer></script>
+    <script src="/static/workflow.js?v=15" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
-    <script src="/static/ui.js?v=17" defer></script>
+    <script src="/static/ui.js?v=18" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -109,7 +109,7 @@
                         {{ if not .LoadedWorkflow }}
                         <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
                             <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
-                            <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
+                            <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording" {{ if or .RecordingActive .PlaybackActive }}disabled{{ end }}>
                                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
                             </button>
                         </form>
@@ -121,12 +121,12 @@
                                 <strong>{{ .LoadedWorkflowName }}</strong>
                             </span>
                             <form action="/workflow/play" method="post" class="workflow-form">
-                                <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording">
+                                <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording" {{ if or .RecordingActive .PlaybackActive }}disabled{{ end }}>
                                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l12 7-12 7z" /></svg>
                                 </button>
                             </form>
                             <form action="/workflow/debug" method="post" class="workflow-form">
-                                <button type="submit" class="icon-button" data-tippy-content="Debug recording" aria-label="Debug recording">
+                                <button type="submit" class="icon-button" data-tippy-content="Debug recording" aria-label="Debug recording" {{ if or .RecordingActive .PlaybackActive }}disabled{{ end }}>
                                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3h10v2h3v2h-3v2h2v2h-2v2h3v2h-3v2h-10v-2h-3v-2h3v-2h-2v-2h2v-2h-3v-2h3zM9 7v10h6V7z" /></svg>
                                 </button>
                             </form>
@@ -220,6 +220,9 @@
                     <span class="active-run-label">Active Run</span>
                     <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
                     <span class="status-text active-run-meta" data-active-run-meta></span>
+                    <button type="button" class="active-run-close" data-active-run-close data-tippy-content="Dismiss active run row" aria-label="Dismiss active run row">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3z"/></svg>
+                    </button>
                 </span>
             </div>
             {{ if .SampleAppName }}

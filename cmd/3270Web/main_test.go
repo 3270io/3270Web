@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -91,6 +93,79 @@ func TestRemoveWorkflowHandler_ClearsRecordingAndPlaybackState(t *testing.T) {
 		}
 		if sess.LastPlaybackDelayRange != "" || sess.LastPlaybackDelayApplied != "" {
 			t.Fatalf("last playback delay summary should be cleared after remove")
+		}
+	})
+}
+
+func TestLoadWorkflowHandler_ClearsWorkflowStatusSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		chaosEngines:   newChaosEngineStore(),
+	}
+	sess := app.SessionManager.CreateSession(mockHost)
+	withSessionLock(sess, func() {
+		sess.LastPlaybackStep = 7
+		sess.LastPlaybackStepType = "PressEnter"
+		sess.LastPlaybackStepTotal = 11
+		sess.LastPlaybackDelayRange = "0.1-0.3 sec"
+		sess.LastPlaybackDelayApplied = "0.2 sec"
+		sess.PlaybackCompletedAt = time.Now()
+		sess.PlaybackEvents = []session.WorkflowEvent{{Time: time.Now(), Message: "seed event"}}
+	})
+
+	r := gin.New()
+	r.POST("/workflow/load", app.LoadWorkflowHandler)
+
+	payload := `{"Host":"127.0.0.1","Port":3270,"Steps":[{"Type":"Connect"}]}`
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("workflow", "loaded.json")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write([]byte(payload)); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/workflow/load", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("POST /workflow/load: want 302, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Location"); got != "/screen" {
+		t.Fatalf("redirect location = %q, want %q", got, "/screen")
+	}
+
+	withSessionLock(sess, func() {
+		if sess.LoadedWorkflow == nil {
+			t.Fatalf("loaded workflow should be set")
+		}
+		if sess.LastPlaybackStep != 0 || sess.LastPlaybackStepType != "" || sess.LastPlaybackStepTotal != 0 {
+			t.Fatalf("last playback summary should be cleared after workflow load")
+		}
+		if sess.LastPlaybackDelayRange != "" || sess.LastPlaybackDelayApplied != "" {
+			t.Fatalf("last playback delay summary should be cleared after workflow load")
+		}
+		if !sess.PlaybackCompletedAt.IsZero() {
+			t.Fatalf("playback completed timestamp should be cleared after workflow load")
+		}
+		if len(sess.PlaybackEvents) != 0 {
+			t.Fatalf("playback events should be cleared after workflow load")
 		}
 	})
 }

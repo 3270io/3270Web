@@ -139,6 +139,9 @@
   const recordingStop = document.querySelector('[data-recording-stop]');
   const recordingStart = document.querySelector('[data-recording-start]');
   const recordingStartDisabled = document.querySelector('[data-recording-start-disabled]');
+  const workflowLoadTrigger = document.querySelector('[data-workflow-trigger]');
+  const workflowPlayButton = document.querySelector('form[action="/workflow/play"] .icon-button');
+  const workflowDebugButton = document.querySelector('form[action="/workflow/debug"] .icon-button');
   const playbackIndicator = document.querySelector('[data-playback-indicator]');
   const playbackComplete = document.querySelector('[data-playback-complete]');
   const activeRunContainer = document.querySelector('[data-active-run-container]');
@@ -196,6 +199,34 @@
     }
   };
 
+  const defaultButtonTooltip = (button) => {
+    if (!button) {
+      return '';
+    }
+    if (!Object.prototype.hasOwnProperty.call(button.dataset, 'defaultTooltip')) {
+      button.dataset.defaultTooltip = button.getAttribute('data-tippy-content') || '';
+    }
+    return button.dataset.defaultTooltip;
+  };
+
+  const setButtonDisabledState = (button, disabled, disabledTooltip) => {
+    if (!button) {
+      return;
+    }
+    if (button.getAttribute('aria-busy') === 'true') {
+      return;
+    }
+    button.disabled = !!disabled;
+    const fallback = defaultButtonTooltip(button);
+    const tooltip = disabled && disabledTooltip ? disabledTooltip : fallback;
+    if (tooltip) {
+      button.setAttribute('data-tippy-content', tooltip);
+      if (button._tippy) {
+        button._tippy.setContent(tooltip);
+      }
+    }
+  };
+
   if (window.tippy && tooltipTargets.length > 0) {
     window.tippy(tooltipTargets, {
       delay: [150, 0],
@@ -224,6 +255,8 @@
     const mode = payload.playbackMode || '';
     const debugMode = mode === 'debug';
     const recordingActive = !!payload.recordingActive;
+    const blockWorkflowActions = recordingActive || active;
+    const blockedTooltip = 'Unavailable while recording or playback is active';
 
     setHidden(recordingIndicator, !recordingActive);
     setHidden(playbackIndicator, !active);
@@ -252,6 +285,9 @@
     if (recordingStop) {
       setHidden(recordingStop, !recordingActive);
     }
+    setButtonDisabledState(workflowLoadTrigger, blockWorkflowActions, blockedTooltip);
+    setButtonDisabledState(workflowPlayButton, blockWorkflowActions, blockedTooltip);
+    setButtonDisabledState(workflowDebugButton, blockWorkflowActions, blockedTooltip);
   };
 
   const escapeHtml = (value = '') => {
@@ -336,7 +372,6 @@
     const chaosTransitions = Number(payload.chaosTransitions || 0);
     const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
     const chaosHasData = chaosActive || chaosStepsRun > 0 || !!payload.chaosLoadedRunID;
-    const recordingReady = !recordingActive && !!payload.recordingFile;
     const playbackStep = Number(payload.playbackStep || 0);
     const playbackTotal = Number(payload.playbackStepTotal || 0);
 
@@ -386,14 +421,6 @@
         chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
         payload.chaosLoadedRunID ? `run ${payload.chaosLoadedRunID}` : '',
         stoppedAt ? `ended ${stoppedAt}` : '',
-      ]);
-    } else if (recordingReady) {
-      mode = 'recording';
-      chip = 'REC';
-      metadata = joinParts([
-        'ready',
-        payload.recordingFile || '',
-        Number(payload.recordingSteps || 0) > 0 ? `${Number(payload.recordingSteps || 0)} steps` : '',
       ]);
     } else if (playbackCompletedState || playbackStep > 0) {
       mode = 'playback';

@@ -1016,6 +1016,10 @@ func TestChaosLoadAndResume(t *testing.T) {
 	mockHost.Connected = true
 
 	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+	sess, ok := app.SessionManager.GetSession(sessID)
+	if !ok {
+		t.Fatalf("session %q not found", sessID)
+	}
 
 	// ── 1. Run a short chaos exploration so a run is auto-saved. ─────────────
 	startPayload, _ := json.Marshal(map[string]interface{}{
@@ -1069,6 +1073,14 @@ func TestChaosLoadAndResume(t *testing.T) {
 
 	// ── 3. Load the saved run. ─────────────────────────────────────────────
 	loadPayload, _ := json.Marshal(map[string]interface{}{"runID": runID})
+	withSessionLock(sess, func() {
+		sess.Chaos = &session.ChaosState{
+			Active:      false,
+			StepsRun:    99,
+			Transitions: 50,
+			LoadedRunID: "stale-run",
+		}
+	})
 	w = chaosRequest(r, http.MethodPost, "/chaos/load", loadPayload, sessID)
 	if w.Code != http.StatusOK {
 		t.Fatalf("load: want 200, got %d – body: %s", w.Code, w.Body.String())
@@ -1080,6 +1092,11 @@ func TestChaosLoadAndResume(t *testing.T) {
 	if loadResp["runID"] != runID {
 		t.Errorf("load response runID = %v, want %q", loadResp["runID"], runID)
 	}
+	withSessionLock(sess, func() {
+		if sess.Chaos != nil {
+			t.Fatalf("session chaos state should be cleared on load")
+		}
+	})
 
 	// Status should now report loadedRunID even without a running engine.
 	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
