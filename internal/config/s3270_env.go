@@ -599,6 +599,15 @@ func buildDotEnvContent() string {
 	buf.WriteString("# 3270Web UI preferences.\n")
 	buf.WriteString("# Show virtual keyboard by default for new sessions.\n")
 	buf.WriteString("APP_USE_KEYPAD=false\n")
+	buf.WriteString("# Chaos Explorer defaults.\n")
+	buf.WriteString("CHAOS_MAX_STEPS=100\n")
+	buf.WriteString("CHAOS_TIME_BUDGET_SEC=300\n")
+	buf.WriteString("CHAOS_STEP_DELAY_SEC=0.5\n")
+	buf.WriteString("CHAOS_SEED=0\n")
+	buf.WriteString("CHAOS_MAX_FIELD_LENGTH=40\n")
+	buf.WriteString("CHAOS_OUTPUT_FILE=\n")
+	buf.WriteString("# Exclude no-progress chaos events (no screen transition) from chaos event history.\n")
+	buf.WriteString("CHAOS_EXCLUDE_NO_PROGRESS_EVENTS=true\n")
 	return buf.String()
 }
 

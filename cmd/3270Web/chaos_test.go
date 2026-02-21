@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -84,6 +87,7 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 	app := &App{
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
+		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
 	}
 
 	r := gin.New()
@@ -92,6 +96,10 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 	r.POST("/chaos/remove", app.ChaosRemoveHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
+	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
+	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
+	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
+	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
 
 	return app, r, sess.ID
 }
@@ -106,6 +114,23 @@ func chaosRequest(r *gin.Engine, method, path string, body []byte, sessID string
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
+	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sessID})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func chaosMultipartRequest(r *gin.Engine, path, fieldName, fileName string, payload []byte, sessID string) *httptest.ResponseRecorder {
+	var reqBody bytes.Buffer
+	writer := multipart.NewWriter(&reqBody)
+	part, err := writer.CreateFormFile(fieldName, fileName)
+	if err == nil {
+		_, _ = part.Write(payload)
+	}
+	_ = writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, path, &reqBody)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sessID})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -512,6 +537,7 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
 		chaosRunsDir:   t.TempDir(),
+		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
 	}
 
 	r := gin.New()
@@ -522,7 +548,11 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 	r.POST("/chaos/export", app.ChaosExportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
+	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
 	r.POST("/chaos/resume", app.ChaosResumeHandler)
+	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
+	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
+	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
 
 	return app, r, sess.ID
 }
@@ -575,6 +605,9 @@ func TestChaosStatus_MetadataFields(t *testing.T) {
 	if _, ok := statusResp["uniqueInputs"]; !ok {
 		t.Error("status response missing uniqueInputs field")
 	}
+	if _, ok := statusResp["mindMap"]; !ok {
+		t.Error("status response missing mindMap field")
+	}
 }
 
 // TestChaosListRuns_Empty verifies that listing runs when the directory is
@@ -598,6 +631,347 @@ func TestChaosListRuns_Empty(t *testing.T) {
 	}
 	if len(runs) != 0 {
 		t.Errorf("want empty list, got %d entries", len(runs))
+	}
+}
+
+func TestChaosHints_SaveAndLoad(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	savePayload, _ := json.Marshal(map[string]interface{}{
+		"hints": []map[string]interface{}{
+			{
+				"transaction": " CEMT ",
+				"knownData":   []string{" USER01 ", "", "PASS01", "PASS01"},
+			},
+			{
+				"transaction": "",
+				"knownData":   []string{"  ", "ACCT123"},
+			},
+		},
+	})
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/hints", savePayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("save hints: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var saveResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &saveResp); err != nil {
+		t.Fatalf("save hints response is not valid JSON: %v", err)
+	}
+	if saveResp["status"] != "saved" {
+		t.Fatalf("save hints status = %v, want saved", saveResp["status"])
+	}
+
+	w = chaosRequest(r, http.MethodGet, "/chaos/hints", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("load hints: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var loadResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &loadResp); err != nil {
+		t.Fatalf("load hints response is not valid JSON: %v", err)
+	}
+	hints, ok := loadResp["hints"].([]interface{})
+	if !ok {
+		t.Fatalf("hints payload has wrong type: %T", loadResp["hints"])
+	}
+	if len(hints) != 2 {
+		t.Fatalf("hints length = %d, want 2", len(hints))
+	}
+	first, _ := hints[0].(map[string]interface{})
+	if tx, _ := first["transaction"].(string); tx != "CEMT" {
+		t.Fatalf("first hint transaction = %q, want CEMT", tx)
+	}
+	firstKnown, _ := first["knownData"].([]interface{})
+	if len(firstKnown) != 2 {
+		t.Fatalf("first hint knownData length = %d, want 2", len(firstKnown))
+	}
+}
+
+func TestChaosHints_ExtractFromRecordingUpload(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	workflowPayload, _ := json.Marshal(map[string]interface{}{
+		"Host": "127.0.0.1",
+		"Port": 3270,
+		"Steps": []map[string]interface{}{
+			{"Type": "FillString", "Text": "cemt"},
+			{"Type": "FillString", "Text": "USER01"},
+			{"Type": "Enter"},
+			{"Type": "FillString", "Text": "CESN"},
+			{"Type": "FillString", "Text": "PASS01"},
+		},
+	})
+
+	w := chaosMultipartRequest(r, "/chaos/hints/extract-recording", "workflow", "workflow.json", workflowPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("extract hints: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("extract response not valid JSON: %v", err)
+	}
+	if got, _ := resp["source"].(string); got != "upload" {
+		t.Fatalf("source = %q, want upload", got)
+	}
+	hints, ok := resp["hints"].([]interface{})
+	if !ok || len(hints) == 0 {
+		t.Fatalf("hints = %#v, want non-empty array", resp["hints"])
+	}
+	first, _ := hints[0].(map[string]interface{})
+	if tx, _ := first["transaction"].(string); tx == "" {
+		t.Fatalf("first transaction is empty")
+	}
+}
+
+func TestChaosHints_ExtractFromLoadedRecording(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+	s, ok := app.SessionManager.GetSession(sessID)
+	if !ok {
+		t.Fatalf("session %q not found", sessID)
+	}
+
+	workflowPayload, _ := json.Marshal(map[string]interface{}{
+		"Host": "127.0.0.1",
+		"Port": 3270,
+		"Steps": []map[string]interface{}{
+			{"Type": "FillString", "Text": "CEMT"},
+			{"Type": "FillString", "Text": "USER01"},
+			{"Type": "Enter"},
+		},
+	})
+	withSessionLock(s, func() {
+		s.LoadedWorkflow = &session.LoadedWorkflow{
+			Name:     "loaded-workflow.json",
+			Payload:  workflowPayload,
+			Preview:  string(workflowPayload),
+			LoadedAt: time.Now(),
+		}
+	})
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/hints/extract-recording", []byte("{}"), sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("extract hints from loaded: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("extract response not valid JSON: %v", err)
+	}
+	if got, _ := resp["source"].(string); got != "loaded" {
+		t.Fatalf("source = %q, want loaded", got)
+	}
+	hints, ok := resp["hints"].([]interface{})
+	if !ok || len(hints) == 0 {
+		t.Fatalf("hints = %#v, want non-empty array", resp["hints"])
+	}
+}
+
+func TestChaosLoadRecordingAndExport(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+	s, ok := app.SessionManager.GetSession(sessID)
+	if !ok {
+		t.Fatalf("session %q not found", sessID)
+	}
+
+	workflowPayload, _ := json.Marshal(map[string]interface{}{
+		"Host": "127.0.0.1",
+		"Port": 3270,
+		"Steps": []map[string]interface{}{
+			{
+				"Type": "FillString",
+				"Coordinates": map[string]interface{}{
+					"Row":    1,
+					"Column": 1,
+				},
+				"Text": "CEMT",
+			},
+			{
+				"Type": "Enter",
+			},
+		},
+	})
+	withSessionLock(s, func() {
+		s.LoadedWorkflow = &session.LoadedWorkflow{
+			Name:     "workflow.json",
+			Payload:  workflowPayload,
+			Preview:  string(workflowPayload),
+			LoadedAt: time.Now(),
+		}
+	})
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/load-recording", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("load recording: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var loadResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &loadResp); err != nil {
+		t.Fatalf("load response not valid JSON: %v", err)
+	}
+	if got, _ := loadResp["status"].(string); got != "loaded" {
+		t.Fatalf("load status = %q, want loaded", got)
+	}
+	if got, _ := loadResp["source"].(string); got != "recording" {
+		t.Fatalf("load source = %q, want recording", got)
+	}
+	if got, _ := loadResp["stepsSeeded"].(float64); int(got) != 2 {
+		t.Fatalf("stepsSeeded = %v, want 2", loadResp["stepsSeeded"])
+	}
+	if got, _ := loadResp["runID"].(string); got == "" {
+		t.Fatalf("runID is empty")
+	}
+
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status after load recording: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var statusResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("status response not valid JSON: %v", err)
+	}
+	if _, ok := statusResp["mindMap"]; !ok {
+		t.Fatalf("status after load recording missing mindMap field")
+	}
+
+	w = chaosRequest(r, http.MethodPost, "/chaos/export", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("export: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var exported struct {
+		Host  string                 `json:"Host"`
+		Port  int                    `json:"Port"`
+		Steps []session.WorkflowStep `json:"Steps"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &exported); err != nil {
+		t.Fatalf("export response not valid JSON: %v", err)
+	}
+	if len(exported.Steps) != 2 {
+		t.Fatalf("export steps = %d, want 2", len(exported.Steps))
+	}
+	if exported.Steps[0].Type != "FillString" || exported.Steps[0].Text != "CEMT" {
+		t.Fatalf("first exported step = %#v, want FillString/CEMT", exported.Steps[0])
+	}
+}
+
+func TestSafeChaosOutputFilePath_AvoidsLoadedRecordingCollision(t *testing.T) {
+	got := safeChaosOutputFilePath(filepath.Join("tmp", "workflow.json"), "workflow.json")
+	want := filepath.Join("tmp", "workflow-chaos.json")
+	if got != want {
+		t.Fatalf("safeChaosOutputFilePath collision = %q, want %q", got, want)
+	}
+
+	got = safeChaosOutputFilePath(filepath.Join("tmp", "workflow-chaos.json"), "workflow-chaos.json")
+	want = filepath.Join("tmp", "workflow-chaos.json")
+	if got != want {
+		t.Fatalf("safeChaosOutputFilePath idempotent = %q, want %q", got, want)
+	}
+
+	got = safeChaosOutputFilePath(filepath.Join("tmp", "chaos-output.json"), "workflow.json")
+	want = filepath.Join("tmp", "chaos-output.json")
+	if got != want {
+		t.Fatalf("safeChaosOutputFilePath no-collision = %q, want %q", got, want)
+	}
+}
+
+func TestChaosStart_OutputFileDoesNotOverwriteLoadedRecording(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+	s, ok := app.SessionManager.GetSession(sessID)
+	if !ok {
+		t.Fatalf("session %q not found", sessID)
+	}
+
+	recordingPayload, _ := json.Marshal(map[string]interface{}{
+		"Host": "127.0.0.1",
+		"Port": 3270,
+		"Steps": []map[string]interface{}{
+			{"Type": "Enter"},
+		},
+	})
+	withSessionLock(s, func() {
+		s.LoadedWorkflow = &session.LoadedWorkflow{
+			Name:     "recording.json",
+			Payload:  recordingPayload,
+			Preview:  string(recordingPayload),
+			LoadedAt: time.Now(),
+		}
+	})
+
+	outputDir := t.TempDir()
+	recordingPath := filepath.Join(outputDir, "recording.json")
+	sentinel := []byte("{\"recording\":true}\n")
+	if err := os.WriteFile(recordingPath, sentinel, 0600); err != nil {
+		t.Fatalf("write sentinel recording file: %v", err)
+	}
+
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     1,
+		"stepDelaySec": 0,
+		"seed":         77,
+		"outputFile":   recordingPath,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+		var status map[string]interface{}
+		_ = json.Unmarshal(w.Body.Bytes(), &status)
+		if active, _ := status["active"].(bool); !active {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	gotRecording, err := os.ReadFile(recordingPath)
+	if err != nil {
+		t.Fatalf("read recording file: %v", err)
+	}
+	if !bytes.Equal(gotRecording, sentinel) {
+		t.Fatalf("recording file was overwritten: got %q, want %q", string(gotRecording), string(sentinel))
+	}
+
+	chaosPath := filepath.Join(outputDir, "recording-chaos.json")
+	chaosData, err := os.ReadFile(chaosPath)
+	if err != nil {
+		t.Fatalf("read chaos output file: %v", err)
+	}
+	if len(chaosData) == 0 {
+		t.Fatalf("chaos output file is empty")
 	}
 }
 

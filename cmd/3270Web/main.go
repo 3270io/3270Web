@@ -45,6 +45,8 @@ type App struct {
 	shutdown       func()
 	chaosEngines   *chaosEngineStore
 	chaosRunsDir   string
+	chaosHintsPath string
+	chaosHintsMu   sync.Mutex
 }
 
 type WorkflowConfig struct {
@@ -80,7 +82,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.1.3"
+var appVersion = "0.2"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -130,6 +132,7 @@ func main() {
 		baseDir:        baseDir,
 		chaosEngines:   newChaosEngineStore(),
 		chaosRunsDir:   filepath.Join(baseDir, "chaos-runs"),
+		chaosHintsPath: filepath.Join(baseDir, "chaos-hints.json"),
 	}
 
 	r := gin.Default()
@@ -208,7 +211,11 @@ func main() {
 	r.POST("/chaos/export", app.ChaosExportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
+	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
 	r.POST("/chaos/resume", app.ChaosResumeHandler)
+	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
+	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
+	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
 
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {
@@ -360,6 +367,34 @@ func recordingFileName(s *session.Session) string {
 		return ""
 	}
 	return filepath.Base(s.Recording.FilePath)
+}
+
+type recordingStatus struct {
+	Active    bool
+	StartedAt string
+	Steps     int
+	File      string
+}
+
+func recordingStatusSnapshot(s *session.Session) recordingStatus {
+	var status recordingStatus
+	if s == nil {
+		return status
+	}
+	s.Lock()
+	defer s.Unlock()
+	if s.Recording == nil {
+		return status
+	}
+	status.Active = s.Recording.Active
+	status.Steps = len(s.Recording.Steps)
+	if !s.Recording.StartedAt.IsZero() {
+		status.StartedAt = s.Recording.StartedAt.Format(time.RFC3339)
+	}
+	if s.Recording.FilePath != "" {
+		status.File = filepath.Base(s.Recording.FilePath)
+	}
+	return status
 }
 
 type sessionSnapshot struct {
@@ -1079,6 +1114,7 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
+	recStatus := recordingStatusSnapshot(s)
 	eventList := playbackEvents(s)
 	events := make([]gin.H, 0, len(eventList))
 	for _, event := range eventList {
@@ -1127,9 +1163,14 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
+		"recordingActive":      recStatus.Active,
+		"recordingStartedAt":   recStatus.StartedAt,
+		"recordingSteps":       recStatus.Steps,
+		"recordingFile":        recStatus.File,
 		"playbackActive":       playbackActive(s),
 		"playbackPaused":       playbackPaused(s),
 		"playbackCompleted":    playbackCompleted(s),
+		"playbackStartedAt":    playbackStartedAt(s),
 		"playbackMode":         playbackMode(s),
 		"playbackStep":         playbackStepIndex(s),
 		"playbackStepTotal":    playbackStepTotal(s),
@@ -1145,10 +1186,12 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"chaosUniqueInputs":    chaosStateUniqueInputs(chaosState),
 		"chaosLoadedRunID":     chaosStateLoadedRunID(chaosState),
 		"chaosError":           chaosStateError(chaosState),
+		"chaosStartedAt":       chaosStateStartedAt(chaosState),
 		"chaosStepLabel":       chaosStepLabel,
 		"chaosLastAttempt":     chaosLastAttempt,
 		"chaosAttempts":        chaosAttempts,
 		"chaosEvents":          chaosEvents,
+		"chaosMindMap":         chaosStateMindMap(chaosState),
 		"chaosCompleted":       chaosCompleted,
 		"chaosStoppedAt":       chaosStoppedAt,
 	})
@@ -1221,6 +1264,24 @@ func chaosStateError(state *session.ChaosState) string {
 	return state.Error
 }
 
+func chaosStateStartedAt(state *session.ChaosState) string {
+	if state == nil || state.StartedAt.IsZero() {
+		return ""
+	}
+	return state.StartedAt.Format(time.RFC3339)
+}
+
+func chaosStateMindMap(state *session.ChaosState) interface{} {
+	if state == nil || len(state.MindMap) == 0 {
+		return nil
+	}
+	var decoded interface{}
+	if err := json.Unmarshal(state.MindMap, &decoded); err != nil {
+		return nil
+	}
+	return decoded
+}
+
 type settingsPayload struct {
 	Settings map[string]string `json:"settings"`
 }
@@ -1273,6 +1334,13 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	}
 	defaults["ALLOW_LOG_ACCESS"] = "false"
 	defaults["APP_USE_KEYPAD"] = "false"
+	defaults["CHAOS_MAX_STEPS"] = "100"
+	defaults["CHAOS_TIME_BUDGET_SEC"] = "300"
+	defaults["CHAOS_STEP_DELAY_SEC"] = "0.5"
+	defaults["CHAOS_SEED"] = "0"
+	defaults["CHAOS_MAX_FIELD_LENGTH"] = "40"
+	defaults["CHAOS_OUTPUT_FILE"] = ""
+	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
 
 	settings := make(map[string]string)
 	for key, value := range defaults {
@@ -1614,7 +1682,7 @@ func validateSettingValue(key, value string, specs map[string]config.S3270Option
 		return nil
 	}
 
-	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" {
+	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" || key == "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS" {
 		if !isStrictBool(value) {
 			return fmt.Errorf("must be true or false")
 		}
@@ -2413,6 +2481,18 @@ func playbackCompleted(s *session.Session) bool {
 	s.Lock()
 	defer s.Unlock()
 	return !s.PlaybackCompletedAt.IsZero()
+}
+
+func playbackStartedAt(s *session.Session) string {
+	if s == nil {
+		return ""
+	}
+	s.Lock()
+	defer s.Unlock()
+	if s.Playback == nil || s.Playback.StartedAt.IsZero() {
+		return ""
+	}
+	return s.Playback.StartedAt.Format(time.RFC3339)
 }
 
 func playbackEvents(s *session.Session) []session.WorkflowEvent {

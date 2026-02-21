@@ -41,6 +41,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaxFieldLength <= 0 {
 		t.Error("DefaultConfig.MaxFieldLength must be positive")
 	}
+	if !cfg.ExcludeNoProgressEvents {
+		t.Error("DefaultConfig.ExcludeNoProgressEvents must default to true")
+	}
 }
 
 func TestHashScreen(t *testing.T) {
@@ -269,6 +272,38 @@ func TestGenerateValue_RespectsMaxFieldLength(t *testing.T) {
 	}
 }
 
+func TestGenerateValueForField_UsesHints(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 0, 0, 9, 0, 0, 0)
+
+	cfg := DefaultConfig()
+	cfg.MaxFieldLength = 10
+	cfg.Hints = []Hint{
+		{Transaction: "CEMT", KnownData: []string{"ABC123"}},
+	}
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(2)) //nolint:gosec
+
+	v := e.generateValueForField(f, true)
+	if v == "" {
+		t.Fatal("generateValueForField returned empty value with hints configured")
+	}
+	if v != "CEMT" && v != "ABC123" {
+		t.Fatalf("generateValueForField = %q, want one of configured hint values", v)
+	}
+}
+
+func TestFitHintValueForField_NumericFilter(t *testing.T) {
+	got := fitHintValueForField("AB12CD34", 6, true)
+	if got != "1234" {
+		t.Fatalf("fitHintValueForField numeric = %q, want %q", got, "1234")
+	}
+	got = fitHintValueForField("TXN12345", 3, false)
+	if got != "TXN" {
+		t.Fatalf("fitHintValueForField trim = %q, want %q", got, "TXN")
+	}
+}
+
 func TestEngineMetadata(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {
@@ -322,6 +357,7 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	cfg.MaxSteps = 2
 	cfg.StepDelay = 0
 	cfg.Seed = 123
+	cfg.ExcludeNoProgressEvents = false
 
 	e := New(h, cfg)
 	if err := e.Start(); err != nil {
@@ -353,6 +389,112 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	}
 	if len(st.LastAttempt.FieldWrites) == 0 {
 		t.Error("expected at least one field write record in LastAttempt")
+	}
+}
+
+func TestEngineStatusIncludesMindMap(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 2
+	cfg.StepDelay = 0
+	cfg.Seed = 456
+	cfg.ExcludeNoProgressEvents = false
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.MindMap == nil {
+		t.Fatal("expected MindMap in status")
+	}
+	if len(st.MindMap.Areas) == 0 {
+		t.Fatal("expected at least one area in mind map")
+	}
+	foundKeyPress := false
+	foundKnownValue := false
+	for _, area := range st.MindMap.Areas {
+		if area == nil {
+			continue
+		}
+		if len(area.KeyPresses) > 0 {
+			foundKeyPress = true
+		}
+		for _, values := range area.KnownWorkingValues {
+			if len(values) > 0 {
+				foundKnownValue = true
+				break
+			}
+		}
+	}
+	if !foundKeyPress {
+		t.Error("mind map should include key press metadata")
+	}
+	if !foundKnownValue {
+		t.Error("mind map should include known working values")
+	}
+}
+
+func TestEngineStatusFiltersNoProgressAttemptsByDefault(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range s.Buffer {
+		s.Buffer[i] = make([]rune, 80)
+	}
+	// No unprotected fields: each attempt should result in no progression.
+	s.Fields = append(s.Fields, host.NewField(s, host.AttrProtected, 0, 0, 79, 0, 0, 0))
+	h.Screen = s
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 2
+	cfg.StepDelay = 0
+	cfg.Seed = 321
+	// ExcludeNoProgressEvents defaults to true.
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.StepsRun == 0 {
+		t.Fatalf("StepsRun = %d, want > 0", st.StepsRun)
+	}
+	if len(st.RecentAttempts) != 0 {
+		t.Fatalf("RecentAttempts len = %d, want 0 when all attempts have no progression", len(st.RecentAttempts))
+	}
+	if st.LastAttempt != nil {
+		t.Fatal("LastAttempt should be nil when no-progress attempts are filtered")
 	}
 }
 
@@ -391,6 +533,9 @@ func TestSnapshotAndResume(t *testing.T) {
 	if len(snap.ScreenHashes) == 0 {
 		t.Error("snapshot ScreenHashes should be populated")
 	}
+	if snap.MindMap == nil || len(snap.MindMap.Areas) == 0 {
+		t.Error("snapshot MindMap should be populated")
+	}
 
 	// Resume from snapshot on a fresh engine with a higher MaxSteps so that
 	// at least 2 new steps are run beyond the original count.
@@ -423,6 +568,9 @@ func TestSnapshotAndResume(t *testing.T) {
 	if st2.UniqueScreens < snap.UniqueScreens {
 		t.Errorf("resumed engine UniqueScreens (%d) less than original (%d)", st2.UniqueScreens, snap.UniqueScreens)
 	}
+	if st2.MindMap == nil || len(st2.MindMap.Areas) == 0 {
+		t.Error("resumed engine MindMap should be populated")
+	}
 }
 
 func TestPersistenceRoundtrip(t *testing.T) {
@@ -440,6 +588,23 @@ func TestPersistenceRoundtrip(t *testing.T) {
 		},
 		ScreenHashes: map[string]bool{"abc": true, "def": true},
 		AIDKeyCounts: map[string]int{"Enter": 4, "PF(1)": 1},
+		MindMap: &MindMap{
+			Areas: map[string]*MindMapArea{
+				"abc": {
+					Hash:               "abc",
+					Label:              "Sample Area",
+					Visits:             2,
+					KnownWorkingValues: map[string][]string{"R1C1L4": []string{"CEMT"}},
+					KeyPresses: map[string]*MindMapKeyPress{
+						"Enter": {
+							Presses:      2,
+							Progressions: 1,
+							Destinations: map[string]int{"def": 1},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if err := SaveRun(dir, run); err != nil {
@@ -466,6 +631,16 @@ func TestPersistenceRoundtrip(t *testing.T) {
 	}
 	if len(loaded.ScreenHashes) != len(run.ScreenHashes) {
 		t.Errorf("loaded ScreenHashes len = %d, want %d", len(loaded.ScreenHashes), len(run.ScreenHashes))
+	}
+	if loaded.MindMap == nil || len(loaded.MindMap.Areas) == 0 {
+		t.Fatal("loaded MindMap should be populated")
+	}
+	area := loaded.MindMap.Areas["abc"]
+	if area == nil {
+		t.Fatal("loaded MindMap missing area abc")
+	}
+	if presses := area.KeyPresses["Enter"].Presses; presses != 2 {
+		t.Fatalf("loaded MindMap Enter presses = %d, want 2", presses)
 	}
 }
 

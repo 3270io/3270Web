@@ -30,6 +30,7 @@ func TestWorkflowStatusHandler_IncludesChaosAttemptDetails(t *testing.T) {
 	withSessionLock(sess, func() {
 		sess.Chaos = &session.ChaosState{
 			Active:        true,
+			StartedAt:     time.Now(),
 			StepsRun:      1,
 			Transitions:   1,
 			UniqueScreens: 2,
@@ -65,6 +66,7 @@ func TestWorkflowStatusHandler_IncludesChaosAttemptDetails(t *testing.T) {
 					Transitioned:   true,
 				},
 			},
+			MindMap: json.RawMessage(`{"areas":{"from123":{"hash":"from123","label":"Sample App","knownWorkingValues":{"R3C11L5":["HELLO"]},"keyPresses":{"Enter":{"presses":1,"progressions":1,"destinations":{"to456":1}}}}}}`),
 		}
 	})
 
@@ -91,6 +93,9 @@ func TestWorkflowStatusHandler_IncludesChaosAttemptDetails(t *testing.T) {
 	if got, ok := payload["chaosStepsRun"].(float64); !ok || int(got) != 1 {
 		t.Fatalf("chaosStepsRun = %v (ok=%v), want 1", payload["chaosStepsRun"], ok)
 	}
+	if startedAt, _ := payload["chaosStartedAt"].(string); strings.TrimSpace(startedAt) == "" {
+		t.Fatalf("chaosStartedAt = %q, want non-empty RFC3339 timestamp", startedAt)
+	}
 	chaosLast, ok := payload["chaosLastAttempt"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("chaosLastAttempt missing or invalid: %T", payload["chaosLastAttempt"])
@@ -106,6 +111,14 @@ func TestWorkflowStatusHandler_IncludesChaosAttemptDetails(t *testing.T) {
 	msg, _ := firstEvent["message"].(string)
 	if !strings.Contains(msg, "Attempt 1 AID Enter") {
 		t.Fatalf("chaosEvents[0].message = %q, want attempt details", msg)
+	}
+	chaosMindMap, ok := payload["chaosMindMap"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("chaosMindMap missing or invalid: %T", payload["chaosMindMap"])
+	}
+	areas, ok := chaosMindMap["areas"].(map[string]interface{})
+	if !ok || len(areas) == 0 {
+		t.Fatalf("chaosMindMap.areas missing or empty: %#v", chaosMindMap["areas"])
 	}
 }
 
@@ -157,5 +170,71 @@ func TestWorkflowStatusHandler_ChaosCompletionFields(t *testing.T) {
 	}
 	if stoppedAt, _ := payload["chaosStoppedAt"].(string); strings.TrimSpace(stoppedAt) == "" {
 		t.Fatalf("chaosStoppedAt = %q, want non-empty RFC3339 timestamp", stoppedAt)
+	}
+}
+
+func TestWorkflowStatusHandler_IncludesRecordingFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		chaosEngines:   newChaosEngineStore(),
+	}
+	sess := app.SessionManager.CreateSession(mockHost)
+	started := time.Now().Add(-45 * time.Second)
+	withSessionLock(sess, func() {
+		sess.Recording = &session.WorkflowRecording{
+			Active:    true,
+			StartedAt: started,
+			FilePath:  "/tmp/recording-workflow.json",
+			Steps: []session.WorkflowStep{
+				{Type: "Connect"},
+				{Type: "Type"},
+				{Type: "Enter"},
+			},
+		}
+		sess.Playback = &session.WorkflowPlayback{
+			Active:    true,
+			StartedAt: time.Now().Add(-20 * time.Second),
+		}
+	})
+
+	r := gin.New()
+	r.GET("/workflow/status", app.WorkflowStatusHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/workflow/status", nil)
+	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /workflow/status: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if got, ok := payload["recordingActive"].(bool); !ok || !got {
+		t.Fatalf("recordingActive = %v (ok=%v), want true", payload["recordingActive"], ok)
+	}
+	if got, ok := payload["recordingSteps"].(float64); !ok || int(got) != 3 {
+		t.Fatalf("recordingSteps = %v (ok=%v), want 3", payload["recordingSteps"], ok)
+	}
+	if got, _ := payload["recordingFile"].(string); got != "recording-workflow.json" {
+		t.Fatalf("recordingFile = %q, want %q", got, "recording-workflow.json")
+	}
+	if startedAt, _ := payload["recordingStartedAt"].(string); strings.TrimSpace(startedAt) == "" {
+		t.Fatalf("recordingStartedAt = %q, want non-empty RFC3339 timestamp", startedAt)
+	}
+	if playbackStartedAt, _ := payload["playbackStartedAt"].(string); strings.TrimSpace(playbackStartedAt) == "" {
+		t.Fatalf("playbackStartedAt = %q, want non-empty RFC3339 timestamp", playbackStartedAt)
 	}
 }

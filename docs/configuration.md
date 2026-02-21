@@ -141,6 +141,7 @@ Includes:
 - `CHAOS_SEED`
 - `CHAOS_MAX_FIELD_LENGTH`
 - `CHAOS_OUTPUT_FILE`
+- `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
 Use this section to tune how aggressively chaos mode explores screens and where optional output should be written.
 

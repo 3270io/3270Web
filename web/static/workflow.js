@@ -141,7 +141,10 @@
   const recordingStartDisabled = document.querySelector('[data-recording-start-disabled]');
   const playbackIndicator = document.querySelector('[data-playback-indicator]');
   const playbackComplete = document.querySelector('[data-playback-complete]');
-  const playbackStepContainer = document.querySelector('[data-playback-step-container]');
+  const activeRunContainer = document.querySelector('[data-active-run-container]');
+  const activeRunRow = document.querySelector('[data-active-run-row]');
+  const activeRunChip = document.querySelector('[data-active-run-chip]');
+  const activeRunMeta = document.querySelector('[data-active-run-meta]');
   const playbackDebugControls = document.querySelector('[data-playback-debug-controls]');
   const playbackPlayControls = document.querySelector('[data-playback-play-controls]');
   const playbackStatusText = document.querySelector('[data-playback-status-text]');
@@ -177,9 +180,9 @@
         events: statusWidget.querySelector('[data-status-events]'),
       }
     : null;
-  const statusIndicators = Array.from(document.querySelectorAll('[data-status-indicator]'));
 
   const placeholderText = 'Playback has not started yet.';
+  const compactMetaMaxChars = 72;
   let lastActive = body.dataset.playbackActive === 'true';
   let lastChaosActive = false;
   let lastPaused = body.dataset.playbackPaused === 'true';
@@ -217,18 +220,16 @@
     }
     const active = !!payload.playbackActive;
     const paused = !!payload.playbackPaused;
-    const chaosActive = !!payload.chaosActive;
-    const chaosHasProgress = chaosActive || (Number(payload.chaosStepsRun || 0) > 0);
     const completed = !!payload.playbackCompleted && !active;
     const mode = payload.playbackMode || '';
     const debugMode = mode === 'debug';
-    const recordingActive = recordingIndicator ? !recordingIndicator.hidden : false;
+    const recordingActive = !!payload.recordingActive;
 
+    setHidden(recordingIndicator, !recordingActive);
     setHidden(playbackIndicator, !active);
     setHidden(playbackComplete, !completed);
     setHidden(playbackDebugControls, !(active && debugMode));
     setHidden(playbackPlayControls, !(active && !debugMode));
-    setHidden(playbackStepContainer, !((payload.playbackStep > 0) || chaosHasProgress));
 
     if (playbackStatusText) {
       playbackStatusText.textContent = debugMode ? 'DEBUG' : paused ? 'PAUSE' : 'PLAY';
@@ -287,6 +288,150 @@
     return dt.toLocaleTimeString();
   };
 
+  const formatElapsed = (startValue, endValue) => {
+    if (!startValue) {
+      return '';
+    }
+    const start = new Date(startValue);
+    if (Number.isNaN(start.getTime())) {
+      return '';
+    }
+    const end = endValue ? new Date(endValue) : new Date();
+    if (Number.isNaN(end.getTime())) {
+      return '';
+    }
+    const deltaSec = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+    const hours = Math.floor(deltaSec / 3600);
+    const minutes = Math.floor((deltaSec % 3600) / 60);
+    const seconds = deltaSec % 60;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  const truncateText = (text, maxChars) => {
+    const raw = text == null ? '' : String(text).trim();
+    if (!raw || raw.length <= maxChars) {
+      return raw;
+    }
+    return `${raw.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+  };
+
+  const joinParts = (parts) => parts.filter(Boolean).join(' · ');
+
+  const updateActiveRunRow = (payload) => {
+    if (!activeRunRow || !activeRunChip || !activeRunMeta || !payload) {
+      return;
+    }
+    const recordingActive = !!payload.recordingActive;
+    const playbackActive = !!payload.playbackActive;
+    const playbackPaused = !!payload.playbackPaused;
+    const playbackCompletedState = !!payload.playbackCompleted && !playbackActive;
+    const chaosActive = !!payload.chaosActive;
+    const chaosStepsRun = Number(payload.chaosStepsRun || 0);
+    const chaosTransitions = Number(payload.chaosTransitions || 0);
+    const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
+    const chaosHasData = chaosActive || chaosStepsRun > 0 || !!payload.chaosLoadedRunID;
+    const recordingReady = !recordingActive && !!payload.recordingFile;
+    const playbackStep = Number(payload.playbackStep || 0);
+    const playbackTotal = Number(payload.playbackStepTotal || 0);
+
+    let mode = '';
+    let chip = '';
+    let metadata = '';
+
+    // Priority order: active recording, active playback, active chaos, then completed/ready states.
+    if (recordingActive) {
+      mode = 'recording';
+      chip = 'REC';
+      metadata = joinParts([
+        'capturing',
+        `${Number(payload.recordingSteps || 0)} steps`,
+        formatElapsed(payload.recordingStartedAt),
+      ]);
+    } else if (playbackActive) {
+      const modeLabel = (payload.playbackMode || '').toLowerCase() === 'debug' ? 'debug' : 'play';
+      const progress =
+        playbackStep > 0
+          ? `step ${playbackStep}${playbackTotal > 0 ? `/${playbackTotal}` : ''}`
+          : 'initializing';
+      mode = 'playback';
+      chip = modeLabel === 'debug' ? 'DBG' : 'PLAY';
+      metadata = joinParts([
+        `${modeLabel} ${playbackPaused ? 'paused' : 'running'}`,
+        progress,
+        payload.playbackStepType || '',
+        formatElapsed(payload.playbackStartedAt),
+      ]);
+    } else if (chaosActive) {
+      mode = 'chaos';
+      chip = 'CHAOS';
+      metadata = joinParts([
+        'running',
+        `${chaosStepsRun} attempts`,
+        chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
+        formatElapsed(payload.chaosStartedAt),
+      ]);
+    } else if (chaosHasData) {
+      const stoppedAt = formatStoppedAt(payload.chaosStoppedAt);
+      mode = 'chaos';
+      chip = 'CHAOS';
+      metadata = joinParts([
+        chaosCompleted ? 'complete' : 'loaded',
+        chaosStepsRun > 0 ? `${chaosStepsRun} attempts` : '',
+        chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
+        payload.chaosLoadedRunID ? `run ${payload.chaosLoadedRunID}` : '',
+        stoppedAt ? `ended ${stoppedAt}` : '',
+      ]);
+    } else if (recordingReady) {
+      mode = 'recording';
+      chip = 'REC';
+      metadata = joinParts([
+        'ready',
+        payload.recordingFile || '',
+        Number(payload.recordingSteps || 0) > 0 ? `${Number(payload.recordingSteps || 0)} steps` : '',
+      ]);
+    } else if (playbackCompletedState || playbackStep > 0) {
+      mode = 'playback';
+      chip = 'PLAY';
+      metadata = joinParts([
+        playbackCompletedState ? 'complete' : 'idle',
+        playbackStep > 0
+          ? `step ${playbackStep}${playbackTotal > 0 ? `/${playbackTotal}` : ''}`
+          : '',
+        payload.playbackStepType || '',
+      ]);
+    } else {
+      mode = '';
+      chip = '';
+      metadata = '';
+    }
+
+    if (!mode || !metadata) {
+      setHidden(activeRunRow, true);
+      setHidden(activeRunContainer, true);
+      return;
+    }
+
+    const displayText = truncateText(metadata, compactMetaMaxChars);
+    setHidden(activeRunContainer, false);
+    setHidden(activeRunRow, false);
+    activeRunChip.dataset.runMode = mode;
+    activeRunChip.textContent = chip;
+    activeRunMeta.textContent = displayText;
+    activeRunMeta.title = metadata;
+    activeRunRow.setAttribute('aria-label', `${chip}: ${metadata}`);
+    activeRunRow.setAttribute('title', `${chip}: ${metadata}`);
+    activeRunRow.setAttribute('data-tippy-content', `${chip}: ${metadata}`);
+    if (activeRunRow._tippy) {
+      activeRunRow._tippy.setContent(`${chip}: ${metadata}`);
+    }
+  };
+
   const updateWorkflowStatus = (payload) => {
     if (!payload) {
       return;
@@ -298,8 +443,10 @@
     body.dataset.playbackActive = lastActive ? 'true' : 'false';
     body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
+    body.dataset.recordingActive = payload.recordingActive ? 'true' : 'false';
     body.dataset.chaosActive = lastChaosActive ? 'true' : 'false';
     updatePlaybackControls(payload);
+    updateActiveRunRow(payload);
     if (!trackingEnabled) {
       return;
     }
@@ -308,6 +455,7 @@
     const chaosStepsRun = Number(payload.chaosStepsRun || 0);
     const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
     const chaosHasData = chaosActive || chaosStepsRun > 0;
+    const preferChaosStatus = chaosHasData && !payload.playbackActive && !payload.recordingActive;
     const chaosLastAttempt = payload.chaosLastAttempt || null;
 
     let stepLabel = payload.playbackStepLabel || '';
@@ -326,7 +474,7 @@
       }
     }
 
-    if (!hasPlaybackStep && chaosHasData) {
+    if (preferChaosStatus) {
       stepLabel =
         payload.chaosStepLabel ||
         (chaosCompleted
@@ -356,9 +504,7 @@
         appliedText = payload.chaosError ? `Error: ${payload.chaosError}` : '';
       }
       eventsHtml = renderEvents(payload.chaosEvents);
-    }
-
-    if (!hasPlaybackStep && !chaosHasData) {
+    } else if (!hasPlaybackStep) {
       stepLabel = placeholderText;
       typeText = '';
       rangeText = '';
@@ -366,9 +512,6 @@
       eventsHtml = renderEvents(payload.playbackEvents);
     }
 
-    statusIndicators.forEach((indicator) => {
-      indicator.textContent = stepLabel;
-    });
     const applyLines = (target) => {
       if (!target) {
         return;
@@ -396,7 +539,7 @@
     applyLines(widgetLines);
     const shouldAutoScroll =
       (payload.playbackActive && !payload.playbackPaused && !payload.playbackCompleted) || payload.chaosActive;
-    const eventSource = (!hasPlaybackStep && chaosHasData) ? payload.chaosEvents : payload.playbackEvents;
+    const eventSource = preferChaosStatus ? payload.chaosEvents : payload.playbackEvents;
     if (shouldAutoScroll && widgetLines && widgetLines.events && Array.isArray(eventSource) && eventSource.length > 0) {
       if (statusWidget && statusWidget.classList.contains('is-minimized')) {
         return;

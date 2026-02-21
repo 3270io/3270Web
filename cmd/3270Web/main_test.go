@@ -3,6 +3,7 @@ package main
 import (
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -36,6 +37,40 @@ func TestBuildWorkflowConfig_UsesRecordedDelayRange(t *testing.T) {
 	}
 	if workflow.EveryStepDelay.Max != 1.988 {
 		t.Fatalf("expected max delay 1.988, got %v", workflow.EveryStepDelay.Max)
+	}
+}
+
+func TestSettingsSnapshot_ChaosDefaultsWhenMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	envPath := filepath.Join(tempDir, ".env")
+	// Existing env file without CHAOS_* keys.
+	if err := os.WriteFile(envPath, []byte("APP_USE_KEYPAD=true\n"), 0644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+
+	app := &App{envPath: envPath}
+	settings, _, err := app.settingsSnapshot(true)
+	if err != nil {
+		t.Fatalf("settingsSnapshot failed: %v", err)
+	}
+
+	cases := map[string]string{
+		"CHAOS_MAX_STEPS":                  "100",
+		"CHAOS_TIME_BUDGET_SEC":            "300",
+		"CHAOS_STEP_DELAY_SEC":             "0.5",
+		"CHAOS_SEED":                       "0",
+		"CHAOS_MAX_FIELD_LENGTH":           "40",
+		"CHAOS_OUTPUT_FILE":                "",
+		"CHAOS_EXCLUDE_NO_PROGRESS_EVENTS": "true",
+	}
+	for key, want := range cases {
+		got, ok := settings[key]
+		if !ok {
+			t.Fatalf("settings missing key %q", key)
+		}
+		if got != want {
+			t.Fatalf("settings[%q]=%q, want %q", key, got, want)
+		}
 	}
 }
 

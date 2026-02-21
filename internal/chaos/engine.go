@@ -36,6 +36,7 @@ type Status struct {
 	LoadedRunID    string         `json:"loadedRunID,omitempty"`
 	LastAttempt    *Attempt       `json:"lastAttempt,omitempty"`
 	RecentAttempts []Attempt      `json:"recentAttempts,omitempty"`
+	MindMap        *MindMap       `json:"mindMap,omitempty"`
 	Error          string         `json:"error,omitempty"`
 }
 
@@ -91,6 +92,10 @@ type Engine struct {
 	aidKeyCounts map[string]int
 	loadedRunID  string
 	attempts     []Attempt
+	mindMap      *MindMap
+
+	hintTransactions []string
+	hintKnownData    []string
 }
 
 // New creates a new Engine with the given host and configuration.
@@ -99,11 +104,14 @@ func New(h host.Host, cfg Config) *Engine {
 	if seed == 0 {
 		seed = time.Now().UnixNano()
 	}
+	hintTransactions, hintKnownData := normalizeHints(cfg.Hints)
 	return &Engine{
-		cfg:    cfg,
-		h:      h,
-		rng:    rand.New(rand.NewSource(seed)), //nolint:gosec
-		stopCh: make(chan struct{}),
+		cfg:              cfg,
+		h:                h,
+		rng:              rand.New(rand.NewSource(seed)), //nolint:gosec
+		stopCh:           make(chan struct{}),
+		hintTransactions: hintTransactions,
+		hintKnownData:    hintKnownData,
 	}
 }
 
@@ -133,6 +141,7 @@ func (e *Engine) Start() error {
 	e.aidKeyCounts = make(map[string]int)
 	e.loadedRunID = ""
 	e.attempts = nil
+	e.mindMap = newMindMap()
 	e.stopCh = make(chan struct{})
 
 	go e.run()
@@ -166,6 +175,7 @@ func (e *Engine) Status() Status {
 		latest := attempts[n-1]
 		lastAttempt = &latest
 	}
+	mindMap := e.mindMap.clone()
 	return Status{
 		Active:         e.active,
 		StepsRun:       e.stepsRun,
@@ -178,6 +188,7 @@ func (e *Engine) Status() Status {
 		LoadedRunID:    e.loadedRunID,
 		LastAttempt:    lastAttempt,
 		RecentAttempts: attempts,
+		MindMap:        mindMap,
 		Error:          e.lastErr,
 	}
 }
@@ -228,6 +239,7 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 	copy(steps, e.steps)
 	attempts := make([]Attempt, len(e.attempts))
 	copy(attempts, e.attempts)
+	mindMap := e.mindMap.clone()
 
 	return &SavedRun{
 		SavedRunMeta: SavedRunMeta{
@@ -246,6 +258,7 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 		AIDKeyCounts:      aid,
 		UniqueInputValues: inputs,
 		Attempts:          attempts,
+		MindMap:           mindMap,
 	}
 }
 
@@ -283,8 +296,15 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	copy(e.steps, saved.Steps)
 	e.attempts = make([]Attempt, len(saved.Attempts))
 	copy(e.attempts, saved.Attempts)
+	if e.cfg.ExcludeNoProgressEvents {
+		e.attempts = filterProgressAttempts(e.attempts)
+	}
 	e.stepsRun = saved.StepsRun
 	e.loadedRunID = saved.ID
+	e.mindMap = saved.MindMap.clone()
+	if e.mindMap == nil {
+		e.mindMap = newMindMap()
+	}
 
 	e.active = true
 	e.startedAt = time.Now()
@@ -364,8 +384,8 @@ func (e *Engine) run() {
 		fields := unprotectedFields(screen)
 		attempt.FieldsTargeted = len(fields)
 
-		for _, f := range fields {
-			value := e.generateValue(f)
+		for idx, f := range fields {
+			value := e.generateValueForField(f, idx == 0)
 			if value == "" {
 				continue
 			}
@@ -401,6 +421,8 @@ func (e *Engine) run() {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
+			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
+			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
 			return
@@ -412,6 +434,8 @@ func (e *Engine) run() {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
+			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
+			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
 			return
@@ -423,9 +447,15 @@ func (e *Engine) run() {
 		}
 		attempt.ToHash = newHash
 		attempt.Transitioned = newHash != "" && newHash != currentHash
+		recordAttempt := !e.cfg.ExcludeNoProgressEvents || attempt.Transitioned || attempt.Error != ""
 
 		// Record the step and any state transition.
 		e.mu.Lock()
+		e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
+		if newHash != "" {
+			e.observeMindMapAreaLocked(newHash, newScreen, attempt.Time)
+		}
+		e.recordMindMapAttemptLocked(attempt)
 		e.stepsRun++
 		e.steps = append(e.steps, batchSteps...)
 		e.screenHashes[currentHash] = true
@@ -445,7 +475,9 @@ func (e *Engine) run() {
 				Steps:    batchSteps,
 			})
 		}
-		e.appendAttemptLocked(attempt)
+		if recordAttempt {
+			e.appendAttemptLocked(attempt)
+		}
 		e.mu.Unlock()
 
 		// Inter-step delay (cancellable).
@@ -459,11 +491,131 @@ func (e *Engine) run() {
 	}
 }
 
+func (e *Engine) observeMindMapAreaLocked(hash string, screen *host.Screen, seenAt time.Time) {
+	if e.mindMap == nil {
+		e.mindMap = newMindMap()
+	}
+	e.mindMap.observeScreen(hash, screen, seenAt)
+}
+
+func (e *Engine) recordMindMapAttemptLocked(attempt Attempt) {
+	if e.mindMap == nil {
+		e.mindMap = newMindMap()
+	}
+	e.mindMap.recordAttempt(attempt)
+}
+
 func (e *Engine) appendAttemptLocked(attempt Attempt) {
 	e.attempts = append(e.attempts, attempt)
 	if len(e.attempts) > maxRecentAttempts {
 		e.attempts = e.attempts[len(e.attempts)-maxRecentAttempts:]
 	}
+}
+
+func filterProgressAttempts(attempts []Attempt) []Attempt {
+	if len(attempts) == 0 {
+		return attempts
+	}
+	filtered := make([]Attempt, 0, len(attempts))
+	for _, attempt := range attempts {
+		if attempt.Transitioned || attempt.Error != "" {
+			filtered = append(filtered, attempt)
+		}
+	}
+	return filtered
+}
+
+func normalizeHints(hints []Hint) ([]string, []string) {
+	if len(hints) == 0 {
+		return nil, nil
+	}
+	transactions := make([]string, 0, len(hints))
+	knownData := make([]string, len(hints))
+	knownData = knownData[:0]
+	seenTx := make(map[string]bool)
+	seenData := make(map[string]bool)
+	for _, hint := range hints {
+		tx := strings.TrimSpace(hint.Transaction)
+		if tx != "" && !seenTx[tx] {
+			transactions = append(transactions, tx)
+			seenTx[tx] = true
+		}
+		for _, raw := range hint.KnownData {
+			value := strings.TrimSpace(raw)
+			if value == "" || seenData[value] {
+				continue
+			}
+			knownData = append(knownData, value)
+			seenData[value] = true
+		}
+	}
+	return transactions, knownData
+}
+
+func (e *Engine) generateValueForField(f *host.Field, preferTransaction bool) string {
+	if hinted := e.hintValueForField(f, preferTransaction); hinted != "" {
+		return hinted
+	}
+	return e.generateValue(f)
+}
+
+func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool) string {
+	if len(e.hintTransactions) == 0 && len(e.hintKnownData) == 0 {
+		return ""
+	}
+	length := fieldLength(f)
+	if length <= 0 {
+		return ""
+	}
+	maxLen := e.cfg.MaxFieldLength
+	if maxLen <= 0 {
+		maxLen = 40
+	}
+	if length > maxLen {
+		length = maxLen
+	}
+
+	var candidate string
+	if preferTransaction && len(e.hintTransactions) > 0 && e.rng.Intn(100) < 75 {
+		candidate = e.hintTransactions[e.rng.Intn(len(e.hintTransactions))]
+	}
+	if candidate == "" {
+		pool := e.hintKnownData
+		if len(pool) == 0 {
+			pool = e.hintTransactions
+		}
+		if len(pool) > 0 {
+			candidate = pool[e.rng.Intn(len(pool))]
+		}
+	}
+	return fitHintValueForField(candidate, length, f.IsNumeric())
+}
+
+func fitHintValueForField(candidate string, maxLen int, numeric bool) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	value := strings.TrimSpace(candidate)
+	if value == "" {
+		return ""
+	}
+	if numeric {
+		digits := make([]rune, 0, len(value))
+		for _, c := range value {
+			if c >= '0' && c <= '9' {
+				digits = append(digits, c)
+			}
+		}
+		if len(digits) == 0 {
+			return ""
+		}
+		value = string(digits)
+	}
+	runes := []rune(value)
+	if len(runes) > maxLen {
+		return string(runes[:maxLen])
+	}
+	return value
 }
 
 // generateValue produces a random string appropriate for the field's

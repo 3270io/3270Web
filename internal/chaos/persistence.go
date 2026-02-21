@@ -36,6 +36,7 @@ type SavedRun struct {
 	AIDKeyCounts      map[string]int         `json:"aidKeyCounts"`
 	UniqueInputValues map[string]bool        `json:"uniqueInputValues,omitempty"`
 	Attempts          []Attempt              `json:"attempts,omitempty"`
+	MindMap           *MindMap               `json:"mindMap,omitempty"`
 }
 
 // runFileName returns the file name for a given run ID.

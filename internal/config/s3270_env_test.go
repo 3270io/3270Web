@@ -24,6 +24,12 @@ func TestEnsureDotEnv(t *testing.T) {
 	if !strings.Contains(string(content), "S3270_MODEL") {
 		t.Errorf("Created .env file does not contain expected content")
 	}
+	if !strings.Contains(string(content), "CHAOS_MAX_STEPS=100") {
+		t.Errorf("Created .env file does not contain CHAOS_MAX_STEPS default")
+	}
+	if !strings.Contains(string(content), "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS=true") {
+		t.Errorf("Created .env file does not contain CHAOS_EXCLUDE_NO_PROGRESS_EVENTS default")
+	}
 
 	// Case 2: File exists
 	err = os.WriteFile(envPath, []byte("EXISTING=true"), 0644)

@@ -2,6 +2,14 @@ package chaos
 
 import "time"
 
+// Hint describes optional user-provided guidance for chaos exploration.
+// Transaction is typically a known transaction code, and KnownData contains
+// known working values that can be reused as field inputs.
+type Hint struct {
+	Transaction string   `json:"transaction"`
+	KnownData   []string `json:"knownData,omitempty"`
+}
+
 // Config holds the configuration for a chaos exploration run.
 type Config struct {
 	// MaxSteps is the maximum number of AID-key submissions before stopping (0 = unlimited).
@@ -27,15 +35,23 @@ type Config struct {
 	// MaxFieldLength is the maximum number of characters generated per unprotected
 	// field. Defaults to 40.
 	MaxFieldLength int `json:"maxFieldLength"`
+
+	// Hints are optional user-provided values used to bias generated inputs.
+	Hints []Hint `json:"hints,omitempty"`
+
+	// ExcludeNoProgressEvents omits non-error attempts from attempt/event history
+	// when no screen transition occurs.
+	ExcludeNoProgressEvents bool `json:"excludeNoProgressEvents"`
 }
 
 // DefaultConfig returns sensible defaults for a chaos exploration run.
 func DefaultConfig() Config {
 	return Config{
-		MaxSteps:       100,
-		TimeBudget:     5 * time.Minute,
-		StepDelay:      500 * time.Millisecond,
-		MaxFieldLength: 40,
+		MaxSteps:                100,
+		TimeBudget:              5 * time.Minute,
+		StepDelay:               500 * time.Millisecond,
+		MaxFieldLength:          40,
+		ExcludeNoProgressEvents: true,
 		AIDKeyWeights: map[string]int{
 			"Enter":  70,
 			"PF(1)":  5,

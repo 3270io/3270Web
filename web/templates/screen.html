@@ -4,7 +4,7 @@
     <title>3270Web</title>
     <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=5">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=9">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script>
         (function () {
@@ -39,13 +39,13 @@
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
     <script src="/static/keyboard.js?v=6" defer></script>
-    <script src="/static/theme.js?v=6" defer></script>
+    <script src="/static/theme.js?v=7" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js?v=9" defer></script>
+    <script src="/static/workflow.js?v=10" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
-    <script src="/static/ui.js?v=8" defer></script>
+    <script src="/static/ui.js?v=15" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -55,101 +55,94 @@
     <div class="page-wrap">
         <div class="card">
             <div class="card-header">
-                <div>
+                <div data-chrome-title>
                     <h2>3270Web</h2>
                     <div class="subtle">Connected session</div>
                 </div>
-                <div class="toolbar">
+                <div class="toolbar header-chrome-actions" data-header-chrome-actions>
+                    <button
+                        type="button"
+                        class="icon-button chrome-toggle-button"
+                        data-chrome-toggle
+                        data-tippy-content="Hide header &amp; toolbar"
+                        aria-label="Hide header &amp; toolbar"
+                        aria-pressed="false">
+                        <span data-eye-open aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false"><path d="M12 5c5.25 0 9.62 3.44 11 7-1.38 3.56-5.75 7-11 7S2.38 15.56 1 12c1.38-3.56 5.75-7 11-7zm0 2c-3.55 0-6.67 2.02-8.16 5 1.49 2.98 4.61 5 8.16 5s6.67-2.02 8.16-5C18.67 9.02 15.55 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/></svg>
+                        </span>
+                        <span data-eye-closed aria-hidden="true" hidden>
+                            <svg viewBox="0 0 24 24" focusable="false"><path d="M3.27 2 2 3.27l3 3A11.77 11.77 0 0 0 1 12c1.38 3.56 5.75 7 11 7 2.35 0 4.54-.7 6.37-1.9l2.36 2.36L22 18.19 3.27 2zM7.4 8.67l1.53 1.53a2.5 2.5 0 0 0 3.37 3.37l1.53 1.53A4.5 4.5 0 0 1 7.4 8.67zM12 7c3.55 0 6.67 2.02 8.16 5-.5 1-1.17 1.92-1.96 2.71l1.43 1.43A11.93 11.93 0 0 0 23 12c-1.38-3.56-5.75-7-11-7-1.31 0-2.57.22-3.74.63L9.89 7.26C10.57 7.09 11.27 7 12 7z"/></svg>
+                        </span>
+                    </button>
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
                     </button>
                 </div>
             </div>
-            <div class="toolbar" style="margin-bottom: 16px;">
+            <div class="toolbar" data-main-toolbar style="margin-bottom: 16px;">
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
-                <span class="status-indicator" data-recording-indicator {{ if not .RecordingActive }}hidden{{ end }}>
-                    <span class="recording-indicator" aria-hidden="true"></span>
-                    <span class="status-text">REC</span>
-                </span>
-                <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
-                    <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop recording" aria-label="Stop recording">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
-                    </button>
-                </form>
-                <form action="/record/start" method="post" data-recording-start {{ if or .RecordingActive .PlaybackActive }}hidden{{ end }}>
-                    <button type="submit" class="icon-button icon-button-record" data-tippy-content="Start recording" aria-label="Start recording">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
-                    </button>
-                </form>
-                {{ if not .LoadedWorkflow }}
-                <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
-                    <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
-                    <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
-                    </button>
-                </form>
-                {{ end }}
-                <div class="workflow-controls">
-                    {{ if .LoadedWorkflow }}
-                    <span class="workflow-status">
-                        <span class="subtle">Loaded:</span>
-                        <strong>{{ .LoadedWorkflowName }}</strong>
-                    </span>
-                    <form action="/workflow/play" method="post" class="workflow-form">
-                        <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l12 7-12 7z" /></svg>
-                        </button>
-                    </form>
-                    <form action="/workflow/debug" method="post" class="workflow-form">
-                        <button type="submit" class="icon-button" data-tippy-content="Debug recording" aria-label="Debug recording">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3h10v2h3v2h-3v2h2v2h-2v2h3v2h-3v2h-10v-2h-3v-2h3v-2h-2v-2h2v-2h-3v-2h3zM9 7v10h6V7z" /></svg>
-                        </button>
-                    </form>
-                    <button type="button" class="icon-button" data-modal-open data-tippy-content="View recording" aria-label="View recording">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5.25 0 9.62 3.44 11 7-1.38 3.56-5.75 7-11 7S2.38 15.56 1 12c1.38-3.56 5.75-7 11-7zm0 2c-3.55 0-6.67 2.02-8.16 5 1.49 2.98 4.61 5 8.16 5s6.67-2.02 8.16-5C18.67 9.02 15.55 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
-                    </button>
-                    <form action="/workflow/remove" method="post" class="workflow-form">
-                        <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Remove recording" aria-label="Remove recording">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
-                        </button>
-                    </form>
-                    {{ else }}
-                    {{ end }}
-                </div>
-                <span class="icon-button-wrapper" data-tippy-content="Stop playback to start a recording" data-recording-start-disabled {{ if or .RecordingActive (not .PlaybackActive) }}hidden{{ end }}>
-                    <button type="button" disabled class="icon-button icon-button-record" aria-label="Start recording">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
-                    </button>
-                </span>
-                <span class="status-indicator" data-playback-indicator {{ if not .PlaybackActive }}hidden{{ end }}>
-                    <span class="paused-indicator" aria-hidden="true" data-playback-paused-indicator {{ if or (not .PlaybackPaused) (eq .PlaybackMode "debug") }}hidden{{ end }}></span>
-                    <span class="playing-indicator" aria-hidden="true" data-playback-playing-indicator {{ if or .PlaybackPaused (eq .PlaybackMode "debug") }}hidden{{ end }}></span>
-                    <span class="status-text" data-playback-status-text>
-                        {{ if eq .PlaybackMode "debug" }}
-                        DEBUG
-                        {{ else if .PlaybackPaused }}
-                        PAUSE
-                        {{ else }}
-                        PLAY
+                <div class="recording-controls" data-recording-controls>
+                    <span class="recording-controls-label" aria-hidden="true">RECORDING</span>
+                    <div class="recording-controls-section" aria-label="Recording actions">
+                        <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
+                            <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop recording" aria-label="Stop recording">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                            </button>
+                        </form>
+                        <form action="/record/start" method="post" data-recording-start {{ if or .RecordingActive .PlaybackActive }}hidden{{ end }}>
+                            <button type="submit" class="icon-button icon-button-record" data-tippy-content="Start recording" aria-label="Start recording">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
+                            </button>
+                        </form>
+                        <span class="icon-button-wrapper" data-tippy-content="Stop playback to start a recording" data-recording-start-disabled {{ if or .RecordingActive (not .PlaybackActive) }}hidden{{ end }}>
+                            <button type="button" disabled class="icon-button icon-button-record" aria-label="Start recording">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" /></svg>
+                            </button>
+                        </span>
+                    </div>
+                    <span class="recording-controls-divider" aria-hidden="true"></span>
+                    <div class="recording-controls-section" aria-label="Recording workflow actions">
+                        {{ if not .LoadedWorkflow }}
+                        <form action="/workflow/load" method="post" enctype="multipart/form-data" class="workflow-form" data-workflow-upload>
+                            <input type="file" name="workflow" accept=".json" required class="workflow-file-input" hidden>
+                            <button type="button" class="icon-button" data-workflow-trigger data-tippy-content="Load recording" aria-label="Load recording">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
+                            </button>
+                        </form>
                         {{ end }}
-                    </span>
-                </span>
-                <span class="status-indicator" data-playback-complete {{ if or .PlaybackActive (not .PlaybackCompleted) }}hidden{{ end }}>
-                    <span class="status-text">COMPLETE</span>
-                </span>
-                {{ if .PlaybackStep }}
-                <span class="status-indicator" data-status-open data-playback-step-container role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status">
-                    <span class="status-text" data-status-indicator>Step {{ .PlaybackStep }}{{ if .PlaybackStepTotal }}/{{ .PlaybackStepTotal }}{{ end }}{{ if .PlaybackStepType }}: {{ .PlaybackStepType }}{{ end }}</span>
-                </span>
-                {{ else }}
-                <span class="status-indicator" data-status-open data-playback-step-container hidden role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status">
-                    <span class="status-text" data-status-indicator>Playback has not started yet.</span>
-                </span>
-                {{ end }}
+                        <div class="workflow-controls">
+                            {{ if .LoadedWorkflow }}
+                            <span class="workflow-status">
+                                <span class="subtle">Loaded:</span>
+                                <strong>{{ .LoadedWorkflowName }}</strong>
+                            </span>
+                            <form action="/workflow/play" method="post" class="workflow-form">
+                                <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l12 7-12 7z" /></svg>
+                                </button>
+                            </form>
+                            <form action="/workflow/debug" method="post" class="workflow-form">
+                                <button type="submit" class="icon-button" data-tippy-content="Debug recording" aria-label="Debug recording">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3h10v2h3v2h-3v2h2v2h-2v2h3v2h-3v2h-10v-2h-3v-2h3v-2h-2v-2h2v-2h-3v-2h3zM9 7v10h6V7z" /></svg>
+                                </button>
+                            </form>
+                            <button type="button" class="icon-button" data-modal-open data-tippy-content="View recording" aria-label="View recording">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5.25 0 9.62 3.44 11 7-1.38 3.56-5.75 7-11 7S2.38 15.56 1 12c1.38-3.56 5.75-7 11-7zm0 2c-3.55 0-6.67 2.02-8.16 5 1.49 2.98 4.61 5 8.16 5s6.67-2.02 8.16-5C18.67 9.02 15.55 7 12 7zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
+                            </button>
+                            <form action="/workflow/remove" method="post" class="workflow-form">
+                                <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Remove recording" aria-label="Remove recording">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
+                                </button>
+                            </form>
+                            {{ else }}
+                            {{ end }}
+                        </div>
+                    </div>
+                </div>
                 <div class="workflow-form" data-playback-debug-controls {{ if or (not .PlaybackActive) (ne .PlaybackMode "debug") }}hidden{{ end }}>
                     <form action="/workflow/step" method="post">
                         <button type="submit">Step</button>
@@ -178,12 +171,15 @@
                     </form>
                 </div>
                 {{ if .RecordingFile }}
-                <a href="/record/download">Download {{ .RecordingFile }}</a>
+                <a href="/record/download" class="record-download-link" aria-label="Download recording {{ .RecordingFile }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+                    <span>Download {{ .RecordingFile }}</span>
+                </a>
                 {{ end }}
                 <!-- Chaos exploration controls -->
                 <div class="chaos-controls" data-chaos-controls>
                     <span class="chaos-controls-label" aria-hidden="true">CHAOS</span>
-                    <div class="chaos-controls-section" aria-label="Chaos run actions">
+                    <div class="chaos-controls-section" data-chaos-section="run" aria-label="Chaos run actions">
                         <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
                         </button>
@@ -191,17 +187,25 @@
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
                         </button>
                     </div>
-                    <span class="chaos-controls-divider" aria-hidden="true"></span>
-                    <div class="chaos-controls-section" aria-label="Chaos load actions">
+                    <span class="chaos-controls-divider" data-chaos-divider aria-hidden="true"></span>
+                    <div class="chaos-controls-section" data-chaos-section="load" aria-label="Chaos load actions">
                         <button type="button" class="icon-button" data-chaos-load data-tippy-content="Load previous chaos run" aria-label="Load previous chaos run">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5v-2z"/></svg>
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
                         </button>
+                        {{ if .LoadedWorkflow }}
+                        <button type="button" class="icon-button" data-chaos-load-recording data-tippy-content="Load recording into chaos" aria-label="Load recording into chaos">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
+                        </button>
+                        {{ end }}
                         <button type="button" class="icon-button" data-chaos-resume hidden data-tippy-content="Resume chaos exploration from loaded run" aria-label="Resume chaos exploration from loaded run">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
                         </button>
+                        <button type="button" class="icon-button" data-chaos-hints-open data-tippy-content="Edit chaos hints" aria-label="Edit chaos hints">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
+                        </button>
                     </div>
-                    <span class="chaos-controls-divider" aria-hidden="true"></span>
-                    <div class="chaos-controls-section" aria-label="Chaos output actions">
+                    <span class="chaos-controls-divider" data-chaos-divider aria-hidden="true"></span>
+                    <div class="chaos-controls-section" data-chaos-section="output" aria-label="Chaos output actions">
                         <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Download chaos workflow JSON" aria-label="Download chaos workflow JSON">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
                         </button>
@@ -209,20 +213,14 @@
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
                         </button>
                     </div>
-                    <span class="chaos-controls-divider" aria-hidden="true"></span>
-                    <div class="chaos-controls-section chaos-controls-status" aria-label="Chaos status">
-                        <span class="status-indicator" data-chaos-indicator hidden>
-                            <span class="chaos-indicator" aria-hidden="true"></span>
-                            <span class="status-text">RUN</span>
-                        </span>
-                        <span class="status-indicator" data-chaos-complete-indicator hidden>
-                            <span class="status-text">DONE</span>
-                        </span>
-                        <span class="status-indicator" data-chaos-stats-indicator hidden>
-                            <span class="status-text" data-chaos-stats-text></span>
-                        </span>
-                    </div>
                 </div>
+            </div>
+            <div class="active-run-toolbar-row" data-active-run-container hidden>
+                <span class="active-run-row" data-active-run-row data-status-open role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status" data-tippy-content="Open workflow status">
+                    <span class="active-run-label">Active Run</span>
+                    <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
+                    <span class="status-text active-run-meta" data-active-run-meta></span>
+                </span>
             </div>
             {{ if .SampleAppName }}
             <div class="sample-status">
@@ -232,12 +230,6 @@
             {{ end }}
 
             <div class="stack">
-                <div class="authentic-controls" id="authentic-controls" hidden>
-                    <label for="authentic-chrome-toggle">
-                        <input type="checkbox" id="authentic-chrome-toggle">
-                        Hide header &amp; toolbar
-                    </label>
-                </div>
                 <div class="terminal-shell">
                     <div class="screen-container">
                         {{ .ScreenContent }}
@@ -316,6 +308,29 @@
             </div>
             <div class="modal-actions">
                 <button type="button" data-chaos-runs-close>Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-hints-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-hints-modal-title">
+            <div class="modal-header">
+                <h3 id="chaos-hints-modal-title">Chaos Hints</h3>
+                <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
+            </div>
+            <div class="stack">
+                <div class="subtle">Add known transactions and working values to guide chaos data entry.</div>
+                <div class="chaos-hints-list" data-chaos-hints-list></div>
+                <div class="modal-actions">
+                    <button type="button" data-chaos-hints-add>Add hint</button>
+                    <button type="button" data-chaos-hints-load-recording>Load from recording</button>
+                    <input type="file" accept=".json,application/json" data-chaos-hints-recording-input hidden>
+                </div>
+                <div class="subtle" data-chaos-hints-status aria-live="polite"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-hints-reload>Load saved</button>
+                <button type="button" data-chaos-hints-save>Save hints</button>
+                <button type="button" data-chaos-hints-close>Close</button>
             </div>
         </div>
     </div>

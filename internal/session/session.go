@@ -3,6 +3,7 @@ package session
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -114,6 +115,7 @@ type ChaosState struct {
 	LoadedRunID    string
 	LastAttempt    *ChaosAttempt
 	RecentAttempts []ChaosAttempt
+	MindMap        json.RawMessage
 	Error          string
 }
 

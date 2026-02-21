@@ -19,8 +19,8 @@
     "theme-custom": "theme-yorkshire"
   };
 
-  var authenticThemeId = "theme-authentic";
-  var authenticChromeKey = "3270Web.authenticChromeHidden";
+  var chromeHiddenKey = "3270Web.chromeHidden";
+  var legacyChromeHiddenKey = "3270Web.authenticChromeHidden";
   var customThemeStorageKey = "3270Web.customThemeV1";
   var themeStorageKey = "3270Web.theme";
   var defaultThemeStorageKey = "3270Web.defaultTheme";
@@ -151,23 +151,71 @@
     return "theme-yorkshire";
   }
 
-  function applyAuthenticChromeState(isAuthentic) {
-    var body = document.body;
-    var control = document.getElementById("authentic-controls");
-    var toggle = document.getElementById("authentic-chrome-toggle");
-    if (!control || !toggle) {
-      body.classList.remove("authentic-chrome-hidden");
+  function readChromeHiddenState() {
+    var next = localStorage.getItem(chromeHiddenKey);
+    if (next === "1" || next === "0") {
+      return next === "1";
+    }
+    return localStorage.getItem(legacyChromeHiddenKey) === "1";
+  }
+
+  function writeChromeHiddenState(hidden) {
+    var value = hidden ? "1" : "0";
+    localStorage.setItem(chromeHiddenKey, value);
+    // Keep legacy key in sync for backward compatibility.
+    localStorage.setItem(legacyChromeHiddenKey, value);
+  }
+
+  function syncChromeToggleButton(hidden) {
+    var toggle = document.querySelector("[data-chrome-toggle]");
+    if (!toggle) {
       return;
     }
-    if (isAuthentic) {
-      control.hidden = false;
-      var stored = localStorage.getItem(authenticChromeKey) === "1";
-      toggle.checked = stored;
-      body.classList.toggle("authentic-chrome-hidden", stored);
-    } else {
-      control.hidden = true;
-      body.classList.remove("authentic-chrome-hidden");
+    var label = hidden ? "Show header & toolbar" : "Hide header & toolbar";
+    toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    toggle.setAttribute("data-tippy-content", label);
+
+    var eyeOpen = toggle.querySelector("[data-eye-open]");
+    var eyeClosed = toggle.querySelector("[data-eye-closed]");
+    if (eyeOpen) {
+      eyeOpen.hidden = hidden;
     }
+    if (eyeClosed) {
+      eyeClosed.hidden = !hidden;
+    }
+    if (toggle._tippy && typeof toggle._tippy.setContent === "function") {
+      toggle._tippy.setContent(label);
+    }
+  }
+
+  function setChromeHidden(hidden) {
+    var body = document.body;
+    if (!body) {
+      return;
+    }
+    body.classList.toggle("chrome-hidden", hidden);
+    // Keep legacy class in sync for compatibility with existing selectors/state.
+    body.classList.toggle("authentic-chrome-hidden", hidden);
+    syncChromeToggleButton(hidden);
+  }
+
+  function applyChromeState() {
+    setChromeHidden(readChromeHiddenState());
+  }
+
+  function initChromeToggleControl() {
+    var toggle = document.querySelector("[data-chrome-toggle]");
+    if (!toggle) {
+      return;
+    }
+    toggle.addEventListener("click", function () {
+      var nextHidden = !document.body.classList.contains("chrome-hidden");
+      setChromeHidden(nextHidden);
+      writeChromeHiddenState(nextHidden);
+    });
+    applyChromeState();
   }
 
   function isValidCssColor(value) {
@@ -278,7 +326,7 @@
     }
 
     localStorage.setItem(themeStorageKey, normalized);
-    applyAuthenticChromeState(normalized === authenticThemeId);
+    applyChromeState();
     if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.updateBackgroundTheme === "function") {
       window.ThreeSeventyWeb.updateBackgroundTheme(normalized);
     }
@@ -888,17 +936,10 @@
       applyTheme(select.value);
     });
 
-    var chromeToggle = document.getElementById("authentic-chrome-toggle");
-    if (chromeToggle) {
-      chromeToggle.addEventListener("change", function () {
-        var hidden = chromeToggle.checked;
-        document.body.classList.toggle("authentic-chrome-hidden", hidden);
-        localStorage.setItem(authenticChromeKey, hidden ? "1" : "0");
-      });
-    }
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    initChromeToggleControl();
     initThemeSelector();
   });
 })();

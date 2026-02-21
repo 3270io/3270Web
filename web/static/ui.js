@@ -159,6 +159,7 @@
         CHAOS_SEED: '0',
         CHAOS_MAX_FIELD_LENGTH: '40',
         CHAOS_OUTPUT_FILE: '',
+        CHAOS_EXCLUDE_NO_PROGRESS_EVENTS: 'true',
     };
 
     const modelOptions = [
@@ -314,6 +315,7 @@
                 { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
                 { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
                 { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
+                { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
             ],
         },
     ];
@@ -995,11 +997,13 @@
  */
 (() => {
     const body = document.body;
+    const chaosControls = document.querySelector('[data-chaos-controls]');
     const startBtn = document.querySelector('[data-chaos-start]');
     const stopBtn = document.querySelector('[data-chaos-stop]');
     const exportBtn = document.querySelector('[data-chaos-export]');
     const removeBtn = document.querySelector('[data-chaos-remove]');
     const loadBtn = document.querySelector('[data-chaos-load]');
+    const loadRecordingBtn = document.querySelector('[data-chaos-load-recording]');
     const resumeBtn = document.querySelector('[data-chaos-resume]');
     const indicator = document.querySelector('[data-chaos-indicator]');
     const completeIndicator = document.querySelector('[data-chaos-complete-indicator]');
@@ -1008,6 +1012,18 @@
     const runsModal = document.querySelector('[data-chaos-runs-modal]');
     const runsModalClose = document.querySelectorAll('[data-chaos-runs-close]');
     const runsList = document.querySelector('[data-chaos-runs-list]');
+    const hintsOpenBtn = document.querySelector('[data-chaos-hints-open]');
+    const hintsModal = document.querySelector('[data-chaos-hints-modal]');
+    const hintsModalClose = document.querySelectorAll('[data-chaos-hints-close]');
+    const hintsList = document.querySelector('[data-chaos-hints-list]');
+    const hintsAddBtn = document.querySelector('[data-chaos-hints-add]');
+    const hintsLoadRecordingBtn = document.querySelector('[data-chaos-hints-load-recording]');
+    const hintsRecordingInput = document.querySelector('[data-chaos-hints-recording-input]');
+    const hintsReloadBtn = document.querySelector('[data-chaos-hints-reload]');
+    const hintsSaveBtn = document.querySelector('[data-chaos-hints-save]');
+    const hintsStatus = document.querySelector('[data-chaos-hints-status]');
+    const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
+    const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
     const recordingStartButton = document.querySelector('form[data-recording-start] .icon-button');
     const workflowLoadButton = document.querySelector('[data-workflow-trigger]');
@@ -1020,6 +1036,8 @@
     let hasData = false;
     let loadedRunID = null;
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
+    let chaosHints = [];
+    let hintsDirty = false;
 
     const setButtonBusy = (btn, busy) => {
         if (!btn) {
@@ -1057,8 +1075,251 @@
         }
     };
 
-    const isRecordingActive = () => !!(recordingIndicator && !recordingIndicator.hidden);
+    const setHintsStatus = (message, isError = false) => {
+        if (!hintsStatus) {
+            return;
+        }
+        hintsStatus.textContent = message || '';
+        hintsStatus.style.color = isError ? '#ff9a5a' : '';
+    };
+
+    const markHintsDirty = () => {
+        if (hintsModal && !hintsModal.hidden) {
+            hintsDirty = true;
+        }
+    };
+
+    const parseKnownData = (value) => {
+        if (!value) {
+            return [];
+        }
+        return String(value)
+            .split(/[\n,]/)
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
+    };
+
+    const normalizeHints = (rawHints) => {
+        if (!Array.isArray(rawHints)) {
+            return [];
+        }
+        const normalized = [];
+        rawHints.forEach((entry) => {
+            if (!entry || typeof entry !== 'object') {
+                return;
+            }
+            const transaction = String(entry.transaction || '').trim();
+            const knownData = Array.isArray(entry.knownData)
+                ? entry.knownData.map((item) => String(item || '').trim()).filter((item) => item.length > 0)
+                : parseKnownData(entry.knownData || '');
+            if (!transaction && knownData.length === 0) {
+                return;
+            }
+            normalized.push({ transaction, knownData });
+        });
+        return normalized;
+    };
+
+    const mergeHints = (baseHints, extractedHints) => {
+        const merged = normalizeHints([...(baseHints || []), ...(extractedHints || [])]);
+        const seen = new Set();
+        const out = [];
+        merged.forEach((hint) => {
+            const tx = String(hint.transaction || '').trim();
+            const knownData = Array.isArray(hint.knownData)
+                ? hint.knownData.map((item) => String(item || '').trim()).filter((item) => item.length > 0)
+                : [];
+            const key = `${tx.toUpperCase()}|${knownData.join('\u001f')}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            out.push({ transaction: tx, knownData });
+        });
+        return out;
+    };
+
+    const createHintRow = (hint = {}) => {
+        if (!hintsList) {
+            return;
+        }
+        const row = document.createElement('div');
+        row.className = 'chaos-hint-row';
+
+        const txInput = document.createElement('input');
+        txInput.type = 'text';
+        txInput.placeholder = 'Transaction (e.g., CEMT)';
+        txInput.value = hint.transaction || '';
+        txInput.setAttribute('aria-label', 'Chaos hint transaction');
+        txInput.dataset.chaosHintTransaction = '1';
+        txInput.addEventListener('input', markHintsDirty);
+
+        const knownDataInput = document.createElement('textarea');
+        knownDataInput.placeholder = 'Known data values (comma or newline separated)';
+        knownDataInput.value = Array.isArray(hint.knownData) ? hint.knownData.join('\n') : '';
+        knownDataInput.setAttribute('aria-label', 'Chaos hint known data');
+        knownDataInput.dataset.chaosHintData = '1';
+        knownDataInput.addEventListener('input', markHintsDirty);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'chaos-hint-remove';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => {
+            markHintsDirty();
+            row.remove();
+            if (!hintsList.children.length) {
+                createHintRow();
+            }
+        });
+
+        row.appendChild(txInput);
+        row.appendChild(knownDataInput);
+        row.appendChild(removeBtn);
+        hintsList.appendChild(row);
+    };
+
+    const collectHintsFromUI = () => {
+        if (!hintsList) {
+            return [];
+        }
+        const rows = Array.from(hintsList.querySelectorAll('.chaos-hint-row'));
+        return normalizeHints(rows.map((row) => {
+            const tx = row.querySelector('[data-chaos-hint-transaction]');
+            const knownData = row.querySelector('[data-chaos-hint-data]');
+            return {
+                transaction: tx ? tx.value : '',
+                knownData: knownData ? parseKnownData(knownData.value) : [],
+            };
+        }));
+    };
+
+    const renderHints = (hints) => {
+        if (!hintsList) {
+            return;
+        }
+        hintsList.innerHTML = '';
+        const list = normalizeHints(hints);
+        if (!list.length) {
+            createHintRow();
+            hintsDirty = false;
+            return;
+        }
+        list.forEach((hint) => createHintRow(hint));
+        hintsDirty = false;
+    };
+
+    const loadHints = async () => {
+        try {
+            const resp = await fetch('/chaos/hints');
+            if (!resp.ok) {
+                throw new Error('request failed');
+            }
+            const payload = await resp.json();
+            const loadedHints = normalizeHints(payload.hints || []);
+            chaosHints = loadedHints;
+            if (hintsModal && !hintsModal.hidden && hintsDirty) {
+                setHintsStatus('Loaded saved hints; unsaved edits were kept.');
+                return chaosHints;
+            }
+            renderHints(chaosHints);
+            setHintsStatus(chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.');
+            return chaosHints;
+        } catch (_err) {
+            setHintsStatus('Failed to load hints.', true);
+            return chaosHints;
+        }
+    };
+
+    const saveHints = async () => {
+        const draftHints = collectHintsFromUI();
+        try {
+            const resp = await fetch('/chaos/hints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hints: draftHints }),
+            });
+            if (!resp.ok) {
+                throw new Error('request failed');
+            }
+            const payload = await resp.json();
+            chaosHints = normalizeHints(payload.hints || []);
+            renderHints(chaosHints);
+            setHintsStatus(`Saved ${chaosHints.length} hint(s).`);
+            hintsDirty = false;
+        } catch (_err) {
+            setHintsStatus('Failed to save hints.', true);
+        }
+    };
+
+    const extractHintsFromRecording = async (file) => {
+        try {
+            const formData = new FormData();
+            if (file) {
+                formData.append('workflow', file, file.name || 'workflow.json');
+            }
+            const resp = await fetch('/chaos/hints/extract-recording', {
+                method: 'POST',
+                body: formData,
+            });
+            let payload = {};
+            try {
+                payload = await resp.json();
+            } catch (_parseErr) {
+                payload = {};
+            }
+            if (!resp.ok) {
+                throw new Error(payload.error || 'request failed');
+            }
+            const extracted = normalizeHints(payload.hints || []);
+            const draft = (hintsModal && !hintsModal.hidden) ? collectHintsFromUI() : chaosHints;
+            chaosHints = mergeHints(draft, extracted);
+            renderHints(chaosHints);
+            const source = payload.source === 'loaded' ? 'loaded recording' : 'recording';
+            if (extracted.length > 0) {
+                setHintsStatus(`Extracted ${extracted.length} hint(s) from ${source}. Save hints to persist.`);
+            } else {
+                setHintsStatus(`No hint candidates found in ${source}.`);
+            }
+        } catch (err) {
+            const msg = (err && err.message) ? err.message : 'Failed to extract hints from recording.';
+            setHintsStatus(msg, true);
+        }
+    };
+
+    const isRecordingActive = () => {
+        if (body && body.dataset.recordingActive === 'true') {
+            return true;
+        }
+        if (recordingIndicator && !recordingIndicator.hidden) {
+            return true;
+        }
+        const recordingStop = document.querySelector('[data-recording-stop]');
+        return !!(recordingStop && !recordingStop.hidden);
+    };
     const isPlaybackActive = () => !!(body && body.dataset.playbackActive === 'true');
+
+    const sectionHasVisibleChild = (section) => {
+        if (!section) {
+            return false;
+        }
+        return Array.from(section.children).some((child) => !child.hidden);
+    };
+
+    const syncChaosSectionLayout = () => {
+        if (chaosSections.length === 0) {
+            return;
+        }
+        chaosSections.forEach((section) => {
+            const alwaysVisible = section.dataset.chaosSection === 'run' || section.dataset.chaosSection === 'load';
+            section.hidden = !(alwaysVisible || sectionHasVisibleChild(section));
+        });
+        chaosDividers.forEach((divider, index) => {
+            const hasVisibleBefore = chaosSections.slice(0, index + 1).some((section) => !section.hidden);
+            const hasVisibleAfter = chaosSections.slice(index + 1).some((section) => !section.hidden);
+            divider.hidden = !(hasVisibleBefore && hasVisibleAfter);
+        });
+    };
 
     const applyChaosInterlocks = () => {
         const running = !!(lastStatus && lastStatus.active);
@@ -1073,6 +1334,11 @@
             loadBtn,
             !running && blockedByWorkflow,
             'Stop recording/playback before loading a chaos run'
+        );
+        setButtonDisabledState(
+            loadRecordingBtn,
+            !running && blockedByWorkflow,
+            'Stop recording/playback before loading a recording into chaos'
         );
         setButtonDisabledState(
             resumeBtn,
@@ -1094,7 +1360,7 @@
     const updateUI = (status) => {
         lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
         const running = !!(status && status.active);
-        hasData = !!(status && status.stepsRun > 0);
+        hasData = !!(status && (status.stepsRun > 0 || status.loadedRunID));
         const completed = !running && hasData;
         if (status && status.loadedRunID) {
             loadedRunID = status.loadedRunID;
@@ -1125,30 +1391,26 @@
             const hasStats = !!(status && (status.stepsRun > 0 || status.transitions > 0));
             statsIndicator.hidden = !hasStats;
             if (statsText && hasStats) {
-                let txt = completed ? `Complete: ${status.stepsRun} steps` : `${status.stepsRun} steps`;
+                let txt = completed ? `Complete: ${status.stepsRun} attempts` : `${status.stepsRun} attempts`;
                 if (status.transitions > 0) {
-                    txt += `, ${status.transitions} transitions`;
+                    txt += ` · ${status.transitions} transitions`;
                 }
                 if (status.uniqueScreens > 0) {
-                    txt += `, ${status.uniqueScreens} screens`;
+                    txt += ` · ${status.uniqueScreens} screens`;
                 }
                 if (status.uniqueInputs > 0) {
-                    txt += `, ${status.uniqueInputs} inputs`;
-                }
-                if (status.lastAttempt) {
-                    const a = status.lastAttempt;
-                    const aid = a.aidKey ? ` ${a.aidKey}` : '';
-                    txt += `, last #${a.attempt}${aid} ${a.fieldsWritten || 0}/${a.fieldsTargeted || 0}`;
+                    txt += ` · ${status.uniqueInputs} inputs`;
                 }
                 if (status.error) {
-                    txt += ` \u2014 ${status.error}`;
+                    txt += ' · error';
                 }
                 if (completed && loadedRunID) {
-                    txt += `, run ${loadedRunID}`;
+                    txt += ` · run ${loadedRunID}`;
                 }
                 statsText.textContent = txt;
             }
         }
+        syncChaosSectionLayout();
         applyChaosInterlocks();
     };
 
@@ -1249,11 +1511,90 @@
         });
     }
 
+    if (hintsOpenBtn) {
+        hintsOpenBtn.addEventListener('click', async () => {
+            if (hintsModal) {
+                hintsModal.hidden = false;
+            }
+            hintsDirty = false;
+            if (hintsList && hintsList.children.length === 0) {
+                renderHints(chaosHints);
+            }
+            await loadHints();
+        });
+    }
+    if (hintsModal) {
+        hintsModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                hintsModal.hidden = true;
+            });
+        });
+        hintsModal.addEventListener('click', (event) => {
+            if (event.target === hintsModal) {
+                hintsModal.hidden = true;
+            }
+        });
+    }
+    if (hintsAddBtn) {
+        hintsAddBtn.addEventListener('click', () => {
+            markHintsDirty();
+            createHintRow();
+            const rows = hintsList ? hintsList.querySelectorAll('.chaos-hint-row') : [];
+            const lastRow = rows.length ? rows[rows.length - 1] : null;
+            const focusField = lastRow ? lastRow.querySelector('[data-chaos-hint-transaction]') : null;
+            if (focusField && typeof focusField.focus === 'function') {
+                focusField.focus();
+            }
+        });
+    }
+    if (hintsLoadRecordingBtn && hintsRecordingInput) {
+        hintsLoadRecordingBtn.addEventListener('click', () => {
+            hintsRecordingInput.click();
+        });
+        hintsRecordingInput.addEventListener('change', () => {
+            const file = hintsRecordingInput.files && hintsRecordingInput.files.length
+                ? hintsRecordingInput.files[0]
+                : null;
+            hintsRecordingInput.value = '';
+            if (!file) {
+                return;
+            }
+            extractHintsFromRecording(file);
+        });
+    }
+    if (hintsReloadBtn) {
+        hintsReloadBtn.addEventListener('click', () => {
+            loadHints();
+        });
+    }
+    if (hintsSaveBtn) {
+        hintsSaveBtn.addEventListener('click', () => {
+            saveHints();
+        });
+    }
+
     // Read chaos config from the settings modal fields (populated from CHAOS_* settings).
     const readChaosConfig = () => {
         const getVal = (key) => {
             const el = document.querySelector(`[data-setting-key="${key}"]`);
-            return el ? el.value.trim() : '';
+            if (!el) {
+                return '';
+            }
+            if (el.dataset.kind === 'checkbox') {
+                return el.checked ? 'true' : 'false';
+            }
+            return el.value.trim();
+        };
+
+        const getBool = (key, fallback) => {
+            const raw = getVal(key).toLowerCase();
+            if (raw === 'true') {
+                return true;
+            }
+            if (raw === 'false') {
+                return false;
+            }
+            return !!fallback;
         };
 
         const cfg = {};
@@ -1288,10 +1629,19 @@
             cfg.outputFile = outputFile;
         }
 
+        cfg.excludeNoProgressEvents = getBool('CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', true);
+
+        const draftHints = (hintsModal && !hintsModal.hidden) ? collectHintsFromUI() : chaosHints;
+        if (Array.isArray(draftHints) && draftHints.length > 0) {
+            cfg.hints = draftHints;
+        }
+
         return cfg;
     };
 
     // Initial status check on page load.
+    syncChaosSectionLayout();
+    loadHints();
     pollStatus();
 
     if (startBtn) {
@@ -1335,6 +1685,32 @@
     if (loadBtn) {
         loadBtn.addEventListener('click', () => {
             openRunsModal();
+        });
+    }
+
+    if (loadRecordingBtn) {
+        loadRecordingBtn.addEventListener('click', async () => {
+            setButtonBusy(loadRecordingBtn, true);
+            try {
+                const resp = await fetch('/chaos/load-recording', { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    loadedRunID = data.runID || loadedRunID;
+                    updateUI({
+                        active: false,
+                        stepsRun: data.stepsRun || 0,
+                        transitions: data.transitions || 0,
+                        uniqueScreens: data.uniqueScreens || 0,
+                        uniqueInputs: data.uniqueInputs || 0,
+                        loadedRunID,
+                    });
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(loadRecordingBtn, false);
+                applyChaosInterlocks();
+            }
         });
     }
 

@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -90,13 +93,15 @@ func (s *chaosEngineStore) clearRemoved(sessionID string) {
 
 // chaosStartRequest is the JSON body accepted by POST /chaos/start.
 type chaosStartRequest struct {
-	MaxSteps       int            `json:"maxSteps"`
-	TimeBudgetSec  float64        `json:"timeBudgetSec"`
-	StepDelaySec   float64        `json:"stepDelaySec"`
-	Seed           int64          `json:"seed"`
-	AIDKeyWeights  map[string]int `json:"aidKeyWeights"`
-	OutputFile     string         `json:"outputFile"`
-	MaxFieldLength int            `json:"maxFieldLength"`
+	MaxSteps                int            `json:"maxSteps"`
+	TimeBudgetSec           float64        `json:"timeBudgetSec"`
+	StepDelaySec            float64        `json:"stepDelaySec"`
+	Seed                    int64          `json:"seed"`
+	AIDKeyWeights           map[string]int `json:"aidKeyWeights"`
+	OutputFile              string         `json:"outputFile"`
+	MaxFieldLength          int            `json:"maxFieldLength"`
+	Hints                   []chaos.Hint   `json:"hints"`
+	ExcludeNoProgressEvents *bool          `json:"excludeNoProgressEvents"`
 }
 
 // ChaosStartHandler handles POST /chaos/start.
@@ -133,7 +138,19 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
 		}
+		if len(req.Hints) > 0 {
+			cfg.Hints = sanitizeChaosHints(req.Hints)
+		}
+		if req.ExcludeNoProgressEvents != nil {
+			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
+		}
 	}
+	if len(cfg.Hints) == 0 {
+		if savedHints, err := app.loadChaosHints(); err == nil && len(savedHints) > 0 {
+			cfg.Hints = savedHints
+		}
+	}
+	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 
 	// Reject if an engine is already running for this session.
 	if existing, ok := app.chaosEngines.get(s.ID); ok {
@@ -245,6 +262,23 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 		// Include loaded run info if present.
 		if loaded, ok2 := app.chaosEngines.getLoadedRun(s.ID); ok2 {
 			resp["loadedRunID"] = loaded.ID
+			if resp["stepsRun"] == 0 && loaded.StepsRun > 0 {
+				resp["stepsRun"] = loaded.StepsRun
+			}
+			if resp["transitions"] == 0 && loaded.Transitions > 0 {
+				resp["transitions"] = loaded.Transitions
+			}
+			if resp["uniqueScreens"] == 0 && loaded.UniqueScreens > 0 {
+				resp["uniqueScreens"] = loaded.UniqueScreens
+			}
+			if resp["uniqueInputs"] == 0 && loaded.UniqueInputs > 0 {
+				resp["uniqueInputs"] = loaded.UniqueInputs
+			}
+			if _, hasMindMap := resp["mindMap"]; !hasMindMap {
+				if mindMapJSON := chaosMindMapToJSON(loaded.MindMap); mindMapJSON != nil {
+					resp["mindMap"] = mindMapJSON
+				}
+			}
 		}
 		c.JSON(http.StatusOK, resp)
 		return
@@ -357,6 +391,7 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 				LoadedRunID:    st.LoadedRunID,
 				LastAttempt:    toSessionChaosAttempt(st.LastAttempt),
 				RecentAttempts: toSessionChaosAttempts(st.RecentAttempts),
+				MindMap:        marshalChaosMindMap(st.MindMap),
 				Error:          st.Error,
 			}
 		})
@@ -438,6 +473,54 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 		"transitions":   run.Transitions,
 		"uniqueScreens": run.UniqueScreens,
 		"uniqueInputs":  run.UniqueInputs,
+		"mindMap":       chaosMindMapToJSON(run.MindMap),
+	})
+}
+
+// ChaosLoadRecordingHandler handles POST /chaos/load-recording – seeds chaos
+// mode with the currently loaded recording.
+func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	if existing, ok := app.chaosEngines.get(s.ID); ok && existing.Status().Active {
+		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
+		return
+	}
+
+	var workflowPayload []byte
+	withSessionLock(s, func() {
+		if s.LoadedWorkflow != nil {
+			workflowPayload = append([]byte(nil), s.LoadedWorkflow.Payload...)
+		}
+	})
+	if len(workflowPayload) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no recording loaded; load a recording first"})
+		return
+	}
+
+	workflow, err := parseWorkflowPayload(workflowPayload)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("loaded recording is invalid: %v", err)})
+		return
+	}
+
+	run := chaosSeedRunFromWorkflow(workflow)
+	app.chaosEngines.clearRemoved(s.ID)
+	app.chaosEngines.setLoadedRun(s.ID, run)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":        "loaded",
+		"source":        "recording",
+		"runID":         run.ID,
+		"stepsSeeded":   len(run.Steps),
+		"stepsRun":      run.StepsRun,
+		"transitions":   run.Transitions,
+		"uniqueScreens": run.UniqueScreens,
+		"uniqueInputs":  run.UniqueInputs,
+		"mindMap":       chaosMindMapToJSON(run.MindMap),
 	})
 }
 
@@ -493,7 +576,19 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
 		}
+		if len(req.Hints) > 0 {
+			cfg.Hints = sanitizeChaosHints(req.Hints)
+		}
+		if req.ExcludeNoProgressEvents != nil {
+			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
+		}
 	}
+	if len(cfg.Hints) == 0 {
+		if savedHints, err := app.loadChaosHints(); err == nil && len(savedHints) > 0 {
+			cfg.Hints = savedHints
+		}
+	}
+	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 
 	var eng *chaos.Engine
 	withSessionLock(s, func() {
@@ -513,6 +608,278 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		"status":      "resumed",
 		"loadedRunID": loaded.ID,
 	})
+}
+
+type chaosHintsPayload struct {
+	Hints []chaos.Hint `json:"hints"`
+}
+
+type chaosHintsExtractResponse struct {
+	Source string       `json:"source"`
+	Hints  []chaos.Hint `json:"hints"`
+}
+
+// ChaosHintsGetHandler handles GET /chaos/hints – returns saved chaos hints.
+func (app *App) ChaosHintsGetHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	hints, err := app.loadChaosHints()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"hints": hints})
+}
+
+// ChaosHintsSaveHandler handles POST /chaos/hints – persists chaos hint data.
+func (app *App) ChaosHintsSaveHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var req chaosHintsPayload
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body"})
+		return
+	}
+	hints := sanitizeChaosHints(req.Hints)
+	if err := app.saveChaosHints(hints); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status": "saved",
+		"hints":  hints,
+	})
+}
+
+// ChaosHintsExtractHandler handles POST /chaos/hints/extract-recording.
+// It extracts hint candidates from a workflow recording, either uploaded
+// as multipart form file "workflow" or from the currently loaded recording
+// in session if no file is provided.
+func (app *App) ChaosHintsExtractHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+
+	workflow, source, err := app.workflowForHintExtraction(c, s)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	hints := extractChaosHintsFromWorkflow(workflow)
+	c.JSON(http.StatusOK, chaosHintsExtractResponse{
+		Source: source,
+		Hints:  hints,
+	})
+}
+
+func sanitizeChaosHints(hints []chaos.Hint) []chaos.Hint {
+	if len(hints) == 0 {
+		return []chaos.Hint{}
+	}
+	out := make([]chaos.Hint, 0, len(hints))
+	for _, hint := range hints {
+		tx := strings.TrimSpace(hint.Transaction)
+		known := make([]string, 0, len(hint.KnownData))
+		seenKnown := make(map[string]bool)
+		for _, raw := range hint.KnownData {
+			value := strings.TrimSpace(raw)
+			if value == "" || seenKnown[value] {
+				continue
+			}
+			known = append(known, value)
+			seenKnown[value] = true
+		}
+		if tx == "" && len(known) == 0 {
+			continue
+		}
+		out = append(out, chaos.Hint{
+			Transaction: tx,
+			KnownData:   known,
+		})
+	}
+	return out
+}
+
+func (app *App) workflowForHintExtraction(c *gin.Context, s *session.Session) (*WorkflowConfig, string, error) {
+	if c != nil && strings.EqualFold(c.ContentType(), "multipart/form-data") {
+		if _, err := c.FormFile("workflow"); err == nil {
+			upload, uploadErr := loadWorkflowUpload(c)
+			if uploadErr != nil {
+				return nil, "", fmt.Errorf("load recording failed: %w", uploadErr)
+			}
+			return upload.Config, "upload", nil
+		} else if !errors.Is(err, http.ErrMissingFile) {
+			return nil, "", fmt.Errorf("read upload failed: %w", err)
+		}
+	}
+	if s == nil {
+		return nil, "", fmt.Errorf("no recording loaded; upload a workflow or load a recording first")
+	}
+
+	var payload []byte
+	withSessionLock(s, func() {
+		if s.LoadedWorkflow != nil {
+			payload = append([]byte(nil), s.LoadedWorkflow.Payload...)
+		}
+	})
+	if len(payload) == 0 {
+		return nil, "", fmt.Errorf("no recording loaded; upload a workflow or load a recording first")
+	}
+
+	workflow, err := parseWorkflowPayload(payload)
+	if err != nil {
+		return nil, "", fmt.Errorf("loaded recording is invalid: %w", err)
+	}
+	return workflow, "loaded", nil
+}
+
+func extractChaosHintsFromWorkflow(workflow *WorkflowConfig) []chaos.Hint {
+	if workflow == nil || len(workflow.Steps) == 0 {
+		return []chaos.Hint{}
+	}
+
+	hints := make([]chaos.Hint, 0)
+	batch := make([]string, 0, 8)
+	flushBatch := func() {
+		if len(batch) == 0 {
+			return
+		}
+		hint := hintFromFillValues(batch)
+		if hint.Transaction != "" || len(hint.KnownData) > 0 {
+			hints = append(hints, hint)
+		}
+		batch = batch[:0]
+	}
+
+	for _, step := range workflow.Steps {
+		if strings.EqualFold(step.Type, "FillString") {
+			v := strings.TrimSpace(step.Text)
+			if v != "" {
+				batch = append(batch, v)
+			}
+			continue
+		}
+		flushBatch()
+	}
+	flushBatch()
+
+	return sanitizeChaosHints(hints)
+}
+
+func hintFromFillValues(values []string) chaos.Hint {
+	if len(values) == 0 {
+		return chaos.Hint{}
+	}
+	unique := make([]string, 0, len(values))
+	seen := make(map[string]bool)
+	for _, raw := range values {
+		v := strings.TrimSpace(raw)
+		if v == "" || seen[v] {
+			continue
+		}
+		unique = append(unique, v)
+		seen[v] = true
+	}
+	if len(unique) == 0 {
+		return chaos.Hint{}
+	}
+
+	tx := ""
+	known := make([]string, 0, len(unique))
+	for idx, v := range unique {
+		if tx == "" && idx < 2 && looksLikeTransactionCode(v) {
+			tx = strings.ToUpper(v)
+			continue
+		}
+		known = append(known, v)
+	}
+	if tx == "" && len(unique) == 1 && looksLikeTransactionCode(unique[0]) {
+		tx = strings.ToUpper(unique[0])
+		known = known[:0]
+	}
+
+	return chaos.Hint{
+		Transaction: tx,
+		KnownData:   known,
+	}
+}
+
+func looksLikeTransactionCode(value string) bool {
+	v := strings.TrimSpace(value)
+	if len(v) < 2 || len(v) > 12 {
+		return false
+	}
+	if strings.ContainsAny(v, " \t\r\n") {
+		return false
+	}
+
+	hasLetter := false
+	for _, r := range v {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			hasLetter = true
+		case r >= 'a' && r <= 'z':
+			hasLetter = true
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '/':
+		default:
+			return false
+		}
+	}
+	return hasLetter
+}
+
+func (app *App) loadChaosHints() ([]chaos.Hint, error) {
+	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
+		return []chaos.Hint{}, nil
+	}
+	app.chaosHintsMu.Lock()
+	defer app.chaosHintsMu.Unlock()
+	data, err := os.ReadFile(app.chaosHintsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []chaos.Hint{}, nil
+		}
+		return nil, fmt.Errorf("read chaos hints: %w", err)
+	}
+	var payload chaosHintsPayload
+	if err := json.Unmarshal(data, &payload); err == nil {
+		return sanitizeChaosHints(payload.Hints), nil
+	}
+	var hints []chaos.Hint
+	if err := json.Unmarshal(data, &hints); err != nil {
+		return nil, fmt.Errorf("parse chaos hints: %w", err)
+	}
+	return sanitizeChaosHints(hints), nil
+}
+
+func (app *App) saveChaosHints(hints []chaos.Hint) error {
+	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
+		return fmt.Errorf("chaos hints path not configured")
+	}
+	app.chaosHintsMu.Lock()
+	defer app.chaosHintsMu.Unlock()
+	if err := os.MkdirAll(filepath.Dir(app.chaosHintsPath), 0750); err != nil {
+		return fmt.Errorf("create chaos hints directory: %w", err)
+	}
+	payload := chaosHintsPayload{Hints: sanitizeChaosHints(hints)}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal chaos hints: %w", err)
+	}
+	if err := os.WriteFile(app.chaosHintsPath, data, 0600); err != nil {
+		return fmt.Errorf("write chaos hints: %w", err)
+	}
+	return nil
 }
 
 func chaosStatusToJSON(st chaos.Status) gin.H {
@@ -544,6 +911,9 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 			attempts = append(attempts, chaosAttemptToJSON(attempt))
 		}
 		resp["recentAttempts"] = attempts
+	}
+	if mindMapJSON := chaosMindMapToJSON(st.MindMap); mindMapJSON != nil {
+		resp["mindMap"] = mindMapJSON
 	}
 	if st.Error != "" {
 		resp["error"] = st.Error
@@ -584,10 +954,42 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 		}
 		resp["recentAttempts"] = attempts
 	}
+	if decoded := rawJSONToInterface(state.MindMap); decoded != nil {
+		resp["mindMap"] = decoded
+	}
 	if state.Error != "" {
 		resp["error"] = state.Error
 	}
 	return resp
+}
+
+func marshalChaosMindMap(mindMap *chaos.MindMap) json.RawMessage {
+	if mindMap == nil {
+		return nil
+	}
+	data, err := json.Marshal(mindMap)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	return json.RawMessage(data)
+}
+
+func chaosMindMapToJSON(mindMap *chaos.MindMap) interface{} {
+	if mindMap == nil {
+		return nil
+	}
+	return rawJSONToInterface(marshalChaosMindMap(mindMap))
+}
+
+func rawJSONToInterface(raw json.RawMessage) interface{} {
+	if len(raw) == 0 {
+		return nil
+	}
+	var decoded interface{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil
+	}
+	return decoded
 }
 
 func chaosAttemptToJSON(attempt chaos.Attempt) gin.H {
@@ -705,6 +1107,7 @@ func chaosStateSnapshot(s *session.Session) *session.ChaosState {
 			UniqueScreens: s.Chaos.UniqueScreens,
 			UniqueInputs:  s.Chaos.UniqueInputs,
 			LoadedRunID:   s.Chaos.LoadedRunID,
+			MindMap:       append(json.RawMessage(nil), s.Chaos.MindMap...),
 			Error:         s.Chaos.Error,
 		}
 		if len(s.Chaos.AIDKeyCounts) > 0 {
@@ -746,4 +1149,187 @@ func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowSt
 		Steps: steps,
 	}
 	return json.MarshalIndent(export, "", "  ")
+}
+
+func chaosSeedRunFromWorkflow(workflow *WorkflowConfig) *chaos.SavedRun {
+	steps := make([]session.WorkflowStep, 0)
+	if workflow != nil && len(workflow.Steps) > 0 {
+		steps = append(steps, workflow.Steps...)
+	}
+
+	uniqueInputs := make(map[string]bool)
+	for _, step := range steps {
+		if step.Type != "FillString" {
+			continue
+		}
+		text := strings.TrimSpace(step.Text)
+		if text == "" {
+			continue
+		}
+		uniqueInputs[text] = true
+	}
+	mindMap := buildChaosSeedMindMap(steps)
+
+	return &chaos.SavedRun{
+		SavedRunMeta: chaos.SavedRunMeta{
+			ID:           "recording-seed-" + chaos.NewRunID(),
+			StartedAt:    time.Now(),
+			StepsRun:     0,
+			Transitions:  0,
+			UniqueInputs: len(uniqueInputs),
+		},
+		ScreenHashes:      map[string]bool{},
+		TransitionList:    []chaos.Transition{},
+		Steps:             steps,
+		AIDKeyCounts:      map[string]int{},
+		UniqueInputValues: uniqueInputs,
+		Attempts:          []chaos.Attempt{},
+		MindMap:           mindMap,
+	}
+}
+
+func buildChaosSeedMindMap(steps []session.WorkflowStep) *chaos.MindMap {
+	mindMap := &chaos.MindMap{Areas: map[string]*chaos.MindMapArea{}}
+	if len(steps) == 0 {
+		return mindMap
+	}
+	now := time.Now().UTC()
+	areaSeq := 1
+	currentAreaID := fmt.Sprintf("recording:area-%d", areaSeq)
+	syntheticRow := 1
+	syntheticCol := 1
+
+	ensureArea := func(areaID string) *chaos.MindMapArea {
+		if existing, ok := mindMap.Areas[areaID]; ok && existing != nil {
+			if existing.Hash == "" {
+				existing.Hash = areaID
+			}
+			return existing
+		}
+		area := &chaos.MindMapArea{
+			Hash:               areaID,
+			Label:              fmt.Sprintf("Recording Area %d", areaSeq),
+			FirstSeen:          now,
+			LastSeen:           now,
+			FieldMetadata:      map[string]chaos.MindMapFieldMetadata{},
+			KnownWorkingValues: map[string][]string{},
+			KeyPresses:         map[string]*chaos.MindMapKeyPress{},
+		}
+		mindMap.Areas[areaID] = area
+		return area
+	}
+
+	appendUniqueLimited := func(values []string, candidate string, max int) []string {
+		for _, existing := range values {
+			if existing == candidate {
+				return values
+			}
+		}
+		if max > 0 && len(values) >= max {
+			return values
+		}
+		return append(values, candidate)
+	}
+
+	for _, step := range steps {
+		stepType := strings.TrimSpace(step.Type)
+		if stepType == "" || strings.EqualFold(stepType, "Connect") || strings.EqualFold(stepType, "Disconnect") {
+			continue
+		}
+		area := ensureArea(currentAreaID)
+		area.Visits++
+		area.LastSeen = now
+
+		if strings.EqualFold(stepType, "FillString") {
+			text := strings.TrimSpace(step.Text)
+			if text == "" {
+				continue
+			}
+			row := syntheticRow
+			col := syntheticCol
+			length := len([]rune(text))
+			if step.Coordinates != nil {
+				if step.Coordinates.Row > 0 {
+					row = step.Coordinates.Row
+				}
+				if step.Coordinates.Column > 0 {
+					col = step.Coordinates.Column
+				}
+				if step.Coordinates.Length > 0 {
+					length = step.Coordinates.Length
+				}
+			}
+			if length <= 0 {
+				length = 1
+			}
+			fieldKey := fmt.Sprintf("R%dC%dL%d", row, col, length)
+			area.FieldMetadata[fieldKey] = chaos.MindMapFieldMetadata{
+				Row:    row,
+				Column: col,
+				Length: length,
+			}
+			area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], text, 12)
+			area.InputFieldCount = len(area.FieldMetadata)
+			syntheticRow++
+			if syntheticRow > 24 {
+				syntheticRow = 1
+				syntheticCol++
+			}
+			continue
+		}
+
+		aidKey, ok := workflowKeyForStepType(stepType)
+		if !ok {
+			aidKey = stepType
+		}
+		if strings.TrimSpace(aidKey) == "" {
+			continue
+		}
+		keyPress := area.KeyPresses[aidKey]
+		if keyPress == nil {
+			keyPress = &chaos.MindMapKeyPress{Destinations: map[string]int{}}
+			area.KeyPresses[aidKey] = keyPress
+		}
+		keyPress.Presses++
+		keyPress.Progressions++
+		keyPress.LastUsedAt = now
+
+		areaSeq++
+		nextAreaID := fmt.Sprintf("recording:area-%d", areaSeq)
+		keyPress.Destinations[nextAreaID]++
+		currentAreaID = nextAreaID
+		_ = ensureArea(currentAreaID)
+	}
+
+	return mindMap
+}
+
+func safeChaosOutputFilePath(outputPath, loadedWorkflowFileName string) string {
+	outputPath = strings.TrimSpace(outputPath)
+	loadedWorkflowFileName = strings.TrimSpace(loadedWorkflowFileName)
+	if outputPath == "" || loadedWorkflowFileName == "" {
+		return outputPath
+	}
+
+	outputBase := filepath.Base(filepath.Clean(outputPath))
+	workflowBase := filepath.Base(filepath.Clean(loadedWorkflowFileName))
+	if outputBase == "" || workflowBase == "" {
+		return outputPath
+	}
+	if !strings.EqualFold(outputBase, workflowBase) {
+		return outputPath
+	}
+
+	ext := filepath.Ext(outputBase)
+	stem := strings.TrimSuffix(outputBase, ext)
+	if strings.HasSuffix(strings.ToLower(stem), "-chaos") {
+		return outputPath
+	}
+	if stem == "" {
+		stem = "chaos-workflow"
+	}
+	if ext == "" {
+		ext = ".json"
+	}
+	return filepath.Join(filepath.Dir(outputPath), stem+"-chaos"+ext)
 }

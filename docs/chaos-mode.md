@@ -47,6 +47,32 @@ You can reuse previous chaos results:
 3. Optional: click **Resume chaos exploration from loaded run** to continue discovery.
 4. Export JSON again when done.
 
+You can also seed chaos mode directly from a loaded recording:
+
+1. Load a recording in the recording section.
+2. Click **Load recording into chaos** in the chaos toolbar section.
+3. Start or resume chaos exploration.
+
+When chaos output is saved, its filename is kept separate from the loaded recording filename to avoid overwriting the recording JSON.
+
+## Chaos Hints
+
+Chaos Hints let you guide generated input values during exploration.
+
+1. Click **Edit chaos hints** in the chaos toolbar.
+2. Add hint rows with:
+   - `Transaction` values (for example, known transaction codes), and/or
+   - `Known data` values (comma or newline separated).
+3. Optional: click **Load from recording** to import hint candidates from a previous recording JSON.
+4. Click **Save hints** to persist them.
+5. Use **Load saved** to reload persisted hints into the modal.
+
+Notes:
+
+- Hints are saved to `chaos-hints.json`.
+- Saved hints are automatically applied when starting or resuming chaos if request-level hints are not explicitly supplied.
+- Transaction hints are preferred for early field writes, while known data values are reused across fields when they fit field constraints.
+
 ## Chaos Settings
 
 Chaos behavior is configurable in **Settings -> Chaos**:
@@ -57,5 +83,6 @@ Chaos behavior is configurable in **Settings -> Chaos**:
 - Random seed
 - Max field length
 - Optional output file path
+- Exclude no-progress events (default on)
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.

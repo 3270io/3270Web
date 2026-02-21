@@ -2,6 +2,12 @@
 
 3270Web is a browser-based IBM 3270 terminal client.
 
+## Quick Start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tunlxio/tunlx/main/install.sh | bash
+```
+
 This guide focuses on daily use:
 
 - Connect to a host
@@ -10,7 +16,7 @@ This guide focuses on daily use:
 - Run chaos exploration and export generated workflow JSON
 - Configure settings from the UI
 
-## Quick Start
+## First Session
 
 1. Open 3270Web in your browser.
 2. Connect to your target TN3270 host.
