@@ -775,7 +775,12 @@ func (e *Engine) generateValue(f *host.Field) string {
 		return string(b)
 	}
 
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 "
+	// 3270 mainframe applications predominantly use uppercase input for
+	// commands, transaction codes and data.  Generating only uppercase
+	// characters and digits (plus a single space) makes random values far
+	// more likely to match valid application inputs, improving the chance
+	// that each submission causes a meaningful screen transition.
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 	b := make([]byte, length)
 	for i := range b {
 		b[i] = chars[e.rng.Intn(len(chars))]
@@ -853,12 +858,23 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 // (e.g. via Tab) without changing the logical screen, so including it would
 // cause the same screen to appear as many different "areas" in the MindMap and
 // make Tab key presses register as false screen transitions.
+//
+// Field positions and attribute codes are included so that two screens with
+// identical text but different field layouts (e.g. one has a numeric field
+// where the other has an alphanumeric field, or fields at different row/column
+// offsets) are correctly identified as distinct screens.
 func hashScreen(s *host.Screen) string {
 	if s == nil {
 		return ""
 	}
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%d", s.Text(), len(s.Fields))
+	for _, f := range s.Fields {
+		if f == nil {
+			continue
+		}
+		fmt.Fprintf(h, "|%d,%d,%d,%d,%d", f.StartY, f.StartX, f.EndY, f.EndX, f.FieldCode)
+	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 

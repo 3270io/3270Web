@@ -283,7 +283,9 @@ func appendUniqueLimited(values []string, candidate string, max int) []string {
 		}
 	}
 	if max > 0 && len(values) >= max {
-		return values
+		// Evict the oldest entry so the engine continues to learn new working
+		// values rather than silently dropping them once the cap is reached.
+		values = values[1:]
 	}
 	return append(values, candidate)
 }
