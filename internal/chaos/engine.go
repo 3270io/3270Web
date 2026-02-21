@@ -159,7 +159,12 @@ func (e *Engine) Stop() {
 	if !e.active {
 		return
 	}
-	close(e.stopCh)
+	select {
+	case <-e.stopCh:
+		// already closed
+	default:
+		close(e.stopCh)
+	}
 }
 
 // Status returns a snapshot of the current engine state.
@@ -301,6 +306,9 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	}
 	if !e.h.IsConnected() {
 		return fmt.Errorf("not connected to host")
+	}
+	if saved == nil {
+		return fmt.Errorf("saved run is required")
 	}
 
 	// Seed state from the saved run.

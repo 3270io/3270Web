@@ -549,6 +549,10 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no run loaded; call POST /chaos/load first"})
 		return
 	}
+	if loaded == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "loaded run is invalid; load a run again"})
+		return
+	}
 
 	// Reject if an engine is already running for this session.
 	if existing, ok2 := app.chaosEngines.get(s.ID); ok2 && existing.Status().Active {

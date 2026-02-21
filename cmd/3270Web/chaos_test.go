@@ -1175,6 +1175,29 @@ func TestChaosResume_WithoutLoad(t *testing.T) {
 	}
 }
 
+func TestChaosResume_InvalidLoadedRun(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+	app.chaosEngines.setLoadedRun(sessID, nil)
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/resume", nil, sessID)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("resume with invalid loaded run: want 400, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("resume response not valid JSON: %v", err)
+	}
+	if got, _ := resp["error"].(string); got != "loaded run is invalid; load a run again" {
+		t.Errorf("resume error = %q, want %q", got, "loaded run is invalid; load a run again")
+	}
+}
+
 func TestChaosRemove_AfterCompletion(t *testing.T) {
 	mockHost, err := host.NewMockHost("")
 	if err != nil {
