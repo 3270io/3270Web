@@ -598,6 +598,49 @@ func TestSnapshotAndResume(t *testing.T) {
 	}
 }
 
+func TestResumeNilSavedRun(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
+
+	e := New(h, DefaultConfig())
+	if err := e.Resume(nil); err == nil {
+		t.Fatal("Resume(nil) should return an error")
+	}
+}
+
+func TestStopIsIdempotent(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 0
+	cfg.StepDelay = 100 * time.Millisecond
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	e.Stop()
+	e.Stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("engine should stop after Stop()")
+}
+
 func TestPersistenceRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 
