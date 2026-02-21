@@ -13,32 +13,10 @@ import (
 )
 
 func resolveS3270Path(execPath string) string {
-	if runtime.GOOS == "windows" {
-		if execPath != "" {
-			candidate := execPath
-			if info, err := os.Stat(candidate); err == nil {
-				if info.IsDir() {
-					candidate = filepath.Join(candidate, s3270BinaryName())
-				}
-				if fileExists(candidate) {
-					return candidate
-				}
-			}
-		}
+	execPath = strings.TrimSpace(execPath)
 
-		local := filepath.Join(".", "s3270-bin", s3270BinaryName())
-		if fileExists(local) {
-			return local
-		}
-
-		// Embedded binary is Windows-only (s3270.exe); other platforms must use system s3270.
-		if embedded, err := assets.ExtractS3270(); err == nil {
-			return embedded
-		}
-	}
-
-	if execPath != "" && execPath != "/usr/local/bin" {
-		return filepath.Join(execPath, s3270BinaryName())
+	if configured := resolveConfiguredS3270(execPath); configured != "" {
+		return configured
 	}
 
 	local := filepath.Join(".", "s3270-bin", s3270BinaryName())
@@ -46,11 +24,37 @@ func resolveS3270Path(execPath string) string {
 		return local
 	}
 
+	if embedded, err := assets.ExtractS3270(); err == nil {
+		return embedded
+	}
+
 	if path, err := exec.LookPath(s3270BinaryName()); err == nil {
 		return path
 	}
 
+	if execPath != "" {
+		return filepath.Join(execPath, s3270BinaryName())
+	}
+
 	return filepath.Join("/usr/local/bin", "s3270")
+}
+
+func resolveConfiguredS3270(execPath string) string {
+	if execPath == "" {
+		return ""
+	}
+
+	candidate := execPath
+	if info, err := os.Stat(execPath); err == nil && info.IsDir() {
+		candidate = filepath.Join(execPath, s3270BinaryName())
+	}
+	if fileExists(candidate) {
+		return candidate
+	}
+	if path, err := exec.LookPath(execPath); err == nil {
+		return path
+	}
+	return ""
 }
 
 func s3270BinaryName() string {
