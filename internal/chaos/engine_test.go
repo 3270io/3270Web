@@ -721,3 +721,117 @@ func TestListRuns_NonExistentDir(t *testing.T) {
 		t.Errorf("expected nil slice for non-existent dir, got %v", metas)
 	}
 }
+
+// TestChooseAIDKeyBoosted_Determinism verifies that chooseAIDKeyBoosted
+// produces the same sequence for the same seed, even when boosts are applied.
+func TestChooseAIDKeyBoosted_Determinism(t *testing.T) {
+	cfg := DefaultConfig()
+	boosts := map[string]int{"PF(1)": 100}
+
+	makeSequence := func(seed int64, n int) []string {
+		e := New(nil, cfg)
+		e.cfg.Seed = seed
+		e.rng = rand.New(rand.NewSource(seed)) //nolint:gosec
+		seq := make([]string, n)
+		for i := range seq {
+			seq[i] = e.chooseAIDKeyBoosted(boosts)
+		}
+		return seq
+	}
+
+	s1 := makeSequence(42, 20)
+	s2 := makeSequence(42, 20)
+	for i := range s1 {
+		if s1[i] != s2[i] {
+			t.Fatalf("chooseAIDKeyBoosted not deterministic: position %d: %q vs %q", i, s1[i], s2[i])
+		}
+	}
+
+	// With a large boost on PF(1) it should be chosen more than Enter.
+	counts := make(map[string]int)
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(7)) //nolint:gosec
+	for i := 0; i < 500; i++ {
+		counts[e.chooseAIDKeyBoosted(boosts)]++
+	}
+	// PF(1) base weight=5, boost=100 → effective 105. Enter has weight=70.
+	// PF(1) should be chosen more often than Enter.
+	if counts["PF(1)"] <= counts["Enter"] {
+		t.Errorf("boosted PF(1) (%d) should exceed Enter (%d) with boost=100", counts["PF(1)"], counts["Enter"])
+	}
+}
+
+// TestGenerateValueForFieldWith_PrefersKnownValues verifies that known working
+// values supplied via knownValues are preferred over random generation.
+func TestGenerateValueForFieldWith_PrefersKnownValues(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 0, 0, 7, 0, 0, 0) // col 0-7, length 8
+
+	cfg := DefaultConfig()
+	cfg.MaxFieldLength = 10
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(3)) //nolint:gosec
+
+	// The engine converts 0-based field coordinates to 1-based when computing
+	// the MindMap key (StartY+1, StartX+1), so a field at (row=0,col=0,len=8)
+	// is keyed as "R1C1L8".
+	knownValues := map[string][]string{
+		mindMapFieldKey(1, 1, 8): {"SIGNONX"},
+	}
+
+	hitKnown := 0
+	const tries = 50
+	for i := 0; i < tries; i++ {
+		v := e.generateValueForFieldWith(f, false, knownValues)
+		if v == "SIGNONX" {
+			hitKnown++
+		}
+	}
+	// Expect the known value to be returned ≥ 80% × 50 = 40 times.
+	if hitKnown < 35 {
+		t.Errorf("known value used %d/%d times, want ≥35 (80%% rate)", hitKnown, tries)
+	}
+}
+
+// TestSnapshotAreaValuesLocked verifies that snapshotAreaValuesLocked returns
+// a deep copy of the known working values for a given screen hash.
+func TestSnapshotAreaValuesLocked(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("aabbccdd")
+	area.KnownWorkingValues["R1C1L4"] = []string{"CEMT", "CICS"}
+
+	snap := e.snapshotAreaValuesLocked("aabbccdd")
+	if snap == nil {
+		t.Fatal("snapshotAreaValuesLocked returned nil for populated area")
+	}
+	if len(snap["R1C1L4"]) != 2 {
+		t.Fatalf("snapshot values len = %d, want 2", len(snap["R1C1L4"]))
+	}
+	// Mutating the snapshot must not affect the MindMap.
+	snap["R1C1L4"][0] = "MODIFIED"
+	if area.KnownWorkingValues["R1C1L4"][0] != "CEMT" {
+		t.Error("snapshot mutation leaked into MindMap")
+	}
+}
+
+// TestSnapshotKeyBoostsLocked verifies that snapshotKeyBoostsLocked scales
+// boosts proportionally to observed progressions.
+func TestSnapshotKeyBoostsLocked(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("hash1")
+	area.KeyPresses["Enter"] = &MindMapKeyPress{Presses: 5, Progressions: 3}
+	area.KeyPresses["PF(3)"] = &MindMapKeyPress{Presses: 2, Progressions: 0}
+
+	boosts := e.snapshotKeyBoostsLocked("hash1")
+	if boosts == nil {
+		t.Fatal("snapshotKeyBoostsLocked returned nil when progressions exist")
+	}
+	if boosts["Enter"] != 30 {
+		t.Errorf("Enter boost = %d, want 30 (3 progressions × 10)", boosts["Enter"])
+	}
+	if _, ok := boosts["PF(3)"]; ok {
+		t.Error("PF(3) should not appear in boosts when progressions = 0")
+	}
+}

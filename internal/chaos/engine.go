@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -422,8 +423,16 @@ func (e *Engine) run() {
 		fields := unprotectedFields(screen)
 		attempt.FieldsTargeted = len(fields)
 
+		// Snapshot learned data for this screen area under a brief lock so that
+		// field writes (which may block on I/O) don't race with the recording
+		// code that also holds the lock.
+		e.mu.Lock()
+		knownValues := e.snapshotAreaValuesLocked(currentHash)
+		keyBoosts := e.snapshotKeyBoostsLocked(currentHash)
+		e.mu.Unlock()
+
 		for idx, f := range fields {
-			value := e.generateValueForField(f, idx == 0)
+			value := e.generateValueForFieldWith(f, idx == 0, knownValues)
 			if value == "" {
 				continue
 			}
@@ -452,8 +461,9 @@ func (e *Engine) run() {
 			})
 		}
 
-		// Choose and send an AID key.
-		aidKey := e.chooseAIDKey()
+		// Choose and send an AID key (adaptive: prefer keys that previously
+		// caused screen transitions from the current area).
+		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
 		attempt.AIDKey = aidKey
 		if err := e.h.SendKey(aidKey); err != nil {
 			attempt.Error = err.Error()
@@ -550,6 +560,47 @@ func (e *Engine) appendAttemptLocked(attempt Attempt) {
 	}
 }
 
+// snapshotAreaValuesLocked returns a copy of the KnownWorkingValues for the
+// given screen hash.  Must be called with e.mu held.
+func (e *Engine) snapshotAreaValuesLocked(hash string) map[string][]string {
+	if e.mindMap == nil || hash == "" {
+		return nil
+	}
+	area, ok := e.mindMap.Areas[hash]
+	if !ok || area == nil || len(area.KnownWorkingValues) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(area.KnownWorkingValues))
+	for k, vs := range area.KnownWorkingValues {
+		out[k] = append([]string(nil), vs...)
+	}
+	return out
+}
+
+// snapshotKeyBoostsLocked returns a map of AID key → boost amount derived
+// from the number of times each key has caused a screen transition from the
+// given area.  Must be called with e.mu held.
+func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
+	if e.mindMap == nil || hash == "" {
+		return nil
+	}
+	area, ok := e.mindMap.Areas[hash]
+	if !ok || area == nil || len(area.KeyPresses) == 0 {
+		return nil
+	}
+	boosts := make(map[string]int, len(area.KeyPresses))
+	for key, kp := range area.KeyPresses {
+		if kp == nil || kp.Progressions == 0 {
+			continue
+		}
+		boosts[key] += kp.Progressions * 10
+	}
+	if len(boosts) == 0 {
+		return nil
+	}
+	return boosts
+}
+
 func filterProgressAttempts(attempts []Attempt) []Attempt {
 	if len(attempts) == 0 {
 		return attempts
@@ -591,9 +642,38 @@ func normalizeHints(hints []Hint) ([]string, []string) {
 }
 
 func (e *Engine) generateValueForField(f *host.Field, preferTransaction bool) string {
+	return e.generateValueForFieldWith(f, preferTransaction, nil)
+}
+
+// generateValueForFieldWith extends generateValueForField with optional
+// per-screen known-working values learned from previous transitions. Callers
+// that hold the engine lock must snapshot area values before calling; this
+// function must not touch e.mindMap directly.
+func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool, knownValues map[string][]string) string {
+	// 1. Prefer values already known to work on this screen / field position.
+	if len(knownValues) > 0 {
+		row := f.StartY + 1
+		col := f.StartX + 1
+		length := fieldLength(f)
+		if length > 0 {
+			key := mindMapFieldKey(row, col, length)
+			if values, ok := knownValues[key]; ok && len(values) > 0 {
+				// Use a known working value 80 % of the time so that the engine
+				// still occasionally explores new inputs rather than repeating.
+				if e.rng.Intn(100) < 80 {
+					candidate := values[e.rng.Intn(len(values))]
+					if v := fitHintValueForField(candidate, length, f.IsNumeric()); v != "" {
+						return v
+					}
+				}
+			}
+		}
+	}
+	// 2. Fall back to user-supplied hints.
 	if hinted := e.hintValueForField(f, preferTransaction); hinted != "" {
 		return hinted
 	}
+	// 3. Generate a random value appropriate for the field type.
 	return e.generateValue(f)
 }
 
@@ -690,14 +770,43 @@ func (e *Engine) generateValue(f *host.Field) string {
 
 // chooseAIDKey selects an AID key using the configured weights.
 func (e *Engine) chooseAIDKey() string {
+	return e.chooseAIDKeyBoosted(nil)
+}
+
+// chooseAIDKeyBoosted selects an AID key using the configured weights plus
+// any extra boosts supplied by the caller (e.g. derived from MindMap
+// transition statistics for the current screen area).  Keys are sorted before
+// sampling so that results are deterministic for a given RNG seed.
+func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 	weights := e.cfg.AIDKeyWeights
 	if len(weights) == 0 {
 		return "Enter"
 	}
 
+	// Merge configured weights with any caller-supplied boosts.
+	var effective map[string]int
+	if len(boosts) == 0 {
+		effective = weights
+	} else {
+		effective = make(map[string]int, len(weights)+len(boosts))
+		for k, w := range weights {
+			effective[k] = w
+		}
+		for k, b := range boosts {
+			effective[k] += b
+		}
+	}
+
+	// Sort keys so that the weighted pick is deterministic for a given seed.
+	keys := make([]string, 0, len(effective))
+	for k := range effective {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	total := 0
-	for _, w := range weights {
-		total += w
+	for _, k := range keys {
+		total += effective[k]
 	}
 	if total <= 0 {
 		return "Enter"
@@ -705,10 +814,10 @@ func (e *Engine) chooseAIDKey() string {
 
 	pick := e.rng.Intn(total)
 	cum := 0
-	for key, w := range weights {
-		cum += w
+	for _, k := range keys {
+		cum += effective[k]
 		if pick < cum {
-			return key
+			return k
 		}
 	}
 	return "Enter"
