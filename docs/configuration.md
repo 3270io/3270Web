@@ -129,6 +129,21 @@ Includes:
 
 Use this section to control log visibility and default keyboard UI behavior.
 
+### Chaos
+
+Controls chaos exploration defaults.
+
+Includes:
+
+- `CHAOS_MAX_STEPS`
+- `CHAOS_TIME_BUDGET_SEC`
+- `CHAOS_STEP_DELAY_SEC`
+- `CHAOS_SEED`
+- `CHAOS_MAX_FIELD_LENGTH`
+- `CHAOS_OUTPUT_FILE`
+
+Use this section to tune how aggressively chaos mode explores screens and where optional output should be written.
+
 ## Log Access
 
 If log access is enabled in settings, you can open the Logs modal from the toolbar and:

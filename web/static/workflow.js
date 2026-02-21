@@ -181,6 +181,7 @@
 
   const placeholderText = 'Playback has not started yet.';
   let lastActive = body.dataset.playbackActive === 'true';
+  let lastChaosActive = false;
   let lastPaused = body.dataset.playbackPaused === 'true';
   let lastPayload = null;
   const trackingEnabledKey = 'workflowStatusTrackingEnabled';
@@ -216,6 +217,8 @@
     }
     const active = !!payload.playbackActive;
     const paused = !!payload.playbackPaused;
+    const chaosActive = !!payload.chaosActive;
+    const chaosHasProgress = chaosActive || (Number(payload.chaosStepsRun || 0) > 0);
     const completed = !!payload.playbackCompleted && !active;
     const mode = payload.playbackMode || '';
     const debugMode = mode === 'debug';
@@ -225,7 +228,7 @@
     setHidden(playbackComplete, !completed);
     setHidden(playbackDebugControls, !(active && debugMode));
     setHidden(playbackPlayControls, !(active && !debugMode));
-    setHidden(playbackStepContainer, !(payload.playbackStep > 0));
+    setHidden(playbackStepContainer, !((payload.playbackStep > 0) || chaosHasProgress));
 
     if (playbackStatusText) {
       playbackStatusText.textContent = debugMode ? 'DEBUG' : paused ? 'PAUSE' : 'PLAY';
@@ -273,23 +276,47 @@
       .join('');
   };
 
+  const formatStoppedAt = (value) => {
+    if (!value) {
+      return '';
+    }
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) {
+      return '';
+    }
+    return dt.toLocaleTimeString();
+  };
+
   const updateWorkflowStatus = (payload) => {
     if (!payload) {
       return;
     }
     lastPayload = payload;
     lastActive = !!payload.playbackActive;
+    lastChaosActive = !!payload.chaosActive;
     lastPaused = !!payload.playbackPaused;
     body.dataset.playbackActive = lastActive ? 'true' : 'false';
     body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
+    body.dataset.chaosActive = lastChaosActive ? 'true' : 'false';
     updatePlaybackControls(payload);
     if (!trackingEnabled) {
       return;
     }
-    const hasStep = typeof payload.playbackStep === 'number' && payload.playbackStep > 0;
+    const hasPlaybackStep = typeof payload.playbackStep === 'number' && payload.playbackStep > 0;
+    const chaosActive = !!payload.chaosActive;
+    const chaosStepsRun = Number(payload.chaosStepsRun || 0);
+    const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
+    const chaosHasData = chaosActive || chaosStepsRun > 0;
+    const chaosLastAttempt = payload.chaosLastAttempt || null;
+
     let stepLabel = payload.playbackStepLabel || '';
-    if (!stepLabel && hasStep) {
+    let typeText = payload.playbackStepType ? `Type: ${payload.playbackStepType}` : '';
+    let rangeText = payload.playbackDelayRange ? `Delay range: ${payload.playbackDelayRange}` : '';
+    let appliedText = payload.playbackDelayApplied ? `Applied delay: ${payload.playbackDelayApplied}` : '';
+    let eventsHtml = renderEvents(payload.playbackEvents);
+
+    if (!stepLabel && hasPlaybackStep) {
       stepLabel = `Step ${payload.playbackStep}`;
       if (payload.playbackStepTotal && payload.playbackStepTotal > 0) {
         stepLabel = `${stepLabel}/${payload.playbackStepTotal}`;
@@ -298,16 +325,50 @@
         stepLabel = `${stepLabel}: ${payload.playbackStepType}`;
       }
     }
-    if (!hasStep) {
-      stepLabel = placeholderText;
+
+    if (!hasPlaybackStep && chaosHasData) {
+      stepLabel =
+        payload.chaosStepLabel ||
+        (chaosCompleted
+          ? `Chaos completed after ${chaosStepsRun} attempts`
+          : `Chaos attempt ${chaosStepsRun}`);
+      if (chaosCompleted) {
+        const stoppedAt = formatStoppedAt(payload.chaosStoppedAt);
+        typeText = stoppedAt ? `Status: Complete at ${stoppedAt}` : 'Status: Complete';
+      } else if (chaosLastAttempt && chaosLastAttempt.aidKey) {
+        typeText = `AID: ${chaosLastAttempt.aidKey}`;
+      } else {
+        typeText = '';
+      }
+      if (chaosLastAttempt) {
+        rangeText = `Writes: ${chaosLastAttempt.fieldsWritten || 0}/${chaosLastAttempt.fieldsTargeted || 0}`;
+        const fromHash = chaosLastAttempt.fromHash || '';
+        const toHash = chaosLastAttempt.toHash || '';
+        if (chaosLastAttempt.error) {
+          appliedText = `Error: ${chaosLastAttempt.error}`;
+        } else if (fromHash || toHash) {
+          appliedText = `Screen: ${fromHash || 'n/a'} -> ${toHash || 'n/a'}`;
+        } else {
+          appliedText = `Transitioned: ${chaosLastAttempt.transitioned ? 'yes' : 'no'}`;
+        }
+      } else {
+        rangeText = '';
+        appliedText = payload.chaosError ? `Error: ${payload.chaosError}` : '';
+      }
+      eventsHtml = renderEvents(payload.chaosEvents);
     }
+
+    if (!hasPlaybackStep && !chaosHasData) {
+      stepLabel = placeholderText;
+      typeText = '';
+      rangeText = '';
+      appliedText = '';
+      eventsHtml = renderEvents(payload.playbackEvents);
+    }
+
     statusIndicators.forEach((indicator) => {
       indicator.textContent = stepLabel;
     });
-    const typeText = payload.playbackStepType ? `Type: ${payload.playbackStepType}` : '';
-    const rangeText = payload.playbackDelayRange ? `Delay range: ${payload.playbackDelayRange}` : '';
-    const appliedText = payload.playbackDelayApplied ? `Applied delay: ${payload.playbackDelayApplied}` : '';
-    const eventsHtml = renderEvents(payload.playbackEvents);
     const applyLines = (target) => {
       if (!target) {
         return;
@@ -317,15 +378,15 @@
       }
       if (target.type) {
         target.type.textContent = typeText;
-        target.type.hidden = !payload.playbackStepType;
+        target.type.hidden = !typeText;
       }
       if (target.delayRange) {
         target.delayRange.textContent = rangeText;
-        target.delayRange.hidden = !payload.playbackDelayRange;
+        target.delayRange.hidden = !rangeText;
       }
       if (target.delayApplied) {
         target.delayApplied.textContent = appliedText;
-        target.delayApplied.hidden = !payload.playbackDelayApplied;
+        target.delayApplied.hidden = !appliedText;
       }
       if (target.events) {
         target.events.innerHTML = eventsHtml;
@@ -334,8 +395,9 @@
 
     applyLines(widgetLines);
     const shouldAutoScroll =
-      payload.playbackActive && !payload.playbackPaused && !payload.playbackCompleted;
-    if (shouldAutoScroll && widgetLines && widgetLines.events && payload.playbackEvents && payload.playbackEvents.length > 0) {
+      (payload.playbackActive && !payload.playbackPaused && !payload.playbackCompleted) || payload.chaosActive;
+    const eventSource = (!hasPlaybackStep && chaosHasData) ? payload.chaosEvents : payload.playbackEvents;
+    if (shouldAutoScroll && widgetLines && widgetLines.events && Array.isArray(eventSource) && eventSource.length > 0) {
       if (statusWidget && statusWidget.classList.contains('is-minimized')) {
         return;
       }
@@ -646,14 +708,15 @@
         }
         const isActive = payload && payload.playbackActive;
         const isPaused = payload && payload.playbackPaused;
+        const chaosActive = payload && payload.chaosActive;
         const container = document.querySelector('.screen-container');
-        if (isActive && !isPaused) {
+        if ((isActive && !isPaused) || chaosActive) {
           return updateScreenContent(container, { force: true }).then(() => true);
         }
         return false;
       })
       .finally(() => {
-        const delay = lastActive ? playbackFastMs : playbackSlowMs;
+        const delay = (lastActive || lastChaosActive) ? playbackFastMs : playbackSlowMs;
         playbackPollTimer = window.setTimeout(pollPlayback, delay);
       });
   };

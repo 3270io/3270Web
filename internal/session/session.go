@@ -103,16 +103,42 @@ type LoadedWorkflow struct {
 // layer; this struct carries only the observable fields needed by API
 // handlers.
 type ChaosState struct {
-	Active        bool
-	StepsRun      int
-	StartedAt     time.Time
-	StoppedAt     time.Time
-	Transitions   int
-	UniqueScreens int
-	UniqueInputs  int
-	AIDKeyCounts  map[string]int
-	LoadedRunID   string
-	Error         string
+	Active         bool
+	StepsRun       int
+	StartedAt      time.Time
+	StoppedAt      time.Time
+	Transitions    int
+	UniqueScreens  int
+	UniqueInputs   int
+	AIDKeyCounts   map[string]int
+	LoadedRunID    string
+	LastAttempt    *ChaosAttempt
+	RecentAttempts []ChaosAttempt
+	Error          string
+}
+
+// ChaosFieldWrite captures one field write operation attempted in a chaos step.
+type ChaosFieldWrite struct {
+	Row     int
+	Column  int
+	Length  int
+	Value   string
+	Success bool
+	Error   string
+}
+
+// ChaosAttempt captures granular details for one chaos exploration step.
+type ChaosAttempt struct {
+	Attempt        int
+	Time           time.Time
+	FromHash       string
+	ToHash         string
+	AIDKey         string
+	FieldsTargeted int
+	FieldsWritten  int
+	Transitioned   bool
+	Error          string
+	FieldWrites    []ChaosFieldWrite
 }
 
 // Manager manages sessions.

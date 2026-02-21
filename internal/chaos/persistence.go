@@ -30,11 +30,12 @@ type SavedRunMeta struct {
 // compatible with the existing workflow export format.
 type SavedRun struct {
 	SavedRunMeta
-	ScreenHashes      map[string]bool         `json:"screenHashes"`
-	TransitionList    []Transition            `json:"transitionList"`
-	Steps             []session.WorkflowStep  `json:"steps"`
-	AIDKeyCounts      map[string]int          `json:"aidKeyCounts"`
-	UniqueInputValues map[string]bool         `json:"uniqueInputValues,omitempty"`
+	ScreenHashes      map[string]bool        `json:"screenHashes"`
+	TransitionList    []Transition           `json:"transitionList"`
+	Steps             []session.WorkflowStep `json:"steps"`
+	AIDKeyCounts      map[string]int         `json:"aidKeyCounts"`
+	UniqueInputValues map[string]bool        `json:"uniqueInputValues,omitempty"`
+	Attempts          []Attempt              `json:"attempts,omitempty"`
 }
 
 // runFileName returns the file name for a given run ID.

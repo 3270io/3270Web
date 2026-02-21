@@ -102,3 +102,13 @@ Common action types:
 - Confirm screen layout and field coordinates still match host screens.
 - Add delays for timing-sensitive screens.
 - Use Debug mode to find the first failing step.
+
+## Related: Chaos Exploration
+
+Use Chaos mode when you need to discover unknown screen paths or generate new workflow steps automatically.
+
+- Start/stop chaos from the toolbar
+- Review granular attempt status in the Workflow Status widget
+- Export the generated JSON and load it back as a standard workflow
+
+See [Chaos Mode](chaos-mode.md) for full details.

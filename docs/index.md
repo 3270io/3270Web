@@ -7,6 +7,7 @@ This guide focuses on daily use:
 - Connect to a host
 - Use terminal controls and keyboard shortcuts
 - Record, load, play, and debug workflows
+- Run chaos exploration and export generated workflow JSON
 - Configure settings from the UI
 
 ## Quick Start
@@ -20,5 +21,6 @@ This guide focuses on daily use:
 
 - [Connect and Use 3270Web](configuration.md)
 - [Recordings and Playback](workflow.md)
+- [Chaos Mode](chaos-mode.md)
 - [Keyboard and Controls](keyboard-and-controls.md)
 - [Screen Size and Model Guide](terminal-model-limits.md)

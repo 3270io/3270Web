@@ -80,7 +80,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.1.2"
+var appVersion = "0.1.3"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -203,6 +203,7 @@ func main() {
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
+	r.POST("/chaos/remove", app.ChaosRemoveHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
@@ -762,6 +763,8 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	if s := app.getSession(c); s != nil {
 		cleanupRecordingFile(s)
 		app.chaosEngines.delete(s.ID)
+		app.chaosEngines.deleteLoadedRun(s.ID)
+		app.chaosEngines.clearRemoved(s.ID)
 		app.SessionManager.RemoveSession(s.ID)
 	}
 	setSessionCookie(c, "3270Web_session", "")
@@ -1084,6 +1087,45 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 			"message": event.Message,
 		})
 	}
+	chaosState := chaosStateSnapshot(s)
+	chaosEvents := make([]gin.H, 0)
+	chaosAttempts := make([]gin.H, 0)
+	var chaosLastAttempt gin.H
+	chaosStepLabel := ""
+	chaosCompleted := false
+	chaosStoppedAt := ""
+	if chaosState != nil {
+		chaosCompleted = !chaosState.Active && chaosState.StepsRun > 0
+		if !chaosState.StoppedAt.IsZero() {
+			chaosStoppedAt = chaosState.StoppedAt.Format(time.RFC3339)
+		}
+		if len(chaosState.RecentAttempts) > 0 {
+			chaosEvents = make([]gin.H, 0, len(chaosState.RecentAttempts))
+			chaosAttempts = make([]gin.H, 0, len(chaosState.RecentAttempts))
+			for _, attempt := range chaosState.RecentAttempts {
+				chaosEvents = append(chaosEvents, gin.H{
+					"time":    attempt.Time.Format("15:04:05"),
+					"message": formatChaosAttemptMessage(attempt),
+				})
+				chaosAttempts = append(chaosAttempts, sessionChaosAttemptToJSON(attempt))
+			}
+		}
+		if chaosState.LastAttempt != nil {
+			chaosLastAttempt = sessionChaosAttemptToJSON(*chaosState.LastAttempt)
+		} else if n := len(chaosState.RecentAttempts); n > 0 {
+			chaosLastAttempt = sessionChaosAttemptToJSON(chaosState.RecentAttempts[n-1])
+		}
+		if chaosState.StepsRun > 0 {
+			if chaosCompleted {
+				chaosStepLabel = fmt.Sprintf("Chaos completed after %d attempts", chaosState.StepsRun)
+			} else {
+				chaosStepLabel = fmt.Sprintf("Chaos attempt %d", chaosState.StepsRun)
+			}
+			if !chaosCompleted && chaosState.LastAttempt != nil && chaosState.LastAttempt.AIDKey != "" {
+				chaosStepLabel = fmt.Sprintf("%s: %s", chaosStepLabel, chaosState.LastAttempt.AIDKey)
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"playbackActive":       playbackActive(s),
 		"playbackPaused":       playbackPaused(s),
@@ -1096,7 +1138,87 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"playbackDelayRange":   playbackDelayRangeLabel(s),
 		"playbackDelayApplied": playbackDelayAppliedLabel(s),
 		"playbackEvents":       events,
+		"chaosActive":          chaosState != nil && chaosState.Active,
+		"chaosStepsRun":        chaosStateStepsRun(chaosState),
+		"chaosTransitions":     chaosStateTransitions(chaosState),
+		"chaosUniqueScreens":   chaosStateUniqueScreens(chaosState),
+		"chaosUniqueInputs":    chaosStateUniqueInputs(chaosState),
+		"chaosLoadedRunID":     chaosStateLoadedRunID(chaosState),
+		"chaosError":           chaosStateError(chaosState),
+		"chaosStepLabel":       chaosStepLabel,
+		"chaosLastAttempt":     chaosLastAttempt,
+		"chaosAttempts":        chaosAttempts,
+		"chaosEvents":          chaosEvents,
+		"chaosCompleted":       chaosCompleted,
+		"chaosStoppedAt":       chaosStoppedAt,
 	})
+}
+
+func formatChaosAttemptMessage(attempt session.ChaosAttempt) string {
+	base := fmt.Sprintf(
+		"Attempt %d AID %s writes %d/%d",
+		attempt.Attempt,
+		defaultChaosAIDLabel(attempt.AIDKey),
+		attempt.FieldsWritten,
+		attempt.FieldsTargeted,
+	)
+	if attempt.Transitioned {
+		base += " transitioned"
+	}
+	if attempt.Error != "" {
+		base += fmt.Sprintf(" error: %s", attempt.Error)
+	}
+	return base
+}
+
+func defaultChaosAIDLabel(aid string) string {
+	aid = strings.TrimSpace(aid)
+	if aid == "" {
+		return "?"
+	}
+	return aid
+}
+
+func chaosStateStepsRun(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return state.StepsRun
+}
+
+func chaosStateTransitions(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return state.Transitions
+}
+
+func chaosStateUniqueScreens(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return state.UniqueScreens
+}
+
+func chaosStateUniqueInputs(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return state.UniqueInputs
+}
+
+func chaosStateLoadedRunID(state *session.ChaosState) string {
+	if state == nil {
+		return ""
+	}
+	return state.LoadedRunID
+}
+
+func chaosStateError(state *session.ChaosState) string {
+	if state == nil {
+		return ""
+	}
+	return state.Error
 }
 
 type settingsPayload struct {

@@ -89,6 +89,7 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 	r := gin.New()
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
+	r.POST("/chaos/remove", app.ChaosRemoveHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
 
@@ -137,10 +138,10 @@ func runChaosExplorerScenarios(t *testing.T, screen *host.Screen, label string) 
 
 	// ── 1. Start chaos exploration ──────────────────────────────────────────
 	startPayload, _ := json.Marshal(map[string]interface{}{
-		"maxSteps":      0,    // unlimited – stopped manually after assertions
-		"timeBudgetSec": 30,
-		"stepDelaySec":  0.05, // 50 ms per step keeps the test fast
-		"seed":          42,   // deterministic replay
+		"maxSteps":       0, // unlimited – stopped manually after assertions
+		"timeBudgetSec":  30,
+		"stepDelaySec":   0.05, // 50 ms per step keeps the test fast
+		"seed":           42,   // deterministic replay
 		"maxFieldLength": 8,
 	})
 	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
@@ -342,6 +343,135 @@ func TestChaosExport_WithoutEngine(t *testing.T) {
 	}
 }
 
+// TestChaosExport_AfterCompletion verifies that export remains available after
+// a chaos run has completed and its engine has been removed from the store.
+func TestChaosExport_AfterCompletion(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     2,
+		"stepDelaySec": 0,
+		"seed":         123,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+
+	// Wait for the engine to complete and be removed by syncChaosStatus.
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := app.chaosEngines.get(sessID); !ok {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, ok := app.chaosEngines.get(sessID); ok {
+		t.Fatal("expected chaos engine to be removed after completion")
+	}
+
+	// Status should still include saved run details.
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var statusResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("status response not valid JSON: %v", err)
+	}
+	if got, _ := statusResp["stepsRun"].(float64); got < 1 {
+		t.Fatalf("status stepsRun = %v, want > 0", statusResp["stepsRun"])
+	}
+	runID, _ := statusResp["loadedRunID"].(string)
+	if runID == "" {
+		t.Fatalf("status loadedRunID = %q, want non-empty", runID)
+	}
+
+	// Export should succeed from saved run data, even without a live engine.
+	w = chaosRequest(r, http.MethodPost, "/chaos/export", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("export after completion: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var exported WorkflowConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &exported); err != nil {
+		t.Fatalf("exported workflow is not valid JSON: %v", err)
+	}
+	if len(exported.Steps) == 0 {
+		t.Fatal("exported workflow contains no steps")
+	}
+}
+
+// TestChaosExport_AfterCompletion_FallbackFromDisk verifies export still works
+// if in-memory loaded run state is missing but the completed run was saved.
+func TestChaosExport_AfterCompletion_FallbackFromDisk(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	app, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     2,
+		"stepDelaySec": 0,
+		"seed":         456,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+
+	// Wait until status reports completion and includes loadedRunID.
+	var statusResp map[string]interface{}
+	var runID string
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status: want 200, got %d – body: %s", w.Code, w.Body.String())
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+			t.Fatalf("status response not valid JSON: %v", err)
+		}
+		active, _ := statusResp["active"].(bool)
+		runID, _ = statusResp["loadedRunID"].(string)
+		if !active && runID != "" {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if runID == "" {
+		t.Fatal("expected completed runID in status")
+	}
+
+	// Simulate lost in-memory run cache for this session.
+	app.chaosEngines.mu.Lock()
+	delete(app.chaosEngines.loadedRuns, sessID)
+	app.chaosEngines.mu.Unlock()
+
+	// Export must recover from disk via session loadedRunID.
+	w = chaosRequest(r, http.MethodPost, "/chaos/export", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("export fallback: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	var exported WorkflowConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &exported); err != nil {
+		t.Fatalf("exported workflow is not valid JSON: %v", err)
+	}
+	if len(exported.Steps) == 0 {
+		t.Fatal("exported workflow contains no steps")
+	}
+}
+
 // TestChaosStatus_NoSession verifies that requests without a valid session
 // cookie return HTTP 401, exercising the data-chaos-indicator hidden path.
 func TestChaosStatus_NoSession(t *testing.T) {
@@ -387,6 +517,7 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 	r := gin.New()
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
+	r.POST("/chaos/remove", app.ChaosRemoveHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
@@ -620,5 +751,75 @@ func TestChaosResume_WithoutLoad(t *testing.T) {
 	w := chaosRequest(r, http.MethodPost, "/chaos/resume", nil, sessID)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("resume without load: want 400, got %d – body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestChaosRemove_AfterCompletion(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	_, r, sessID := setupFullChaosTestApp(t, mockHost)
+
+	startPayload, _ := json.Marshal(map[string]interface{}{
+		"maxSteps":     2,
+		"stepDelaySec": 0,
+		"seed":         777,
+	})
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", startPayload, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+
+	// Wait for completed status and loaded run data.
+	var statusResp map[string]interface{}
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status: want 200, got %d – body: %s", w.Code, w.Body.String())
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+			t.Fatalf("status response not valid JSON: %v", err)
+		}
+		active, _ := statusResp["active"].(bool)
+		stepsRun, _ := statusResp["stepsRun"].(float64)
+		runID, _ := statusResp["loadedRunID"].(string)
+		if !active && stepsRun > 0 && runID != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	w = chaosRequest(r, http.MethodPost, "/chaos/remove", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("remove: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+
+	w = chaosRequest(r, http.MethodGet, "/chaos/status", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status after remove: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	statusResp = map[string]interface{}{}
+	if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("status after remove not valid JSON: %v", err)
+	}
+	if active, _ := statusResp["active"].(bool); active {
+		t.Fatalf("status after remove active = true, want false")
+	}
+	if stepsRun, _ := statusResp["stepsRun"].(float64); stepsRun != 0 {
+		t.Fatalf("status after remove stepsRun = %v, want 0", stepsRun)
+	}
+	if _, ok := statusResp["loadedRunID"]; ok {
+		t.Fatalf("status after remove should not include loadedRunID, got %v", statusResp["loadedRunID"])
+	}
+
+	// Export should no longer be available for the removed run state.
+	w = chaosRequest(r, http.MethodPost, "/chaos/export", nil, sessID)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("export after remove: want 404, got %d – body: %s", w.Code, w.Body.String())
 	}
 }

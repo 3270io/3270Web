@@ -18,24 +18,54 @@ import (
 
 // Transition records a state change observed during exploration.
 type Transition struct {
-	FromHash string                  `json:"fromHash"`
-	ToHash   string                  `json:"toHash"`
-	Steps    []session.WorkflowStep  `json:"steps"`
+	FromHash string                 `json:"fromHash"`
+	ToHash   string                 `json:"toHash"`
+	Steps    []session.WorkflowStep `json:"steps"`
 }
 
 // Status is a snapshot of the engine's current state.
 type Status struct {
-	Active        bool           `json:"active"`
-	StepsRun      int            `json:"stepsRun"`
-	StartedAt     time.Time      `json:"startedAt,omitempty"`
-	StoppedAt     time.Time      `json:"stoppedAt,omitempty"`
-	Transitions   int            `json:"transitions"`
-	UniqueScreens int            `json:"uniqueScreens"`
-	UniqueInputs  int            `json:"uniqueInputs"`
-	AIDKeyCounts  map[string]int `json:"aidKeyCounts,omitempty"`
-	LoadedRunID   string         `json:"loadedRunID,omitempty"`
-	Error         string         `json:"error,omitempty"`
+	Active         bool           `json:"active"`
+	StepsRun       int            `json:"stepsRun"`
+	StartedAt      time.Time      `json:"startedAt,omitempty"`
+	StoppedAt      time.Time      `json:"stoppedAt,omitempty"`
+	Transitions    int            `json:"transitions"`
+	UniqueScreens  int            `json:"uniqueScreens"`
+	UniqueInputs   int            `json:"uniqueInputs"`
+	AIDKeyCounts   map[string]int `json:"aidKeyCounts,omitempty"`
+	LoadedRunID    string         `json:"loadedRunID,omitempty"`
+	LastAttempt    *Attempt       `json:"lastAttempt,omitempty"`
+	RecentAttempts []Attempt      `json:"recentAttempts,omitempty"`
+	Error          string         `json:"error,omitempty"`
 }
+
+// AttemptFieldWrite captures one field write operation attempted by chaos
+// during a single step.
+type AttemptFieldWrite struct {
+	Row     int    `json:"row"`
+	Column  int    `json:"column"`
+	Length  int    `json:"length"`
+	Value   string `json:"value,omitempty"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// Attempt captures granular details for a single chaos submission cycle:
+// field writes, selected AID key, transition result, and any terminal error.
+type Attempt struct {
+	Attempt        int                 `json:"attempt"`
+	Time           time.Time           `json:"time"`
+	FromHash       string              `json:"fromHash,omitempty"`
+	ToHash         string              `json:"toHash,omitempty"`
+	AIDKey         string              `json:"aidKey,omitempty"`
+	FieldsTargeted int                 `json:"fieldsTargeted"`
+	FieldsWritten  int                 `json:"fieldsWritten"`
+	Transitioned   bool                `json:"transitioned"`
+	Error          string              `json:"error,omitempty"`
+	FieldWrites    []AttemptFieldWrite `json:"fieldWrites,omitempty"`
+}
+
+const maxRecentAttempts = 40
 
 // Engine is the chaos exploration engine. It runs a loop that reads the
 // current 3270 screen, fills unprotected fields with random values, and
@@ -43,9 +73,9 @@ type Status struct {
 // individual workflow steps are accumulated and can be exported as a
 // workflow JSON compatible with the existing playback system.
 type Engine struct {
-	cfg    Config
-	h      host.Host
-	rng    *rand.Rand
+	cfg Config
+	h   host.Host
+	rng *rand.Rand
 
 	mu           sync.Mutex
 	active       bool
@@ -60,6 +90,7 @@ type Engine struct {
 	uniqueInputs map[string]bool
 	aidKeyCounts map[string]int
 	loadedRunID  string
+	attempts     []Attempt
 }
 
 // New creates a new Engine with the given host and configuration.
@@ -101,6 +132,7 @@ func (e *Engine) Start() error {
 	e.uniqueInputs = make(map[string]bool)
 	e.aidKeyCounts = make(map[string]int)
 	e.loadedRunID = ""
+	e.attempts = nil
 	e.stopCh = make(chan struct{})
 
 	go e.run()
@@ -127,17 +159,26 @@ func (e *Engine) Status() Status {
 	for k, v := range e.aidKeyCounts {
 		aidCopy[k] = v
 	}
+	attempts := make([]Attempt, len(e.attempts))
+	copy(attempts, e.attempts)
+	var lastAttempt *Attempt
+	if n := len(attempts); n > 0 {
+		latest := attempts[n-1]
+		lastAttempt = &latest
+	}
 	return Status{
-		Active:        e.active,
-		StepsRun:      e.stepsRun,
-		StartedAt:     e.startedAt,
-		StoppedAt:     e.stoppedAt,
-		Transitions:   len(e.transitions),
-		UniqueScreens: len(e.screenHashes),
-		UniqueInputs:  len(e.uniqueInputs),
-		AIDKeyCounts:  aidCopy,
-		LoadedRunID:   e.loadedRunID,
-		Error:         e.lastErr,
+		Active:         e.active,
+		StepsRun:       e.stepsRun,
+		StartedAt:      e.startedAt,
+		StoppedAt:      e.stoppedAt,
+		Transitions:    len(e.transitions),
+		UniqueScreens:  len(e.screenHashes),
+		UniqueInputs:   len(e.uniqueInputs),
+		AIDKeyCounts:   aidCopy,
+		LoadedRunID:    e.loadedRunID,
+		LastAttempt:    lastAttempt,
+		RecentAttempts: attempts,
+		Error:          e.lastErr,
 	}
 }
 
@@ -185,6 +226,8 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 	copy(transitions, e.transitions)
 	steps := make([]session.WorkflowStep, len(e.steps))
 	copy(steps, e.steps)
+	attempts := make([]Attempt, len(e.attempts))
+	copy(attempts, e.attempts)
 
 	return &SavedRun{
 		SavedRunMeta: SavedRunMeta{
@@ -197,11 +240,12 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 			UniqueInputs:  len(inputs),
 			Error:         e.lastErr,
 		},
-		ScreenHashes:   hashes,
-		TransitionList: transitions,
-		Steps:          steps,
-		AIDKeyCounts:   aid,
+		ScreenHashes:      hashes,
+		TransitionList:    transitions,
+		Steps:             steps,
+		AIDKeyCounts:      aid,
 		UniqueInputValues: inputs,
+		Attempts:          attempts,
 	}
 }
 
@@ -237,6 +281,8 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	copy(e.transitions, saved.TransitionList)
 	e.steps = make([]session.WorkflowStep, len(saved.Steps))
 	copy(e.steps, saved.Steps)
+	e.attempts = make([]Attempt, len(saved.Attempts))
+	copy(e.attempts, saved.Attempts)
 	e.stepsRun = saved.StepsRun
 	e.loadedRunID = saved.ID
 
@@ -307,20 +353,37 @@ func (e *Engine) run() {
 		}
 
 		currentHash := hashScreen(screen)
+		attempt := Attempt{
+			Attempt:  steps + 1,
+			Time:     time.Now(),
+			FromHash: currentHash,
+		}
 
 		// Fill unprotected fields with random values.
 		var batchSteps []session.WorkflowStep
 		fields := unprotectedFields(screen)
+		attempt.FieldsTargeted = len(fields)
 
 		for _, f := range fields {
 			value := e.generateValue(f)
 			if value == "" {
 				continue
 			}
+			fieldAttempt := AttemptFieldWrite{
+				Row:    f.StartY + 1,
+				Column: f.StartX + 1,
+				Length: len(value),
+				Value:  value,
+			}
 			if err := e.h.WriteStringAt(f.StartY, f.StartX, value); err != nil {
 				// Non-fatal: skip this field.
+				fieldAttempt.Error = err.Error()
+				attempt.FieldWrites = append(attempt.FieldWrites, fieldAttempt)
 				continue
 			}
+			fieldAttempt.Success = true
+			attempt.FieldWrites = append(attempt.FieldWrites, fieldAttempt)
+			attempt.FieldsWritten++
 			batchSteps = append(batchSteps, session.WorkflowStep{
 				Type: "FillString",
 				Coordinates: &session.WorkflowCoordinates{
@@ -333,9 +396,12 @@ func (e *Engine) run() {
 
 		// Choose and send an AID key.
 		aidKey := e.chooseAIDKey()
+		attempt.AIDKey = aidKey
 		if err := e.h.SendKey(aidKey); err != nil {
+			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
+			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
 			return
 		}
@@ -343,8 +409,10 @@ func (e *Engine) run() {
 
 		// Refresh the screen after the key press.
 		if err := e.h.UpdateScreen(); err != nil {
+			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
+			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
 			return
 		}
@@ -353,6 +421,8 @@ func (e *Engine) run() {
 		if newScreen != nil {
 			newHash = hashScreen(newScreen)
 		}
+		attempt.ToHash = newHash
+		attempt.Transitioned = newHash != "" && newHash != currentHash
 
 		// Record the step and any state transition.
 		e.mu.Lock()
@@ -375,6 +445,7 @@ func (e *Engine) run() {
 				Steps:    batchSteps,
 			})
 		}
+		e.appendAttemptLocked(attempt)
 		e.mu.Unlock()
 
 		// Inter-step delay (cancellable).
@@ -385,6 +456,13 @@ func (e *Engine) run() {
 			case <-time.After(e.cfg.StepDelay):
 			}
 		}
+	}
+}
+
+func (e *Engine) appendAttemptLocked(attempt Attempt) {
+	e.attempts = append(e.attempts, attempt)
+	if len(e.attempts) > maxRecentAttempts {
+		e.attempts = e.attempts[len(e.attempts)-maxRecentAttempts:]
 	}
 }
 

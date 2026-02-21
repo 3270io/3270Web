@@ -337,6 +337,44 @@ body.terminal-fit-active .card {
   align-items: center;
 }
 
+.chaos-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--panel-2), transparent);
+}
+
+.chaos-controls-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--fg-muted);
+}
+
+.chaos-controls-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chaos-controls-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  opacity: 0.9;
+}
+
+.chaos-controls-status {
+  min-width: 0;
+}
+
+.chaos-controls .status-indicator {
+  font-size: 0.76rem;
+}
+
 .workflow-status {
   display: inline-flex;
   align-items: center;

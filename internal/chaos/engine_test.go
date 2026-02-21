@@ -169,7 +169,7 @@ func TestEngineDoubleStart(t *testing.T) {
 	h.Screen = buildMockScreen()
 
 	cfg := DefaultConfig()
-	cfg.MaxSteps = 0   // unlimited – we will stop manually
+	cfg.MaxSteps = 0 // unlimited – we will stop manually
 	cfg.StepDelay = 50 * time.Millisecond
 	cfg.Seed = 1
 
@@ -270,165 +270,211 @@ func TestGenerateValue_RespectsMaxFieldLength(t *testing.T) {
 }
 
 func TestEngineMetadata(t *testing.T) {
-h, err := host.NewMockHost("")
-if err != nil {
-t.Fatal(err)
-}
-h.Screen = buildMockScreen()
-h.Connected = true
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
 
-cfg := DefaultConfig()
-cfg.MaxSteps = 3
-cfg.StepDelay = 0
-cfg.Seed = 77
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 3
+	cfg.StepDelay = 0
+	cfg.Seed = 77
 
-e := New(h, cfg)
-if err := e.Start(); err != nil {
-t.Fatalf("Start() error: %v", err)
-}
-deadline := time.Now().Add(5 * time.Second)
-for time.Now().Before(deadline) {
-if !e.Status().Active {
-break
-}
-time.Sleep(10 * time.Millisecond)
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.UniqueScreens == 0 {
+		t.Error("expected at least one unique screen hash after exploration")
+	}
+	if st.AIDKeyCounts == nil || len(st.AIDKeyCounts) == 0 {
+		t.Error("expected AIDKeyCounts to be populated after exploration")
+	}
+	total := 0
+	for _, v := range st.AIDKeyCounts {
+		total += v
+	}
+	if total != st.StepsRun {
+		t.Errorf("sum of AIDKeyCounts (%d) != StepsRun (%d)", total, st.StepsRun)
+	}
 }
 
-st := e.Status()
-if st.UniqueScreens == 0 {
-t.Error("expected at least one unique screen hash after exploration")
-}
-if st.AIDKeyCounts == nil || len(st.AIDKeyCounts) == 0 {
-t.Error("expected AIDKeyCounts to be populated after exploration")
-}
-total := 0
-for _, v := range st.AIDKeyCounts {
-total += v
-}
-if total != st.StepsRun {
-t.Errorf("sum of AIDKeyCounts (%d) != StepsRun (%d)", total, st.StepsRun)
-}
+func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 2
+	cfg.StepDelay = 0
+	cfg.Seed = 123
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if len(st.RecentAttempts) == 0 {
+		t.Fatal("expected RecentAttempts to be populated")
+	}
+	if st.LastAttempt == nil {
+		t.Fatal("expected LastAttempt to be populated")
+	}
+	if st.LastAttempt.Attempt <= 0 {
+		t.Errorf("LastAttempt.Attempt = %d, want > 0", st.LastAttempt.Attempt)
+	}
+	if st.LastAttempt.AIDKey == "" {
+		t.Error("LastAttempt.AIDKey should not be empty")
+	}
+	if st.LastAttempt.FieldsTargeted <= 0 {
+		t.Errorf("LastAttempt.FieldsTargeted = %d, want > 0", st.LastAttempt.FieldsTargeted)
+	}
+	if len(st.LastAttempt.FieldWrites) == 0 {
+		t.Error("expected at least one field write record in LastAttempt")
+	}
 }
 
 func TestSnapshotAndResume(t *testing.T) {
-h, err := host.NewMockHost("")
-if err != nil {
-t.Fatal(err)
-}
-h.Screen = buildMockScreen()
-h.Connected = true
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
 
-cfg := DefaultConfig()
-cfg.MaxSteps = 2
-cfg.StepDelay = 0
-cfg.Seed = 13
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 2
+	cfg.StepDelay = 0
+	cfg.Seed = 13
 
-e := New(h, cfg)
-if err := e.Start(); err != nil {
-t.Fatal(err)
-}
-deadline := time.Now().Add(5 * time.Second)
-for time.Now().Before(deadline) {
-if !e.Status().Active {
-break
-}
-time.Sleep(10 * time.Millisecond)
-}
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
-snap := e.Snapshot("test-run-1")
-if snap.ID != "test-run-1" {
-t.Errorf("snapshot ID = %q, want %q", snap.ID, "test-run-1")
-}
-if snap.StepsRun == 0 {
-t.Error("snapshot StepsRun should be > 0")
-}
-if len(snap.ScreenHashes) == 0 {
-t.Error("snapshot ScreenHashes should be populated")
-}
+	snap := e.Snapshot("test-run-1")
+	if snap.ID != "test-run-1" {
+		t.Errorf("snapshot ID = %q, want %q", snap.ID, "test-run-1")
+	}
+	if snap.StepsRun == 0 {
+		t.Error("snapshot StepsRun should be > 0")
+	}
+	if len(snap.ScreenHashes) == 0 {
+		t.Error("snapshot ScreenHashes should be populated")
+	}
 
-// Resume from snapshot on a fresh engine with a higher MaxSteps so that
-// at least 2 new steps are run beyond the original count.
-cfg2 := DefaultConfig()
-cfg2.MaxSteps = snap.StepsRun + 2
-cfg2.StepDelay = 0
-cfg2.Seed = 99
-e2 := New(h, cfg2)
+	// Resume from snapshot on a fresh engine with a higher MaxSteps so that
+	// at least 2 new steps are run beyond the original count.
+	cfg2 := DefaultConfig()
+	cfg2.MaxSteps = snap.StepsRun + 2
+	cfg2.StepDelay = 0
+	cfg2.Seed = 99
+	e2 := New(h, cfg2)
 
-if err := e2.Resume(snap); err != nil {
-t.Fatalf("Resume() error: %v", err)
-}
-deadline = time.Now().Add(5 * time.Second)
-for time.Now().Before(deadline) {
-if !e2.Status().Active {
-break
-}
-time.Sleep(10 * time.Millisecond)
-}
+	if err := e2.Resume(snap); err != nil {
+		t.Fatalf("Resume() error: %v", err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e2.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
-st2 := e2.Status()
-if st2.LoadedRunID != "test-run-1" {
-t.Errorf("resumed engine LoadedRunID = %q, want %q", st2.LoadedRunID, "test-run-1")
-}
-// Total steps should include those from the original run.
-if st2.StepsRun <= snap.StepsRun {
-t.Errorf("resumed engine StepsRun (%d) should exceed original (%d)", st2.StepsRun, snap.StepsRun)
-}
-// Screen hashes should include those from the original run.
-if st2.UniqueScreens < snap.UniqueScreens {
-t.Errorf("resumed engine UniqueScreens (%d) less than original (%d)", st2.UniqueScreens, snap.UniqueScreens)
-}
+	st2 := e2.Status()
+	if st2.LoadedRunID != "test-run-1" {
+		t.Errorf("resumed engine LoadedRunID = %q, want %q", st2.LoadedRunID, "test-run-1")
+	}
+	// Total steps should include those from the original run.
+	if st2.StepsRun <= snap.StepsRun {
+		t.Errorf("resumed engine StepsRun (%d) should exceed original (%d)", st2.StepsRun, snap.StepsRun)
+	}
+	// Screen hashes should include those from the original run.
+	if st2.UniqueScreens < snap.UniqueScreens {
+		t.Errorf("resumed engine UniqueScreens (%d) less than original (%d)", st2.UniqueScreens, snap.UniqueScreens)
+	}
 }
 
 func TestPersistenceRoundtrip(t *testing.T) {
-dir := t.TempDir()
+	dir := t.TempDir()
 
-run := &SavedRun{
-SavedRunMeta: SavedRunMeta{
-ID:            "20240101-000000-ab",
-StartedAt:     time.Now().Add(-time.Minute),
-StoppedAt:     time.Now(),
-StepsRun:      5,
-Transitions:   2,
-UniqueScreens: 3,
-UniqueInputs:  4,
-},
-ScreenHashes: map[string]bool{"abc": true, "def": true},
-AIDKeyCounts: map[string]int{"Enter": 4, "PF(1)": 1},
-}
+	run := &SavedRun{
+		SavedRunMeta: SavedRunMeta{
+			ID:            "20240101-000000-ab",
+			StartedAt:     time.Now().Add(-time.Minute),
+			StoppedAt:     time.Now(),
+			StepsRun:      5,
+			Transitions:   2,
+			UniqueScreens: 3,
+			UniqueInputs:  4,
+		},
+		ScreenHashes: map[string]bool{"abc": true, "def": true},
+		AIDKeyCounts: map[string]int{"Enter": 4, "PF(1)": 1},
+	}
 
-if err := SaveRun(dir, run); err != nil {
-t.Fatalf("SaveRun: %v", err)
-}
+	if err := SaveRun(dir, run); err != nil {
+		t.Fatalf("SaveRun: %v", err)
+	}
 
-metas, err := ListRuns(dir)
-if err != nil {
-t.Fatalf("ListRuns: %v", err)
-}
-if len(metas) != 1 {
-t.Fatalf("ListRuns: want 1 entry, got %d", len(metas))
-}
-if metas[0].ID != run.ID {
-t.Errorf("ListRuns ID = %q, want %q", metas[0].ID, run.ID)
-}
+	metas, err := ListRuns(dir)
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	if len(metas) != 1 {
+		t.Fatalf("ListRuns: want 1 entry, got %d", len(metas))
+	}
+	if metas[0].ID != run.ID {
+		t.Errorf("ListRuns ID = %q, want %q", metas[0].ID, run.ID)
+	}
 
-loaded, err := LoadRun(dir, run.ID)
-if err != nil {
-t.Fatalf("LoadRun: %v", err)
-}
-if loaded.StepsRun != run.StepsRun {
-t.Errorf("loaded StepsRun = %d, want %d", loaded.StepsRun, run.StepsRun)
-}
-if len(loaded.ScreenHashes) != len(run.ScreenHashes) {
-t.Errorf("loaded ScreenHashes len = %d, want %d", len(loaded.ScreenHashes), len(run.ScreenHashes))
-}
+	loaded, err := LoadRun(dir, run.ID)
+	if err != nil {
+		t.Fatalf("LoadRun: %v", err)
+	}
+	if loaded.StepsRun != run.StepsRun {
+		t.Errorf("loaded StepsRun = %d, want %d", loaded.StepsRun, run.StepsRun)
+	}
+	if len(loaded.ScreenHashes) != len(run.ScreenHashes) {
+		t.Errorf("loaded ScreenHashes len = %d, want %d", len(loaded.ScreenHashes), len(run.ScreenHashes))
+	}
 }
 
 func TestListRuns_NonExistentDir(t *testing.T) {
-metas, err := ListRuns("/tmp/nonexistent-chaos-dir-xyz-999")
-if err != nil {
-t.Errorf("ListRuns non-existent dir should not error, got: %v", err)
-}
-if metas != nil {
-t.Errorf("expected nil slice for non-existent dir, got %v", metas)
-}
+	metas, err := ListRuns("/tmp/nonexistent-chaos-dir-xyz-999")
+	if err != nil {
+		t.Errorf("ListRuns non-existent dir should not error, got: %v", err)
+	}
+	if metas != nil {
+		t.Errorf("expected nil slice for non-existent dir, got %v", metas)
+	}
 }

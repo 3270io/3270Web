@@ -994,25 +994,32 @@
  * Handles start/stop/export/load/resume for chaos runs and polls /chaos/status.
  */
 (() => {
+    const body = document.body;
     const startBtn = document.querySelector('[data-chaos-start]');
     const stopBtn = document.querySelector('[data-chaos-stop]');
     const exportBtn = document.querySelector('[data-chaos-export]');
+    const removeBtn = document.querySelector('[data-chaos-remove]');
     const loadBtn = document.querySelector('[data-chaos-load]');
     const resumeBtn = document.querySelector('[data-chaos-resume]');
     const indicator = document.querySelector('[data-chaos-indicator]');
+    const completeIndicator = document.querySelector('[data-chaos-complete-indicator]');
     const statsIndicator = document.querySelector('[data-chaos-stats-indicator]');
     const statsText = document.querySelector('[data-chaos-stats-text]');
     const runsModal = document.querySelector('[data-chaos-runs-modal]');
     const runsModalClose = document.querySelectorAll('[data-chaos-runs-close]');
     const runsList = document.querySelector('[data-chaos-runs-list]');
+    const recordingIndicator = document.querySelector('[data-recording-indicator]');
+    const recordingStartButton = document.querySelector('form[data-recording-start] .icon-button');
+    const workflowLoadButton = document.querySelector('[data-workflow-trigger]');
 
-    if (!startBtn && !stopBtn && !exportBtn) {
+    if (!startBtn && !stopBtn && !exportBtn && !removeBtn) {
         return;
     }
 
     let pollTimer = null;
     let hasData = false;
     let loadedRunID = null;
+    let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
 
     const setButtonBusy = (btn, busy) => {
         if (!btn) {
@@ -1022,9 +1029,73 @@
         btn.setAttribute('aria-busy', busy ? 'true' : 'false');
     };
 
+    const defaultTooltip = (btn) => {
+        if (!btn) {
+            return '';
+        }
+        if (!Object.prototype.hasOwnProperty.call(btn.dataset, 'defaultTooltip')) {
+            btn.dataset.defaultTooltip = btn.getAttribute('data-tippy-content') || '';
+        }
+        return btn.dataset.defaultTooltip;
+    };
+
+    const setButtonDisabledState = (btn, disabled, disabledTooltip) => {
+        if (!btn) {
+            return;
+        }
+        if (btn.getAttribute('aria-busy') === 'true') {
+            return;
+        }
+        btn.disabled = !!disabled;
+        const fallback = defaultTooltip(btn);
+        const nextTooltip = disabled && disabledTooltip ? disabledTooltip : fallback;
+        if (nextTooltip) {
+            btn.setAttribute('data-tippy-content', nextTooltip);
+            if (btn._tippy) {
+                btn._tippy.setContent(nextTooltip);
+            }
+        }
+    };
+
+    const isRecordingActive = () => !!(recordingIndicator && !recordingIndicator.hidden);
+    const isPlaybackActive = () => !!(body && body.dataset.playbackActive === 'true');
+
+    const applyChaosInterlocks = () => {
+        const running = !!(lastStatus && lastStatus.active);
+        const blockedByWorkflow = isRecordingActive() || isPlaybackActive();
+
+        setButtonDisabledState(
+            startBtn,
+            !running && blockedByWorkflow,
+            'Stop recording/playback before starting chaos exploration'
+        );
+        setButtonDisabledState(
+            loadBtn,
+            !running && blockedByWorkflow,
+            'Stop recording/playback before loading a chaos run'
+        );
+        setButtonDisabledState(
+            resumeBtn,
+            !running && blockedByWorkflow,
+            'Stop recording/playback before resuming chaos exploration'
+        );
+        setButtonDisabledState(
+            recordingStartButton,
+            running,
+            'Stop chaos exploration before starting recording'
+        );
+        setButtonDisabledState(
+            workflowLoadButton,
+            running,
+            'Stop chaos exploration before loading a recording'
+        );
+    };
+
     const updateUI = (status) => {
+        lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
         const running = !!(status && status.active);
         hasData = !!(status && status.stepsRun > 0);
+        const completed = !running && hasData;
         if (status && status.loadedRunID) {
             loadedRunID = status.loadedRunID;
         }
@@ -1041,14 +1112,20 @@
         if (exportBtn) {
             exportBtn.hidden = running || !hasData;
         }
+        if (removeBtn) {
+            removeBtn.hidden = running || !hasData;
+        }
         if (indicator) {
             indicator.hidden = !running;
+        }
+        if (completeIndicator) {
+            completeIndicator.hidden = !completed;
         }
         if (statsIndicator) {
             const hasStats = !!(status && (status.stepsRun > 0 || status.transitions > 0));
             statsIndicator.hidden = !hasStats;
             if (statsText && hasStats) {
-                let txt = `${status.stepsRun} steps`;
+                let txt = completed ? `Complete: ${status.stepsRun} steps` : `${status.stepsRun} steps`;
                 if (status.transitions > 0) {
                     txt += `, ${status.transitions} transitions`;
                 }
@@ -1058,12 +1135,21 @@
                 if (status.uniqueInputs > 0) {
                     txt += `, ${status.uniqueInputs} inputs`;
                 }
+                if (status.lastAttempt) {
+                    const a = status.lastAttempt;
+                    const aid = a.aidKey ? ` ${a.aidKey}` : '';
+                    txt += `, last #${a.attempt}${aid} ${a.fieldsWritten || 0}/${a.fieldsTargeted || 0}`;
+                }
                 if (status.error) {
                     txt += ` \u2014 ${status.error}`;
+                }
+                if (completed && loadedRunID) {
+                    txt += `, run ${loadedRunID}`;
                 }
                 statsText.textContent = txt;
             }
         }
+        applyChaosInterlocks();
     };
 
     const pollStatus = async () => {
@@ -1226,6 +1312,7 @@
                 // Ignore
             } finally {
                 setButtonBusy(startBtn, false);
+                applyChaosInterlocks();
             }
         });
     }
@@ -1240,6 +1327,7 @@
                 // Ignore
             } finally {
                 setButtonBusy(stopBtn, false);
+                applyChaosInterlocks();
             }
         });
     }
@@ -1271,6 +1359,7 @@
                 // Ignore
             } finally {
                 setButtonBusy(resumeBtn, false);
+                applyChaosInterlocks();
             }
         });
     }
@@ -1286,7 +1375,7 @@
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'chaos-workflow.json';
+                    a.download = loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json';
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -1296,7 +1385,43 @@
                 // Ignore
             } finally {
                 setButtonBusy(exportBtn, false);
+                applyChaosInterlocks();
             }
         });
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', async () => {
+            setButtonBusy(removeBtn, true);
+            try {
+                const resp = await fetch('/chaos/remove', { method: 'POST' });
+                if (resp.ok) {
+                    loadedRunID = null;
+                    updateUI({
+                        active: false,
+                        stepsRun: 0,
+                        transitions: 0,
+                        uniqueScreens: 0,
+                        uniqueInputs: 0,
+                    });
+                    await pollStatus();
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(removeBtn, false);
+                applyChaosInterlocks();
+            }
+        });
+    }
+
+    if (body && typeof MutationObserver !== 'undefined') {
+        const obs = new MutationObserver(() => {
+            applyChaosInterlocks();
+        });
+        obs.observe(body, { attributes: true, attributeFilter: ['data-playback-active'] });
+        if (recordingIndicator) {
+            obs.observe(recordingIndicator, { attributes: true, attributeFilter: ['hidden'] });
+        }
     }
 })();

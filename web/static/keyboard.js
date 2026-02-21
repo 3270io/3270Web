@@ -361,6 +361,25 @@
     return true;
   }
 
+  function focusTerminalShell() {
+    var shell = getTerminalShell();
+    if (!shell || typeof shell.focus !== "function") {
+      return false;
+    }
+    if (!shell.hasAttribute("tabindex")) {
+      shell.setAttribute("tabindex", "-1");
+    }
+    shell.focus();
+    return document.activeElement === shell;
+  }
+
+  function focusTerminalContext() {
+    if (focusTerminalInput()) {
+      return true;
+    }
+    return focusTerminalShell();
+  }
+
   function isModalOpen() {
     var selectors = [
       "[data-settings-modal]",
@@ -455,7 +474,7 @@
           if (isModalOpen()) {
             return;
           }
-          focusTerminalInput();
+          focusTerminalContext();
         });
       },
       true
@@ -480,7 +499,7 @@
           return;
         }
         window.requestAnimationFrame(function () {
-          focusTerminalInput();
+          focusTerminalContext();
         });
       },
       true
@@ -886,33 +905,46 @@
     var code = event.keyCode || event.which;
     if (event.key === "Tab" || code === 9) {
       var form = findForm(formId);
-      if (form && event.target && (event.target.form === form || form.contains(event.target))) {
-        // Allow Tab navigation within the terminal screen form
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && !isModalOpen() && form) {
         event.preventDefault();
-          sendFormWithKey(event.shiftKey ? "BackTab" : "Tab", formId, event.target);
+        sendFormWithKey(
+          event.shiftKey ? "BackTab" : "Tab",
+          formId,
+          isScreenInput(event.target) ? event.target : null
+        );
+        window.requestAnimationFrame(function () {
+          focusTerminalContext();
+        });
       }
-      // Allow normal browser Tab navigation outside the terminal screen
       return;
     }
 
-    if (isEditableTarget(event.target) && isNativeNavKey(event)) {
-      if (
-        event.key === "ArrowUp" ||
+    if (
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !isModalOpen() &&
+      (event.key === "ArrowUp" ||
         event.key === "ArrowDown" ||
         event.key === "ArrowLeft" ||
         event.key === "ArrowRight" ||
         event.keyCode === 37 ||
         event.keyCode === 38 ||
         event.keyCode === 39 ||
-        event.keyCode === 40
-      ) {
-        var arrowKey = mapSpecialKey(event);
-        if (arrowKey) {
-          event.preventDefault();
-          sendFormWithKey(arrowKey, formId, event.target);
-        }
-        return;
+        event.keyCode === 40)
+    ) {
+      var arrowKey = mapSpecialKey(event);
+      if (arrowKey) {
+        event.preventDefault();
+        sendFormWithKey(arrowKey, formId, isScreenInput(event.target) ? event.target : null);
+        window.requestAnimationFrame(function () {
+          focusTerminalContext();
+        });
       }
+      return;
+    }
+
+    if (isEditableTarget(event.target) && isNativeNavKey(event)) {
       return;
     }
 
@@ -1459,7 +1491,7 @@
     if (sizeSlider) {
       sizeSlider.addEventListener("change", function () {
         window.requestAnimationFrame(function () {
-          focusTerminalInput();
+          focusTerminalContext();
         });
       });
     }

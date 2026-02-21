@@ -4,7 +4,7 @@
     <title>3270Web</title>
     <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=5">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script>
         (function () {
@@ -45,7 +45,7 @@
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
-    <script src="/static/ui.js?v=6" defer></script>
+    <script src="/static/ui.js?v=8" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -181,28 +181,48 @@
                 <a href="/record/download">Download {{ .RecordingFile }}</a>
                 {{ end }}
                 <!-- Chaos exploration controls -->
-                <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-                </button>
-                <button type="button" class="icon-button icon-button-stop" data-chaos-stop hidden data-tippy-content="Stop chaos exploration" aria-label="Stop chaos exploration">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
-                </button>
-                <button type="button" class="icon-button" data-chaos-load data-tippy-content="Load previous chaos run" aria-label="Load previous chaos run">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5v-2z"/></svg>
-                </button>
-                <button type="button" class="icon-button" data-chaos-resume hidden data-tippy-content="Resume chaos exploration from loaded run" aria-label="Resume chaos exploration from loaded run">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Export chaos workflow" aria-label="Export chaos workflow">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
-                </button>
-                <span class="status-indicator" data-chaos-indicator hidden>
-                    <span class="chaos-indicator" aria-hidden="true"></span>
-                    <span class="status-text">CHAOS</span>
-                </span>
-                <span class="status-indicator" data-chaos-stats-indicator hidden>
-                    <span class="status-text" data-chaos-stats-text></span>
-                </span>
+                <div class="chaos-controls" data-chaos-controls>
+                    <span class="chaos-controls-label" aria-hidden="true">CHAOS</span>
+                    <div class="chaos-controls-section" aria-label="Chaos run actions">
+                        <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                        </button>
+                        <button type="button" class="icon-button icon-button-stop" data-chaos-stop hidden data-tippy-content="Stop chaos exploration" aria-label="Stop chaos exploration">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
+                        </button>
+                    </div>
+                    <span class="chaos-controls-divider" aria-hidden="true"></span>
+                    <div class="chaos-controls-section" aria-label="Chaos load actions">
+                        <button type="button" class="icon-button" data-chaos-load data-tippy-content="Load previous chaos run" aria-label="Load previous chaos run">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5v-2z"/></svg>
+                        </button>
+                        <button type="button" class="icon-button" data-chaos-resume hidden data-tippy-content="Resume chaos exploration from loaded run" aria-label="Resume chaos exploration from loaded run">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                    </div>
+                    <span class="chaos-controls-divider" aria-hidden="true"></span>
+                    <div class="chaos-controls-section" aria-label="Chaos output actions">
+                        <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Download chaos workflow JSON" aria-label="Download chaos workflow JSON">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+                        </button>
+                        <button type="button" class="icon-button icon-button-stop" data-chaos-remove hidden data-tippy-content="Remove chaos run" aria-label="Remove chaos run">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
+                        </button>
+                    </div>
+                    <span class="chaos-controls-divider" aria-hidden="true"></span>
+                    <div class="chaos-controls-section chaos-controls-status" aria-label="Chaos status">
+                        <span class="status-indicator" data-chaos-indicator hidden>
+                            <span class="chaos-indicator" aria-hidden="true"></span>
+                            <span class="status-text">RUN</span>
+                        </span>
+                        <span class="status-indicator" data-chaos-complete-indicator hidden>
+                            <span class="status-text">DONE</span>
+                        </span>
+                        <span class="status-indicator" data-chaos-stats-indicator hidden>
+                            <span class="status-text" data-chaos-stats-text></span>
+                        </span>
+                    </div>
+                </div>
             </div>
             {{ if .SampleAppName }}
             <div class="sample-status">
@@ -345,7 +365,7 @@
             <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
                 Applied delay: {{ .PlaybackDelayApplied }}
             </div>
-            <div class="workflow-status-line subtle">Updates automatically while playback runs.</div>
+            <div class="workflow-status-line subtle">Updates automatically while playback or chaos runs.</div>
             <div class="workflow-status-events" data-status-events>
                 {{ range .PlaybackEvents }}
                 <div class="workflow-status-event">
