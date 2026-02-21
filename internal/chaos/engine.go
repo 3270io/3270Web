@@ -75,6 +75,13 @@ const maxRecentAttempts = 40
 // it the key is progressively de-prioritised in favour of untried keys.
 const minPressesForPenalty = 5
 
+// maxProgressionBoostFactor is the maximum number of progressions used when
+// computing the per-key boost in chooseAIDKeyBoosted.  Capping this value
+// prevents a single successful AID key from monopolising selection after many
+// transitions from the same screen, preserving exploration breadth so that
+// other configured keys remain tried at a meaningful rate.
+const maxProgressionBoostFactor = 20
+
 // Engine is the chaos exploration engine. It runs a loop that reads the
 // current 3270 screen, fills unprotected fields with random values, and
 // submits a randomly chosen AID key. Observed state transitions and
@@ -604,7 +611,11 @@ func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
 			continue
 		}
 		if kp.Progressions > 0 {
-			boosts[key] += kp.Progressions * 10
+			progressions := kp.Progressions
+			if progressions > maxProgressionBoostFactor {
+				progressions = maxProgressionBoostFactor
+			}
+			boosts[key] += progressions * 10
 		} else if kp.Presses >= minPressesForPenalty {
 			// Penalise keys pressed many times without causing any transition.
 			boosts[key] -= kp.Presses
@@ -634,8 +645,7 @@ func normalizeHints(hints []Hint) ([]string, []string) {
 		return nil, nil
 	}
 	transactions := make([]string, 0, len(hints))
-	knownData := make([]string, len(hints))
-	knownData = knownData[:0]
+	knownData := make([]string, 0, len(hints))
 	seenTx := make(map[string]bool)
 	seenData := make(map[string]bool)
 	for _, hint := range hints {
@@ -777,12 +787,17 @@ func (e *Engine) generateValue(f *host.Field) string {
 
 	// 3270 mainframe applications predominantly use uppercase input for
 	// commands, transaction codes and data.  Generating only uppercase
-	// characters and digits (plus a single space) makes random values far
-	// more likely to match valid application inputs, improving the chance
-	// that each submission causes a meaningful screen transition.
+	// characters and digits (plus a single space for subsequent positions)
+	// makes random values far more likely to match valid application inputs,
+	// improving the chance that each submission causes a meaningful screen
+	// transition.  The first character never uses a space because 3270
+	// command and transaction-code fields reject leading whitespace; avoiding
+	// it eliminates wasted exploration steps on those fields.
+	const charsFirst = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
 	b := make([]byte, length)
-	for i := range b {
+	b[0] = charsFirst[e.rng.Intn(len(charsFirst))]
+	for i := 1; i < length; i++ {
 		b[i] = chars[e.rng.Intn(len(chars))]
 	}
 	return string(b)
