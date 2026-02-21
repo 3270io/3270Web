@@ -926,7 +926,52 @@ func TestGenerateValue_TextCharset(t *testing.T) {
 	}
 }
 
-// TestAppendUniqueLimited_SlidingWindow verifies that once the cap is reached,
+// TestGenerateValue_NoLeadingSpace verifies that random text values never start
+// with a space character.  3270 command and transaction-code fields reject
+// leading whitespace, so generating values with a leading space wastes
+// exploration steps.
+func TestGenerateValue_NoLeadingSpace(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	// Non-numeric field spanning col 0-19 (length 20).
+	f := host.NewField(s, 0x00, 0, 0, 19, 0, 0, 0)
+
+	cfg := DefaultConfig()
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(77)) //nolint:gosec
+
+	for i := 0; i < 500; i++ {
+		v := e.generateValue(f)
+		if len(v) == 0 {
+			t.Fatal("generateValue returned empty string")
+		}
+		if v[0] == ' ' {
+			t.Errorf("generateValue returned a value with a leading space: %q", v)
+			return
+		}
+	}
+}
+
+// TestSnapshotKeyBoostsLocked_ProgressionCap verifies that the progression
+// boost is capped at maxProgressionBoostFactor so that a single successful AID
+// key cannot monopolise selection after many transitions from the same screen.
+func TestSnapshotKeyBoostsLocked_ProgressionCap(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("hashcap")
+	// Progression count far above the cap.
+	area.KeyPresses["Enter"] = &MindMapKeyPress{Presses: 100, Progressions: 100}
+
+	boosts := e.snapshotKeyBoostsLocked("hashcap")
+	if boosts == nil {
+		t.Fatal("snapshotKeyBoostsLocked returned nil when progressions exist")
+	}
+	want := maxProgressionBoostFactor * 10
+	if boosts["Enter"] != want {
+		t.Errorf("Enter boost = %d, want %d (capped at maxProgressionBoostFactor × 10)", boosts["Enter"], want)
+	}
+}
+
+
 // the oldest entry is evicted to make room for new unique values, ensuring the
 // engine keeps learning throughout the run.
 func TestAppendUniqueLimited_SlidingWindow(t *testing.T) {
