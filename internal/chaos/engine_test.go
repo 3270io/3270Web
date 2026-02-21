@@ -76,6 +76,30 @@ func TestHashScreen(t *testing.T) {
 		t.Error("hashScreen did not change when a field was added")
 	}
 
+	// Changing a field's position must change the hash even when text content
+	// and field count are unchanged.  Two screens with the same text but
+	// different field layouts (e.g. a numeric field vs. an alphanumeric field,
+	// or fields at different row/column offsets) are distinct screens.
+	s2 := buildMockScreen()
+	hBefore := hashScreen(s2)
+	// Replace the unprotected field at row 2, col 10-19 with one at row 3,
+	// col 10-19.  Text content and field count stay the same.
+	s2.Fields[1] = host.NewField(s2, 0x00, 10, 3, 19, 3, 0, 0)
+	hAfter := hashScreen(s2)
+	if hBefore == hAfter {
+		t.Error("hashScreen did not change when a field's row position changed")
+	}
+
+	// Changing only a field's FieldCode (e.g. marking it numeric) must also
+	// change the hash.
+	s3 := buildMockScreen()
+	hBase := hashScreen(s3)
+	s3.Fields[1] = host.NewField(s3, host.AttrNumeric, 10, 2, 19, 2, 0, 0)
+	hNumeric := hashScreen(s3)
+	if hBase == hNumeric {
+		t.Error("hashScreen did not change when a field's attribute code changed")
+	}
+
 	// nil screen must return empty string without panicking.
 	if hashScreen(nil) != "" {
 		t.Error("hashScreen(nil) should return empty string")
@@ -875,5 +899,59 @@ func TestChooseAIDKeyBoosted_Clamp(t *testing.T) {
 	// Clear's effective weight is 1 vs Enter's 70 → Clear should be chosen far less.
 	if counts["Clear"] >= counts["Enter"] {
 		t.Errorf("penalised Clear (%d) should be chosen much less than Enter (%d)", counts["Clear"], counts["Enter"])
+	}
+}
+
+// TestGenerateValue_TextCharset verifies that random values generated for
+// non-numeric text fields contain only uppercase letters, digits, and spaces.
+// 3270 mainframe applications use uppercase for commands and transaction codes;
+// generating lowercase characters wastes exploration entropy.
+func TestGenerateValue_TextCharset(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	// Non-numeric field spanning col 0-19 (length 20).
+	f := host.NewField(s, 0x00, 0, 0, 19, 0, 0, 0)
+
+	cfg := DefaultConfig()
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(55)) //nolint:gosec
+
+	for i := 0; i < 200; i++ {
+		v := e.generateValue(f)
+		for _, c := range v {
+			if !((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ') {
+				t.Errorf("generateValue produced non-uppercase/digit/space character %q in %q", c, v)
+				return
+			}
+		}
+	}
+}
+
+// TestAppendUniqueLimited_SlidingWindow verifies that once the cap is reached,
+// the oldest entry is evicted to make room for new unique values, ensuring the
+// engine keeps learning throughout the run.
+func TestAppendUniqueLimited_SlidingWindow(t *testing.T) {
+	// Fill up to the cap with distinct values.
+	cap := 3
+	var values []string
+	values = appendUniqueLimited(values, "A", cap)
+	values = appendUniqueLimited(values, "B", cap)
+	values = appendUniqueLimited(values, "C", cap)
+	if len(values) != 3 {
+		t.Fatalf("expected 3 values after filling cap, got %d", len(values))
+	}
+
+	// Adding a new unique value must evict the oldest ("A") and append the new one.
+	values = appendUniqueLimited(values, "D", cap)
+	if len(values) != 3 {
+		t.Fatalf("expected length to remain %d after eviction, got %d", cap, len(values))
+	}
+	if values[0] != "B" || values[1] != "C" || values[2] != "D" {
+		t.Errorf("sliding window incorrect: got %v, want [B C D]", values)
+	}
+
+	// Appending a duplicate must not change the slice.
+	values = appendUniqueLimited(values, "C", cap)
+	if len(values) != 3 || values[1] != "C" {
+		t.Errorf("duplicate should not alter the slice: got %v", values)
 	}
 }
