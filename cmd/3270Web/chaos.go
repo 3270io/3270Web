@@ -151,6 +151,10 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 	}
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
+	withSessionLock(s, func() {
+		cfg.ExportHost = s.TargetHost
+		cfg.ExportPort = s.TargetPort
+	})
 
 	// Reject if an engine is already running for this session.
 	if existing, ok := app.chaosEngines.get(s.ID); ok {
@@ -318,7 +322,7 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 		}
 	} else if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps)
+		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -326,7 +330,7 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
 		app.chaosEngines.setLoadedRun(s.ID, run)
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps)
+		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -589,6 +593,10 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		}
 	}
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
+	withSessionLock(s, func() {
+		cfg.ExportHost = s.TargetHost
+		cfg.ExportPort = s.TargetPort
+	})
 
 	var eng *chaos.Engine
 	withSessionLock(s, func() {
@@ -1138,15 +1146,31 @@ func cloneSessionChaosAttempt(attempt session.ChaosAttempt) session.ChaosAttempt
 	return out
 }
 
-func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowStep) ([]byte, error) {
-	export := struct {
-		Host  string                 `json:"Host"`
-		Port  int                    `json:"Port"`
-		Steps []session.WorkflowStep `json:"Steps"`
-	}{
+func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *chaos.WorkflowHeader) ([]byte, error) {
+	export := WorkflowConfig{
 		Host:  hostName,
 		Port:  port,
 		Steps: steps,
+	}
+	if header == nil {
+		header = chaosSeedWorkflowHeader(nil)
+	}
+	if header != nil {
+		if header.EveryStepDelay != nil {
+			export.EveryStepDelay = &session.WorkflowDelayRange{
+				Min: header.EveryStepDelay.Min,
+				Max: header.EveryStepDelay.Max,
+			}
+		}
+		if header.EndOfTaskDelay != nil {
+			export.EndOfTaskDelay = &session.WorkflowDelayRange{
+				Min: header.EndOfTaskDelay.Min,
+				Max: header.EndOfTaskDelay.Max,
+			}
+		}
+		export.OutputFilePath = header.OutputFilePath
+		export.RampUpBatchSize = header.RampUpBatchSize
+		export.RampUpDelay = header.RampUpDelay
 	}
 	return json.MarshalIndent(export, "", "  ")
 }
@@ -1181,11 +1205,60 @@ func chaosSeedRunFromWorkflow(workflow *WorkflowConfig) *chaos.SavedRun {
 		ScreenHashes:      map[string]bool{},
 		TransitionList:    []chaos.Transition{},
 		Steps:             steps,
+		WorkflowHeader:    chaosSeedWorkflowHeader(workflow),
 		AIDKeyCounts:      map[string]int{},
 		UniqueInputValues: uniqueInputs,
 		Attempts:          []chaos.Attempt{},
 		MindMap:           mindMap,
 	}
+}
+
+func chaosSeedWorkflowHeader(workflow *WorkflowConfig) *chaos.WorkflowHeader {
+	if workflow == nil {
+		defaultCfg := chaos.DefaultConfig()
+		stepDelaySec := roundDelaySeconds(defaultCfg.StepDelay.Seconds())
+		return &chaos.WorkflowHeader{
+			EveryStepDelay:  &session.WorkflowDelayRange{Min: stepDelaySec, Max: stepDelaySec},
+			RampUpBatchSize: 50,
+			RampUpDelay:     1.5,
+			EndOfTaskDelay:  &session.WorkflowDelayRange{Min: 60, Max: 120},
+		}
+	}
+
+	header := &chaos.WorkflowHeader{
+		OutputFilePath:  workflow.OutputFilePath,
+		RampUpBatchSize: workflow.RampUpBatchSize,
+		RampUpDelay:     workflow.RampUpDelay,
+	}
+	if workflow.EveryStepDelay != nil {
+		header.EveryStepDelay = &session.WorkflowDelayRange{
+			Min: workflow.EveryStepDelay.Min,
+			Max: workflow.EveryStepDelay.Max,
+		}
+	}
+	if workflow.EndOfTaskDelay != nil {
+		header.EndOfTaskDelay = &session.WorkflowDelayRange{
+			Min: workflow.EndOfTaskDelay.Min,
+			Max: workflow.EndOfTaskDelay.Max,
+		}
+	}
+
+	if header.EveryStepDelay == nil {
+		defaultCfg := chaos.DefaultConfig()
+		stepDelaySec := roundDelaySeconds(defaultCfg.StepDelay.Seconds())
+		header.EveryStepDelay = &session.WorkflowDelayRange{Min: stepDelaySec, Max: stepDelaySec}
+	}
+	if header.RampUpBatchSize == 0 {
+		header.RampUpBatchSize = 50
+	}
+	if header.RampUpDelay == 0 {
+		header.RampUpDelay = 1.5
+	}
+	if header.EndOfTaskDelay == nil {
+		header.EndOfTaskDelay = &session.WorkflowDelayRange{Min: 60, Max: 120}
+	}
+
+	return header
 }
 
 func buildChaosSeedMindMap(steps []session.WorkflowStep) *chaos.MindMap {

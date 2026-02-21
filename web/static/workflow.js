@@ -423,9 +423,9 @@
     activeRunChip.dataset.runMode = mode;
     activeRunChip.textContent = chip;
     activeRunMeta.textContent = displayText;
-    activeRunMeta.title = metadata;
+    activeRunMeta.removeAttribute('title');
     activeRunRow.setAttribute('aria-label', `${chip}: ${metadata}`);
-    activeRunRow.setAttribute('title', `${chip}: ${metadata}`);
+    activeRunRow.removeAttribute('title');
     activeRunRow.setAttribute('data-tippy-content', `${chip}: ${metadata}`);
     if (activeRunRow._tippy) {
       activeRunRow._tippy.setContent(`${chip}: ${metadata}`);
@@ -569,6 +569,17 @@
         return null;
       });
   };
+
+  const refreshWorkflowStatus = () => {
+    return fetchWorkflowStatus().then((payload) => {
+      if (payload) {
+        updateWorkflowStatus(payload);
+      }
+      return payload;
+    });
+  };
+
+  window.refreshWorkflowStatus = refreshWorkflowStatus;
 
   const widgetMinimizedKey = 'workflowStatusWidgetMinimized';
   const widgetSizeKey = 'workflowStatusWidgetSize';
@@ -844,11 +855,8 @@
       playbackPollTimer = window.setTimeout(pollPlayback, playbackSlowMs);
       return;
     }
-    fetchWorkflowStatus()
+    refreshWorkflowStatus()
       .then((payload) => {
-        if (payload) {
-          updateWorkflowStatus(payload);
-        }
         const isActive = payload && payload.playbackActive;
         const isPaused = payload && payload.playbackPaused;
         const chaosActive = payload && payload.chaosActive;
@@ -866,5 +874,13 @@
 
   if (playbackPollTimer === null) {
     playbackPollTimer = window.setTimeout(pollPlayback, playbackFastMs);
+  }
+
+  const removeRecordingForm = document.querySelector('form[action="/workflow/remove"]');
+  if (removeRecordingForm) {
+    removeRecordingForm.addEventListener('submit', () => {
+      setHidden(activeRunRow, true);
+      setHidden(activeRunContainer, true);
+    });
   }
 })();

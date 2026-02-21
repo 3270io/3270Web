@@ -1,6 +1,7 @@
 package chaos
 
 import (
+	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
@@ -197,8 +198,10 @@ func TestExportWorkflow(t *testing.T) {
 
 	cfg := DefaultConfig()
 	cfg.MaxSteps = 2
-	cfg.StepDelay = 0
+	cfg.StepDelay = 25 * time.Millisecond
 	cfg.Seed = 7
+	cfg.ExportHost = "export-host"
+	cfg.ExportPort = 4023
 
 	e := New(h, cfg)
 	if err := e.Start(); err != nil {
@@ -218,6 +221,28 @@ func TestExportWorkflow(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Error("ExportWorkflow returned empty JSON")
+	}
+	var exported exportedWorkflow
+	if err := json.Unmarshal(data, &exported); err != nil {
+		t.Fatalf("ExportWorkflow JSON parse failed: %v", err)
+	}
+	if exported.Host != "testhost" {
+		t.Fatalf("ExportWorkflow Host = %q, want %q", exported.Host, "testhost")
+	}
+	if exported.Port != 3270 {
+		t.Fatalf("ExportWorkflow Port = %d, want 3270", exported.Port)
+	}
+	if exported.EveryStepDelay == nil {
+		t.Fatal("ExportWorkflow EveryStepDelay is nil")
+	}
+	if exported.EveryStepDelay.Min != 0.025 || exported.EveryStepDelay.Max != 0.025 {
+		t.Fatalf("ExportWorkflow EveryStepDelay = %+v, want Min=Max=0.025", exported.EveryStepDelay)
+	}
+	if exported.RampUpBatchSize == 0 {
+		t.Fatal("ExportWorkflow missing RampUpBatchSize")
+	}
+	if exported.EndOfTaskDelay == nil {
+		t.Fatal("ExportWorkflow missing EndOfTaskDelay")
 	}
 }
 

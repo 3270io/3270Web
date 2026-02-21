@@ -1,17 +1,99 @@
 package main
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
+
+func TestRemoveWorkflowHandler_ClearsRecordingAndPlaybackState(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		chaosEngines:   newChaosEngineStore(),
+	}
+	sess := app.SessionManager.CreateSession(mockHost)
+	withSessionLock(sess, func() {
+		sess.Recording = &session.WorkflowRecording{
+			Active:   false,
+			FilePath: "/tmp/recording.json",
+			Steps:    []session.WorkflowStep{{Type: "Connect"}, {Type: "PressEnter"}},
+		}
+		sess.LoadedWorkflow = &session.LoadedWorkflow{
+			Name:     "recording.json",
+			Payload:  []byte(`{"Host":"127.0.0.1","Port":3270,"Steps":[]}`),
+			Preview:  "{}",
+			LoadedAt: time.Now(),
+		}
+		sess.Playback = &session.WorkflowPlayback{
+			Active:        true,
+			StopRequested: false,
+			CurrentStep:   2,
+		}
+		sess.LastPlaybackStep = 9
+		sess.LastPlaybackStepType = "PressEnter"
+		sess.LastPlaybackStepTotal = 10
+		sess.LastPlaybackDelayRange = "0.1-0.2 sec"
+		sess.LastPlaybackDelayApplied = "0.15 sec"
+		sess.PlaybackCompletedAt = time.Now()
+		sess.PlaybackEvents = []session.WorkflowEvent{{Time: time.Now(), Message: "seed event"}}
+	})
+
+	r := gin.New()
+	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflow/remove", nil)
+	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("POST /workflow/remove: want 302, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Location"); got != "/screen" {
+		t.Fatalf("redirect location = %q, want %q", got, "/screen")
+	}
+
+	withSessionLock(sess, func() {
+		if sess.Recording != nil {
+			t.Fatalf("recording should be nil after remove")
+		}
+		if sess.LoadedWorkflow != nil {
+			t.Fatalf("loaded workflow should be nil after remove")
+		}
+		if sess.Playback != nil {
+			t.Fatalf("playback should be nil after remove")
+		}
+		if !sess.PlaybackCompletedAt.IsZero() {
+			t.Fatalf("playbackCompletedAt should be zero after remove")
+		}
+		if len(sess.PlaybackEvents) != 0 {
+			t.Fatalf("playback events should be cleared after remove")
+		}
+		if sess.LastPlaybackStep != 0 || sess.LastPlaybackStepType != "" || sess.LastPlaybackStepTotal != 0 {
+			t.Fatalf("last playback step summary should be cleared after remove")
+		}
+		if sess.LastPlaybackDelayRange != "" || sess.LastPlaybackDelayApplied != "" {
+			t.Fatalf("last playback delay summary should be cleared after remove")
+		}
+	})
+}
 
 func TestBuildWorkflowConfig_UsesRecordedDelayRange(t *testing.T) {
 	s := &session.Session{

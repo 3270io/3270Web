@@ -33,6 +33,7 @@ type SavedRun struct {
 	ScreenHashes      map[string]bool        `json:"screenHashes"`
 	TransitionList    []Transition           `json:"transitionList"`
 	Steps             []session.WorkflowStep `json:"steps"`
+	WorkflowHeader    *WorkflowHeader        `json:"workflowHeader,omitempty"`
 	AIDKeyCounts      map[string]int         `json:"aidKeyCounts"`
 	UniqueInputValues map[string]bool        `json:"uniqueInputValues,omitempty"`
 	Attempts          []Attempt              `json:"attempts,omitempty"`

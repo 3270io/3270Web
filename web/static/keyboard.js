@@ -386,6 +386,8 @@
       "[data-logs-modal]",
       "[data-disconnect-modal]",
       "[data-about-modal]",
+      "[data-chaos-runs-modal]",
+      "[data-chaos-hints-modal]",
       "[data-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
@@ -896,6 +898,12 @@
     if (!event) {
       return;
     }
+
+    // Never route keyboard events to the terminal while any modal is open.
+    if (isModalOpen()) {
+      return;
+    }
+
     var visualKey = mapVisualKey(event);
     if (visualKey) {
       animateVirtualKey(visualKey);

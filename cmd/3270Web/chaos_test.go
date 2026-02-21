@@ -232,12 +232,17 @@ func runChaosExplorerScenarios(t *testing.T, screen *host.Screen, label string) 
 	if w.Code != http.StatusOK {
 		t.Fatalf("[%s] POST /chaos/export: want 200, got %d – body: %s", label, w.Code, w.Body.String())
 	}
-	var exportedWorkflow interface{}
+	var exportedWorkflow WorkflowConfig
 	if err := json.Unmarshal(w.Body.Bytes(), &exportedWorkflow); err != nil {
 		t.Fatalf("[%s] exported workflow is not valid JSON: %v", label, err)
 	}
-	if exportedWorkflow == nil {
-		t.Errorf("[%s] exported workflow JSON must not be null", label)
+	if len(exportedWorkflow.Steps) == 0 {
+		t.Errorf("[%s] exported workflow must include steps", label)
+	}
+	if exportedWorkflow.EveryStepDelay == nil {
+		t.Errorf("[%s] exported workflow missing EveryStepDelay header", label)
+	} else if exportedWorkflow.EveryStepDelay.Min != 0.05 || exportedWorkflow.EveryStepDelay.Max != 0.05 {
+		t.Errorf("[%s] EveryStepDelay = %+v, want Min=Max=0.05", label, exportedWorkflow.EveryStepDelay)
 	}
 
 	// ── 4. Stop chaos exploration ─────────────────────────────────────────────
@@ -801,6 +806,16 @@ func TestChaosLoadRecordingAndExport(t *testing.T) {
 	workflowPayload, _ := json.Marshal(map[string]interface{}{
 		"Host": "127.0.0.1",
 		"Port": 3270,
+		"EveryStepDelay": map[string]interface{}{
+			"Min": 0.2,
+			"Max": 0.4,
+		},
+		"RampUpBatchSize": 23,
+		"RampUpDelay":     2.2,
+		"EndOfTaskDelay": map[string]interface{}{
+			"Min": 11,
+			"Max": 17,
+		},
 		"Steps": []map[string]interface{}{
 			{
 				"Type": "FillString",
@@ -862,16 +877,24 @@ func TestChaosLoadRecordingAndExport(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("export: want 200, got %d body=%s", w.Code, w.Body.String())
 	}
-	var exported struct {
-		Host  string                 `json:"Host"`
-		Port  int                    `json:"Port"`
-		Steps []session.WorkflowStep `json:"Steps"`
-	}
+	var exported WorkflowConfig
 	if err := json.Unmarshal(w.Body.Bytes(), &exported); err != nil {
 		t.Fatalf("export response not valid JSON: %v", err)
 	}
 	if len(exported.Steps) != 2 {
 		t.Fatalf("export steps = %d, want 2", len(exported.Steps))
+	}
+	if exported.EveryStepDelay == nil || exported.EveryStepDelay.Min != 0.2 || exported.EveryStepDelay.Max != 0.4 {
+		t.Fatalf("export EveryStepDelay = %+v, want Min=0.2 Max=0.4", exported.EveryStepDelay)
+	}
+	if exported.RampUpBatchSize != 23 {
+		t.Fatalf("export RampUpBatchSize = %d, want 23", exported.RampUpBatchSize)
+	}
+	if exported.RampUpDelay != 2.2 {
+		t.Fatalf("export RampUpDelay = %v, want 2.2", exported.RampUpDelay)
+	}
+	if exported.EndOfTaskDelay == nil || exported.EndOfTaskDelay.Min != 11 || exported.EndOfTaskDelay.Max != 17 {
+		t.Fatalf("export EndOfTaskDelay = %+v, want Min=11 Max=17", exported.EndOfTaskDelay)
 	}
 	if exported.Steps[0].Type != "FillString" || exported.Steps[0].Text != "CEMT" {
 		t.Fatalf("first exported step = %#v, want FillString/CEMT", exported.Steps[0])
@@ -972,6 +995,13 @@ func TestChaosStart_OutputFileDoesNotOverwriteLoadedRecording(t *testing.T) {
 	}
 	if len(chaosData) == 0 {
 		t.Fatalf("chaos output file is empty")
+	}
+	var chaosWorkflow WorkflowConfig
+	if err := json.Unmarshal(chaosData, &chaosWorkflow); err != nil {
+		t.Fatalf("chaos output workflow is not valid JSON: %v", err)
+	}
+	if chaosWorkflow.EveryStepDelay == nil {
+		t.Fatalf("chaos output workflow missing EveryStepDelay header")
 	}
 }
 

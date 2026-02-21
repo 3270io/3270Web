@@ -78,21 +78,22 @@ type Engine struct {
 	h   host.Host
 	rng *rand.Rand
 
-	mu           sync.Mutex
-	active       bool
-	stopCh       chan struct{}
-	stepsRun     int
-	startedAt    time.Time
-	stoppedAt    time.Time
-	lastErr      string
-	transitions  []Transition
-	steps        []session.WorkflowStep
-	screenHashes map[string]bool
-	uniqueInputs map[string]bool
-	aidKeyCounts map[string]int
-	loadedRunID  string
-	attempts     []Attempt
-	mindMap      *MindMap
+	mu             sync.Mutex
+	active         bool
+	stopCh         chan struct{}
+	stepsRun       int
+	startedAt      time.Time
+	stoppedAt      time.Time
+	lastErr        string
+	transitions    []Transition
+	steps          []session.WorkflowStep
+	screenHashes   map[string]bool
+	uniqueInputs   map[string]bool
+	aidKeyCounts   map[string]int
+	loadedRunID    string
+	attempts       []Attempt
+	mindMap        *MindMap
+	workflowHeader *WorkflowHeader
 
 	hintTransactions []string
 	hintKnownData    []string
@@ -110,6 +111,7 @@ func New(h host.Host, cfg Config) *Engine {
 		h:                h,
 		rng:              rand.New(rand.NewSource(seed)), //nolint:gosec
 		stopCh:           make(chan struct{}),
+		workflowHeader:   workflowHeaderFromConfig(cfg),
 		hintTransactions: hintTransactions,
 		hintKnownData:    hintKnownData,
 	}
@@ -142,6 +144,7 @@ func (e *Engine) Start() error {
 	e.loadedRunID = ""
 	e.attempts = nil
 	e.mindMap = newMindMap()
+	e.workflowHeader = workflowHeaderFromConfig(e.cfg)
 	e.stopCh = make(chan struct{})
 
 	go e.run()
@@ -195,9 +198,14 @@ func (e *Engine) Status() Status {
 
 // exportedWorkflow is the JSON shape expected by the existing workflow loader.
 type exportedWorkflow struct {
-	Host  string                 `json:"Host"`
-	Port  int                    `json:"Port"`
-	Steps []session.WorkflowStep `json:"Steps"`
+	Host            string                      `json:"Host"`
+	Port            int                         `json:"Port"`
+	EveryStepDelay  *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
+	OutputFilePath  string                      `json:"OutputFilePath,omitempty"`
+	RampUpBatchSize int                         `json:"RampUpBatchSize,omitempty"`
+	RampUpDelay     float64                     `json:"RampUpDelay,omitempty"`
+	EndOfTaskDelay  *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
+	Steps           []session.WorkflowStep      `json:"Steps"`
 }
 
 // ExportWorkflow returns the learned workflow as indented JSON that is
@@ -206,13 +214,30 @@ func (e *Engine) ExportWorkflow(hostName string, port int) ([]byte, error) {
 	e.mu.Lock()
 	steps := make([]session.WorkflowStep, len(e.steps))
 	copy(steps, e.steps)
+	header := e.workflowHeader.clone()
 	e.mu.Unlock()
 
-	return json.MarshalIndent(exportedWorkflow{
+	if hostName == "" {
+		hostName = e.cfg.ExportHost
+	}
+	if port == 0 {
+		port = e.cfg.ExportPort
+	}
+
+	export := exportedWorkflow{
 		Host:  hostName,
 		Port:  port,
 		Steps: steps,
-	}, "", "  ")
+	}
+	if header != nil {
+		export.EveryStepDelay = cloneWorkflowDelayRange(header.EveryStepDelay)
+		export.OutputFilePath = header.OutputFilePath
+		export.RampUpBatchSize = header.RampUpBatchSize
+		export.RampUpDelay = header.RampUpDelay
+		export.EndOfTaskDelay = cloneWorkflowDelayRange(header.EndOfTaskDelay)
+	}
+
+	return json.MarshalIndent(export, "", "  ")
 }
 
 // Snapshot returns a SavedRun capturing the engine's current accumulated
@@ -255,6 +280,7 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 		ScreenHashes:      hashes,
 		TransitionList:    transitions,
 		Steps:             steps,
+		WorkflowHeader:    e.workflowHeader.clone(),
 		AIDKeyCounts:      aid,
 		UniqueInputValues: inputs,
 		Attempts:          attempts,
@@ -302,6 +328,10 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	e.stepsRun = saved.StepsRun
 	e.loadedRunID = saved.ID
 	e.mindMap = saved.MindMap.clone()
+	e.workflowHeader = saved.WorkflowHeader.clone()
+	if e.workflowHeader == nil {
+		e.workflowHeader = workflowHeaderFromConfig(e.cfg)
+	}
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}

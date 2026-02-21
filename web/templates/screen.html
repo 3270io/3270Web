@@ -4,7 +4,7 @@
     <title>3270Web</title>
     <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=9">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=10">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script>
         (function () {
@@ -38,14 +38,14 @@
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
-    <script src="/static/keyboard.js?v=6" defer></script>
+    <script src="/static/keyboard.js?v=7" defer></script>
     <script src="/static/theme.js?v=7" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/workflow.js?v=10" defer></script>
+    <script src="/static/workflow.js?v=12" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
-    <script src="/static/ui.js?v=15" defer></script>
+    <script src="/static/ui.js?v=17" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
@@ -216,7 +216,7 @@
                 </div>
             </div>
             <div class="active-run-toolbar-row" data-active-run-container hidden>
-                <span class="active-run-row" data-active-run-row data-status-open role="button" tabindex="0" aria-label="Open workflow status" title="Open workflow status" data-tippy-content="Open workflow status">
+                <span class="active-run-row" data-active-run-row data-status-open role="button" tabindex="0" aria-label="Open workflow status" data-tippy-content="Open workflow status">
                     <span class="active-run-label">Active Run</span>
                     <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
                     <span class="status-text active-run-meta" data-active-run-meta></span>
@@ -298,7 +298,7 @@
         </div>
     </div>
     <div class="modal-backdrop" data-chaos-runs-modal hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-runs-modal-title">
+        <div class="modal modal-chaos-runs" role="dialog" aria-modal="true" aria-labelledby="chaos-runs-modal-title" tabindex="-1">
             <div class="modal-header">
                 <h3 id="chaos-runs-modal-title">Saved Chaos Runs</h3>
                 <button type="button" class="modal-close" data-chaos-runs-close>Close</button>
@@ -312,13 +312,13 @@
         </div>
     </div>
     <div class="modal-backdrop" data-chaos-hints-modal hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-hints-modal-title">
+        <div class="modal modal-chaos-hints" role="dialog" aria-modal="true" aria-labelledby="chaos-hints-modal-title" tabindex="-1">
             <div class="modal-header">
                 <h3 id="chaos-hints-modal-title">Chaos Hints</h3>
                 <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
             </div>
             <div class="stack">
-                <div class="subtle">Add known transactions and working values to guide chaos data entry.</div>
+                <p class="subtle chaos-hints-help">Add known transactions and working values to guide chaos data entry.</p>
                 <div class="chaos-hints-list" data-chaos-hints-list></div>
                 <div class="modal-actions">
                     <button type="button" data-chaos-hints-add>Add hint</button>

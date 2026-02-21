@@ -1101,7 +1101,9 @@ func (app *App) RemoveWorkflowHandler(c *gin.Context) {
 	}
 	stopWorkflowPlayback(s)
 	withSessionLock(s, func() {
+		s.Recording = nil
 		s.LoadedWorkflow = nil
+		s.Playback = nil
 		s.PlaybackCompletedAt = time.Time{}
 	})
 	clearWorkflowStatus(s)

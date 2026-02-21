@@ -42,6 +42,11 @@ type Config struct {
 	// ExcludeNoProgressEvents omits non-error attempts from attempt/event history
 	// when no screen transition occurs.
 	ExcludeNoProgressEvents bool `json:"excludeNoProgressEvents"`
+
+	// ExportHost and ExportPort are optional metadata used when writing
+	// workflow-compatible chaos output files.
+	ExportHost string `json:"-"`
+	ExportPort int    `json:"-"`
 }
 
 // DefaultConfig returns sensible defaults for a chaos exploration run.

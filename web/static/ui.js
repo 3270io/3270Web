@@ -1038,6 +1038,116 @@
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
     let chaosHints = [];
     let hintsDirty = false;
+    let hintRowSequence = 0;
+    let activeChaosModal = null;
+    let previousChaosFocus = null;
+
+    const chaosFocusableSelector = [
+        'button:not([disabled])',
+        'a[href]',
+        'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    const getModalFocusableElements = (modal) => {
+        if (!modal) {
+            return [];
+        }
+        return Array.from(modal.querySelectorAll(chaosFocusableSelector))
+            .filter((el) => !el.hidden && !el.closest('[hidden]'));
+    };
+
+    const focusModalElement = (modal, preferredSelector = '') => {
+        if (!modal || modal.hidden) {
+            return;
+        }
+        if (preferredSelector) {
+            const preferred = modal.querySelector(preferredSelector);
+            if (preferred && typeof preferred.focus === 'function' && !preferred.hidden) {
+                preferred.focus();
+                return;
+            }
+        }
+        const focusables = getModalFocusableElements(modal);
+        if (focusables.length && typeof focusables[0].focus === 'function') {
+            focusables[0].focus();
+            return;
+        }
+        const dialog = modal.querySelector('.modal');
+        if (dialog && typeof dialog.focus === 'function') {
+            dialog.focus();
+        }
+    };
+
+    const closeChaosModal = (modal, options = {}) => {
+        if (!modal) {
+            return;
+        }
+        const restoreFocus = options.restoreFocus !== false;
+        modal.hidden = true;
+        if (activeChaosModal === modal) {
+            activeChaosModal = null;
+            if (restoreFocus && previousChaosFocus && typeof previousChaosFocus.focus === 'function') {
+                previousChaosFocus.focus();
+            }
+            previousChaosFocus = null;
+        }
+    };
+
+    const openChaosModal = (modal, preferredSelector = '') => {
+        if (!modal) {
+            return;
+        }
+        if (activeChaosModal && activeChaosModal !== modal) {
+            closeChaosModal(activeChaosModal, { restoreFocus: false });
+        }
+        const activeElement = document.activeElement;
+        previousChaosFocus = activeElement instanceof HTMLElement ? activeElement : null;
+        modal.hidden = false;
+        activeChaosModal = modal;
+        if (activeElement && typeof activeElement.blur === 'function') {
+            activeElement.blur();
+        }
+        window.requestAnimationFrame(() => focusModalElement(modal, preferredSelector));
+    };
+
+    document.addEventListener('keydown', (event) => {
+        const modal = activeChaosModal && !activeChaosModal.hidden ? activeChaosModal : null;
+        if (!modal) {
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeChaosModal(modal);
+            return;
+        }
+        if (event.key !== 'Tab') {
+            return;
+        }
+        const focusables = getModalFocusableElements(modal);
+        if (!focusables.length) {
+            event.preventDefault();
+            focusModalElement(modal);
+            return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        const outsideModal = !active || !modal.contains(active);
+        if (event.shiftKey) {
+            if (outsideModal || active === first) {
+                event.preventDefault();
+                last.focus();
+            }
+            return;
+        }
+        if (outsideModal || active === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }, true);
 
     const setButtonBusy = (btn, busy) => {
         if (!btn) {
@@ -1146,20 +1256,41 @@
         const row = document.createElement('div');
         row.className = 'chaos-hint-row';
 
+        const rowID = ++hintRowSequence;
+        const txField = document.createElement('div');
+        txField.className = 'chaos-hint-field';
+        const txLabel = document.createElement('label');
+        txLabel.className = 'chaos-hint-field-label';
+        txLabel.textContent = 'Transaction';
+
         const txInput = document.createElement('input');
         txInput.type = 'text';
         txInput.placeholder = 'Transaction (e.g., CEMT)';
         txInput.value = hint.transaction || '';
         txInput.setAttribute('aria-label', 'Chaos hint transaction');
+        txInput.id = `chaos-hint-transaction-${rowID}`;
         txInput.dataset.chaosHintTransaction = '1';
         txInput.addEventListener('input', markHintsDirty);
+        txLabel.setAttribute('for', txInput.id);
+        txField.appendChild(txLabel);
+        txField.appendChild(txInput);
+
+        const knownDataField = document.createElement('div');
+        knownDataField.className = 'chaos-hint-field';
+        const knownDataLabel = document.createElement('label');
+        knownDataLabel.className = 'chaos-hint-field-label';
+        knownDataLabel.textContent = 'Known Working Data';
 
         const knownDataInput = document.createElement('textarea');
         knownDataInput.placeholder = 'Known data values (comma or newline separated)';
         knownDataInput.value = Array.isArray(hint.knownData) ? hint.knownData.join('\n') : '';
         knownDataInput.setAttribute('aria-label', 'Chaos hint known data');
+        knownDataInput.id = `chaos-hint-data-${rowID}`;
         knownDataInput.dataset.chaosHintData = '1';
         knownDataInput.addEventListener('input', markHintsDirty);
+        knownDataLabel.setAttribute('for', knownDataInput.id);
+        knownDataField.appendChild(knownDataLabel);
+        knownDataField.appendChild(knownDataInput);
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
@@ -1173,8 +1304,8 @@
             }
         });
 
-        row.appendChild(txInput);
-        row.appendChild(knownDataInput);
+        row.appendChild(txField);
+        row.appendChild(knownDataField);
         row.appendChild(removeBtn);
         hintsList.appendChild(row);
     };
@@ -1437,7 +1568,7 @@
             return;
         }
         runsList.innerHTML = '<p class="subtle">Loading\u2026</p>';
-        runsModal.hidden = false;
+        openChaosModal(runsModal, '[data-chaos-runs-close]');
         try {
             const resp = await fetch('/chaos/runs');
             if (!resp.ok) {
@@ -1490,11 +1621,10 @@
                     } catch (_e) {
                         // Ignore
                     }
-                    if (runsModal) {
-                        runsModal.hidden = true;
-                    }
+                    closeChaosModal(runsModal);
                 });
             });
+            focusModalElement(runsModal, '[data-load-run-id], [data-chaos-runs-close]');
         } catch (_err) {
             runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
         }
@@ -1502,36 +1632,37 @@
 
     if (runsModal) {
         runsModalClose.forEach((btn) => {
-            btn.addEventListener('click', () => { runsModal.hidden = true; });
+            btn.addEventListener('click', () => {
+                closeChaosModal(runsModal);
+            });
         });
         runsModal.addEventListener('click', (e) => {
             if (e.target === runsModal) {
-                runsModal.hidden = true;
+                closeChaosModal(runsModal);
             }
         });
     }
 
     if (hintsOpenBtn) {
         hintsOpenBtn.addEventListener('click', async () => {
-            if (hintsModal) {
-                hintsModal.hidden = false;
-            }
+            openChaosModal(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
             hintsDirty = false;
             if (hintsList && hintsList.children.length === 0) {
                 renderHints(chaosHints);
             }
             await loadHints();
+            focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
         });
     }
     if (hintsModal) {
         hintsModalClose.forEach((btn) => {
             btn.addEventListener('click', () => {
-                hintsModal.hidden = true;
+                closeChaosModal(hintsModal);
             });
         });
         hintsModal.addEventListener('click', (event) => {
             if (event.target === hintsModal) {
-                hintsModal.hidden = true;
+                closeChaosModal(hintsModal);
             }
         });
     }
@@ -1781,6 +1912,9 @@
                         uniqueInputs: 0,
                     });
                     await pollStatus();
+                    if (typeof window.refreshWorkflowStatus === 'function') {
+                        await window.refreshWorkflowStatus();
+                    }
                 }
             } catch (_err) {
                 // Ignore
