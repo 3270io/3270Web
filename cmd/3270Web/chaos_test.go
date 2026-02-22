@@ -100,6 +100,8 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
 	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
 	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
+	r.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
+	r.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
 
 	return app, r, sess.ID
 }
@@ -558,6 +560,8 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
 	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
 	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
+	r.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
+	r.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
 
 	return app, r, sess.ID
 }
@@ -653,6 +657,11 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 			{
 				"transaction": " CEMT ",
 				"knownData":   []string{" USER01 ", "", "PASS01", "PASS01"},
+				"keyAssignments": map[string]string{
+					" Return ": "pf3",
+					"Confirm":  " enter ",
+					"":         "PF8",
+				},
 			},
 			{
 				"transaction": "",
@@ -697,6 +706,16 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 	firstKnown, _ := first["knownData"].([]interface{})
 	if len(firstKnown) != 2 {
 		t.Fatalf("first hint knownData length = %d, want 2", len(firstKnown))
+	}
+	firstKeys, _ := first["keyAssignments"].(map[string]interface{})
+	if len(firstKeys) != 2 {
+		t.Fatalf("first hint keyAssignments length = %d, want 2", len(firstKeys))
+	}
+	if got, _ := firstKeys["Return"].(string); got != "PF(3)" {
+		t.Fatalf("first hint keyAssignments[Return] = %q, want PF(3)", got)
+	}
+	if got, _ := firstKeys["Confirm"].(string); got != "Enter" {
+		t.Fatalf("first hint keyAssignments[Confirm] = %q, want Enter", got)
 	}
 }
 

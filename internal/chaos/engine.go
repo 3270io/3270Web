@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -111,6 +112,8 @@ type Engine struct {
 
 	hintTransactions []string
 	hintKnownData    []string
+	hintKeyMappings  map[string]string
+	screenHints      map[string]ScreenHint
 }
 
 // New creates a new Engine with the given host and configuration.
@@ -119,7 +122,7 @@ func New(h host.Host, cfg Config) *Engine {
 	if seed == 0 {
 		seed = time.Now().UnixNano()
 	}
-	hintTransactions, hintKnownData := normalizeHints(cfg.Hints)
+	hintTransactions, hintKnownData, hintKeyMappings := normalizeHints(cfg.Hints)
 	return &Engine{
 		cfg:              cfg,
 		h:                h,
@@ -128,7 +131,53 @@ func New(h host.Host, cfg Config) *Engine {
 		workflowHeader:   workflowHeaderFromConfig(cfg),
 		hintTransactions: hintTransactions,
 		hintKnownData:    hintKnownData,
+		hintKeyMappings:  hintKeyMappings,
+		screenHints:      cloneScreenHints(cfg.ScreenHints),
 	}
+}
+
+// SetScreenHints replaces all screen-scoped hints. Safe to call while the
+// engine is running.
+func (e *Engine) SetScreenHints(hints map[string]ScreenHint) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.screenHints = cloneScreenHints(hints)
+}
+
+// SetScreenHint upserts (or removes) a single screen-scoped hint. Safe to call
+// while the engine is running.
+func (e *Engine) SetScreenHint(hash string, hint ScreenHint) {
+	if e == nil {
+		return
+	}
+	key := strings.TrimSpace(hash)
+	if key == "" {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.screenHints == nil {
+		e.screenHints = make(map[string]ScreenHint)
+	}
+	clean := sanitizeScreenHint(hint)
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		delete(e.screenHints, key)
+		return
+	}
+	e.screenHints[key] = clean
+}
+
+// ScreenHints returns a defensive copy of the current screen hints.
+func (e *Engine) ScreenHints() map[string]ScreenHint {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return cloneScreenHints(e.screenHints)
 }
 
 // Start begins chaos exploration in a background goroutine.
@@ -442,10 +491,13 @@ func (e *Engine) run() {
 		e.mu.Lock()
 		knownValues := e.snapshotAreaValuesLocked(currentHash)
 		keyBoosts := e.snapshotKeyBoostsLocked(currentHash)
+		screenHint := e.snapshotScreenHintLocked(currentHash)
 		e.mu.Unlock()
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
 
 		for idx, f := range fields {
-			value := e.generateValueForFieldWith(f, idx == 0, knownValues)
+			value := e.generateValueForFieldWith(f, idx == 0, knownValues, screenHint)
 			if value == "" {
 				continue
 			}
@@ -590,6 +642,20 @@ func (e *Engine) snapshotAreaValuesLocked(hash string) map[string][]string {
 	return out
 }
 
+// snapshotScreenHintLocked returns a copy of the configured screen-scoped hint
+// for the given hash. Must be called with e.mu held.
+func (e *Engine) snapshotScreenHintLocked(hash string) *ScreenHint {
+	if e == nil || len(e.screenHints) == 0 || strings.TrimSpace(hash) == "" {
+		return nil
+	}
+	h, ok := e.screenHints[hash]
+	if !ok {
+		return nil
+	}
+	clone := sanitizeScreenHint(h)
+	return &clone
+}
+
 // snapshotKeyBoostsLocked returns a map of AID key → boost amount derived
 // from the MindMap statistics for the given area.  Keys that previously caused
 // screen transitions receive a positive boost proportional to their
@@ -640,12 +706,13 @@ func filterProgressAttempts(attempts []Attempt) []Attempt {
 	return filtered
 }
 
-func normalizeHints(hints []Hint) ([]string, []string) {
+func normalizeHints(hints []Hint) ([]string, []string, map[string]string) {
 	if len(hints) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	transactions := make([]string, 0, len(hints))
 	knownData := make([]string, 0, len(hints))
+	keyMappings := make(map[string]string)
 	seenTx := make(map[string]bool)
 	seenData := make(map[string]bool)
 	for _, hint := range hints {
@@ -662,19 +729,280 @@ func normalizeHints(hints []Hint) ([]string, []string) {
 			knownData = append(knownData, value)
 			seenData[value] = true
 		}
+		for rawLabel, rawKey := range hint.KeyAssignments {
+			label := normalizeHintAssignmentLabel(rawLabel)
+			key := normalizeChaosKeyName(rawKey)
+			if label == "" || key == "" {
+				continue
+			}
+			if _, exists := keyMappings[label]; exists {
+				continue
+			}
+			keyMappings[label] = key
+		}
 	}
-	return transactions, knownData
+	if len(keyMappings) == 0 {
+		keyMappings = nil
+	}
+	return transactions, knownData, keyMappings
+}
+
+func mergeKeyBoostMaps(base, extra map[string]int) map[string]int {
+	if len(extra) == 0 {
+		return base
+	}
+	if len(base) == 0 {
+		out := make(map[string]int, len(extra))
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	out := make(map[string]int, len(base)+len(extra))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range extra {
+		out[k] += v
+	}
+	return out
+}
+
+func (e *Engine) hintKeyBoostsForScreen(screen *host.Screen) map[string]int {
+	if e == nil || screen == nil || len(e.hintKeyMappings) == 0 {
+		return nil
+	}
+	text := normalizeHintAssignmentLabel(screen.Text())
+	if text == "" {
+		return nil
+	}
+	boosts := make(map[string]int)
+	for label, key := range e.hintKeyMappings {
+		if label == "" || key == "" {
+			continue
+		}
+		if strings.Contains(text, label) {
+			// Strongly prefer keys explicitly mapped to labels present on screen,
+			// while still allowing exploration through weighted randomness.
+			boosts[key] += 100
+		}
+	}
+	if len(boosts) == 0 {
+		return nil
+	}
+	return boosts
+}
+
+func (e *Engine) screenHintKeyBoostsForScreen(screen *host.Screen, screenHint *ScreenHint) map[string]int {
+	if e == nil || screenHint == nil {
+		return nil
+	}
+	boosts := make(map[string]int)
+	for _, rawKey := range screenHint.KnownKeys {
+		key := normalizeChaosKeyName(rawKey)
+		if key == "" {
+			continue
+		}
+		boosts[key] += 120
+	}
+	if len(screenHint.KeyAssignments) == 0 || screen == nil {
+		if len(boosts) == 0 {
+			return nil
+		}
+		return boosts
+	}
+	text := normalizeHintAssignmentLabel(screen.Text())
+	if text == "" {
+		if len(boosts) == 0 {
+			return nil
+		}
+		return boosts
+	}
+	for label, key := range screenHint.KeyAssignments {
+		nLabel := normalizeHintAssignmentLabel(label)
+		nKey := normalizeChaosKeyName(key)
+		if nLabel == "" || nKey == "" {
+			continue
+		}
+		if strings.Contains(text, nLabel) {
+			boosts[nKey] += 140
+		}
+	}
+	if len(boosts) == 0 {
+		return nil
+	}
+	return boosts
+}
+
+func normalizeHintAssignmentLabel(value string) string {
+	fields := strings.Fields(strings.ToUpper(strings.TrimSpace(value)))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.Join(fields, " ")
+}
+
+func normalizeChaosKeyName(key string) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.ContainsAny(trimmed, "\n\r\t;") {
+		return ""
+	}
+
+	upper := strings.ToUpper(trimmed)
+	lower := strings.ToLower(trimmed)
+
+	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+			return fmt.Sprintf("PF(%d)", n)
+		}
+		return ""
+	}
+	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 3 {
+			return fmt.Sprintf("PA(%d)", n)
+		}
+		return ""
+	}
+	if strings.HasPrefix(upper, "PF") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil && n >= 1 && n <= 24 {
+			return fmt.Sprintf("PF(%d)", n)
+		}
+	}
+	if strings.HasPrefix(upper, "PA") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil && n >= 1 && n <= 3 {
+			return fmt.Sprintf("PA(%d)", n)
+		}
+	}
+	if strings.HasPrefix(upper, "F") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "F")); err == nil && n >= 1 && n <= 24 {
+			return fmt.Sprintf("PF(%d)", n)
+		}
+	}
+
+	switch lower {
+	case "enter":
+		return "Enter"
+	case "tab":
+		return "Tab"
+	case "backtab":
+		return "BackTab"
+	case "clear":
+		return "Clear"
+	case "reset":
+		return "Reset"
+	case "eraseeof", "erase_eof":
+		return "EraseEOF"
+	case "eraseinput", "erase_input":
+		return "EraseInput"
+	case "dup":
+		return "Dup"
+	case "fieldmark", "field_mark":
+		return "FieldMark"
+	case "sysreq", "sys_req":
+		return "SysReq"
+	case "attn":
+		return "Attn"
+	case "newline", "new_line":
+		return "Newline"
+	case "backspace":
+		return "BackSpace"
+	case "delete":
+		return "Delete"
+	case "insert":
+		return "Insert"
+	case "home":
+		return "Home"
+	case "up":
+		return "Up"
+	case "down":
+		return "Down"
+	case "left":
+		return "Left"
+	case "right":
+		return "Right"
+	}
+
+	// Allow unknown but sanitized key names to pass through for host-specific
+	// keys. These may not round-trip to workflow steps if unsupported.
+	return trimmed
+}
+
+func cloneScreenHints(in map[string]ScreenHint) map[string]ScreenHint {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]ScreenHint, len(in))
+	for hash, hint := range in {
+		key := strings.TrimSpace(hash)
+		if key == "" {
+			continue
+		}
+		clean := sanitizeScreenHint(hint)
+		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+			continue
+		}
+		out[key] = clean
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func sanitizeScreenHint(h ScreenHint) ScreenHint {
+	knownData := make([]string, 0, len(h.KnownData))
+	seenData := make(map[string]bool)
+	for _, raw := range h.KnownData {
+		v := strings.TrimSpace(raw)
+		if v == "" || seenData[v] {
+			continue
+		}
+		seenData[v] = true
+		knownData = append(knownData, v)
+	}
+	knownKeys := make([]string, 0, len(h.KnownKeys))
+	seenKeys := make(map[string]bool)
+	for _, raw := range h.KnownKeys {
+		k := normalizeChaosKeyName(raw)
+		if k == "" || seenKeys[k] {
+			continue
+		}
+		seenKeys[k] = true
+		knownKeys = append(knownKeys, k)
+	}
+	assignments := make(map[string]string)
+	for rawLabel, rawKey := range h.KeyAssignments {
+		label := strings.TrimSpace(rawLabel)
+		key := normalizeChaosKeyName(rawKey)
+		if label == "" || key == "" {
+			continue
+		}
+		assignments[label] = key
+	}
+	if len(assignments) == 0 {
+		assignments = nil
+	}
+	return ScreenHint{
+		KnownData:      knownData,
+		KnownKeys:      knownKeys,
+		KeyAssignments: assignments,
+	}
 }
 
 func (e *Engine) generateValueForField(f *host.Field, preferTransaction bool) string {
-	return e.generateValueForFieldWith(f, preferTransaction, nil)
+	return e.generateValueForFieldWith(f, preferTransaction, nil, nil)
 }
 
 // generateValueForFieldWith extends generateValueForField with optional
 // per-screen known-working values learned from previous transitions. Callers
 // that hold the engine lock must snapshot area values before calling; this
 // function must not touch e.mindMap directly.
-func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool, knownValues map[string][]string) string {
+func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool, knownValues map[string][]string, screenHint *ScreenHint) string {
 	// 1. Prefer values already known to work on this screen / field position.
 	if len(knownValues) > 0 {
 		row := f.StartY + 1
@@ -695,15 +1023,15 @@ func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool
 		}
 	}
 	// 2. Fall back to user-supplied hints.
-	if hinted := e.hintValueForField(f, preferTransaction); hinted != "" {
+	if hinted := e.hintValueForField(f, preferTransaction, screenHint); hinted != "" {
 		return hinted
 	}
 	// 3. Generate a random value appropriate for the field type.
 	return e.generateValue(f)
 }
 
-func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool) string {
-	if len(e.hintTransactions) == 0 && len(e.hintKnownData) == 0 {
+func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screenHint *ScreenHint) string {
+	if len(e.hintTransactions) == 0 && len(e.hintKnownData) == 0 && (screenHint == nil || len(screenHint.KnownData) == 0) {
 		return ""
 	}
 	length := fieldLength(f)
@@ -719,6 +1047,9 @@ func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool) string
 	}
 
 	var candidate string
+	if screenHint != nil && len(screenHint.KnownData) > 0 && e.rng.Intn(100) < 70 {
+		candidate = screenHint.KnownData[e.rng.Intn(len(screenHint.KnownData))]
+	}
 	if preferTransaction && len(e.hintTransactions) > 0 && e.rng.Intn(100) < 75 {
 		candidate = e.hintTransactions[e.rng.Intn(len(e.hintTransactions))]
 	}
@@ -921,25 +1252,79 @@ func fieldLength(f *host.Field) int {
 	return total
 }
 
-// aidKeyToStepType converts an AID key name to the workflow step type used by
-// the existing playback system.
+// aidKeyToStepType converts a key name to the workflow step type used by the
+// existing playback system. The function supports the common virtual-keyboard
+// keys (not only AID keys) so chaos can record accurate workflows when key
+// hints introduce non-PF/non-PA actions.
 func aidKeyToStepType(key string) string {
-	switch key {
-	case "Enter":
+	upper := strings.ToUpper(strings.TrimSpace(key))
+	switch upper {
+	case "ENTER":
 		return "PressEnter"
-	case "Clear":
-		return "PressClear"
-	case "Tab":
+	case "TAB":
 		return "PressTab"
+	case "BACKTAB":
+		return "PressBackTab"
+	case "CLEAR":
+		return "PressClear"
+	case "RESET":
+		return "PressReset"
+	case "ERASEEOF", "ERASE_EOF":
+		return "PressEraseEOF"
+	case "ERASEINPUT", "ERASE_INPUT":
+		return "PressEraseInput"
+	case "DUP":
+		return "PressDup"
+	case "FIELDMARK", "FIELD_MARK":
+		return "PressFieldMark"
+	case "SYSREQ", "SYS_REQ":
+		return "PressSysReq"
+	case "ATTN":
+		return "PressAttn"
+	case "NEWLINE", "NEW_LINE":
+		return "PressNewline"
+	case "BACKSPACE":
+		return "PressBackspace"
+	case "DELETE":
+		return "PressDelete"
+	case "INSERT":
+		return "PressInsert"
+	case "HOME":
+		return "PressHome"
+	case "UP":
+		return "PressUp"
+	case "DOWN":
+		return "PressDown"
+	case "LEFT":
+		return "PressLeft"
+	case "RIGHT":
+		return "PressRight"
 	}
-	upper := strings.ToUpper(key)
 	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
 		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
 		return "PressPF" + inner
 	}
+	if strings.HasPrefix(upper, "PF") {
+		inner := strings.TrimPrefix(upper, "PF")
+		if _, err := strconv.Atoi(inner); err == nil {
+			return "PressPF" + inner
+		}
+	}
+	if strings.HasPrefix(upper, "F") {
+		inner := strings.TrimPrefix(upper, "F")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+			return fmt.Sprintf("PressPF%d", n)
+		}
+	}
 	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
 		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
 		return "PressPA" + inner
+	}
+	if strings.HasPrefix(upper, "PA") {
+		inner := strings.TrimPrefix(upper, "PA")
+		if _, err := strconv.Atoi(inner); err == nil {
+			return "PressPA" + inner
+		}
 	}
 	return "PressEnter"
 }

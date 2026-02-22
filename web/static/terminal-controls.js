@@ -71,11 +71,6 @@
     slider.value = String(current);
   }
 
-  function viewportHasNoScrollbars() {
-    var de = document.documentElement;
-    return de.scrollWidth <= de.clientWidth + 1 && de.scrollHeight <= de.clientHeight + 1;
-  }
-
   function shellFullyVisible(shell) {
     if (!shell) {
       return false;
@@ -85,7 +80,9 @@
   }
 
   function fitsViewport(shell) {
-    return viewportHasNoScrollbars() && shellFullyVisible(shell);
+    // Terminal sizing should be constrained by the terminal shell itself, not
+    // by unrelated page chrome (e.g. an on-screen keyboard shown below it).
+    return shellFullyVisible(shell);
   }
 
   function fitToLargestSize(elements) {

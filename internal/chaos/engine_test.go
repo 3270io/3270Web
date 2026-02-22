@@ -134,7 +134,13 @@ func TestAidKeyToStepType(t *testing.T) {
 		{"Enter", "PressEnter"},
 		{"Clear", "PressClear"},
 		{"Tab", "PressTab"},
+		{"BackTab", "PressBackTab"},
+		{"Up", "PressUp"},
+		{"Down", "PressDown"},
+		{"Delete", "PressDelete"},
 		{"PF(1)", "PressPF1"},
+		{"PF1", "PressPF1"},
+		{"F4", "PressPF4"},
 		{"PF(12)", "PressPF12"},
 		{"PA(1)", "PressPA1"},
 		{"unknown", "PressEnter"},
@@ -143,6 +149,33 @@ func TestAidKeyToStepType(t *testing.T) {
 		if got := aidKeyToStepType(c.key); got != c.want {
 			t.Errorf("aidKeyToStepType(%q) = %q, want %q", c.key, got, c.want)
 		}
+	}
+}
+
+func TestHintKeyBoostsForScreen(t *testing.T) {
+	s := buildMockScreen()
+	copy(s.Buffer[0], []rune("PF3 - RETURN    PF8 PAGE FORWARD"))
+
+	e := &Engine{
+		hintKeyMappings: map[string]string{
+			"RETURN":       "PF(3)",
+			"PAGE FORWARD": "PF(8)",
+			"CONFIRM":      "Enter",
+		},
+	}
+
+	boosts := e.hintKeyBoostsForScreen(s)
+	if boosts == nil {
+		t.Fatal("hintKeyBoostsForScreen returned nil, want boosts")
+	}
+	if boosts["PF(3)"] <= 0 {
+		t.Fatalf("PF(3) boost = %d, want > 0", boosts["PF(3)"])
+	}
+	if boosts["PF(8)"] <= 0 {
+		t.Fatalf("PF(8) boost = %d, want > 0", boosts["PF(8)"])
+	}
+	if _, ok := boosts["Enter"]; ok {
+		t.Fatalf("Enter should not be boosted when label is absent, boosts=%v", boosts)
 	}
 }
 
@@ -815,7 +848,7 @@ func TestGenerateValueForFieldWith_PrefersKnownValues(t *testing.T) {
 	hitKnown := 0
 	const tries = 50
 	for i := 0; i < tries; i++ {
-		v := e.generateValueForFieldWith(f, false, knownValues)
+		v := e.generateValueForFieldWith(f, false, knownValues, nil)
 		if v == "SIGNONX" {
 			hitKnown++
 		}
@@ -970,7 +1003,6 @@ func TestSnapshotKeyBoostsLocked_ProgressionCap(t *testing.T) {
 		t.Errorf("Enter boost = %d, want %d (capped at maxProgressionBoostFactor × 10)", boosts["Enter"], want)
 	}
 }
-
 
 // the oldest entry is evicted to make room for new unique values, ensuring the
 // engine keeps learning throughout the run.

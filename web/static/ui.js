@@ -1022,6 +1022,12 @@
     const hintsReloadBtn = document.querySelector('[data-chaos-hints-reload]');
     const hintsSaveBtn = document.querySelector('[data-chaos-hints-save]');
     const hintsStatus = document.querySelector('[data-chaos-hints-status]');
+    const mapOpenBtn = document.querySelector('[data-chaos-map-open]');
+    const mapModal = document.querySelector('[data-chaos-map-modal]');
+    const mapModalClose = document.querySelectorAll('[data-chaos-map-close]');
+    const mapList = document.querySelector('[data-chaos-map-list]');
+    const mapStatus = document.querySelector('[data-chaos-map-status]');
+    const mapRefreshBtn = document.querySelector('[data-chaos-map-refresh]');
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
@@ -1039,6 +1045,9 @@
     let chaosHints = [];
     let hintsDirty = false;
     let hintRowSequence = 0;
+    let latestMindMap = null;
+    let screenHintsByHash = {};
+    let screenHintDrafts = {};
     let activeChaosModal = null;
     let previousChaosFocus = null;
 
@@ -1209,6 +1218,345 @@
             .filter((item) => item.length > 0);
     };
 
+    const parseKeyAssignments = (value) => {
+        if (!value) {
+            return {};
+        }
+        const out = {};
+        String(value)
+            .split(/\n+/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .forEach((line) => {
+                const sepIndex = line.indexOf('=>') >= 0
+                    ? line.indexOf('=>')
+                    : (line.indexOf('=') >= 0 ? line.indexOf('=') : line.indexOf(':'));
+                if (sepIndex < 0) {
+                    return;
+                }
+                const sepLen = line.slice(sepIndex, sepIndex + 2) === '=>' ? 2 : 1;
+                const label = line.slice(0, sepIndex).trim();
+                const key = line.slice(sepIndex + sepLen).trim();
+                if (!label || !key) {
+                    return;
+                }
+                out[label] = key;
+            });
+        return out;
+    };
+
+    const normalizeKeyAssignments = (raw) => {
+        if (!raw || typeof raw !== 'object') {
+            return {};
+        }
+        const out = {};
+        Object.entries(raw).forEach(([rawLabel, rawKey]) => {
+            const label = String(rawLabel || '').trim();
+            const key = String(rawKey || '').trim();
+            if (!label || !key) {
+                return;
+            }
+            out[label] = key;
+        });
+        return out;
+    };
+
+    const formatKeyAssignments = (raw) => {
+        const assignments = normalizeKeyAssignments(raw);
+        return Object.keys(assignments)
+            .sort((a, b) => a.localeCompare(b))
+            .map((label) => `${label} = ${assignments[label]}`)
+            .join('\n');
+    };
+
+    const parseListLines = (value) => {
+        if (!value) {
+            return [];
+        }
+        return String(value)
+            .split(/[\n,]/)
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
+    };
+
+    const formatListLines = (values) => {
+        return Array.isArray(values) ? values.map((v) => String(v || '').trim()).filter(Boolean).join('\n') : '';
+    };
+
+    const normalizeScreenHint = (raw) => {
+        if (!raw || typeof raw !== 'object') {
+            return { knownData: [], knownKeys: [], keyAssignments: {} };
+        }
+        const knownData = Array.isArray(raw.knownData)
+            ? raw.knownData.map((v) => String(v || '').trim()).filter(Boolean)
+            : parseListLines(raw.knownData || '');
+        const knownKeys = Array.isArray(raw.knownKeys)
+            ? raw.knownKeys.map((v) => String(v || '').trim()).filter(Boolean)
+            : parseListLines(raw.knownKeys || '');
+        return {
+            knownData,
+            knownKeys,
+            keyAssignments: normalizeKeyAssignments(raw.keyAssignments || {}),
+        };
+    };
+
+    const normalizeScreenHintsMap = (raw) => {
+        if (!raw || typeof raw !== 'object') {
+            return {};
+        }
+        const out = {};
+        Object.entries(raw).forEach(([hash, hint]) => {
+            const key = String(hash || '').trim();
+            if (!key) {
+                return;
+            }
+            const norm = normalizeScreenHint(hint);
+            if (!norm.knownData.length && !norm.knownKeys.length && !Object.keys(norm.keyAssignments).length) {
+                return;
+            }
+            out[key] = norm;
+        });
+        return out;
+    };
+
+    const setChaosMapStatus = (message, isError = false) => {
+        if (!mapStatus) {
+            return;
+        }
+        mapStatus.textContent = message || '';
+        mapStatus.style.color = isError ? '#ff9a5a' : '';
+    };
+
+    const escapeHtml = (value) => String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const markScreenHintDraftDirty = (hash, draft) => {
+        if (!hash) {
+            return;
+        }
+        screenHintDrafts[hash] = {
+            ...normalizeScreenHint(draft || {}),
+            _dirty: true,
+        };
+    };
+
+    const effectiveScreenHintForHash = (hash) => {
+        if (hash && screenHintDrafts[hash]) {
+            return normalizeScreenHint(screenHintDrafts[hash]);
+        }
+        if (hash && screenHintsByHash[hash]) {
+            return normalizeScreenHint(screenHintsByHash[hash]);
+        }
+        return { knownData: [], knownKeys: [], keyAssignments: {} };
+    };
+
+    const saveScreenHint = async (screenHash, draft) => {
+        if (!screenHash) {
+            return;
+        }
+        const payload = {
+            screenHash,
+            knownData: draft.knownData || [],
+            knownKeys: draft.knownKeys || [],
+            keyAssignments: draft.keyAssignments || {},
+        };
+        try {
+            const resp = await fetch('/chaos/screen-hints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            let body = {};
+            try {
+                body = await resp.json();
+            } catch (_parseErr) {
+                body = {};
+            }
+            if (!resp.ok) {
+                throw new Error(body.error || 'request failed');
+            }
+            screenHintsByHash = normalizeScreenHintsMap(body.screenHints || {});
+            if (screenHintDrafts[screenHash]) {
+                screenHintDrafts[screenHash] = {
+                    ...effectiveScreenHintForHash(screenHash),
+                    _dirty: false,
+                };
+            }
+            setChaosMapStatus(`Saved screen hints for ${screenHash}.`);
+            if (mapModal && !mapModal.hidden) {
+                renderChaosMap();
+            }
+        } catch (err) {
+            setChaosMapStatus((err && err.message) ? err.message : 'Failed to save screen hints.', true);
+        }
+    };
+
+    const minimapMarkupForArea = (area) => {
+        const fields = area && area.fieldMetadata && typeof area.fieldMetadata === 'object'
+            ? Object.values(area.fieldMetadata).filter((f) => f && typeof f === 'object')
+            : [];
+        if (!fields.length) {
+            return '<div class="chaos-map-minimap"></div>';
+        }
+        let maxRow = 24;
+        let maxCol = 80;
+        fields.forEach((f) => {
+            const row = Number(f.row) || 1;
+            const col = Number(f.column) || 1;
+            const len = Math.max(1, Number(f.length) || 1);
+            if (row > maxRow) {
+                maxRow = row;
+            }
+            const endCol = col + len - 1;
+            if (endCol > maxCol) {
+                maxCol = endCol;
+            }
+        });
+        const inner = fields.map((f) => {
+            const row = Math.max(1, Number(f.row) || 1);
+            const col = Math.max(1, Number(f.column) || 1);
+            const len = Math.max(1, Number(f.length) || 1);
+            const left = ((col - 1) / maxCol) * 100;
+            const top = ((row - 1) / maxRow) * 100;
+            const width = Math.max(2, (len / maxCol) * 100);
+            const height = Math.max(6, (1 / maxRow) * 100 * 1.25);
+            const classes = [
+                'chaos-map-field-rect',
+                f.numeric ? 'is-numeric' : '',
+                f.hidden ? 'is-hidden' : '',
+            ].filter(Boolean).join(' ');
+            const title = `R${row} C${col} L${len}${f.numeric ? ' numeric' : ''}${f.hidden ? ' hidden' : ''}`;
+            return `<div class="${classes}" title="${title}" style="left:${left}%;top:${top}%;width:${width}%;height:${height}%"></div>`;
+        }).join('');
+        return `<div class="chaos-map-minimap">${inner}</div>`;
+    };
+
+    const renderChaosMap = () => {
+        if (!mapList) {
+            return;
+        }
+        const areas = latestMindMap && latestMindMap.areas && typeof latestMindMap.areas === 'object'
+            ? Object.values(latestMindMap.areas).filter((a) => a && typeof a === 'object')
+            : [];
+        if (!areas.length) {
+            mapList.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
+            return;
+        }
+
+        areas.sort((a, b) => {
+            const aVisits = Number(a.visits) || 0;
+            const bVisits = Number(b.visits) || 0;
+            if (bVisits !== aVisits) {
+                return bVisits - aVisits;
+            }
+            const aSeen = Date.parse(a.lastSeen || '') || 0;
+            const bSeen = Date.parse(b.lastSeen || '') || 0;
+            return bSeen - aSeen;
+        });
+
+        mapList.innerHTML = '';
+        areas.forEach((area) => {
+            const hash = String(area.hash || '').trim();
+            const hint = effectiveScreenHintForHash(hash);
+            const card = document.createElement('section');
+            card.className = 'chaos-map-card';
+            card.dataset.chaosMapHash = hash;
+
+            const edgeRows = [];
+            const keyPresses = area.keyPresses && typeof area.keyPresses === 'object' ? area.keyPresses : {};
+            Object.entries(keyPresses).forEach(([key, kp]) => {
+                if (!kp || typeof kp !== 'object') {
+                    return;
+                }
+                const dests = kp.destinations && typeof kp.destinations === 'object' ? kp.destinations : {};
+                const destList = Object.entries(dests)
+                    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+                    .slice(0, 3)
+                    .map(([toHash, count]) => `${escapeHtml(String(toHash || '').slice(0, 8))} (${count})`)
+                    .join(', ');
+                const presses = Number(kp.presses) || 0;
+                const progs = Number(kp.progressions) || 0;
+                edgeRows.push(`<div class="chaos-map-edge"><strong>${escapeHtml(key)}</strong> · ${presses} press${presses === 1 ? '' : 'es'} · ${progs} progression${progs === 1 ? '' : 's'}${destList ? ` · to ${destList}` : ''}</div>`);
+            });
+            edgeRows.sort();
+
+            card.innerHTML = `
+                <div class="chaos-map-card-header">
+                    <div class="chaos-map-card-title">
+                        <strong>${escapeHtml(area.label || hash || 'Screen')}</strong>
+                        <span class="chaos-map-card-hash">${escapeHtml(hash || 'unknown-hash')}</span>
+                    </div>
+                    <span class="chaos-map-chip">${Number(area.visits) || 0} visits</span>
+                </div>
+                <div class="chaos-map-chip-row">
+                    <span class="chaos-map-chip">${Number(area.fieldCount) || 0} fields</span>
+                    <span class="chaos-map-chip">${Number(area.inputFieldCount) || 0} inputs</span>
+                    <span class="chaos-map-chip">${Number(area.numericFieldCount) || 0} numeric</span>
+                    <span class="chaos-map-chip">${Object.keys(keyPresses).length} keys</span>
+                </div>
+                ${minimapMarkupForArea(area)}
+                <div class="chaos-map-edges">${edgeRows.length ? edgeRows.join('') : '<div class="chaos-map-edge subtle">No key usage yet.</div>'}</div>
+                <div class="chaos-map-hints">
+                    <div class="chaos-hint-field">
+                        <label class="chaos-hint-field-label" for="chaos-map-data-${hash}">Known Data</label>
+                        <textarea id="chaos-map-data-${hash}" data-chaos-map-known-data placeholder="Known values for this screen (comma or newline separated)">${formatListLines(hint.knownData)}</textarea>
+                    </div>
+                    <div class="chaos-hint-field">
+                        <label class="chaos-hint-field-label" for="chaos-map-keys-${hash}">Known Keys</label>
+                        <textarea id="chaos-map-keys-${hash}" data-chaos-map-known-keys placeholder="Known keys for this screen (e.g. PF3, Enter, Down)">${formatListLines(hint.knownKeys)}</textarea>
+                    </div>
+                </div>
+                <div class="chaos-map-card-actions">
+                    <span class="subtle" data-chaos-map-card-status></span>
+                    <button type="button" data-chaos-map-save>Save Screen Hints</button>
+                </div>
+            `;
+
+            const knownDataEl = card.querySelector('[data-chaos-map-known-data]');
+            const knownKeysEl = card.querySelector('[data-chaos-map-known-keys]');
+            const saveBtn = card.querySelector('[data-chaos-map-save]');
+            const cardStatus = card.querySelector('[data-chaos-map-card-status]');
+
+            const collectDraft = () => ({
+                knownData: parseListLines(knownDataEl ? knownDataEl.value : ''),
+                knownKeys: parseListLines(knownKeysEl ? knownKeysEl.value : ''),
+                keyAssignments: (screenHintsByHash[hash] && screenHintsByHash[hash].keyAssignments) ? screenHintsByHash[hash].keyAssignments : {},
+            });
+            const syncDraft = () => {
+                const draft = collectDraft();
+                markScreenHintDraftDirty(hash, draft);
+                if (cardStatus) {
+                    cardStatus.textContent = 'Unsaved changes';
+                }
+            };
+            if (knownDataEl) {
+                knownDataEl.addEventListener('input', syncDraft);
+            }
+            if (knownKeysEl) {
+                knownKeysEl.addEventListener('input', syncDraft);
+            }
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    if (cardStatus) {
+                        cardStatus.textContent = 'Saving…';
+                    }
+                    const draft = collectDraft();
+                    screenHintDrafts[hash] = { ...draft, _dirty: false };
+                    await saveScreenHint(hash, draft);
+                    if (cardStatus) {
+                        cardStatus.textContent = 'Saved';
+                    }
+                });
+            }
+
+            mapList.appendChild(card);
+        });
+    };
+
     const normalizeHints = (rawHints) => {
         if (!Array.isArray(rawHints)) {
             return [];
@@ -1222,10 +1570,11 @@
             const knownData = Array.isArray(entry.knownData)
                 ? entry.knownData.map((item) => String(item || '').trim()).filter((item) => item.length > 0)
                 : parseKnownData(entry.knownData || '');
-            if (!transaction && knownData.length === 0) {
+            const keyAssignments = normalizeKeyAssignments(entry.keyAssignments || {});
+            if (!transaction && knownData.length === 0 && Object.keys(keyAssignments).length === 0) {
                 return;
             }
-            normalized.push({ transaction, knownData });
+            normalized.push({ transaction, knownData, keyAssignments });
         });
         return normalized;
     };
@@ -1239,12 +1588,17 @@
             const knownData = Array.isArray(hint.knownData)
                 ? hint.knownData.map((item) => String(item || '').trim()).filter((item) => item.length > 0)
                 : [];
-            const key = `${tx.toUpperCase()}|${knownData.join('\u001f')}`;
+            const keyAssignments = normalizeKeyAssignments(hint.keyAssignments || {});
+            const assignmentsKey = Object.keys(keyAssignments)
+                .sort((a, b) => a.localeCompare(b))
+                .map((label) => `${label}=${keyAssignments[label]}`)
+                .join('\u001e');
+            const key = `${tx.toUpperCase()}|${knownData.join('\u001f')}|${assignmentsKey}`;
             if (seen.has(key)) {
                 return;
             }
             seen.add(key);
-            out.push({ transaction: tx, knownData });
+            out.push({ transaction: tx, knownData, keyAssignments });
         });
         return out;
     };
@@ -1292,6 +1646,23 @@
         knownDataField.appendChild(knownDataLabel);
         knownDataField.appendChild(knownDataInput);
 
+        const keyAssignmentsField = document.createElement('div');
+        keyAssignmentsField.className = 'chaos-hint-field';
+        const keyAssignmentsLabel = document.createElement('label');
+        keyAssignmentsLabel.className = 'chaos-hint-field-label';
+        keyAssignmentsLabel.textContent = 'Key Assignments';
+
+        const keyAssignmentsInput = document.createElement('textarea');
+        keyAssignmentsInput.placeholder = 'Label = Key (one per line)\nReturn = PF3\nConfirm = Enter';
+        keyAssignmentsInput.value = formatKeyAssignments(hint.keyAssignments || {});
+        keyAssignmentsInput.setAttribute('aria-label', 'Chaos hint key assignments');
+        keyAssignmentsInput.id = `chaos-hint-keys-${rowID}`;
+        keyAssignmentsInput.dataset.chaosHintKeyAssignments = '1';
+        keyAssignmentsInput.addEventListener('input', markHintsDirty);
+        keyAssignmentsLabel.setAttribute('for', keyAssignmentsInput.id);
+        keyAssignmentsField.appendChild(keyAssignmentsLabel);
+        keyAssignmentsField.appendChild(keyAssignmentsInput);
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'chaos-hint-remove';
@@ -1306,6 +1677,7 @@
 
         row.appendChild(txField);
         row.appendChild(knownDataField);
+        row.appendChild(keyAssignmentsField);
         row.appendChild(removeBtn);
         hintsList.appendChild(row);
     };
@@ -1318,9 +1690,11 @@
         return normalizeHints(rows.map((row) => {
             const tx = row.querySelector('[data-chaos-hint-transaction]');
             const knownData = row.querySelector('[data-chaos-hint-data]');
+            const keyAssignments = row.querySelector('[data-chaos-hint-key-assignments]');
             return {
                 transaction: tx ? tx.value : '',
                 knownData: knownData ? parseKnownData(knownData.value) : [],
+                keyAssignments: keyAssignments ? parseKeyAssignments(keyAssignments.value) : {},
             };
         }));
     };
@@ -1418,6 +1792,26 @@
         }
     };
 
+    const loadScreenHints = async () => {
+        try {
+            const resp = await fetch('/chaos/screen-hints');
+            if (!resp.ok) {
+                throw new Error('request failed');
+            }
+            const payload = await resp.json();
+            screenHintsByHash = normalizeScreenHintsMap(payload.screenHints || {});
+            return screenHintsByHash;
+        } catch (_err) {
+            return screenHintsByHash;
+        }
+    };
+
+    const refreshChaosMapView = async () => {
+        await pollStatus();
+        await loadScreenHints();
+        renderChaosMap();
+    };
+
     const isRecordingActive = () => {
         if (body && body.dataset.recordingActive === 'true') {
             return true;
@@ -1488,8 +1882,25 @@
         );
     };
 
+    const updateChaosMapFromStatus = (status) => {
+        if (status && status.mindMap && typeof status.mindMap === 'object') {
+            latestMindMap = status.mindMap;
+        } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+            latestMindMap = null;
+        }
+        if (status && status.screenHints && typeof status.screenHints === 'object') {
+            screenHintsByHash = normalizeScreenHintsMap(status.screenHints);
+        } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+            screenHintsByHash = {};
+        }
+        if (mapModal && !mapModal.hidden) {
+            renderChaosMap();
+        }
+    };
+
     const updateUI = (status) => {
         lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
+        updateChaosMapFromStatus(status || {});
         const running = !!(status && status.active);
         hasData = !!(status && (status.stepsRun > 0 || status.loadedRunID));
         const completed = !running && hasData;
@@ -1616,6 +2027,7 @@
                                 uniqueScreens: data.uniqueScreens || 0,
                                 uniqueInputs: data.uniqueInputs || 0,
                                 loadedRunID,
+                                mindMap: data.mindMap || null,
                             });
                             if (typeof window.refreshWorkflowStatus === 'function') {
                                 await window.refreshWorkflowStatus();
@@ -1657,6 +2069,18 @@
             focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
         });
     }
+    if (mapOpenBtn) {
+        mapOpenBtn.addEventListener('click', async () => {
+            openChaosModal(mapModal, '[data-chaos-map-refresh], [data-chaos-map-save]');
+            setChaosMapStatus('Loading chaos map…');
+            await loadScreenHints();
+            await pollStatus();
+            renderChaosMap();
+            const areaCount = latestMindMap && latestMindMap.areas ? Object.keys(latestMindMap.areas).length : 0;
+            setChaosMapStatus(areaCount ? `Showing ${areaCount} discovered screen(s).` : 'No chaos map data yet.');
+            focusModalElement(mapModal, '[data-chaos-map-refresh], [data-chaos-map-save]');
+        });
+    }
     if (hintsModal) {
         hintsModalClose.forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -1667,6 +2091,26 @@
             if (event.target === hintsModal) {
                 closeChaosModal(hintsModal);
             }
+        });
+    }
+    if (mapModal) {
+        mapModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(mapModal);
+            });
+        });
+        mapModal.addEventListener('click', (event) => {
+            if (event.target === mapModal) {
+                closeChaosModal(mapModal);
+            }
+        });
+    }
+    if (mapRefreshBtn) {
+        mapRefreshBtn.addEventListener('click', async () => {
+            setChaosMapStatus('Refreshing chaos map…');
+            await refreshChaosMapView();
+            const areaCount = latestMindMap && latestMindMap.areas ? Object.keys(latestMindMap.areas).length : 0;
+            setChaosMapStatus(areaCount ? `Showing ${areaCount} discovered screen(s).` : 'No chaos map data yet.');
         });
     }
     if (hintsAddBtn) {
@@ -1837,6 +2281,7 @@
                         uniqueScreens: data.uniqueScreens || 0,
                         uniqueInputs: data.uniqueInputs || 0,
                         loadedRunID,
+                        mindMap: data.mindMap || null,
                     });
                     if (typeof window.refreshWorkflowStatus === 'function') {
                         await window.refreshWorkflowStatus();

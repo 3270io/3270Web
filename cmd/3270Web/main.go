@@ -216,6 +216,8 @@ func main() {
 	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
 	r.POST("/chaos/hints", app.ChaosHintsSaveHandler)
 	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
+	r.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
+	r.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
 
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {

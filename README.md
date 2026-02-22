@@ -82,7 +82,8 @@ Chaos mode explores screens by writing generated values into input fields and su
 - Open **Edit chaos hints** from the chaos toolbar.
 - Add one or more hints with:
   - a known transaction code, and/or
-  - known working data values (comma or newline separated).
+  - known working data values (comma or newline separated), and/or
+  - key assignment mappings (`Screen Label = Key`, for example `Return = PF3`, `Confirm = Enter`).
 - Use **Load from recording** in the hints modal to import hint candidates from a previous recording JSON.
 - Click **Save hints** to persist hints, or **Load saved** to reload the current saved set.
 - Saved hints are stored in `chaos-hints.json` and are automatically used by chaos start/resume when request-level hints are not provided.

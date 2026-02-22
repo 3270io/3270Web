@@ -4,10 +4,23 @@ import "time"
 
 // Hint describes optional user-provided guidance for chaos exploration.
 // Transaction is typically a known transaction code, and KnownData contains
-// known working values that can be reused as field inputs.
+// known working values that can be reused as field inputs. KeyAssignments maps
+// screen-visible action labels (e.g. "Exit", "Page Forward") to keyboard keys
+// (e.g. "PF(3)", "PF(8)", "Enter") that should be preferred when those labels
+// appear on the current screen.
 type Hint struct {
-	Transaction string   `json:"transaction"`
-	KnownData   []string `json:"knownData,omitempty"`
+	Transaction    string            `json:"transaction"`
+	KnownData      []string          `json:"knownData,omitempty"`
+	KeyAssignments map[string]string `json:"keyAssignments,omitempty"`
+}
+
+// ScreenHint describes hints scoped to a specific discovered screen hash.
+// KnownData values bias field inputs on that screen, and KnownKeys bias the
+// key selection step toward actions known to work for that screen.
+type ScreenHint struct {
+	KnownData      []string          `json:"knownData,omitempty"`
+	KnownKeys      []string          `json:"knownKeys,omitempty"`
+	KeyAssignments map[string]string `json:"keyAssignments,omitempty"`
 }
 
 // Config holds the configuration for a chaos exploration run.
@@ -38,6 +51,10 @@ type Config struct {
 
 	// Hints are optional user-provided values used to bias generated inputs.
 	Hints []Hint `json:"hints,omitempty"`
+
+	// ScreenHints are optional user-provided hints keyed by discovered screen
+	// hash and can be updated live while chaos runs.
+	ScreenHints map[string]ScreenHint `json:"screenHints,omitempty"`
 
 	// ExcludeNoProgressEvents omits non-error attempts from attempt/event history
 	// when no screen transition occurs.

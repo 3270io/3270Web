@@ -6,6 +6,8 @@
   var keySubmitDelayMs = 65;
   var keypadCompactStorageKey = "h3270KeypadCompact";
   var keypadModeStorageKey = "h3270KeypadMode";
+  var keypadScaleRafId = 0;
+  var keypadResizeObserver = null;
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
   var specialKeys = {
@@ -1092,6 +1094,96 @@
     }
   }
 
+  function getKeypadElement() {
+    return document.getElementById("keypad");
+  }
+
+  function clearKeypadAutoScale(keypad) {
+    if (!keypad) {
+      return;
+    }
+    keypad.style.zoom = "";
+  }
+
+  function syncKeypadAutoScale() {
+    var keypad = getKeypadElement();
+    if (!keypad) {
+      return;
+    }
+    if (keypad.hidden || keypad.children.length === 0 || !keypad.classList.contains("h3270-keypad")) {
+      clearKeypadAutoScale(keypad);
+      return;
+    }
+
+    // Measure the keypad at natural size, then scale it to fit the available
+    // viewport width/height beneath the terminal.
+    keypad.style.zoom = "";
+
+    var naturalWidth = Math.ceil(keypad.scrollWidth || 0);
+    var naturalHeight = Math.ceil(keypad.scrollHeight || 0);
+    if (naturalWidth <= 0 || naturalHeight <= 0) {
+      return;
+    }
+
+    var keypadRect = keypad.getBoundingClientRect();
+    var parent = keypad.parentElement;
+    var parentRect = parent ? parent.getBoundingClientRect() : null;
+    var availableWidth = Math.max(1, Math.floor((parentRect ? parentRect.width : window.innerWidth) - 4));
+    var availableHeight = Math.max(1, Math.floor(window.innerHeight - keypadRect.top - 8));
+
+    var widthScale = availableWidth / naturalWidth;
+    var heightScale = availableHeight / naturalHeight;
+    var scale = Math.min(1, widthScale, heightScale);
+    if (!isFinite(scale) || scale <= 0) {
+      scale = 1;
+    }
+    // Keep the keyboard usable even on very small viewports.
+    if (scale < 0.45) {
+      scale = 0.45;
+    }
+
+    if (Math.abs(scale - 1) < 0.01) {
+      keypad.style.zoom = "";
+    } else {
+      keypad.style.zoom = scale.toFixed(3);
+    }
+  }
+
+  function scheduleKeypadAutoScale() {
+    if (keypadScaleRafId) {
+      return;
+    }
+    keypadScaleRafId = window.requestAnimationFrame(function () {
+      keypadScaleRafId = 0;
+      syncKeypadAutoScale();
+    });
+  }
+
+  function initKeypadAutoScale() {
+    var keypad = getKeypadElement();
+    if (!keypad) {
+      return;
+    }
+
+    scheduleKeypadAutoScale();
+    window.addEventListener("resize", scheduleKeypadAutoScale);
+    window.addEventListener("h3270:layout-changed", scheduleKeypadAutoScale);
+
+    var shell = document.querySelector(".terminal-shell");
+    if (typeof ResizeObserver !== "undefined") {
+      if (keypadResizeObserver) {
+        keypadResizeObserver.disconnect();
+      }
+      keypadResizeObserver = new ResizeObserver(function () {
+        scheduleKeypadAutoScale();
+      });
+      keypadResizeObserver.observe(keypad);
+      if (shell) {
+        keypadResizeObserver.observe(shell);
+      }
+    }
+  }
+
   function applyKeypadMode(container, mode, buttons) {
     container.classList.toggle("is-compact", mode === "compact");
     container.classList.toggle("is-max", mode === "max");
@@ -1103,6 +1195,7 @@
         btn.setAttribute("aria-pressed", active ? "true" : "false");
       }
     }
+    scheduleKeypadAutoScale();
     notifyTerminalLayoutChange();
   }
 
@@ -1258,12 +1351,12 @@
 
     var pfLabels = {
       PF1: "PF1 Help",
-      PF3: "PF3 Exit",
-      PF4: "PF4 Return",
-      PF5: "PF5 Refresh",
-      PF7: "PF7 Up",
-      PF8: "PF8 Down",
-      PF12: "PF12 Cancel"
+      PF3: "PF3 Exit / Return",
+      PF4: "PF4 Return / Exit",
+      PF5: "PF5 Refresh / Confirm",
+      PF7: "PF7 Page Back / Up",
+      PF8: "PF8 Page Forward / Down",
+      PF12: "PF12 Cancel / Confirm"
     };
 
     var keyMappings = {
@@ -1385,6 +1478,7 @@
 
     appendMaxKeyboardLayout(container);
     applyKeypadMode(container, mode, modeButtons);
+    scheduleKeypadAutoScale();
   }
 
   function syncKeypadToggleUi(visible) {
@@ -1417,6 +1511,7 @@
       renderKeypad();
     }
 
+    scheduleKeypadAutoScale();
     notifyTerminalLayoutChange();
 
     var body = "keypad=" + encodeURIComponent(nextVisible ? "on" : "off");
@@ -1431,6 +1526,7 @@
     }).catch(function () {
       keypad.hidden = previousHidden;
       syncKeypadToggleUi(!keypad.hidden);
+      scheduleKeypadAutoScale();
       notifyTerminalLayoutChange();
     });
   }
@@ -1493,11 +1589,14 @@
   document.addEventListener("DOMContentLoaded", function () {
     renderKeypad();
     initKeypadVisibilityToggle();
+    initKeypadAutoScale();
     installTerminalFocusLock();
 
     var sizeSlider = document.querySelector("[data-terminal-size-slider]");
     if (sizeSlider) {
+      sizeSlider.addEventListener("input", scheduleKeypadAutoScale);
       sizeSlider.addEventListener("change", function () {
+        scheduleKeypadAutoScale();
         window.requestAnimationFrame(function () {
           focusTerminalContext();
         });

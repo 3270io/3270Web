@@ -20,17 +20,19 @@ import (
 // outside App so that it can be initialised once and does not need a pointer
 // receiver change on App.
 type chaosEngineStore struct {
-	mu         sync.Mutex
-	engines    map[string]*chaos.Engine
-	loadedRuns map[string]*chaos.SavedRun
-	removed    map[string]bool
+	mu          sync.Mutex
+	engines     map[string]*chaos.Engine
+	loadedRuns  map[string]*chaos.SavedRun
+	screenHints map[string]map[string]chaos.ScreenHint
+	removed     map[string]bool
 }
 
 func newChaosEngineStore() *chaosEngineStore {
 	return &chaosEngineStore{
-		engines:    make(map[string]*chaos.Engine),
-		loadedRuns: make(map[string]*chaos.SavedRun),
-		removed:    make(map[string]bool),
+		engines:     make(map[string]*chaos.Engine),
+		loadedRuns:  make(map[string]*chaos.SavedRun),
+		screenHints: make(map[string]map[string]chaos.ScreenHint),
+		removed:     make(map[string]bool),
 	}
 }
 
@@ -52,6 +54,45 @@ func (s *chaosEngineStore) delete(sessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.engines, sessionID)
+}
+
+func (s *chaosEngineStore) getScreenHints(sessionID string) map[string]chaos.ScreenHint {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return cloneChaosScreenHintsMap(s.screenHints[sessionID])
+}
+
+func (s *chaosEngineStore) setScreenHints(sessionID string, hints map[string]chaos.ScreenHint) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(hints) == 0 {
+		delete(s.screenHints, sessionID)
+		return
+	}
+	s.screenHints[sessionID] = cloneChaosScreenHintsMap(hints)
+}
+
+func (s *chaosEngineStore) upsertScreenHint(sessionID, screenHash string, hint chaos.ScreenHint) map[string]chaos.ScreenHint {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := strings.TrimSpace(screenHash)
+	if key == "" {
+		return cloneChaosScreenHintsMap(s.screenHints[sessionID])
+	}
+	if s.screenHints[sessionID] == nil {
+		s.screenHints[sessionID] = make(map[string]chaos.ScreenHint)
+	}
+	clean := sanitizeChaosScreenHint(hint)
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		delete(s.screenHints[sessionID], key)
+	} else {
+		s.screenHints[sessionID][key] = clean
+	}
+	if len(s.screenHints[sessionID]) == 0 {
+		delete(s.screenHints, sessionID)
+		return nil
+	}
+	return cloneChaosScreenHintsMap(s.screenHints[sessionID])
 }
 
 func (s *chaosEngineStore) getLoadedRun(sessionID string) (*chaos.SavedRun, bool) {
@@ -150,6 +191,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 			cfg.Hints = savedHints
 		}
 	}
+	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -246,6 +288,7 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 			"transitions":   0,
 			"uniqueScreens": 0,
 			"uniqueInputs":  0,
+			"screenHints":   app.chaosEngines.getScreenHints(s.ID),
 		})
 		return
 	}
@@ -284,12 +327,18 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 				}
 			}
 		}
+		if hints := app.chaosEngines.getScreenHints(s.ID); len(hints) > 0 {
+			resp["screenHints"] = hints
+		}
 		c.JSON(http.StatusOK, resp)
 		return
 	}
 
 	st := eng.Status()
 	resp := chaosStatusToJSON(st)
+	if hints := app.chaosEngines.getScreenHints(s.ID); len(hints) > 0 {
+		resp["screenHints"] = hints
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -604,6 +653,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 			cfg.Hints = savedHints
 		}
 	}
+	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -637,6 +687,17 @@ type chaosHintsPayload struct {
 type chaosHintsExtractResponse struct {
 	Source string       `json:"source"`
 	Hints  []chaos.Hint `json:"hints"`
+}
+
+type chaosScreenHintsResponse struct {
+	ScreenHints map[string]chaos.ScreenHint `json:"screenHints"`
+}
+
+type chaosScreenHintUpsertRequest struct {
+	ScreenHash     string            `json:"screenHash"`
+	KnownData      []string          `json:"knownData"`
+	KnownKeys      []string          `json:"knownKeys"`
+	KeyAssignments map[string]string `json:"keyAssignments"`
 }
 
 // ChaosHintsGetHandler handles GET /chaos/hints – returns saved chaos hints.
@@ -701,6 +762,47 @@ func (app *App) ChaosHintsExtractHandler(c *gin.Context) {
 	})
 }
 
+// ChaosScreenHintsGetHandler returns session-scoped per-screen chaos hints.
+func (app *App) ChaosScreenHintsGetHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	c.JSON(http.StatusOK, chaosScreenHintsResponse{
+		ScreenHints: app.chaosEngines.getScreenHints(s.ID),
+	})
+}
+
+// ChaosScreenHintsSaveHandler upserts per-screen chaos hints and applies them
+// live to a running engine (if present).
+func (app *App) ChaosScreenHintsSaveHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var req chaosScreenHintUpsertRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	screenHash := strings.TrimSpace(req.ScreenHash)
+	if screenHash == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "screenHash is required"})
+		return
+	}
+	updated := app.chaosEngines.upsertScreenHint(s.ID, screenHash, chaos.ScreenHint{
+		KnownData:      req.KnownData,
+		KnownKeys:      req.KnownKeys,
+		KeyAssignments: req.KeyAssignments,
+	})
+	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
+		eng.SetScreenHints(updated)
+	}
+	c.JSON(http.StatusOK, chaosScreenHintsResponse{ScreenHints: updated})
+}
+
 func sanitizeChaosHints(hints []chaos.Hint) []chaos.Hint {
 	if len(hints) == 0 {
 		return []chaos.Hint{}
@@ -718,13 +820,105 @@ func sanitizeChaosHints(hints []chaos.Hint) []chaos.Hint {
 			known = append(known, value)
 			seenKnown[value] = true
 		}
-		if tx == "" && len(known) == 0 {
+		assignments := make(map[string]string)
+		for rawLabel, rawKey := range hint.KeyAssignments {
+			label := strings.TrimSpace(rawLabel)
+			keyText := sanitizeChaosHintKeyName(rawKey)
+			if label == "" || keyText == "" {
+				continue
+			}
+			assignments[label] = keyText
+		}
+		if len(assignments) == 0 {
+			assignments = nil
+		}
+		if tx == "" && len(known) == 0 && len(assignments) == 0 {
 			continue
 		}
 		out = append(out, chaos.Hint{
-			Transaction: tx,
-			KnownData:   known,
+			Transaction:    tx,
+			KnownData:      known,
+			KeyAssignments: assignments,
 		})
+	}
+	return out
+}
+
+func sanitizeChaosHintKeyName(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.ContainsAny(trimmed, "\n\r\t;") {
+		return ""
+	}
+	normalized := normalizeKey(trimmed)
+	if normalized != "Enter" || strings.EqualFold(trimmed, "Enter") {
+		return normalized
+	}
+	// Preserve unrecognised but sanitized key names so host-specific keys can
+	// still be used by chaos hints.
+	return trimmed
+}
+
+func sanitizeChaosScreenHint(h chaos.ScreenHint) chaos.ScreenHint {
+	knownData := make([]string, 0, len(h.KnownData))
+	seenData := make(map[string]bool)
+	for _, raw := range h.KnownData {
+		v := strings.TrimSpace(raw)
+		if v == "" || seenData[v] {
+			continue
+		}
+		seenData[v] = true
+		knownData = append(knownData, v)
+	}
+	knownKeys := make([]string, 0, len(h.KnownKeys))
+	seenKeys := make(map[string]bool)
+	for _, raw := range h.KnownKeys {
+		k := sanitizeChaosHintKeyName(raw)
+		if k == "" || seenKeys[k] {
+			continue
+		}
+		seenKeys[k] = true
+		knownKeys = append(knownKeys, k)
+	}
+	assignments := make(map[string]string)
+	for rawLabel, rawKey := range h.KeyAssignments {
+		label := strings.TrimSpace(rawLabel)
+		key := sanitizeChaosHintKeyName(rawKey)
+		if label == "" || key == "" {
+			continue
+		}
+		assignments[label] = key
+	}
+	if len(assignments) == 0 {
+		assignments = nil
+	}
+	return chaos.ScreenHint{
+		KnownData:      knownData,
+		KnownKeys:      knownKeys,
+		KeyAssignments: assignments,
+	}
+}
+
+func cloneChaosScreenHintsMap(in map[string]chaos.ScreenHint) map[string]chaos.ScreenHint {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]chaos.ScreenHint, len(in))
+	for hash, hint := range in {
+		key := strings.TrimSpace(hash)
+		if key == "" {
+			continue
+		}
+		clean := sanitizeChaosScreenHint(hint)
+		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+			continue
+		}
+		out[key] = clean
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

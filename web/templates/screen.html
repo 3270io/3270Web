@@ -203,6 +203,9 @@
                         <button type="button" class="icon-button" data-chaos-hints-open data-tippy-content="Edit chaos hints" aria-label="Edit chaos hints">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
                         </button>
+                        <button type="button" class="icon-button" data-chaos-map-open data-tippy-content="Open chaos map" aria-label="Open chaos map">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5.1 9 3 3 5.1v15.8L9 19l6 2.1 6-2.1V3zm-7 .7 6 2.1v13.4l-6-2.1zM5 6.5l2-.7v13.4l-2 .7zm14 12.7-3 1.1V6.9l3-1.1z"/></svg>
+                        </button>
                     </div>
                     <span class="chaos-controls-divider" data-chaos-divider aria-hidden="true"></span>
                     <div class="chaos-controls-section" data-chaos-section="output" aria-label="Chaos output actions">
@@ -321,7 +324,7 @@
                 <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
             </div>
             <div class="stack">
-                <p class="subtle chaos-hints-help">Add known transactions and working values to guide chaos data entry.</p>
+                <p class="subtle chaos-hints-help">Add transactions, known data, and optional screen label to keyboard key mappings (for example, Return = PF3) to guide chaos behavior.</p>
                 <div class="chaos-hints-list" data-chaos-hints-list></div>
                 <div class="modal-actions">
                     <button type="button" data-chaos-hints-add>Add hint</button>
@@ -334,6 +337,25 @@
                 <button type="button" data-chaos-hints-reload>Load saved</button>
                 <button type="button" data-chaos-hints-save>Save hints</button>
                 <button type="button" data-chaos-hints-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-map-modal hidden>
+        <div class="modal modal-chaos-map" role="dialog" aria-modal="true" aria-labelledby="chaos-map-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-map-modal-title">Chaos Map</h3>
+                <button type="button" class="modal-close" data-chaos-map-close>Close</button>
+            </div>
+            <div class="stack">
+                <p class="subtle chaos-map-help">Live application structure discovered by chaos. Add screen-specific hints to guide known data values and key presses for each screen.</p>
+                <div class="subtle" data-chaos-map-status aria-live="polite"></div>
+                <div class="chaos-map-list" data-chaos-map-list>
+                    <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-map-refresh>Refresh</button>
+                <button type="button" data-chaos-map-close>Close</button>
             </div>
         </div>
     </div>

@@ -46,3 +46,4 @@ h3270-web.exe
 
 !cmd/3270Web/workflow_playback.go
 !cmd/3270Web/workflow_playback_test.go
+chaos*

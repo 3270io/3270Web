@@ -62,7 +62,8 @@ Chaos Hints let you guide generated input values during exploration.
 1. Click **Edit chaos hints** in the chaos toolbar.
 2. Add hint rows with:
    - `Transaction` values (for example, known transaction codes), and/or
-   - `Known data` values (comma or newline separated).
+   - `Known data` values (comma or newline separated), and/or
+   - `Key Assignments` lines in `Label = Key` form (for example, `Return = PF3`, `Confirm = Enter`).
 3. Optional: click **Load from recording** to import hint candidates from a previous recording JSON.
 4. Click **Save hints** to persist them.
 5. Use **Load saved** to reload persisted hints into the modal.
@@ -72,6 +73,7 @@ Notes:
 - Hints are saved to `chaos-hints.json`.
 - Saved hints are automatically applied when starting or resuming chaos if request-level hints are not explicitly supplied.
 - Transaction hints are preferred for early field writes, while known data values are reused across fields when they fit field constraints.
+- Key assignment hints boost matching keys when the mapped label text appears on the current screen (for example, `Page Forward = PF8`).
 
 ## Chaos Settings
 
