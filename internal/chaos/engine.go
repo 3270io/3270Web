@@ -164,6 +164,27 @@ func (e *Engine) SetScreenHints(hints map[string]ScreenHint) {
 	e.screenHints = cloneScreenHints(hints)
 }
 
+// SetKeyBlacklist replaces the configured AID-key blacklist. Safe to call
+// while the engine is running.
+func (e *Engine) SetKeyBlacklist(keys []string) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cfg.KeyBlacklist = append([]string(nil), keys...)
+	e.blacklistedKeys = normalizeChaosKeySet(keys)
+}
+
+func (e *Engine) blacklistedKeysSnapshot() map[string]struct{} {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.blacklistedKeys
+}
+
 // SetScreenHint upserts (or removes) a single screen-scoped hint. Safe to call
 // while the engine is running.
 func (e *Engine) SetScreenHint(hash string, hint ScreenHint) {
@@ -644,8 +665,9 @@ func (e *Engine) run() {
 		// Choose and send an AID key (adaptive: prefer keys that previously
 		// caused screen transitions from the current area).
 		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
-		if isBlacklistedKeyInSet(e.blacklistedKeys, aidKey) {
-			aidKey = fallbackChaosKey(e.blacklistedKeys)
+		blocked := e.blacklistedKeysSnapshot()
+		if isBlacklistedKeyInSet(blocked, aidKey) {
+			aidKey = fallbackChaosKey(blocked)
 		}
 		attempt.AIDKey = aidKey
 		if strings.TrimSpace(aidKey) == "" {
@@ -1411,6 +1433,14 @@ func normalizeChaosKeyName(key string) string {
 	upper := strings.ToUpper(trimmed)
 	lower := strings.ToLower(trimmed)
 
+	// Accept workflow-style key aliases (e.g. PressPF3, PressEnter) by
+	// normalizing the suffix through the same alias logic used for raw keys.
+	if len(trimmed) > 5 && strings.EqualFold(trimmed[:5], "Press") {
+		if normalized := normalizeChaosKeyName(trimmed[5:]); normalized != "" {
+			return normalized
+		}
+	}
+
 	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
 		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
 		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
@@ -1440,7 +1470,6 @@ func normalizeChaosKeyName(key string) string {
 			return fmt.Sprintf("PF(%d)", n)
 		}
 	}
-
 	switch lower {
 	case "enter":
 		return "Enter"
@@ -1868,7 +1897,7 @@ func (e *Engine) chooseAIDKey() string {
 // keys remain selectable for exploration breadth even when penalties apply.
 func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 	weights := e.cfg.AIDKeyWeights
-	blocked := e.blacklistedKeys
+	blocked := e.blacklistedKeysSnapshot()
 	if len(weights) == 0 && len(boosts) == 0 {
 		return fallbackChaosKey(blocked)
 	}

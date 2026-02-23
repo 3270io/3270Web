@@ -375,6 +375,86 @@ func TestChooseAIDKeyBoosted_AllFallbackKeysBlockedReturnsEmpty(t *testing.T) {
 	}
 }
 
+func TestSetKeyBlacklist_LiveUpdateNormalizesAliases(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AIDKeyWeights = map[string]int{
+		"PF3":   100,
+		"Enter": 1,
+	}
+	cfg.KeyBlacklist = nil
+
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(7)) //nolint:gosec
+
+	e.SetKeyBlacklist([]string{"PF(3)"})
+
+	for i := 0; i < 25; i++ {
+		if got := e.chooseAIDKeyBoosted(map[string]int{"PF3": 1000}); got == "PF(3)" {
+			t.Fatalf("blacklisted key PF(3) selected after live update on iteration %d", i)
+		}
+	}
+}
+
+func TestChooseAIDKeyBoosted_RespectsBlacklistForPressPFAlias(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AIDKeyWeights = map[string]int{
+		"PressPF3": 100,
+		"Enter":    1,
+	}
+	cfg.KeyBlacklist = []string{"PF3"}
+
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(13)) //nolint:gosec
+
+	for i := 0; i < 25; i++ {
+		if got := e.chooseAIDKeyBoosted(map[string]int{"PressPF3": 1000}); got == "PF(3)" || got == "PressPF3" {
+			t.Fatalf("blacklisted PF3 selected via PressPF alias on iteration %d: %q", i, got)
+		}
+	}
+}
+
+func TestNormalizeChaosKeyName_WorkflowPressAliases(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"PressEnter", "Enter"},
+		{"PressTab", "Tab"},
+		{"PressBackTab", "BackTab"},
+		{"PressClear", "Clear"},
+		{"PressReset", "Reset"},
+		{"PressEraseEOF", "EraseEOF"},
+		{"PressErase_EOF", "EraseEOF"},
+		{"PressEraseInput", "EraseInput"},
+		{"PressErase_Input", "EraseInput"},
+		{"PressDup", "Dup"},
+		{"PressFieldMark", "FieldMark"},
+		{"PressField_Mark", "FieldMark"},
+		{"PressSysReq", "SysReq"},
+		{"PressSys_Req", "SysReq"},
+		{"PressAttn", "Attn"},
+		{"PressNewline", "Newline"},
+		{"PressNew_Line", "Newline"},
+		{"PressBackspace", "BackSpace"},
+		{"PressDelete", "Delete"},
+		{"PressInsert", "Insert"},
+		{"PressHome", "Home"},
+		{"PressUp", "Up"},
+		{"PressDown", "Down"},
+		{"PressLeft", "Left"},
+		{"PressRight", "Right"},
+		{"PressPF3", "PF(3)"},
+		{"PressPF24", "PF(24)"},
+		{"PressPA1", "PA(1)"},
+		{"presspf3", "PF(3)"},
+	}
+	for _, tc := range cases {
+		if got := normalizeChaosKeyName(tc.in); got != tc.want {
+			t.Fatalf("normalizeChaosKeyName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestEngineStartStop(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {

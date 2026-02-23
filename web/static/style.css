@@ -1765,11 +1765,15 @@ pre, pre input, textarea {
 
 .modal-chaos-hints {
   width: min(860px, 100%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .modal-chaos-hints .stack {
   gap: 12px;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
 .modal-backdrop[data-chaos-hints-modal].is-maximized .modal-chaos-hints {

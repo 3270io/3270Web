@@ -774,6 +774,11 @@ func (app *App) ChaosHintsSaveHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if s := app.getSession(c); s != nil {
+		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
+			eng.SetKeyBlacklist(payload.KeyBlacklist)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":          "saved",
 		"hints":           payload.Hints,
