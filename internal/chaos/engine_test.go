@@ -650,7 +650,57 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	}
 }
 
-func TestEngineWritesOnlyOneFieldPerAttempt(t *testing.T) {
+func TestSelectTargetFields_AllowsOneSeveralOrAll(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(9)) //nolint:gosec
+	s := &host.Screen{Width: 80, Height: 24}
+	fields := []*host.Field{
+		host.NewField(s, 0x00, 1, 1, 5, 1, 0, 0),
+		host.NewField(s, 0x00, 10, 1, 14, 1, 0, 0),
+		host.NewField(s, 0x00, 20, 1, 24, 1, 0, 0),
+		host.NewField(s, 0x00, 30, 1, 34, 1, 0, 0),
+	}
+
+	seenOne := false
+	seenSeveral := false
+	seenAll := false
+	for i := 0; i < 200; i++ {
+		targeted := e.selectTargetFields(fields)
+		switch len(targeted) {
+		case 1:
+			seenOne = true
+		case len(fields):
+			seenAll = true
+		default:
+			seenSeveral = true
+		}
+		if seenOne && seenSeveral && seenAll {
+			break
+		}
+	}
+	if !seenOne || !seenSeveral || !seenAll {
+		t.Fatalf("selection modes seen: one=%v several=%v all=%v", seenOne, seenSeveral, seenAll)
+	}
+}
+
+func TestSelectTargetFields_AllSingleCellTargetsOne(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(21)) //nolint:gosec
+	s := &host.Screen{Width: 80, Height: 24}
+	fields := []*host.Field{
+		host.NewField(s, 0x00, 1, 1, 1, 1, 0, 0),
+		host.NewField(s, 0x00, 3, 1, 3, 1, 0, 0),
+		host.NewField(s, 0x00, 5, 1, 5, 1, 0, 0),
+		host.NewField(s, 0x00, 7, 1, 7, 1, 0, 0),
+	}
+	for i := 0; i < 50; i++ {
+		if got := len(e.selectTargetFields(fields)); got != 1 {
+			t.Fatalf("selectTargetFields len = %d, want 1 for single-cell field screens", got)
+		}
+	}
+}
+
+func TestEngineSingleCellInputsTargetOneFieldPerAttempt(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {
 		t.Fatal(err)
@@ -665,9 +715,9 @@ func TestEngineWritesOnlyOneFieldPerAttempt(t *testing.T) {
 		s.Buffer[i] = make([]rune, 80)
 	}
 	s.Fields = append(s.Fields,
-		host.NewField(s, 0x00, 1, 1, 5, 1, 0, 0),
-		host.NewField(s, 0x00, 10, 1, 14, 1, 0, 0),
-		host.NewField(s, 0x00, 20, 1, 24, 1, 0, 0),
+		host.NewField(s, 0x00, 1, 1, 1, 1, 0, 0),
+		host.NewField(s, 0x00, 10, 1, 10, 1, 0, 0),
+		host.NewField(s, 0x00, 20, 1, 20, 1, 0, 0),
 	)
 	h.Screen = s
 	h.Connected = true
