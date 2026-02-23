@@ -101,6 +101,7 @@
     const closeButtons = modal.querySelectorAll('[data-settings-close]');
     const refreshButton = modal.querySelector('[data-settings-refresh]');
     const maximizeButton = modal.querySelector('[data-settings-maximize]');
+    const minimizeButton = modal.querySelector('[data-settings-minimize]');
     const form = modal.querySelector('[data-settings-form]');
     const tabsContainer = modal.querySelector('[data-settings-tabs]');
     const groupsContainer = modal.querySelector('[data-settings-groups]');
@@ -159,6 +160,7 @@
         CHAOS_SEED: '0',
         CHAOS_MAX_FIELD_LENGTH: '40',
         CHAOS_OUTPUT_FILE: '',
+        CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS: 'true',
         CHAOS_EXCLUDE_NO_PROGRESS_EVENTS: 'true',
     };
 
@@ -315,6 +317,7 @@
                 { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
                 { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
                 { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
+                { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
                 { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
             ],
         },
@@ -328,6 +331,12 @@
     let activeGroupId = '';
     let maximized = false;
     let restartConfirmResolver = null;
+    let chaosDefaultsHintsList = null;
+    let chaosDefaultsKeyBlacklistInput = null;
+    let chaosDefaultsStatus = null;
+    let chaosDefaultsHintRowSequence = 0;
+    let chaosDefaultsSubModal = null;
+    let previousChaosDefaultsFocus = null;
 
     const setStatus = (message, isError = false) => {
         if (!status) {
@@ -343,15 +352,483 @@
         status.classList.toggle('is-error', isError);
     };
 
+    const setChaosDefaultsStatus = (message, isError = false) => {
+        if (!chaosDefaultsStatus) {
+            return;
+        }
+        chaosDefaultsStatus.textContent = message || '';
+        chaosDefaultsStatus.classList.toggle('is-error', !!isError);
+    };
+
+    const closeChaosDefaultsSubModal = () => {
+        if (!chaosDefaultsSubModal || chaosDefaultsSubModal.hidden) {
+            return;
+        }
+        chaosDefaultsSubModal.hidden = true;
+        if (previousChaosDefaultsFocus && typeof previousChaosDefaultsFocus.focus === 'function') {
+            previousChaosDefaultsFocus.focus();
+        }
+        previousChaosDefaultsFocus = null;
+    };
+
+    const openChaosDefaultsSubModal = () => {
+        if (!chaosDefaultsSubModal) {
+            return;
+        }
+        previousChaosDefaultsFocus = document.activeElement;
+        chaosDefaultsSubModal.hidden = false;
+        const focusTarget = chaosDefaultsSubModal.querySelector('[data-settings-chaos-hint-transaction], [data-settings-chaos-defaults-add-hint], [data-settings-chaos-defaults-load]');
+        if (focusTarget && typeof focusTarget.focus === 'function') {
+            focusTarget.focus();
+        }
+    };
+
+    const parseChaosDefaultsListLines = (value) => {
+        if (!value) {
+            return [];
+        }
+        const seen = new Set();
+        const out = [];
+        String(value)
+            .split(/[\n,]/)
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+            .forEach((item) => {
+                if (seen.has(item)) {
+                    return;
+                }
+                seen.add(item);
+                out.push(item);
+            });
+        return out;
+    };
+
+    const formatChaosDefaultsListLines = (values) => (
+        Array.isArray(values)
+            ? values.map((v) => String(v || '').trim()).filter(Boolean).join('\n')
+            : ''
+    );
+
+    const parseChaosDefaultsKeyAssignments = (value) => {
+        if (!value) {
+            return {};
+        }
+        const out = {};
+        String(value)
+            .split(/\n+/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .forEach((line) => {
+                const sepIndex = line.indexOf('=>') >= 0
+                    ? line.indexOf('=>')
+                    : (line.indexOf('=') >= 0 ? line.indexOf('=') : line.indexOf(':'));
+                if (sepIndex < 0) {
+                    return;
+                }
+                const sepLen = line.slice(sepIndex, sepIndex + 2) === '=>' ? 2 : 1;
+                const label = line.slice(0, sepIndex).trim();
+                const key = line.slice(sepIndex + sepLen).trim();
+                if (!label || !key) {
+                    return;
+                }
+                out[label] = key;
+            });
+        return out;
+    };
+
+    const normalizeChaosDefaultsKeyAssignments = (raw) => {
+        if (!raw || typeof raw !== 'object') {
+            return {};
+        }
+        const out = {};
+        Object.entries(raw).forEach(([rawLabel, rawKey]) => {
+            const label = String(rawLabel || '').trim();
+            const key = String(rawKey || '').trim();
+            if (!label || !key) {
+                return;
+            }
+            out[label] = key;
+        });
+        return out;
+    };
+
+    const formatChaosDefaultsKeyAssignments = (raw) => {
+        const assignments = normalizeChaosDefaultsKeyAssignments(raw);
+        return Object.keys(assignments)
+            .sort((a, b) => a.localeCompare(b))
+            .map((label) => `${label} = ${assignments[label]}`)
+            .join('\n');
+    };
+
+    const normalizeChaosDefaultsPayloadForSettings = (raw) => {
+        if (Array.isArray(raw)) {
+            return { hints: raw, keyBlacklist: [] };
+        }
+        if (!raw || typeof raw !== 'object') {
+            return { hints: [], keyBlacklist: [] };
+        }
+        return {
+            hints: Array.isArray(raw.hints) ? raw.hints : [],
+            keyBlacklist: Array.isArray(raw.keyBlacklist) ? raw.keyBlacklist : [],
+        };
+    };
+
+    const normalizeChaosDefaultsHints = (rawHints) => {
+        if (!Array.isArray(rawHints)) {
+            return [];
+        }
+        const normalized = [];
+        rawHints.forEach((entry) => {
+            if (!entry || typeof entry !== 'object') {
+                return;
+            }
+            const transaction = String(entry.transaction || '').trim();
+            const knownData = Array.isArray(entry.knownData)
+                ? entry.knownData.map((item) => String(item || '').trim()).filter((item) => item.length > 0)
+                : parseChaosDefaultsListLines(entry.knownData || '');
+            const keyAssignments = normalizeChaosDefaultsKeyAssignments(entry.keyAssignments || {});
+            if (!transaction && knownData.length === 0 && Object.keys(keyAssignments).length === 0) {
+                return;
+            }
+            normalized.push({ transaction, knownData, keyAssignments });
+        });
+        return normalized;
+    };
+
+    const createChaosDefaultsHintRow = (hint = {}) => {
+        if (!chaosDefaultsHintsList) {
+            return;
+        }
+        const row = document.createElement('div');
+        row.className = 'chaos-hint-row';
+
+        const rowID = ++chaosDefaultsHintRowSequence;
+
+        const txField = document.createElement('div');
+        txField.className = 'chaos-hint-field';
+        const txLabel = document.createElement('label');
+        txLabel.className = 'chaos-hint-field-label';
+        txLabel.textContent = 'Transaction';
+        const txInput = document.createElement('input');
+        txInput.type = 'text';
+        txInput.id = `settings-chaos-hint-transaction-${rowID}`;
+        txInput.placeholder = 'Transaction (e.g., CEMT)';
+        txInput.value = hint.transaction || '';
+        txInput.dataset.settingsChaosHintTransaction = '1';
+        txInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        txLabel.setAttribute('for', txInput.id);
+        txField.appendChild(txLabel);
+        txField.appendChild(txInput);
+
+        const dataField = document.createElement('div');
+        dataField.className = 'chaos-hint-field';
+        const dataLabel = document.createElement('label');
+        dataLabel.className = 'chaos-hint-field-label';
+        dataLabel.textContent = 'Known Working Data';
+        const dataInput = document.createElement('textarea');
+        dataInput.id = `settings-chaos-hint-data-${rowID}`;
+        dataInput.placeholder = 'Known data values (comma or newline separated)';
+        dataInput.value = Array.isArray(hint.knownData) ? hint.knownData.join('\n') : '';
+        dataInput.dataset.settingsChaosHintData = '1';
+        dataInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        dataLabel.setAttribute('for', dataInput.id);
+        dataField.appendChild(dataLabel);
+        dataField.appendChild(dataInput);
+
+        const keysField = document.createElement('div');
+        keysField.className = 'chaos-hint-field';
+        const keysLabel = document.createElement('label');
+        keysLabel.className = 'chaos-hint-field-label';
+        keysLabel.textContent = 'Key Assignments';
+        const keysInput = document.createElement('textarea');
+        keysInput.id = `settings-chaos-hint-keys-${rowID}`;
+        keysInput.placeholder = 'Label = Key (one per line)\nReturn = PF3\nConfirm = Enter';
+        keysInput.value = formatChaosDefaultsKeyAssignments(hint.keyAssignments || {});
+        keysInput.dataset.settingsChaosHintKeyAssignments = '1';
+        keysInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        keysLabel.setAttribute('for', keysInput.id);
+        keysField.appendChild(keysLabel);
+        keysField.appendChild(keysInput);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'chaos-hint-remove';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            if (!chaosDefaultsHintsList.children.length) {
+                createChaosDefaultsHintRow();
+            }
+            setChaosDefaultsStatus('Unsaved chaos default hints changes.');
+        });
+
+        row.appendChild(txField);
+        row.appendChild(dataField);
+        row.appendChild(keysField);
+        row.appendChild(removeBtn);
+        chaosDefaultsHintsList.appendChild(row);
+    };
+
+    const renderChaosDefaultsHintsRows = (hints) => {
+        if (!chaosDefaultsHintsList) {
+            return;
+        }
+        chaosDefaultsHintsList.innerHTML = '';
+        const list = normalizeChaosDefaultsHints(hints);
+        if (!list.length) {
+            createChaosDefaultsHintRow();
+            return;
+        }
+        list.forEach((hint) => createChaosDefaultsHintRow(hint));
+    };
+
+    const collectChaosDefaultsHintsFromUI = () => {
+        if (!chaosDefaultsHintsList) {
+            return [];
+        }
+        const rows = Array.from(chaosDefaultsHintsList.querySelectorAll('.chaos-hint-row'));
+        return normalizeChaosDefaultsHints(rows.map((row) => {
+            const tx = row.querySelector('[data-settings-chaos-hint-transaction]');
+            const knownData = row.querySelector('[data-settings-chaos-hint-data]');
+            const keyAssignments = row.querySelector('[data-settings-chaos-hint-key-assignments]');
+            return {
+                transaction: tx ? tx.value : '',
+                knownData: knownData ? parseChaosDefaultsListLines(knownData.value) : [],
+                keyAssignments: keyAssignments ? parseChaosDefaultsKeyAssignments(keyAssignments.value) : {},
+            };
+        }));
+    };
+
+    const renderChaosDefaultsEditorPayload = (payload) => {
+        const normalized = normalizeChaosDefaultsPayloadForSettings(payload);
+        renderChaosDefaultsHintsRows(normalized.hints);
+        if (chaosDefaultsKeyBlacklistInput) {
+            chaosDefaultsKeyBlacklistInput.value = formatChaosDefaultsListLines(normalized.keyBlacklist);
+        }
+    };
+
+    const collectChaosDefaultsEditorPayload = () => ({
+        hints: collectChaosDefaultsHintsFromUI(),
+        keyBlacklist: chaosDefaultsKeyBlacklistInput ? parseChaosDefaultsListLines(chaosDefaultsKeyBlacklistInput.value) : [],
+    });
+
+    const markChaosDefaultsDirty = () => {
+        setChaosDefaultsStatus('Unsaved chaos default hints changes.');
+    };
+
+    const loadChaosDefaultsFromServer = async () => {
+        if (!chaosDefaultsHintsList) {
+            return;
+        }
+        setChaosDefaultsStatus('Loading chaos defaults...');
+        try {
+            const response = await fetch('/chaos/hints');
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch (_parseErr) {
+                payload = {};
+            }
+            if (!response.ok) {
+                throw new Error(payload.error || 'Failed to load chaos defaults.');
+            }
+            renderChaosDefaultsEditorPayload(payload);
+            setChaosDefaultsStatus('Chaos defaults loaded.');
+        } catch (error) {
+            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to load chaos defaults.', true);
+        }
+    };
+
+    const saveChaosDefaultsToServer = async () => {
+        if (!chaosDefaultsHintsList) {
+            return;
+        }
+        const payload = collectChaosDefaultsEditorPayload();
+        setChaosDefaultsStatus('Saving chaos defaults...');
+        try {
+            const response = await fetch('/chaos/hints', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (_parseErr) {
+                data = {};
+            }
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to save chaos defaults.');
+            }
+            renderChaosDefaultsEditorPayload(data);
+            setChaosDefaultsStatus('Chaos defaults saved.');
+        } catch (error) {
+            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to save chaos defaults.', true);
+        }
+    };
+
+    const buildChaosDefaultsSettingsField = () => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'settings-field';
+        wrapper.dataset.settingsChaosDefaults = '1';
+
+        const title = document.createElement('label');
+        title.textContent = 'Default Hints';
+        wrapper.appendChild(title);
+
+        const help = document.createElement('div');
+        help.className = 'settings-helper';
+        help.textContent = 'Saved separately from .env settings via /chaos/hints. These defaults are used by chaos runs when request-level hints/blacklist are not provided.';
+        wrapper.appendChild(help);
+
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.textContent = 'Open Default Hints Editor';
+        openBtn.addEventListener('click', () => {
+            openChaosDefaultsSubModal();
+        });
+        wrapper.appendChild(openBtn);
+
+        const summary = document.createElement('div');
+        summary.className = 'settings-helper';
+        summary.textContent = 'Opens a dedicated editor for default hints and blocked keys.';
+        wrapper.appendChild(summary);
+
+        const subModal = document.createElement('div');
+        subModal.className = 'modal-backdrop';
+        subModal.hidden = true;
+        subModal.dataset.settingsChaosDefaultsModal = '1';
+
+        const dialog = document.createElement('div');
+        dialog.className = 'modal modal-chaos-hints';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'settings-chaos-defaults-modal-title');
+        dialog.tabIndex = -1;
+
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        const h3 = document.createElement('h3');
+        h3.id = 'settings-chaos-defaults-modal-title';
+        h3.textContent = 'Default Chaos Hints';
+        const headerClose = document.createElement('button');
+        headerClose.type = 'button';
+        headerClose.className = 'modal-close';
+        headerClose.textContent = 'Close';
+        headerClose.dataset.settingsChaosDefaultsClose = '1';
+        header.appendChild(h3);
+        header.appendChild(headerClose);
+        dialog.appendChild(header);
+
+        const stack = document.createElement('div');
+        stack.className = 'stack';
+
+        const modalHelp = document.createElement('p');
+        modalHelp.className = 'subtle chaos-hints-help';
+        modalHelp.textContent = 'Edit saved default chaos hints and blocked keys. These are used when a chaos run starts without request-level overrides.';
+        stack.appendChild(modalHelp);
+
+        const blockedField = document.createElement('div');
+        blockedField.className = 'chaos-hint-field';
+        const blockedLabel = document.createElement('label');
+        blockedLabel.className = 'chaos-hint-field-label';
+        blockedLabel.htmlFor = 'settings-chaos-key-blacklist';
+        blockedLabel.textContent = 'Blocked Keys';
+        const blockedInput = document.createElement('textarea');
+        blockedInput.id = 'settings-chaos-key-blacklist';
+        blockedInput.rows = 6;
+        blockedInput.placeholder = 'Keys chaos must never press (one per line)\nPF3\nPF12';
+        blockedInput.addEventListener('input', markChaosDefaultsDirty);
+        chaosDefaultsKeyBlacklistInput = blockedInput;
+        blockedField.appendChild(blockedLabel);
+        blockedField.appendChild(blockedInput);
+        stack.appendChild(blockedField);
+
+        const hintsList = document.createElement('div');
+        hintsList.className = 'chaos-hints-list';
+        hintsList.dataset.settingsChaosHintsList = '1';
+        chaosDefaultsHintsList = hintsList;
+        stack.appendChild(hintsList);
+
+        const rowActions = document.createElement('div');
+        rowActions.className = 'modal-actions';
+        const addHintBtn = document.createElement('button');
+        addHintBtn.type = 'button';
+        addHintBtn.textContent = 'Add Hint';
+        addHintBtn.dataset.settingsChaosDefaultsAddHint = '1';
+        addHintBtn.addEventListener('click', () => {
+            createChaosDefaultsHintRow();
+            markChaosDefaultsDirty();
+        });
+        rowActions.appendChild(addHintBtn);
+        stack.appendChild(rowActions);
+
+        const subStatus = document.createElement('div');
+        subStatus.className = 'settings-error';
+        stack.appendChild(subStatus);
+        dialog.appendChild(stack);
+
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+
+        const loadBtn = document.createElement('button');
+        loadBtn.type = 'button';
+        loadBtn.textContent = 'Load Chaos Defaults';
+        loadBtn.dataset.settingsChaosDefaultsLoad = '1';
+        loadBtn.addEventListener('click', () => {
+            loadChaosDefaultsFromServer();
+        });
+        actions.appendChild(loadBtn);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.textContent = 'Save Chaos Defaults';
+        saveBtn.addEventListener('click', () => {
+            saveChaosDefaultsToServer();
+        });
+        actions.appendChild(saveBtn);
+
+        const footerClose = document.createElement('button');
+        footerClose.type = 'button';
+        footerClose.textContent = 'Close';
+        footerClose.dataset.settingsChaosDefaultsClose = '1';
+        actions.appendChild(footerClose);
+        dialog.appendChild(actions);
+
+        subModal.appendChild(dialog);
+        wrapper.appendChild(subModal);
+
+        chaosDefaultsSubModal = subModal;
+        chaosDefaultsStatus = subStatus;
+
+        subModal.addEventListener('click', (event) => {
+            if (event.target === subModal) {
+                closeChaosDefaultsSubModal();
+            }
+        });
+        subModal.querySelectorAll('[data-settings-chaos-defaults-close]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosDefaultsSubModal();
+            });
+        });
+
+        renderChaosDefaultsEditorPayload({ hints: [], keyBlacklist: [] });
+        return wrapper;
+    };
+
     const setMaximizeUi = (enabled) => {
         maximized = enabled;
         modal.classList.toggle('is-maximized', enabled);
-        if (!maximizeButton) {
-            return;
+        if (maximizeButton) {
+            maximizeButton.hidden = enabled;
+            maximizeButton.setAttribute('aria-expanded', enabled ? 'true' : 'false');
         }
-        maximizeButton.textContent = enabled ? 'Restore' : 'Maximize';
-        maximizeButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-        maximizeButton.setAttribute('title', enabled ? 'Restore modal size' : 'Maximize modal');
+        if (minimizeButton) {
+            minimizeButton.hidden = !enabled;
+            minimizeButton.setAttribute('aria-expanded', enabled ? 'true' : 'false');
+        }
     };
 
     const setActiveGroup = (groupId) => {
@@ -379,6 +856,7 @@
     };
 
     const closeSettingsModal = () => {
+        closeChaosDefaultsSubModal();
         closeRestartConfirm(false);
         modal.hidden = true;
         setStatus('');
@@ -817,6 +1295,9 @@
             fieldset.appendChild(header);
             fieldset.appendChild(description);
             fieldset.appendChild(fieldsWrap);
+            if (group.id === 'chaos') {
+                fieldsWrap.appendChild(buildChaosDefaultsSettingsField());
+            }
             groupsContainer.appendChild(fieldset);
             builtGroupIds.push(group.id);
         });
@@ -877,8 +1358,10 @@
             const data = await response.json();
             populateSettings(data.settings || {});
             setStatus('Settings loaded.');
+            loadChaosDefaultsFromServer();
         } catch (error) {
             setStatus(error.message || 'Failed to load settings.', true);
+            setChaosDefaultsStatus('');
         }
     };
 
@@ -975,6 +1458,16 @@
             }
         });
     }
+    if (minimizeButton) {
+        minimizeButton.addEventListener('click', () => {
+            setMaximizeUi(false);
+            try {
+                window.localStorage.setItem(maximizedStorageKey, '0');
+            } catch (err) {
+                // ignore persistence errors
+            }
+        });
+    }
 
     restartCancelButtons.forEach((button) => {
         button.addEventListener('click', () => closeRestartConfirm(false));
@@ -985,6 +1478,10 @@
     }
 
     document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && chaosDefaultsSubModal && !chaosDefaultsSubModal.hidden) {
+            closeChaosDefaultsSubModal();
+            return;
+        }
         if (event.key === 'Escape' && !modal.hidden && restartConfirmModal && !restartConfirmModal.hidden) {
             closeRestartConfirm(false);
         }
@@ -1001,10 +1498,12 @@
     const startBtn = document.querySelector('[data-chaos-start]');
     const stopBtn = document.querySelector('[data-chaos-stop]');
     const exportBtn = document.querySelector('[data-chaos-export]');
+    const reportBtn = document.querySelector('[data-chaos-report]');
     const removeBtn = document.querySelector('[data-chaos-remove]');
     const loadBtn = document.querySelector('[data-chaos-load]');
     const loadRecordingBtn = document.querySelector('[data-chaos-load-recording]');
     const resumeBtn = document.querySelector('[data-chaos-resume]');
+    const extendBtn = document.querySelector('[data-chaos-extend]');
     const indicator = document.querySelector('[data-chaos-indicator]');
     const completeIndicator = document.querySelector('[data-chaos-complete-indicator]');
     const statsIndicator = document.querySelector('[data-chaos-stats-indicator]');
@@ -1015,7 +1514,10 @@
     const hintsOpenBtn = document.querySelector('[data-chaos-hints-open]');
     const hintsModal = document.querySelector('[data-chaos-hints-modal]');
     const hintsModalClose = document.querySelectorAll('[data-chaos-hints-close]');
+    const hintsMaximizeBtn = document.querySelector('[data-chaos-hints-maximize]');
+    const hintsMinimizeBtn = document.querySelector('[data-chaos-hints-minimize]');
     const hintsList = document.querySelector('[data-chaos-hints-list]');
+    const hintsKeyBlacklistInput = document.querySelector('[data-chaos-key-blacklist]');
     const hintsAddBtn = document.querySelector('[data-chaos-hints-add]');
     const hintsLoadRecordingBtn = document.querySelector('[data-chaos-hints-load-recording]');
     const hintsRecordingInput = document.querySelector('[data-chaos-hints-recording-input]');
@@ -1025,14 +1527,39 @@
     const mapOpenBtn = document.querySelector('[data-chaos-map-open]');
     const mapModal = document.querySelector('[data-chaos-map-modal]');
     const mapModalClose = document.querySelectorAll('[data-chaos-map-close]');
+    const mapMaximizeBtn = document.querySelector('[data-chaos-map-maximize]');
+    const mapMinimizeBtn = document.querySelector('[data-chaos-map-minimize]');
+    const mapViewBtn = document.querySelector('[data-chaos-map-view]');
     const mapList = document.querySelector('[data-chaos-map-list]');
     const mapStatus = document.querySelector('[data-chaos-map-status]');
     const mapRefreshBtn = document.querySelector('[data-chaos-map-refresh]');
+    const flowModal = document.querySelector('[data-chaos-flow-modal]');
+    const flowModalClose = document.querySelectorAll('[data-chaos-flow-close]');
+    const flowMaximizeBtn = document.querySelector('[data-chaos-flow-maximize]');
+    const flowMinimizeBtn = document.querySelector('[data-chaos-flow-minimize]');
+    const flowContent = document.querySelector('[data-chaos-flow-content]');
+    const flowStatus = document.querySelector('[data-chaos-flow-status]');
+    const flowRefreshBtn = document.querySelector('[data-chaos-flow-refresh]');
+    const reportModal = document.querySelector('[data-chaos-report-modal]');
+    const reportModalClose = document.querySelectorAll('[data-chaos-report-close]');
+    const reportMaximizeBtn = document.querySelector('[data-chaos-report-maximize]');
+    const reportMinimizeBtn = document.querySelector('[data-chaos-report-minimize]');
+    const reportContent = document.querySelector('[data-chaos-report-content]');
+    const reportStatus = document.querySelector('[data-chaos-report-status]');
+    const reportRefreshBtn = document.querySelector('[data-chaos-report-refresh]');
+    const reportRawToggleBtn = document.querySelector('[data-chaos-report-raw-toggle]');
+    const reportDownloadBtn = document.querySelector('[data-chaos-report-download]');
+    const startLogConfirmModal = document.querySelector('[data-chaos-start-log-confirm-modal]');
+    const startLogConfirmCancelButtons = document.querySelectorAll('[data-chaos-start-log-confirm-cancel]');
+    const startLogConfirmContinueBtn = document.querySelector('[data-chaos-start-log-confirm-continue]');
+    const startLogConfirmDisableBtn = document.querySelector('[data-chaos-start-log-confirm-disable]');
+    const startLogConfirmMessage = document.querySelector('[data-chaos-start-log-confirm-message]');
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
     const recordingStartButton = document.querySelector('form[data-recording-start] .icon-button');
     const workflowLoadButton = document.querySelector('[data-workflow-trigger]');
+    const logsToggleCheckbox = document.querySelector('[data-logs-toggle-checkbox]');
 
     if (!startBtn && !stopBtn && !exportBtn && !removeBtn) {
         return;
@@ -1043,13 +1570,23 @@
     let loadedRunID = null;
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
     let chaosHints = [];
+    let chaosKeyBlacklist = [];
     let hintsDirty = false;
+    let hintsModalMaximized = false;
+    let mapModalMaximized = false;
+    let flowModalMaximized = false;
+    let reportModalMaximized = false;
+    let reportRawMarkdownMode = false;
     let hintRowSequence = 0;
     let latestMindMap = null;
     let screenHintsByHash = {};
     let screenHintDrafts = {};
+    let latestChaosReportMarkdown = '';
     let activeChaosModal = null;
     let previousChaosFocus = null;
+    const chaosModalParentStack = [];
+    const chaosModalReturnFocusStack = [];
+    let pendingStartLogConfirmResolve = null;
 
     const chaosFocusableSelector = [
         'button:not([disabled])',
@@ -1090,36 +1627,110 @@
         }
     };
 
+    const setChaosModalBackgrounded = (modal, backgrounded) => {
+        if (!modal) {
+            return;
+        }
+        modal.classList.toggle('is-backgrounded', !!backgrounded);
+        if (backgrounded) {
+            modal.setAttribute('aria-hidden', 'true');
+        } else {
+            modal.removeAttribute('aria-hidden');
+        }
+    };
+
     const closeChaosModal = (modal, options = {}) => {
         if (!modal) {
             return;
         }
+        if (modal === startLogConfirmModal && pendingStartLogConfirmResolve) {
+            const resolve = pendingStartLogConfirmResolve;
+            pendingStartLogConfirmResolve = null;
+            resolve('cancel');
+        }
         const restoreFocus = options.restoreFocus !== false;
+        setChaosModalBackgrounded(modal, false);
         modal.hidden = true;
         if (activeChaosModal === modal) {
+            if (chaosModalParentStack.length) {
+                activeChaosModal = chaosModalParentStack.pop() || null;
+                const returnFocus = chaosModalReturnFocusStack.pop() || null;
+                setChaosModalBackgrounded(activeChaosModal, false);
+                if (restoreFocus && returnFocus && typeof returnFocus.focus === 'function') {
+                    returnFocus.focus();
+                }
+                return;
+            }
             activeChaosModal = null;
             if (restoreFocus && previousChaosFocus && typeof previousChaosFocus.focus === 'function') {
                 previousChaosFocus.focus();
             }
             previousChaosFocus = null;
+            return;
+        }
+        const idx = chaosModalParentStack.lastIndexOf(modal);
+        if (idx >= 0) {
+            chaosModalParentStack.splice(idx, 1);
+            chaosModalReturnFocusStack.splice(idx, 1);
         }
     };
 
-    const openChaosModal = (modal, preferredSelector = '') => {
+    const openChaosModal = (modal, preferredSelector = '', options = {}) => {
         if (!modal) {
             return;
         }
-        if (activeChaosModal && activeChaosModal !== modal) {
-            closeChaosModal(activeChaosModal, { restoreFocus: false });
+        const keepPrevious = !!options.keepPrevious;
+        const hasPreviousActiveModal = !!(activeChaosModal && activeChaosModal !== modal);
+        const nestOnOpen = keepPrevious && hasPreviousActiveModal;
+        const resetModalScroll = () => {
+            try {
+                modal.scrollTop = 0;
+                const modalPanel = modal.querySelector('.modal');
+                if (modalPanel) {
+                    modalPanel.scrollTop = 0;
+                }
+                modal.querySelectorAll('.stack, [data-chaos-map-list], [data-chaos-flow-content], [data-chaos-report-content]').forEach((el) => {
+                    if (el && typeof el.scrollTop === 'number') {
+                        el.scrollTop = 0;
+                    }
+                });
+            } catch (_err) {
+                // ignore
+            }
+        };
+        if (hasPreviousActiveModal) {
+            if (nestOnOpen) {
+                setChaosModalBackgrounded(activeChaosModal, true);
+                chaosModalParentStack.push(activeChaosModal);
+            } else {
+                while (chaosModalParentStack.length) {
+                    const prev = chaosModalParentStack.pop();
+                    chaosModalReturnFocusStack.pop();
+                    if (prev) {
+                        setChaosModalBackgrounded(prev, false);
+                        prev.hidden = true;
+                    }
+                }
+                closeChaosModal(activeChaosModal, { restoreFocus: false });
+            }
         }
         const activeElement = document.activeElement;
-        previousChaosFocus = activeElement instanceof HTMLElement ? activeElement : null;
+        if (!activeChaosModal || !keepPrevious) {
+            previousChaosFocus = activeElement instanceof HTMLElement ? activeElement : null;
+        }
+        if (nestOnOpen) {
+            chaosModalReturnFocusStack.push(activeElement instanceof HTMLElement ? activeElement : null);
+        }
         modal.hidden = false;
         activeChaosModal = modal;
+        resetModalScroll();
         if (activeElement && typeof activeElement.blur === 'function') {
             activeElement.blur();
         }
-        window.requestAnimationFrame(() => focusModalElement(modal, preferredSelector));
+        window.requestAnimationFrame(() => {
+            resetModalScroll();
+            focusModalElement(modal, preferredSelector);
+        });
     };
 
     document.addEventListener('keydown', (event) => {
@@ -1202,10 +1813,253 @@
         hintsStatus.style.color = isError ? '#ff9a5a' : '';
     };
 
+    const setFlowStatus = (message, isError = false) => {
+        if (!flowStatus) {
+            return;
+        }
+        flowStatus.textContent = message || '';
+        flowStatus.style.color = isError ? '#ff9a5a' : '';
+    };
+
+    const setReportStatus = (message, isError = false) => {
+        if (!reportStatus) {
+            return;
+        }
+        reportStatus.textContent = message || '';
+        reportStatus.style.color = isError ? '#ff9a5a' : '';
+    };
+
+    const setStartLogConfirmMessage = (message) => {
+        if (!startLogConfirmMessage) {
+            return;
+        }
+        startLogConfirmMessage.textContent = message || '';
+    };
+
+    const setStartLogConfirmDisableAvailable = (enabled) => {
+        if (!startLogConfirmDisableBtn) {
+            return;
+        }
+        const canDisable = !!enabled;
+        startLogConfirmDisableBtn.hidden = !canDisable;
+        startLogConfirmDisableBtn.disabled = !canDisable;
+    };
+
+    const settleStartLogConfirm = (choice) => {
+        const resolve = pendingStartLogConfirmResolve;
+        pendingStartLogConfirmResolve = null;
+        closeChaosModal(startLogConfirmModal);
+        if (resolve) {
+            resolve(choice || 'cancel');
+        }
+    };
+
+    const promptForLoggingActiveChaosStart = (options = {}) => {
+        if (!startLogConfirmModal) {
+            const canDisable = options.canDisable !== false;
+            if (canDisable) {
+                const disable = window.confirm('Verbose logging is enabled. Press OK to disable logging and start Chaos mode.');
+                if (disable) {
+                    return Promise.resolve('disable');
+                }
+            }
+            const proceed = window.confirm('Verbose logging is enabled. Start Chaos mode with logging still enabled?');
+            return Promise.resolve(proceed ? 'continue' : 'cancel');
+        }
+
+        const canDisable = options.canDisable !== false;
+        setStartLogConfirmDisableAvailable(canDisable);
+        setStartLogConfirmMessage(
+            canDisable
+                ? 'Continue with logging enabled, or disable logging and then start Chaos mode?'
+                : 'Logging is enabled, but log access is disabled, so it cannot be turned off from here. Start Chaos with logging enabled, or cancel?'
+        );
+
+        if (pendingStartLogConfirmResolve) {
+            const resolve = pendingStartLogConfirmResolve;
+            pendingStartLogConfirmResolve = null;
+            resolve('cancel');
+        }
+
+        return new Promise((resolve) => {
+            pendingStartLogConfirmResolve = resolve;
+            openChaosModal(
+                startLogConfirmModal,
+                canDisable
+                    ? '[data-chaos-start-log-confirm-disable], [data-chaos-start-log-confirm-continue]'
+                    : '[data-chaos-start-log-confirm-continue]'
+            );
+        });
+    };
+
+    const syncVerboseLoggingUIState = (enabled) => {
+        if (logsToggleCheckbox) {
+            logsToggleCheckbox.checked = !!enabled;
+        }
+        try {
+            window.localStorage.setItem('3270Web.verboseLogging', enabled ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
+    const fetchChaosLoggingState = async () => {
+        try {
+            const accessResp = await fetch('/logs/access', {
+                headers: {
+                    Accept: 'application/json',
+                    'Cache-Control': 'no-cache',
+                },
+            });
+            if (!accessResp.ok) {
+                return { known: false, accessEnabled: false, verboseLogging: false };
+            }
+            const accessData = await accessResp.json();
+            const accessEnabled = !!(accessData && accessData.enabled);
+            if (accessData && typeof accessData.verboseLogging === 'boolean') {
+                return {
+                    known: true,
+                    accessEnabled,
+                    verboseLogging: !!accessData.verboseLogging,
+                };
+            }
+            if (!accessEnabled) {
+                return { known: false, accessEnabled: false, verboseLogging: false };
+            }
+            const logsResp = await fetch('/logs', {
+                headers: {
+                    Accept: 'application/json',
+                    'Cache-Control': 'no-cache',
+                },
+            });
+            if (!logsResp.ok) {
+                return { known: false, accessEnabled, verboseLogging: false };
+            }
+            const logsData = await logsResp.json();
+            return {
+                known: true,
+                accessEnabled,
+                verboseLogging: !!(logsData && logsData.enabled),
+            };
+        } catch (_err) {
+            return { known: false, accessEnabled: false, verboseLogging: false };
+        }
+    };
+
+    const setVerboseLoggingEnabled = async (enabled) => {
+        const formData = new FormData();
+        formData.append('enabled', enabled ? 'true' : 'false');
+        const resp = await fetch('/logs/toggle', {
+            method: 'POST',
+            body: formData,
+        });
+        if (!resp.ok) {
+            return { ok: false, enabled };
+        }
+        let data = null;
+        try {
+            data = await resp.json();
+        } catch (_err) {
+            data = null;
+        }
+        const nextEnabled = data && typeof data.enabled === 'boolean' ? !!data.enabled : !!enabled;
+        syncVerboseLoggingUIState(nextEnabled);
+        return { ok: true, enabled: nextEnabled };
+    };
+
+    const confirmLoggingBeforeChaosStart = async () => {
+        const loggingState = await fetchChaosLoggingState();
+        if (!loggingState.known || !loggingState.verboseLogging) {
+            return true;
+        }
+        const choice = await promptForLoggingActiveChaosStart({ canDisable: loggingState.accessEnabled });
+        if (choice === 'continue') {
+            return true;
+        }
+        if (choice === 'disable') {
+            try {
+                const result = await setVerboseLoggingEnabled(false);
+                if (result.ok && !result.enabled) {
+                    return true;
+                }
+            } catch (_err) {
+                // fall through to user-facing message
+            }
+            window.alert('Unable to disable verbose logging. Chaos mode was not started.');
+            return false;
+        }
+        return false;
+    };
+
+    const chaosMapTopFocusSelector = '[data-chaos-map-view], [data-chaos-map-maximize], [data-chaos-map-close]';
+    const chaosReportTopFocusSelector = '[data-chaos-report-refresh], [data-chaos-report-raw-toggle], [data-chaos-report-download], [data-chaos-report-maximize], [data-chaos-report-close]';
+
+    const setHintsModalMaximized = (maximized) => {
+        hintsModalMaximized = !!maximized;
+        if (hintsModal) {
+            hintsModal.classList.toggle('is-maximized', hintsModalMaximized);
+        }
+        if (hintsMaximizeBtn) {
+            hintsMaximizeBtn.hidden = hintsModalMaximized;
+            hintsMaximizeBtn.setAttribute('aria-expanded', hintsModalMaximized ? 'true' : 'false');
+        }
+        if (hintsMinimizeBtn) {
+            hintsMinimizeBtn.hidden = !hintsModalMaximized;
+            hintsMinimizeBtn.setAttribute('aria-expanded', hintsModalMaximized ? 'true' : 'false');
+        }
+        try {
+            window.localStorage.setItem('h3270ChaosHintsModalMaximized', hintsModalMaximized ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
+    const setFlowModalMaximized = (maximized) => {
+        flowModalMaximized = !!maximized;
+        if (flowModal) {
+            flowModal.classList.toggle('is-maximized', flowModalMaximized);
+        }
+        if (flowMaximizeBtn) {
+            flowMaximizeBtn.hidden = flowModalMaximized;
+            flowMaximizeBtn.setAttribute('aria-expanded', flowModalMaximized ? 'true' : 'false');
+        }
+        if (flowMinimizeBtn) {
+            flowMinimizeBtn.hidden = !flowModalMaximized;
+            flowMinimizeBtn.setAttribute('aria-expanded', flowModalMaximized ? 'true' : 'false');
+        }
+        try {
+            window.localStorage.setItem('h3270ChaosFlowModalMaximized', flowModalMaximized ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
     const markHintsDirty = () => {
         if (hintsModal && !hintsModal.hidden) {
             hintsDirty = true;
         }
+    };
+
+    const collectChaosKeyBlacklistFromUI = () => {
+        if (!hintsKeyBlacklistInput) {
+            return [];
+        }
+        const seen = new Set();
+        return parseListLines(hintsKeyBlacklistInput.value).filter((key) => {
+            const normalized = String(key || '').trim();
+            if (!normalized || seen.has(normalized)) {
+                return false;
+            }
+            seen.add(normalized);
+            return true;
+        });
+    };
+
+    const renderChaosKeyBlacklist = (keys) => {
+        if (!hintsKeyBlacklistInput) {
+            return;
+        }
+        hintsKeyBlacklistInput.value = formatListLines(keys);
     };
 
     const parseKnownData = (value) => {
@@ -1334,6 +2188,195 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+    const renderMarkdownInline = (value) => {
+        const raw = String(value == null ? '' : value);
+        let out = escapeHtml(raw);
+        out = out.replace(/`([^`]+?)`/g, (_m, code) => `<code>${code}</code>`);
+        out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+        out = out.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+        return out;
+    };
+
+    const parseMarkdownTableRow = (line) => {
+        const src = String(line || '').trim();
+        if (!src.includes('|')) {
+            return [];
+        }
+        let body = src;
+        if (body.startsWith('|')) {
+            body = body.slice(1);
+        }
+        if (body.endsWith('|')) {
+            body = body.slice(0, -1);
+        }
+        return body.split('|').map((cell) => cell.trim());
+    };
+
+    const isMarkdownTableSeparator = (line) => {
+        const cells = parseMarkdownTableRow(line);
+        if (!cells.length) {
+            return false;
+        }
+        return cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, '')));
+    };
+
+    const renderMarkdownTable = (headerLine, bodyLines) => {
+        const headers = parseMarkdownTableRow(headerLine);
+        if (!headers.length) {
+            return '';
+        }
+        const rows = (Array.isArray(bodyLines) ? bodyLines : [])
+            .map((line) => parseMarkdownTableRow(line))
+            .filter((cells) => cells.length > 0);
+        const th = headers.map((cell) => `<th>${renderMarkdownInline(cell)}</th>`).join('');
+        const tbody = rows.map((cells) => {
+            const tds = headers.map((_, idx) => `<td>${renderMarkdownInline(cells[idx] || '')}</td>`).join('');
+            return `<tr>${tds}</tr>`;
+        }).join('');
+        return `<table><thead><tr>${th}</tr></thead><tbody>${tbody}</tbody></table>`;
+    };
+
+    const renderMarkdownList = (items) => {
+        const list = Array.isArray(items) ? items : [];
+        if (!list.length) {
+            return '';
+        }
+        const root = { indent: -1, items: [] };
+        const stack = [root];
+        list.forEach((item) => {
+            const indent = Math.max(0, Number(item && item.indent) || 0);
+            const text = String(item && item.text || '').trim();
+            if (!text) {
+                return;
+            }
+            while (stack.length > 1 && indent < stack[stack.length - 1].indent) {
+                stack.pop();
+            }
+            const isTopLevelRootItem = stack.length === 1 && indent === 0;
+            if (indent > stack[stack.length - 1].indent && !isTopLevelRootItem) {
+                const parentItems = stack[stack.length - 1].items;
+                const parent = parentItems[parentItems.length - 1];
+                if (parent) {
+                    parent.children = parent.children || { indent, items: [] };
+                    stack.push(parent.children);
+                }
+            } else if (indent < stack[stack.length - 1].indent) {
+                while (stack.length > 1 && indent < stack[stack.length - 1].indent) {
+                    stack.pop();
+                }
+            }
+            stack[stack.length - 1].items.push({ text, children: null });
+        });
+        const renderNodeList = (nodeList) => {
+            if (!nodeList || !Array.isArray(nodeList.items) || !nodeList.items.length) {
+                return '';
+            }
+            const itemsHtml = nodeList.items.map((item) => (
+                `<li>${renderMarkdownInline(item.text)}${item.children ? renderNodeList(item.children) : ''}</li>`
+            )).join('');
+            return `<ul>${itemsHtml}</ul>`;
+        };
+        return renderNodeList(root);
+    };
+
+    const renderChaosReportMarkdown = (markdown) => {
+        const src = String(markdown == null ? '' : markdown).replace(/\r/g, '');
+        const lines = src.split('\n');
+        const html = [];
+        let i = 0;
+
+        const flushParagraph = (paragraphLines) => {
+            const joined = paragraphLines.map((line) => String(line || '').trim()).join(' ');
+            if (joined) {
+                html.push(`<p>${renderMarkdownInline(joined)}</p>`);
+            }
+        };
+
+        while (i < lines.length) {
+            const line = lines[i];
+            const trimmed = String(line || '').trim();
+
+            if (!trimmed) {
+                i += 1;
+                continue;
+            }
+
+            if (/^```/.test(trimmed)) {
+                const fenceLang = trimmed.slice(3).trim();
+                const codeLines = [];
+                i += 1;
+                while (i < lines.length && !/^```/.test(String(lines[i] || '').trim())) {
+                    codeLines.push(lines[i]);
+                    i += 1;
+                }
+                if (i < lines.length) {
+                    i += 1;
+                }
+                const langAttr = fenceLang ? ` data-lang="${escapeHtml(fenceLang)}"` : '';
+                html.push(`<pre><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+                continue;
+            }
+
+            const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+            if (headingMatch) {
+                const level = Math.min(4, headingMatch[1].length);
+                html.push(`<h${level}>${renderMarkdownInline(headingMatch[2])}</h${level}>`);
+                i += 1;
+                continue;
+            }
+
+            if ((i + 1) < lines.length && String(lines[i + 1] || '').includes('|') && isMarkdownTableSeparator(lines[i + 1])) {
+                const headerLine = line;
+                i += 2; // skip header + separator
+                const bodyLines = [];
+                while (i < lines.length) {
+                    const rowLine = String(lines[i] || '');
+                    if (!rowLine.trim() || !rowLine.includes('|')) {
+                        break;
+                    }
+                    bodyLines.push(rowLine);
+                    i += 1;
+                }
+                html.push(renderMarkdownTable(headerLine, bodyLines));
+                continue;
+            }
+
+            if (/^\s*-\s+/.test(line)) {
+                const items = [];
+                while (i < lines.length && /^\s*-\s+/.test(String(lines[i] || ''))) {
+                    const listLine = String(lines[i] || '');
+                    const indent = (listLine.match(/^\s*/) || [''])[0].length;
+                    const text = listLine.replace(/^\s*-\s+/, '');
+                    items.push({ indent, text });
+                    i += 1;
+                }
+                html.push(renderMarkdownList(items));
+                continue;
+            }
+
+            const paragraphLines = [line];
+            i += 1;
+            while (i < lines.length) {
+                const next = String(lines[i] || '');
+                const nextTrimmed = next.trim();
+                if (!nextTrimmed) {
+                    break;
+                }
+                if (/^```/.test(nextTrimmed) || /^(#{1,4})\s+/.test(nextTrimmed) || /^\s*-\s+/.test(next)) {
+                    break;
+                }
+                if ((i + 1) < lines.length && next.includes('|') && isMarkdownTableSeparator(String(lines[i + 1] || ''))) {
+                    break;
+                }
+                paragraphLines.push(next);
+                i += 1;
+            }
+            flushParagraph(paragraphLines);
+        }
+
+        return `<article class="chaos-report-markdown">${html.join('')}</article>`;
+    };
+
     const markScreenHintDraftDirty = (hash, draft) => {
         if (!hash) {
             return;
@@ -1354,9 +2397,46 @@
         return { knownData: [], knownKeys: [], keyAssignments: {} };
     };
 
-    const saveScreenHint = async (screenHash, draft) => {
+    const mergeScreenHintsForHashes = (hashes) => {
+        const out = { knownData: [], knownKeys: [], keyAssignments: {} };
+        const dataSeen = new Set();
+        const keySeen = new Set();
+        (Array.isArray(hashes) ? hashes : []).forEach((hash) => {
+            const hint = effectiveScreenHintForHash(hash);
+            (hint.knownData || []).forEach((value) => {
+                const v = String(value || '').trim();
+                if (!v || dataSeen.has(v)) {
+                    return;
+                }
+                dataSeen.add(v);
+                out.knownData.push(v);
+            });
+            (hint.knownKeys || []).forEach((value) => {
+                const v = String(value || '').trim();
+                if (!v || keySeen.has(v)) {
+                    return;
+                }
+                keySeen.add(v);
+                out.knownKeys.push(v);
+            });
+            Object.entries(normalizeKeyAssignments(hint.keyAssignments || {})).forEach(([label, key]) => {
+                if (!out.keyAssignments[label]) {
+                    out.keyAssignments[label] = key;
+                }
+            });
+        });
+        return out;
+    };
+
+    const markScreenHintDraftDirtyForHashes = (hashes, draft) => {
+        (Array.isArray(hashes) ? hashes : []).forEach((hash) => {
+            markScreenHintDraftDirty(hash, draft);
+        });
+    };
+
+    const saveScreenHint = async (screenHash, draft, options = {}) => {
         if (!screenHash) {
-            return;
+            return false;
         }
         const payload = {
             screenHash,
@@ -1386,13 +2466,48 @@
                     _dirty: false,
                 };
             }
-            setChaosMapStatus(`Saved screen hints for ${screenHash}.`);
-            if (mapModal && !mapModal.hidden) {
+            if (!options.quiet) {
+                setChaosMapStatus(options.successMessage || `Saved screen hints for ${screenHash}.`);
+            }
+            if (!options.skipRender && mapModal && !mapModal.hidden) {
                 renderChaosMap();
             }
+            return true;
         } catch (err) {
-            setChaosMapStatus((err && err.message) ? err.message : 'Failed to save screen hints.', true);
+            if (!options.quiet) {
+                setChaosMapStatus((err && err.message) ? err.message : 'Failed to save screen hints.', true);
+            }
+            return false;
         }
+    };
+
+    const saveScreenHintsForHashes = async (hashes, draft) => {
+        const targets = Array.isArray(hashes)
+            ? hashes.map((h) => String(h || '').trim()).filter(Boolean)
+            : [];
+        if (!targets.length) {
+            return false;
+        }
+        let okCount = 0;
+        for (let i = 0; i < targets.length; i += 1) {
+            const hash = targets[i];
+            const ok = await saveScreenHint(hash, draft, { quiet: true, skipRender: true });
+            if (!ok) {
+                setChaosMapStatus(`Failed to save screen hints for ${hash}.`, true);
+                if (mapModal && !mapModal.hidden) {
+                    renderChaosMap();
+                }
+                return false;
+            }
+            okCount += 1;
+        }
+        setChaosMapStatus(okCount > 1
+            ? `Saved screen hints to ${okCount} merged screen variants.`
+            : `Saved screen hints for ${targets[0]}.`);
+        if (mapModal && !mapModal.hidden) {
+            renderChaosMap();
+        }
+        return true;
     };
 
     const minimapMarkupForArea = (area) => {
@@ -1435,18 +2550,845 @@
         return `<div class="chaos-map-minimap">${inner}</div>`;
     };
 
-    const renderChaosMap = () => {
-        if (!mapList) {
-            return;
+    const chaosMapFlowTemplateKey = (area) => {
+        if (!area || typeof area !== 'object') {
+            return '';
         }
+        const label = String(area.label || '').trim().toLowerCase();
+        const screenWidth = Number(area.screenWidth) || 0;
+        const screenHeight = Number(area.screenHeight) || 0;
+        const previewWidth = Number(area.previewWidth) || 0;
+        const previewHeight = Number(area.previewHeight) || 0;
+        const fieldMeta = area.fieldMetadata && typeof area.fieldMetadata === 'object'
+            ? Object.values(area.fieldMetadata).filter((f) => f && typeof f === 'object')
+            : [];
+        const metaParts = fieldMeta
+            .map((f) => ({
+                row: Math.max(0, Number(f.row) || 0),
+                col: Math.max(0, Number(f.column) || 0),
+                num: !!f.numeric,
+                hid: !!f.hidden,
+                mul: !!f.multiLine,
+            }))
+            .sort((a, b) =>
+                a.row - b.row ||
+                a.col - b.col ||
+                Number(a.num) - Number(b.num) ||
+                Number(a.hid) - Number(b.hid) ||
+                Number(a.mul) - Number(b.mul)
+            )
+            .map((f) => `${f.row},${f.col},${f.num ? 1 : 0},${f.hid ? 1 : 0},${f.mul ? 1 : 0}`);
+        return [
+            `l:${label}`,
+            `sw:${screenWidth}`,
+            `sh:${screenHeight}`,
+            `pw:${previewWidth}`,
+            `ph:${previewHeight}`,
+            `fm:${metaParts.join(';')}`,
+        ].join('|');
+    };
+
+    const chaosMapFlowTemplateId = (key) => {
+        const raw = String(key || '');
+        let hash = 2166136261;
+        for (let i = 0; i < raw.length; i += 1) {
+            hash ^= raw.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return `tpl-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+    };
+
+    const buildChaosMapTemplateGroups = (areas) => {
+        const allAreas = Array.isArray(areas) ? areas : [];
+        const groupsById = new Map();
+        const rawHashToTemplateId = new Map();
+
+        allAreas.forEach((area) => {
+            if (!area || typeof area !== 'object') {
+                return;
+            }
+            const rawHash = String(area.hash || '').trim();
+            if (!rawHash) {
+                return;
+            }
+            const templateKey = chaosMapFlowTemplateKey(area) || `hash:${rawHash}`;
+            const templateId = chaosMapFlowTemplateId(templateKey);
+            rawHashToTemplateId.set(rawHash, templateId);
+            let group = groupsById.get(templateId);
+            if (!group) {
+                group = {
+                    templateId,
+                    templateKey,
+                    label: String(area.label || rawHash || 'Screen').trim() || 'Screen',
+                    visits: 0,
+                    fieldCount: Number(area.fieldCount) || 0,
+                    inputFieldCount: Number(area.inputFieldCount) || 0,
+                    numericFieldCount: Number(area.numericFieldCount) || 0,
+                    hiddenFieldCount: Number(area.hiddenFieldCount) || 0,
+                    representativeHash: rawHash,
+                    representativeArea: area,
+                    lastSeenMs: Date.parse(area.lastSeen || '') || 0,
+                    memberHashes: [],
+                    memberAreas: [],
+                    keyPresses: {},
+                    destinationLabelByTemplateId: {},
+                };
+                groupsById.set(templateId, group);
+            }
+            group.visits += Number(area.visits) || 0;
+            group.fieldCount = Math.max(group.fieldCount, Number(area.fieldCount) || 0);
+            group.inputFieldCount = Math.max(group.inputFieldCount, Number(area.inputFieldCount) || 0);
+            group.numericFieldCount = Math.max(group.numericFieldCount, Number(area.numericFieldCount) || 0);
+            group.hiddenFieldCount = Math.max(group.hiddenFieldCount, Number(area.hiddenFieldCount) || 0);
+            group.memberHashes.push(rawHash);
+            group.memberAreas.push(area);
+
+            const areaVisits = Number(area.visits) || 0;
+            const repVisits = Number(group.representativeArea && group.representativeArea.visits) || 0;
+            const areaLastSeenMs = Date.parse(area.lastSeen || '') || 0;
+            if (!group.representativeArea
+                || areaVisits > repVisits
+                || (areaVisits === repVisits && areaLastSeenMs > group.lastSeenMs)
+                || (areaVisits === repVisits && areaLastSeenMs === group.lastSeenMs && rawHash < group.representativeHash)) {
+                group.representativeArea = area;
+                group.representativeHash = rawHash;
+                group.lastSeenMs = areaLastSeenMs;
+                if (String(area.label || '').trim()) {
+                    group.label = String(area.label || '').trim();
+                }
+            } else if (!String(group.label || '').trim() && String(area.label || '').trim()) {
+                group.label = String(area.label || '').trim();
+            }
+        });
+
+        groupsById.forEach((group) => {
+            group.destinationLabelByTemplateId = {};
+        });
+        groupsById.forEach((group) => {
+            group.memberAreas.forEach((area) => {
+                const keyPresses = area && area.keyPresses && typeof area.keyPresses === 'object' ? area.keyPresses : {};
+                Object.entries(keyPresses).forEach(([key, kp]) => {
+                    if (!kp || typeof kp !== 'object') {
+                        return;
+                    }
+                    if (!group.keyPresses[key]) {
+                        group.keyPresses[key] = { presses: 0, progressions: 0, destinations: {} };
+                    }
+                    const target = group.keyPresses[key];
+                    target.presses += Number(kp.presses) || 0;
+                    target.progressions += Number(kp.progressions) || 0;
+                    const dests = kp.destinations && typeof kp.destinations === 'object' ? kp.destinations : {};
+                    Object.entries(dests).forEach(([toRawHash, countRaw]) => {
+                        const toHash = String(toRawHash || '').trim();
+                        const toTemplateId = rawHashToTemplateId.get(toHash) || '';
+                        const count = Number(countRaw) || 0;
+                        if (!toTemplateId || count <= 0 || toTemplateId === group.templateId) {
+                            return;
+                        }
+                        target.destinations[toTemplateId] = (target.destinations[toTemplateId] || 0) + count;
+                        if (!group.destinationLabelByTemplateId[toTemplateId]) {
+                            const destGroup = groupsById.get(toTemplateId);
+                            group.destinationLabelByTemplateId[toTemplateId] = destGroup && destGroup.label ? destGroup.label : toTemplateId;
+                        }
+                    });
+                });
+            });
+        });
+
+        const groups = Array.from(groupsById.values()).sort((a, b) =>
+            b.visits - a.visits ||
+            b.lastSeenMs - a.lastSeenMs ||
+            a.templateId.localeCompare(b.templateId)
+        );
+
+        return { groups, rawHashToTemplateId };
+    };
+
+    const buildChaosMapFlowModel = (areas) => {
+        const allAreas = Array.isArray(areas) ? areas : [];
+        const groupedByTemplate = new Map();
+        const rawHashToTemplateId = new Map();
+
+        allAreas.forEach((area) => {
+            if (!area || typeof area !== 'object') {
+                return;
+            }
+            const rawHash = String(area.hash || '').trim();
+            if (!rawHash) {
+                return;
+            }
+            const areaVisits = Number(area.visits) || 0;
+            const areaLastSeenMs = Date.parse(area.lastSeen || '') || 0;
+            const templateKey = chaosMapFlowTemplateKey(area) || `hash:${rawHash}`;
+            const templateId = chaosMapFlowTemplateId(templateKey);
+            rawHashToTemplateId.set(rawHash, templateId);
+            let group = groupedByTemplate.get(templateId);
+            if (!group) {
+                group = {
+                    templateId,
+                    templateKey,
+                    label: String(area.label || rawHash || 'Screen').trim() || 'Screen',
+                    visits: 0,
+                    inputs: Number(area.inputFieldCount) || 0,
+                    keysSet: new Set(),
+                    variants: 0,
+                    sampleHash: rawHash,
+                    sampleArea: area,
+                    sampleVisits: areaVisits,
+                    sampleLastSeenMs: areaLastSeenMs,
+                };
+                groupedByTemplate.set(templateId, group);
+            }
+            group.visits += areaVisits;
+            group.inputs = Math.max(group.inputs, Number(area.inputFieldCount) || 0);
+            group.variants += 1;
+            if (!String(group.label || '').trim() && String(area.label || '').trim()) {
+                group.label = String(area.label || '').trim();
+            }
+            const hasPreview = String(area.previewText || '').trim() !== '';
+            const sampleHasPreview = !!(group.sampleArea && String(group.sampleArea.previewText || '').trim() !== '');
+            const shouldReplaceSample = !group.sampleArea
+                || (hasPreview && !sampleHasPreview)
+                || (hasPreview === sampleHasPreview && (
+                    areaVisits > (Number(group.sampleVisits) || 0)
+                    || (areaVisits === (Number(group.sampleVisits) || 0) && areaLastSeenMs > (Number(group.sampleLastSeenMs) || 0))
+                ));
+            if (shouldReplaceSample) {
+                group.sampleArea = area;
+                group.sampleHash = rawHash;
+                group.sampleVisits = areaVisits;
+                group.sampleLastSeenMs = areaLastSeenMs;
+            }
+            const keyPresses = area.keyPresses && typeof area.keyPresses === 'object' ? area.keyPresses : {};
+            Object.keys(keyPresses).forEach((key) => group.keysSet.add(String(key)));
+        });
+
+        const groupedNodes = Array.from(groupedByTemplate.values())
+            .map((group) => {
+                const sampleArea = group.sampleArea && typeof group.sampleArea === 'object' ? group.sampleArea : {};
+                return {
+                    hash: group.templateId,
+                    label: group.label || 'Screen',
+                    visits: group.visits,
+                    inputs: group.inputs,
+                    keys: group.keysSet.size,
+                    variants: group.variants,
+                    sampleHash: group.sampleHash,
+                    previewText: typeof sampleArea.previewText === 'string' ? sampleArea.previewText : '',
+                    previewWidth: Number(sampleArea.previewWidth) || 0,
+                    previewHeight: Number(sampleArea.previewHeight) || 0,
+                    screenWidth: Number(sampleArea.screenWidth) || 0,
+                    screenHeight: Number(sampleArea.screenHeight) || 0,
+                };
+            })
+            .sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash));
+
+        const maxNodes = 28;
+        const nodes = groupedNodes.slice(0, maxNodes);
+        const includedTemplateIds = new Set(nodes.map((node) => node.hash));
+
+        const edgeMap = new Map();
+        allAreas.forEach((area) => {
+            const fromRawHash = String(area && area.hash || '').trim();
+            const fromTemplateId = rawHashToTemplateId.get(fromRawHash);
+            if (!fromTemplateId || !includedTemplateIds.has(fromTemplateId)) {
+                return;
+            }
+            const keyPresses = area && area.keyPresses && typeof area.keyPresses === 'object' ? area.keyPresses : {};
+            Object.entries(keyPresses).forEach(([key, kp]) => {
+                if (!kp || typeof kp !== 'object') {
+                    return;
+                }
+                const dests = kp.destinations && typeof kp.destinations === 'object' ? kp.destinations : {};
+                Object.entries(dests).forEach(([toHashRaw, countRaw]) => {
+                    const toRawHash = String(toHashRaw || '').trim();
+                    const toTemplateId = rawHashToTemplateId.get(toRawHash);
+                    const count = Number(countRaw) || 0;
+                    if (!toTemplateId || count <= 0 || !includedTemplateIds.has(toTemplateId) || toTemplateId === fromTemplateId) {
+                        return;
+                    }
+                    const edgeKey = `${fromTemplateId}->${toTemplateId}`;
+                    const existing = edgeMap.get(edgeKey) || {
+                        fromHash: fromTemplateId,
+                        toHash: toTemplateId,
+                        count: 0,
+                        keys: new Map(),
+                    };
+                    existing.count += count;
+                    existing.keys.set(key, (existing.keys.get(key) || 0) + count);
+                    edgeMap.set(edgeKey, existing);
+                });
+            });
+        });
+
+        const edges = Array.from(edgeMap.values())
+            .sort((a, b) => b.count - a.count || a.fromHash.localeCompare(b.fromHash) || a.toHash.localeCompare(b.toHash))
+            .slice(0, 72)
+            .map((edge) => {
+                const topKeys = Array.from(edge.keys.entries())
+                    .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
+                    .slice(0, 2)
+                    .map(([key, count]) => `${key}${count > 1 ? ` (${count})` : ''}`);
+                return {
+                    fromHash: edge.fromHash,
+                    toHash: edge.toHash,
+                    count: edge.count,
+                    keySummary: topKeys.join(', '),
+                };
+            });
+
+        return {
+            nodes,
+            edges,
+            truncatedNodes: groupedNodes.length > nodes.length,
+            totalAreas: groupedNodes.length,
+            totalRawAreas: allAreas.length,
+        };
+    };
+
+    const setMapModalMaximized = (maximized) => {
+        mapModalMaximized = !!maximized;
+        if (mapModal) {
+            mapModal.classList.toggle('is-maximized', mapModalMaximized);
+        }
+        if (mapMaximizeBtn) {
+            mapMaximizeBtn.hidden = mapModalMaximized;
+            mapMaximizeBtn.setAttribute('aria-expanded', mapModalMaximized ? 'true' : 'false');
+        }
+        if (mapMinimizeBtn) {
+            mapMinimizeBtn.hidden = !mapModalMaximized;
+            mapMinimizeBtn.setAttribute('aria-expanded', mapModalMaximized ? 'true' : 'false');
+        }
+        try {
+            window.localStorage.setItem('h3270ChaosMapModalMaximized', mapModalMaximized ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
+    const setReportModalMaximized = (maximized) => {
+        reportModalMaximized = !!maximized;
+        if (reportModal) {
+            reportModal.classList.toggle('is-maximized', reportModalMaximized);
+        }
+        if (reportMaximizeBtn) {
+            reportMaximizeBtn.hidden = reportModalMaximized;
+            reportMaximizeBtn.setAttribute('aria-expanded', reportModalMaximized ? 'true' : 'false');
+        }
+        if (reportMinimizeBtn) {
+            reportMinimizeBtn.hidden = !reportModalMaximized;
+            reportMinimizeBtn.setAttribute('aria-expanded', reportModalMaximized ? 'true' : 'false');
+        }
+        try {
+            window.localStorage.setItem('h3270ChaosReportModalMaximized', reportModalMaximized ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
+    const edgeKeyForFlow = (edge) => `${String(edge && edge.fromHash || '')}->${String(edge && edge.toHash || '')}`;
+
+    const mergeChaosFlowPreviewVariants = (variants) => {
+        const list = (Array.isArray(variants) ? variants : [])
+            .filter((v) => v && typeof v === 'object' && String(v.text || '').length > 0);
+        if (!list.length) {
+            return { text: '', width: 0, height: 0 };
+        }
+
+        const parsed = list.map((v) => {
+            const lines = String(v.text || '').replace(/\r/g, '').split('\n');
+            const widthFromLines = lines.reduce((max, line) => Math.max(max, String(line || '').length), 0);
+            return {
+                lines,
+                width: Math.max(0, Number(v.width) || widthFromLines),
+                height: Math.max(0, Number(v.height) || lines.length),
+            };
+        });
+
+        let width = parsed[0].width || 0;
+        let height = parsed[0].height || 0;
+        parsed.forEach((p) => {
+            if (p.width > 0) {
+                width = width > 0 ? Math.min(width, p.width) : p.width;
+            }
+            if (p.height > 0) {
+                height = height > 0 ? Math.min(height, p.height) : p.height;
+            }
+        });
+        width = Math.max(0, width);
+        height = Math.max(0, height);
+        if (width <= 0 || height <= 0) {
+            return {
+                text: parsed[0].lines.join('\n'),
+                width: parsed[0].width,
+                height: parsed[0].height,
+            };
+        }
+
+        const base = Array.from({ length: height }, (_, y) =>
+            Array.from(String(parsed[0].lines[y] || '').padEnd(width, ' ').slice(0, width))
+        );
+
+        for (let i = 1; i < parsed.length; i += 1) {
+            const current = parsed[i];
+            for (let y = 0; y < height; y += 1) {
+                const row = String(current.lines[y] || '').padEnd(width, ' ').slice(0, width);
+                for (let x = 0; x < width; x += 1) {
+                    if (base[y][x] !== row[x]) {
+                        base[y][x] = ' ';
+                    }
+                }
+            }
+        }
+
+        const mergedLines = base.map((row) => row.join('').replace(/\s+$/g, ''));
+        return {
+            text: mergedLines.join('\n'),
+            width,
+            height,
+        };
+    };
+
+    const chaosFlowNodePreviewConfig = (isModal) => ({
+        maxCols: isModal ? 54 : 34,
+        maxRows: isModal ? 10 : 5,
+        charWidth: isModal ? 6.5 : 5.2,
+        lineHeight: isModal ? 9.1 : 7.6,
+        insetX: isModal ? 12 : 10,
+        insetTop: isModal ? 12 : 10,
+        insetBottom: isModal ? 10 : 8,
+        previewPadX: isModal ? 9 : 7,
+        previewPadTop: isModal ? 8 : 6,
+        footerHeight: isModal ? 44 : 28,
+    });
+
+    const chaosFlowPreviewLines = (text, maxCols, maxRows) => {
+        const cols = Math.max(1, Number(maxCols) || 1);
+        const rows = Math.max(1, Number(maxRows) || 1);
+        const raw = String(text || '');
+        if (!raw.trim()) {
+            return [];
+        }
+        return raw
+            .replace(/\r/g, '')
+            .split('\n')
+            .slice(0, rows)
+            .map((line) => String(line || '')
+                .replace(/\t/g, ' ')
+                .slice(0, cols)
+                .padEnd(cols, ' '));
+    };
+
+    const chaosFlowSvgPreserveLine = (line) => {
+        const value = String(line == null ? '' : line);
+        const withNbsp = value === '' ? '\u00A0' : value.replace(/ /g, '\u00A0');
+        return escapeHtml(withNbsp);
+    };
+
+    const chaosFlowNodeBodyMarkup = (node, isModal) => {
+        const cfg = chaosFlowNodePreviewConfig(isModal);
+        const outerW = Math.max(40, Number(node && node.w) || 0);
+        const outerH = Math.max(40, Number(node && node.h) || 0);
+        const footerHeight = Math.min(cfg.footerHeight, Math.max(24, outerH - 24));
+        const previewX = cfg.insetX;
+        const previewY = cfg.insetTop;
+        const previewW = Math.max(20, outerW - (cfg.insetX * 2));
+        const previewH = Math.max(20, outerH - footerHeight - cfg.insetTop - cfg.insetBottom);
+        const textX = previewX + cfg.previewPadX;
+        const textY = previewY + cfg.previewPadTop + (isModal ? 0 : 0);
+        const footerY = outerH - footerHeight;
+        const label = String(node && node.label || 'Screen');
+        const visits = Number(node && node.visits) || 0;
+        const inputs = Number(node && node.inputs) || 0;
+        const variants = Number(node && node.variants) || 0;
+        const screenW = Number(node && node.screenWidth) || 0;
+        const screenH = Number(node && node.screenHeight) || 0;
+        const dimsText = screenW > 0 && screenH > 0 ? `${screenH}x${screenW}` : '';
+        const metaLine = [
+            dimsText,
+            `${visits} visit${visits === 1 ? '' : 's'}`,
+            `${inputs} input${inputs === 1 ? '' : 's'}`,
+            variants > 1 ? `${variants} merged` : '',
+        ].filter(Boolean).join(' | ');
+
+        let lines = chaosFlowPreviewLines(node && node.previewText, cfg.maxCols, cfg.maxRows);
+        let placeholder = false;
+        if (!lines.length) {
+            placeholder = true;
+            const fallbackCols = Math.max(8, Math.min(cfg.maxCols, Math.floor((previewW - (cfg.previewPadX * 2)) / cfg.charWidth)));
+            lines = [
+                'No screen snapshot in this run'.slice(0, fallbackCols).padEnd(fallbackCols, ' '),
+                'Start or extend chaos again'.slice(0, fallbackCols).padEnd(fallbackCols, ' '),
+            ];
+        }
+
+        const lineMarkup = lines.map((line, index) => {
+            const y = textY + (index * cfg.lineHeight);
+            return `<tspan x="${textX.toFixed(1)}" y="${y.toFixed(1)}">${chaosFlowSvgPreserveLine(line)}</tspan>`;
+        }).join('');
+
+        return `
+            <g class="chaos-map-flow-node-screen" aria-hidden="true">
+                <rect class="chaos-map-flow-node-screen-bg${placeholder ? ' is-placeholder' : ''}" x="${previewX}" y="${previewY}" width="${previewW}" height="${previewH}" rx="8" ry="8"></rect>
+                <text class="chaos-map-flow-node-screen-text${placeholder ? ' is-placeholder' : ''}" xml:space="preserve">${lineMarkup}</text>
+                <rect class="chaos-map-flow-node-footer-bg" x="1" y="${footerY}" width="${Math.max(1, outerW - 2)}" height="${Math.max(1, footerHeight - 1)}" rx="0" ry="0"></rect>
+                <text class="chaos-map-flow-node-footer-label" x="${previewX}" y="${(footerY + (isModal ? 16 : 13)).toFixed(1)}">${escapeHtml(label.slice(0, isModal ? 44 : 28))}</text>
+                <text class="chaos-map-flow-node-footer-meta" x="${previewX}" y="${(outerH - (isModal ? 11 : 9)).toFixed(1)}">${escapeHtml(metaLine.slice(0, isModal ? 72 : 44))}</text>
+            </g>
+        `;
+    };
+
+    const buildChaosMapPrimaryFlowGraph = (model) => {
+        const nodes = Array.isArray(model && model.nodes) ? model.nodes : [];
+        const edges = Array.isArray(model && model.edges) ? model.edges : [];
+        if (!nodes.length || !edges.length) {
+            return {
+                graphEdges: [],
+                extraEdges: edges.slice(),
+                graphEdgeKeys: new Set(),
+            };
+        }
+
+        const nodeByHash = new Map(nodes.map((node) => [node.hash, node]));
+        const outgoing = new Map();
+        const incoming = new Map();
+        edges.forEach((edge) => {
+            if (!edge || !nodeByHash.has(edge.fromHash) || !nodeByHash.has(edge.toHash) || edge.fromHash === edge.toHash) {
+                return;
+            }
+            if (!outgoing.has(edge.fromHash)) {
+                outgoing.set(edge.fromHash, []);
+            }
+            if (!incoming.has(edge.toHash)) {
+                incoming.set(edge.toHash, []);
+            }
+            outgoing.get(edge.fromHash).push(edge);
+            incoming.get(edge.toHash).push(edge);
+        });
+        outgoing.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
+        incoming.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
+
+        const sortedNodes = nodes.slice().sort((a, b) => (Number(b.visits) || 0) - (Number(a.visits) || 0) || String(a.hash).localeCompare(String(b.hash)));
+        const root = sortedNodes[0];
+        const visited = new Set(root ? [root.hash] : []);
+        const selectedKeys = new Set();
+        const queue = root ? [root.hash] : [];
+
+        while (queue.length) {
+            const fromHash = queue.shift();
+            (outgoing.get(fromHash) || []).forEach((edge) => {
+                const toHash = edge.toHash;
+                if (!toHash || visited.has(toHash)) {
+                    return;
+                }
+                const key = edgeKeyForFlow(edge);
+                if (selectedKeys.has(key)) {
+                    return;
+                }
+                selectedKeys.add(key);
+                visited.add(toHash);
+                queue.push(toHash);
+            });
+        }
+
+        sortedNodes.forEach((node) => {
+            if (!node || visited.has(node.hash)) {
+                return;
+            }
+            const bestIncoming = (incoming.get(node.hash) || [])[0];
+            if (bestIncoming) {
+                selectedKeys.add(edgeKeyForFlow(bestIncoming));
+            }
+            visited.add(node.hash);
+        });
+
+        if (!selectedKeys.size && edges.length) {
+            selectedKeys.add(edgeKeyForFlow(edges[0]));
+        }
+
+        const graphEdges = [];
+        const extraEdges = [];
+        edges.forEach((edge) => {
+            if (!edge || edge.fromHash === edge.toHash) {
+                extraEdges.push(edge);
+                return;
+            }
+            if (selectedKeys.has(edgeKeyForFlow(edge))) {
+                graphEdges.push(edge);
+            } else {
+                extraEdges.push(edge);
+            }
+        });
+
+        return {
+            graphEdges,
+            extraEdges,
+            graphEdgeKeys: selectedKeys,
+        };
+    };
+
+    const layoutChaosMapFlow = (model, options = {}) => {
+        const spacious = !!options.spacious;
+        const nodes = Array.isArray(model && model.nodes) ? model.nodes : [];
+        const edges = Array.isArray(model && model.edges) ? model.edges : [];
+        if (!nodes.length) {
+            return { nodes: [], edges: [], width: 900, height: 180 };
+        }
+
+        const nodeByHash = new Map(nodes.map((node) => [node.hash, { ...node }]));
+        const outgoing = new Map();
+        const incoming = new Map();
+        edges.forEach((edge) => {
+            if (!nodeByHash.has(edge.fromHash) || !nodeByHash.has(edge.toHash)) {
+                return;
+            }
+            if (!outgoing.has(edge.fromHash)) {
+                outgoing.set(edge.fromHash, []);
+            }
+            outgoing.get(edge.fromHash).push(edge);
+            incoming.set(edge.toHash, (incoming.get(edge.toHash) || 0) + edge.count);
+        });
+        outgoing.forEach((list) => list.sort((a, b) => b.count - a.count));
+
+        const sorted = [...nodeByHash.values()].sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash));
+        const root = sorted[0];
+        const depth = new Map();
+        const queue = [];
+        if (root) {
+            depth.set(root.hash, 0);
+            queue.push(root.hash);
+        }
+        while (queue.length) {
+            const from = queue.shift();
+            const fromDepth = depth.get(from) || 0;
+            (outgoing.get(from) || []).forEach((edge) => {
+                if (depth.has(edge.toHash)) {
+                    return;
+                }
+                depth.set(edge.toHash, fromDepth + 1);
+                queue.push(edge.toHash);
+            });
+        }
+        let maxDepth = 0;
+        sorted.forEach((node) => {
+            if (!depth.has(node.hash)) {
+                maxDepth += 1;
+                depth.set(node.hash, maxDepth);
+            } else if ((depth.get(node.hash) || 0) > maxDepth) {
+                maxDepth = depth.get(node.hash) || 0;
+            }
+        });
+
+        const columns = new Map();
+        sorted.forEach((node) => {
+            const d = depth.get(node.hash) || 0;
+            if (!columns.has(d)) {
+                columns.set(d, []);
+            }
+            columns.get(d).push(node);
+        });
+        columns.forEach((list) => list.sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash)));
+
+        const nodesHavePreview = nodes.some((node) => String(node && node.previewText || '').trim() !== '');
+        const nodeW = spacious ? (nodesHavePreview ? 440 : 360) : 272;
+        const nodeH = spacious ? (nodesHavePreview ? 192 : 90) : 74;
+        const padX = spacious ? 44 : 34;
+        const padY = spacious ? 34 : 24;
+        const colGap = spacious ? (nodesHavePreview ? 320 : 300) : 220;
+        const rowGap = spacious ? (nodesHavePreview ? 112 : 84) : 56;
+        const colKeys = Array.from(columns.keys()).sort((a, b) => a - b);
+        const maxRows = colKeys.reduce((max, key) => Math.max(max, (columns.get(key) || []).length), 1);
+        const width = (colKeys.length * nodeW) + ((Math.max(0, colKeys.length - 1)) * colGap) + (padX * 2);
+        const height = (maxRows * nodeH) + ((Math.max(0, maxRows - 1)) * rowGap) + (padY * 2);
+
+        colKeys.forEach((col, colIndex) => {
+            const colNodes = columns.get(col) || [];
+            const colHeight = (colNodes.length * nodeH) + (Math.max(0, colNodes.length - 1) * rowGap);
+            const startY = padY + Math.max(0, (height - (padY * 2) - colHeight) / 2);
+            colNodes.forEach((node, rowIndex) => {
+                const n = nodeByHash.get(node.hash);
+                n.x = padX + (colIndex * (nodeW + colGap));
+                n.y = startY + (rowIndex * (nodeH + rowGap));
+                n.w = nodeW;
+                n.h = nodeH;
+            });
+        });
+
+        const laidOutEdges = edges
+            .filter((edge) => nodeByHash.has(edge.fromHash) && nodeByHash.has(edge.toHash))
+            .map((edge, edgeIndex) => {
+                const from = nodeByHash.get(edge.fromHash);
+                const to = nodeByHash.get(edge.toHash);
+                return { ...edge, from, to, edgeIndex };
+            });
+
+        return {
+            nodes: Array.from(nodeByHash.values()),
+            edges: laidOutEdges,
+            width: Math.max(spacious ? 1640 : 1260, width),
+            height: Math.max(spacious ? 360 : 290, height),
+        };
+    };
+
+    const chaosMapFlowMarkup = (areas, options = {}) => {
+        const isModal = !!options.isModal;
+        const showOpenButton = !!options.showOpenButton;
+        const markerId = String(options.markerId || 'chaos-map-flow-arrow');
+        const model = buildChaosMapFlowModel(areas);
+        const primaryGraph = buildChaosMapPrimaryFlowGraph(model);
+        const layout = layoutChaosMapFlow({
+            ...model,
+            edges: primaryGraph.graphEdges,
+        }, { spacious: isModal });
+        if (!layout.nodes.length) {
+            return '';
+        }
+        const showEdgeLabels = false;
+        const allEdges = Array.isArray(model.edges) ? model.edges : [];
+        const maxEdgeCount = allEdges.reduce((max, edge) => Math.max(max, edge.count || 0), 1) || 1;
+        const edgeMarkup = layout.edges.map((edge) => {
+            const geom = computeChaosMapFlowEdgeGeometry(edge, { isModal, maxEdgeCount });
+            return `
+                <g
+                    class="chaos-map-flow-edge"
+                    aria-hidden="true"
+                    data-chaos-flow-edge
+                    data-chaos-edge-from="${escapeHtml(edge.from.hash)}"
+                    data-chaos-edge-to="${escapeHtml(edge.to.hash)}"
+                    data-chaos-edge-index="${edge.edgeIndex}"
+                    data-chaos-edge-count="${edge.count}"
+                >
+                    <path class="chaos-map-flow-edge-underlay" data-chaos-flow-edge-underlay d="${geom.path}" stroke-width="${(geom.strokeWidth + 5.5).toFixed(2)}"></path>
+                    <path class="chaos-map-flow-edge-core" data-chaos-flow-edge-core d="${geom.path}" stroke-width="${geom.strokeWidth.toFixed(2)}"></path>
+                    <path class="chaos-map-flow-arrowhead" data-chaos-flow-edge-arrow d="${geom.arrowHeadPath}"></path>
+                    <circle class="chaos-map-flow-edge-dot is-from" data-chaos-flow-edge-dot-from cx="${geom.x1.toFixed(1)}" cy="${geom.y1.toFixed(1)}" r="${isModal ? 2.8 : 2.2}"></circle>
+                    <circle class="chaos-map-flow-edge-dot is-to" data-chaos-flow-edge-dot-to cx="${geom.targetAnchorX.toFixed(1)}" cy="${geom.y2.toFixed(1)}" r="${isModal ? 2.8 : 2.2}"></circle>
+                    ${showEdgeLabels && edge.keySummary ? '' : ''}
+                </g>
+            `;
+        }).join('');
+        const nodeMarkup = layout.nodes.map((node) => {
+            const nodeTitle = `${node.label} | ${node.visits} visit${node.visits === 1 ? '' : 's'} | ${node.inputs} input${node.inputs === 1 ? '' : 's'}${node.variants > 1 ? ` | ${node.variants} variants merged` : ''}`;
+            return `
+                <g
+                    class="chaos-map-flow-node"
+                    transform="translate(${node.x},${node.y})"
+                    data-chaos-flow-node
+                    data-chaos-node-id="${escapeHtml(node.hash)}"
+                    data-chaos-node-x="${node.x}"
+                    data-chaos-node-y="${node.y}"
+                    data-chaos-node-w="${node.w}"
+                    data-chaos-node-h="${node.h}"
+                >
+                    <rect width="${node.w}" height="${node.h}" rx="10" ry="10"></rect>
+                    ${chaosFlowNodeBodyMarkup(node, isModal)}
+                    <title>${escapeHtml(nodeTitle)}</title>
+                </g>
+            `;
+        }).join('');
+
+        const summaryBits = [
+            `${model.totalAreas} unique screen${model.totalAreas === 1 ? '' : 's'}`,
+            model.totalRawAreas > model.totalAreas ? `${model.totalRawAreas - model.totalAreas} variants merged` : '',
+            `${layout.edges.length} primary flow edge${layout.edges.length === 1 ? '' : 's'} on canvas`,
+            primaryGraph.extraEdges.length ? `${primaryGraph.extraEdges.length} additional transition${primaryGraph.extraEdges.length === 1 ? '' : 's'} listed` : '',
+            model.truncatedNodes ? `top ${layout.nodes.length} screens displayed` : '',
+        ].filter(Boolean).join(' | ');
+
+        const modelNodeByHash = new Map((Array.isArray(model.nodes) ? model.nodes : []).map((node) => [node.hash, node]));
+        const legendEdges = [
+            ...layout.edges,
+            ...primaryGraph.extraEdges.map((edge) => ({
+                ...edge,
+                from: modelNodeByHash.get(edge.fromHash) || { hash: edge.fromHash, label: 'Screen' },
+                to: modelNodeByHash.get(edge.toHash) || { hash: edge.toHash, label: 'Screen' },
+            })),
+        ];
+        const onCanvasEdgeKeys = new Set(layout.edges.map((edge) => edgeKeyForFlow(edge)));
+        const edgeLegend = legendEdges
+            .slice(0, 16)
+            .map((edge) => {
+                const fromLabel = String(edge.from.label || edge.from.hash || 'Screen').slice(0, 26);
+                const toLabel = String(edge.to.label || edge.to.hash || 'Screen').slice(0, 26);
+                const keyText = edge.keySummary ? ` | ${edge.keySummary}` : '';
+                const canvasTag = onCanvasEdgeKeys.has(edgeKeyForFlow(edge)) ? 'Canvas' : 'Listed';
+                const extraClass = onCanvasEdgeKeys.has(edgeKeyForFlow(edge)) ? 'is-on-canvas' : 'is-listed-only';
+                return `<div class="chaos-map-flow-legend-row ${extraClass}"><span class="chaos-map-flow-legend-route"><span class="chaos-map-flow-legend-swatch" aria-hidden="true"></span>${escapeHtml(fromLabel)} -> ${escapeHtml(toLabel)}</span><span class="chaos-map-flow-legend-meta">${escapeHtml(canvasTag)} | ${edge.count} transition${edge.count === 1 ? '' : 's'}${escapeHtml(keyText)}</span></div>`;
+            })
+            .join('');
+
+        return `
+            <section class="chaos-map-flow-panel${isModal ? ' is-modal' : ''}" aria-label="Chaos discovery screen flow" data-chaos-flow-canvas="${isModal ? 'modal' : 'inline'}">
+                <div class="chaos-map-flow-header">
+                    <div class="chaos-map-flow-header-top">
+                        <strong>${isModal ? 'Discovery Flow (Expanded)' : 'Discovery Flow'}</strong>
+                        <div class="chaos-map-flow-header-actions">
+                            <div class="chaos-map-flow-zoom-controls" role="group" aria-label="Discovery flow zoom controls">
+                                <button type="button" data-chaos-flow-zoom-out title="Zoom out">-</button>
+                                <button type="button" data-chaos-flow-zoom-in title="Zoom in">+</button>
+                                <button type="button" data-chaos-flow-zoom-fit title="Fit graph to viewport">Fit</button>
+                                <button type="button" data-chaos-flow-layout-reset title="Reset moved screen positions">Layout</button>
+                                <button type="button" data-chaos-flow-zoom-reset title="Reset zoom to 100%">100%</button>
+                                <span class="chaos-map-flow-zoom-value subtle" data-chaos-flow-zoom-value>100%</span>
+                            </div>
+                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View Map</button>' : ''}
+                        </div>
+                    </div>
+                    <div class="chaos-map-flow-meta-row">
+                        <span class="subtle">${escapeHtml(summaryBits)}</span>
+                    </div>
+                    <div class="chaos-map-flow-meta-row">
+                        <span class="subtle">Screen previews show one captured example for each unique screen. Other visits may differ based on data entered.</span>
+                    </div>
+                </div>
+                <div class="chaos-map-flow-viewport" data-chaos-flow-viewport>
+                    <div class="chaos-map-flow-stage" data-chaos-flow-stage data-chaos-flow-stage-width="${layout.width}" data-chaos-flow-stage-height="${layout.height}" style="width:${layout.width}px;height:${layout.height}px;">
+                        <svg class="chaos-map-flow-svg" data-chaos-flow-svg data-chaos-flow-scope="${isModal ? 'modal' : 'inline'}" data-chaos-flow-max-edge-count="${maxEdgeCount}" data-chaos-flow-spacious="${isModal ? '1' : '0'}" viewBox="0 0 ${layout.width} ${layout.height}" width="${layout.width}" height="${layout.height}" role="img" aria-label="Discovered screen flow graph">
+                            ${edgeMarkup}
+                            ${nodeMarkup}
+                        </svg>
+                    </div>
+                </div>
+                ${edgeLegend ? `
+                    <div class="chaos-map-flow-legend">
+                        <div class="chaos-map-flow-legend-header">
+                            <strong>Transitions</strong>
+                            <span class="subtle">Canvas shows primary discovery path. Extra/loopback transitions are listed below.</span>
+                        </div>
+                        <div class="chaos-map-flow-legend-list">${edgeLegend}</div>
+                    </div>
+                ` : ''}
+            </section>
+        `;
+    };
+
+    const chaosMapFlowLauncherMarkup = (areas) => {
+        const model = buildChaosMapFlowModel(areas);
+        const summaryBits = [
+            `${model.totalAreas} unique screen${model.totalAreas === 1 ? '' : 's'}`,
+            model.totalRawAreas > model.totalAreas ? `${model.totalRawAreas - model.totalAreas} variants merged` : '',
+            `${(Array.isArray(model.edges) ? model.edges.length : 0)} transition${(Array.isArray(model.edges) ? model.edges.length : 0) === 1 ? '' : 's'} discovered`,
+            model.truncatedNodes ? `top ${(Array.isArray(model.nodes) ? model.nodes.length : 0)} screens sampled` : '',
+        ].filter(Boolean).join(' | ');
+
+        return `
+            <section class="chaos-map-flow-panel chaos-map-flow-panel--launcher" aria-label="Chaos discovery flow launcher">
+                <div class="chaos-map-flow-header">
+                    <strong>Discovery Flow</strong>
+                    <div class="chaos-map-flow-header-actions">
+                        <span class="subtle">${escapeHtml(summaryBits || 'No discovery flow data yet.')}</span>
+                        <button type="button" data-chaos-flow-open>View Map</button>
+                    </div>
+                </div>
+                <p class="subtle chaos-map-flow-launcher-copy">Open the dedicated Discovery Flow modal for the interactive canvas (pan, drag, zoom) and the full transition list.</p>
+            </section>
+        `;
+    };
+
+    const getChaosMapAreas = () => {
         const areas = latestMindMap && latestMindMap.areas && typeof latestMindMap.areas === 'object'
             ? Object.values(latestMindMap.areas).filter((a) => a && typeof a === 'object')
             : [];
-        if (!areas.length) {
-            mapList.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
-            return;
-        }
-
         areas.sort((a, b) => {
             const aVisits = Number(a.visits) || 0;
             const bVisits = Number(b.visits) || 0;
@@ -1457,17 +3399,979 @@
             const bSeen = Date.parse(b.lastSeen || '') || 0;
             return bSeen - aSeen;
         });
+        return areas;
+    };
 
-        mapList.innerHTML = '';
+    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosMapAreas()).groups.length;
+    const chaosFlowNodePositionOverrides = {
+        inline: new Map(),
+        modal: new Map(),
+    };
+    const chaosFlowCanvasState = {
+        inline: { zoom: 1 },
+        modal: { zoom: 1 },
+    };
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    const computeChaosMapFlowEdgeGeometry = (edge, options = {}) => {
+        const isModal = !!options.isModal;
+        const maxEdgeCount = Math.max(1, Number(options.maxEdgeCount) || 1);
+        const flowsRight = edge.to.x >= edge.from.x;
+        const sourceInset = isModal ? 12 : 9;
+        const targetGap = isModal ? 62 : 44;
+        const x1 = flowsRight
+            ? (edge.from.x + edge.from.w + sourceInset)
+            : (edge.from.x - sourceInset);
+        const y1 = edge.from.y + (edge.from.h / 2);
+        const x2 = flowsRight
+            ? (edge.to.x - targetGap)
+            : (edge.to.x + edge.to.w + targetGap);
+        const y2 = edge.to.y + (edge.to.h / 2);
+        const targetAnchorX = flowsRight ? edge.to.x : (edge.to.x + edge.to.w);
+        const span = Math.max(12, Math.abs(x2 - x1));
+        const sameRow = Math.abs(y2 - y1) <= (isModal ? 10 : 8);
+        const dir = flowsRight ? 1 : -1;
+        const straightPath = sameRow && span >= (isModal ? 110 : 78);
+        const elbowPadDesired = Math.min(isModal ? 150 : 112, Math.max(isModal ? 52 : 38, span * 0.42));
+        const elbowPadMax = Math.max(10, span - (isModal ? 26 : 18));
+        const elbowPad = Math.min(elbowPadDesired, elbowPadMax);
+        const elbowX = x1 + (dir * elbowPad);
+        const path = straightPath
+            ? `M ${x1} ${y1} H ${x2}`
+            : `M ${x1} ${y1} H ${elbowX} V ${y2} H ${x2}`;
+        const strokeWidth = 1.5 + (((Number(edge.count) || 0) / maxEdgeCount) * 4.5);
+        const headLen = Math.max(isModal ? 12 : 10, strokeWidth * 2.2);
+        const headHalf = Math.max(isModal ? 6 : 5, strokeWidth * 1.1);
+        const headBaseX = x2 - (dir * headLen);
+        const headNotchX = x2 - (dir * (headLen * 0.62));
+        const arrowHeadPath = [
+            `M ${x2} ${y2}`,
+            `L ${headBaseX} ${y2 - headHalf}`,
+            `L ${headNotchX} ${y2}`,
+            `L ${headBaseX} ${y2 + headHalf}`,
+            'Z',
+        ].join(' ');
+        return {
+            x1,
+            y1,
+            x2,
+            y2,
+            targetAnchorX,
+            path,
+            strokeWidth,
+            arrowHeadPath,
+        };
+    };
+
+    const summarizeChaosGroupFieldDiscovery = (group) => {
+        const out = {
+            fields: 0,
+            triedValues: 0,
+            workingValues: 0,
+            progressions: 0,
+        };
+        const fieldSeen = new Set();
+        const triedSeen = new Set();
+        const workingSeen = new Set();
+        const areas = group && Array.isArray(group.memberAreas) ? group.memberAreas : [];
         areas.forEach((area) => {
-            const hash = String(area.hash || '').trim();
-            const hint = effectiveScreenHintForHash(hash);
+            if (!area || typeof area !== 'object') {
+                return;
+            }
+            const fieldDiscovery = area.fieldDiscovery && typeof area.fieldDiscovery === 'object' ? area.fieldDiscovery : {};
+            Object.entries(fieldDiscovery).forEach(([fieldKey, meta]) => {
+                if (fieldKey && !fieldSeen.has(fieldKey)) {
+                    fieldSeen.add(fieldKey);
+                    out.fields += 1;
+                }
+                if (meta && typeof meta === 'object') {
+                    out.progressions += Number(meta.progressions) || 0;
+                }
+            });
+            const tried = area.knownTriedValues && typeof area.knownTriedValues === 'object' ? area.knownTriedValues : {};
+            Object.entries(tried).forEach(([fieldKey, values]) => {
+                (Array.isArray(values) ? values : []).forEach((value) => {
+                    const v = String(value || '').trim();
+                    if (!v) {
+                        return;
+                    }
+                    const key = `${fieldKey}\u001f${v}`;
+                    if (triedSeen.has(key)) {
+                        return;
+                    }
+                    triedSeen.add(key);
+                    out.triedValues += 1;
+                });
+            });
+            const working = area.knownWorkingValues && typeof area.knownWorkingValues === 'object' ? area.knownWorkingValues : {};
+            Object.entries(working).forEach(([fieldKey, values]) => {
+                (Array.isArray(values) ? values : []).forEach((value) => {
+                    const v = String(value || '').trim();
+                    if (!v) {
+                        return;
+                    }
+                    const key = `${fieldKey}\u001f${v}`;
+                    if (workingSeen.has(key)) {
+                        return;
+                    }
+                    workingSeen.add(key);
+                    out.workingValues += 1;
+                });
+            });
+        });
+        return out;
+    };
+
+    const parseChaosFieldKey = (fieldKey) => {
+        const raw = String(fieldKey || '').trim();
+        const m = raw.match(/^R(\d+)C(\d+)L(\d+)$/i);
+        if (!m) {
+            return { key: raw, row: 0, col: 0, len: 0 };
+        }
+        return {
+            key: raw,
+            row: Number(m[1]) || 0,
+            col: Number(m[2]) || 0,
+            len: Number(m[3]) || 0,
+        };
+    };
+
+    const buildChaosGroupFieldDiscoveryRows = (group) => {
+        const byField = new Map();
+        const areas = group && Array.isArray(group.memberAreas) ? group.memberAreas : [];
+        const ensureRow = (fieldKey) => {
+            const key = String(fieldKey || '').trim();
+            if (!key) {
+                return null;
+            }
+            if (!byField.has(key)) {
+                const parsed = parseChaosFieldKey(key);
+                byField.set(key, {
+                    fieldKey: key,
+                    row: parsed.row,
+                    col: parsed.col,
+                    len: parsed.len,
+                    numeric: false,
+                    hidden: false,
+                    multiLine: false,
+                    writes: 0,
+                    writeSuccesses: 0,
+                    progressions: 0,
+                    lastValue: '',
+                    lastWorkedValue: '',
+                    triedValues: [],
+                    workingValues: [],
+                    _triedSet: new Set(),
+                    _workingSet: new Set(),
+                });
+            }
+            return byField.get(key);
+        };
+
+        areas.forEach((area) => {
+            if (!area || typeof area !== 'object') {
+                return;
+            }
+            const fieldMeta = area.fieldMetadata && typeof area.fieldMetadata === 'object' ? area.fieldMetadata : {};
+            Object.entries(fieldMeta).forEach(([fieldKey, meta]) => {
+                const row = ensureRow(fieldKey);
+                if (!row || !meta || typeof meta !== 'object') {
+                    return;
+                }
+                row.row = row.row || (Number(meta.row) || 0);
+                row.col = row.col || (Number(meta.column) || 0);
+                row.len = row.len || (Number(meta.length) || 0);
+                row.numeric = row.numeric || !!meta.numeric;
+                row.hidden = row.hidden || !!meta.hidden;
+                row.multiLine = row.multiLine || !!meta.multiLine;
+            });
+
+            const fieldDiscovery = area.fieldDiscovery && typeof area.fieldDiscovery === 'object' ? area.fieldDiscovery : {};
+            Object.entries(fieldDiscovery).forEach(([fieldKey, meta]) => {
+                const row = ensureRow(fieldKey);
+                if (!row || !meta || typeof meta !== 'object') {
+                    return;
+                }
+                row.writes += Number(meta.writes) || 0;
+                row.writeSuccesses += Number(meta.writeSuccesses) || 0;
+                row.progressions += Number(meta.progressions) || 0;
+                if (!row.lastValue && meta.lastValue) {
+                    row.lastValue = String(meta.lastValue || '');
+                }
+                if (!row.lastWorkedValue && meta.lastWorkedValue) {
+                    row.lastWorkedValue = String(meta.lastWorkedValue || '');
+                }
+            });
+
+            const tried = area.knownTriedValues && typeof area.knownTriedValues === 'object' ? area.knownTriedValues : {};
+            Object.entries(tried).forEach(([fieldKey, values]) => {
+                const row = ensureRow(fieldKey);
+                if (!row) {
+                    return;
+                }
+                (Array.isArray(values) ? values : []).forEach((value) => {
+                    const v = String(value || '').trim();
+                    if (!v || row._triedSet.has(v)) {
+                        return;
+                    }
+                    row._triedSet.add(v);
+                    row.triedValues.push(v);
+                });
+            });
+
+            const working = area.knownWorkingValues && typeof area.knownWorkingValues === 'object' ? area.knownWorkingValues : {};
+            Object.entries(working).forEach(([fieldKey, values]) => {
+                const row = ensureRow(fieldKey);
+                if (!row) {
+                    return;
+                }
+                (Array.isArray(values) ? values : []).forEach((value) => {
+                    const v = String(value || '').trim();
+                    if (!v || row._workingSet.has(v)) {
+                        return;
+                    }
+                    row._workingSet.add(v);
+                    row.workingValues.push(v);
+                });
+            });
+        });
+
+        return Array.from(byField.values())
+            .map((row) => ({
+                ...row,
+                triedCount: row.triedValues.length,
+                workingCount: row.workingValues.length,
+            }))
+            .sort((a, b) =>
+                b.progressions - a.progressions ||
+                b.workingCount - a.workingCount ||
+                b.writes - a.writes ||
+                a.row - b.row ||
+                a.col - b.col ||
+                a.fieldKey.localeCompare(b.fieldKey)
+            );
+    };
+
+    const chaosMapFieldDiscoveryTableMarkup = (group) => {
+        const rows = buildChaosGroupFieldDiscoveryRows(group);
+        if (!rows.length) {
+            return '';
+        }
+        const maxRows = 8;
+        const initialShown = Math.min(rows.length, maxRows);
+        const body = rows.map((row, rowIndex) => {
+            const flags = [
+                row.numeric ? 'num' : '',
+                row.hidden ? 'hidden' : '',
+                row.multiLine ? 'multi' : '',
+            ].filter(Boolean).join(', ');
+            const triedExample = row.triedValues.length ? row.triedValues.slice(0, 2).join(', ') : '';
+            const workingExample = row.workingValues.length ? row.workingValues.slice(0, 2).join(', ') : '';
+            const lastExample = row.lastWorkedValue || row.lastValue || '';
+            const label = row.row > 0 && row.col > 0
+                ? `R${row.row} C${row.col} L${row.len || 0}`
+                : row.fieldKey;
+            return `
+                <tr${rowIndex >= maxRows ? ' class="chaos-map-field-row-extra" hidden' : ''}>
+                    <td class="chaos-map-field-cell-label">
+                        <div class="chaos-map-field-label-main">${escapeHtml(label)}</div>
+                        ${flags ? `<div class="chaos-map-field-label-flags">${escapeHtml(flags)}</div>` : ''}
+                    </td>
+                    <td>${row.writes}</td>
+                    <td>${row.progressions}</td>
+                    <td title="${escapeHtml(triedExample)}">${row.triedCount}</td>
+                    <td title="${escapeHtml(workingExample)}">${row.workingCount}</td>
+                    <td class="chaos-map-field-cell-value" title="${escapeHtml(lastExample)}">${escapeHtml(String(lastExample || '').slice(0, 18))}</td>
+                </tr>
+            `;
+        }).join('');
+        return `
+            <div class="chaos-map-field-discovery" data-chaos-map-field-discovery data-field-mode="top">
+                <div class="chaos-map-field-discovery-header">
+                    <strong>Field Discovery</strong>
+                    <div class="chaos-map-field-discovery-header-actions">
+                        <span class="subtle" data-chaos-map-field-count>${initialShown}${rows.length > initialShown ? ` / ${rows.length}` : ''} field${rows.length === 1 ? '' : 's'} shown</span>
+                        ${rows.length > maxRows ? `<button type="button" class="chaos-map-field-toggle" data-chaos-map-field-toggle data-top-count="${maxRows}" data-total-count="${rows.length}" aria-pressed="false">All fields</button>` : ''}
+                    </div>
+                </div>
+                <div class="chaos-map-field-discovery-table-wrap">
+                    <table class="chaos-map-field-discovery-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Writes</th>
+                                <th>Prog</th>
+                                <th>Tried</th>
+                                <th>Work</th>
+                                <th>Last</th>
+                            </tr>
+                        </thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+                ${rows.length > maxRows ? `<div class="subtle" data-chaos-map-field-note>Showing top ${maxRows} fields by progression/writes.</div>` : ''}
+            </div>
+        `;
+    };
+
+    const initChaosFlowCanvasInteractions = (root) => {
+        if (!root || !root.querySelectorAll) {
+            return;
+        }
+        const panels = root.matches && root.matches('[data-chaos-flow-canvas]')
+            ? [root]
+            : Array.from(root.querySelectorAll('[data-chaos-flow-canvas]'));
+        panels.forEach((panel) => {
+            if (!panel || panel.dataset.chaosFlowInteractive === '1') {
+                return;
+            }
+            const viewport = panel.querySelector('[data-chaos-flow-viewport]');
+            const stage = panel.querySelector('[data-chaos-flow-stage]');
+            const svg = panel.querySelector('[data-chaos-flow-svg]');
+            if (!viewport || !stage || !svg) {
+                return;
+            }
+            panel.dataset.chaosFlowInteractive = '1';
+            const zoomInBtn = panel.querySelector('[data-chaos-flow-zoom-in]');
+            const zoomOutBtn = panel.querySelector('[data-chaos-flow-zoom-out]');
+            const zoomFitBtn = panel.querySelector('[data-chaos-flow-zoom-fit]');
+            const layoutResetBtn = panel.querySelector('[data-chaos-flow-layout-reset]');
+            const zoomResetBtn = panel.querySelector('[data-chaos-flow-zoom-reset]');
+            const zoomValueEl = panel.querySelector('[data-chaos-flow-zoom-value]');
+
+            const scope = String(svg.dataset.chaosFlowScope || 'inline');
+            const isModal = svg.dataset.chaosFlowSpacious === '1';
+            const maxEdgeCount = Math.max(1, Number(svg.dataset.chaosFlowMaxEdgeCount) || 1);
+            const overrides = chaosFlowNodePositionOverrides[scope] || (chaosFlowNodePositionOverrides[scope] = new Map());
+            const canvasState = chaosFlowCanvasState[scope] || (chaosFlowCanvasState[scope] = { zoom: 1 });
+            const viewBox = svg.viewBox && svg.viewBox.baseVal
+                ? svg.viewBox.baseVal
+                : { x: 0, y: 0, width: 0, height: 0 };
+            const baseCanvasWidth = Math.max(1, Number(stage.dataset.chaosFlowStageWidth) || Number(viewBox.width) || 1);
+            const baseCanvasHeight = Math.max(1, Number(stage.dataset.chaosFlowStageHeight) || Number(viewBox.height) || 1);
+            const pad = isModal ? 8 : 6;
+            const minZoom = 0.4;
+            const maxZoom = 3.2;
+
+            const renderedSize = () => {
+                const rect = stage.getBoundingClientRect();
+                return {
+                    width: Math.max(1, rect.width),
+                    height: Math.max(1, rect.height),
+                };
+            };
+
+            const updateZoomUI = (zoom) => {
+                if (zoomValueEl) {
+                    zoomValueEl.textContent = `${Math.round(zoom * 100)}%`;
+                }
+                if (zoomOutBtn) {
+                    zoomOutBtn.disabled = zoom <= minZoom + 0.001;
+                }
+                if (zoomInBtn) {
+                    zoomInBtn.disabled = zoom >= maxZoom - 0.001;
+                }
+            };
+
+            const applyZoom = (nextZoom, options = {}) => {
+                const requested = Number(nextZoom);
+                const zoom = clamp(Number.isFinite(requested) ? requested : 1, minZoom, maxZoom);
+                const preserveCenter = options.preserveCenter !== false;
+                const before = renderedSize();
+                let centerXRatio = 0.5;
+                let centerYRatio = 0.5;
+                if (preserveCenter && before.width > 0 && before.height > 0) {
+                    const anchorClientX = Number(options.anchorClientX);
+                    const anchorClientY = Number(options.anchorClientY);
+                    if (Number.isFinite(anchorClientX) && Number.isFinite(anchorClientY)) {
+                        const viewportRect = viewport.getBoundingClientRect();
+                        const localX = clamp(anchorClientX - viewportRect.left, 0, viewport.clientWidth);
+                        const localY = clamp(anchorClientY - viewportRect.top, 0, viewport.clientHeight);
+                        centerXRatio = clamp((viewport.scrollLeft + localX) / before.width, 0, 1);
+                        centerYRatio = clamp((viewport.scrollTop + localY) / before.height, 0, 1);
+                    } else {
+                        centerXRatio = clamp((viewport.scrollLeft + (viewport.clientWidth / 2)) / before.width, 0, 1);
+                        centerYRatio = clamp((viewport.scrollTop + (viewport.clientHeight / 2)) / before.height, 0, 1);
+                    }
+                }
+                const nextCanvasWidth = Math.max(1, Math.round(baseCanvasWidth * zoom));
+                const nextCanvasHeight = Math.max(1, Math.round(baseCanvasHeight * zoom));
+                stage.style.width = `${nextCanvasWidth}px`;
+                stage.style.height = `${nextCanvasHeight}px`;
+                svg.style.width = `${baseCanvasWidth}px`;
+                svg.style.height = `${baseCanvasHeight}px`;
+                svg.style.maxWidth = 'none';
+                svg.style.minWidth = '0px';
+                svg.style.transformOrigin = '0 0';
+                svg.style.transform = `scale(${zoom})`;
+                canvasState.zoom = zoom;
+                updateZoomUI(zoom);
+                if (preserveCenter) {
+                    const after = renderedSize();
+                    const anchorClientX = Number(options.anchorClientX);
+                    const anchorClientY = Number(options.anchorClientY);
+                    if (Number.isFinite(anchorClientX) && Number.isFinite(anchorClientY)) {
+                        const viewportRect = viewport.getBoundingClientRect();
+                        const localX = clamp(anchorClientX - viewportRect.left, 0, viewport.clientWidth);
+                        const localY = clamp(anchorClientY - viewportRect.top, 0, viewport.clientHeight);
+                        viewport.scrollLeft = Math.max(0, (centerXRatio * after.width) - localX);
+                        viewport.scrollTop = Math.max(0, (centerYRatio * after.height) - localY);
+                    } else {
+                        viewport.scrollLeft = Math.max(0, (centerXRatio * after.width) - (viewport.clientWidth / 2));
+                        viewport.scrollTop = Math.max(0, (centerYRatio * after.height) - (viewport.clientHeight / 2));
+                    }
+                }
+            };
+
+            const fitZoom = () => {
+                const style = window.getComputedStyle ? window.getComputedStyle(viewport) : null;
+                const padLeft = style ? (parseFloat(style.paddingLeft) || 0) : 0;
+                const padRight = style ? (parseFloat(style.paddingRight) || 0) : 0;
+                const padTop = style ? (parseFloat(style.paddingTop) || 0) : 0;
+                const padBottom = style ? (parseFloat(style.paddingBottom) || 0) : 0;
+                const viewportInnerWidth = Math.max(1, viewport.clientWidth - padLeft - padRight);
+                const viewportInnerHeight = Math.max(1, viewport.clientHeight - padTop - padBottom);
+
+                let bounds = null;
+                try {
+                    const box = svg.getBBox ? svg.getBBox() : null;
+                    if (box && Number.isFinite(box.width) && Number.isFinite(box.height) && box.width > 0 && box.height > 0) {
+                        bounds = {
+                            x: Math.max(0, box.x),
+                            y: Math.max(0, box.y),
+                            width: Math.max(1, box.width),
+                            height: Math.max(1, box.height),
+                        };
+                    }
+                } catch (_err) {
+                    // Some SVG implementations can throw if bbox is unavailable.
+                }
+
+                if (!bounds) {
+                    const nodes = Array.from(nodeStates.values());
+                    if (nodes.length) {
+                        const minX = Math.min(...nodes.map((n) => n.x));
+                        const minY = Math.min(...nodes.map((n) => n.y));
+                        const maxX = Math.max(...nodes.map((n) => n.x + n.w));
+                        const maxY = Math.max(...nodes.map((n) => n.y + n.h));
+                        bounds = {
+                            x: Math.max(0, minX),
+                            y: Math.max(0, minY),
+                            width: Math.max(1, maxX - minX),
+                            height: Math.max(1, maxY - minY),
+                        };
+                    }
+                }
+
+                if (!bounds) {
+                    bounds = { x: 0, y: 0, width: baseCanvasWidth, height: baseCanvasHeight };
+                }
+
+                const fitPad = isModal ? 18 : 12;
+                const targetWidth = Math.min(baseCanvasWidth, bounds.width + (fitPad * 2));
+                const targetHeight = Math.min(baseCanvasHeight, bounds.height + (fitPad * 2));
+                const fitX = viewportInnerWidth / Math.max(1, targetWidth);
+                const fitY = viewportInnerHeight / Math.max(1, targetHeight);
+                const fit = clamp(Math.min(fitX, fitY), minZoom, maxZoom);
+
+                applyZoom(fit, { preserveCenter: false });
+
+                const scaledLeft = Math.max(0, (bounds.x - fitPad) * fit);
+                const scaledTop = Math.max(0, (bounds.y - fitPad) * fit);
+                const scaledWidth = Math.max(1, (bounds.width + (fitPad * 2)) * fit);
+                const scaledHeight = Math.max(1, (bounds.height + (fitPad * 2)) * fit);
+                viewport.scrollLeft = Math.max(0, scaledLeft - Math.max(0, (viewportInnerWidth - scaledWidth) / 2));
+                viewport.scrollTop = Math.max(0, scaledTop - Math.max(0, (viewportInnerHeight - scaledHeight) / 2));
+            };
+
+            const nodeStates = new Map();
+            panel.querySelectorAll('[data-chaos-flow-node]').forEach((el) => {
+                const id = String(el.dataset.chaosNodeId || '').trim();
+                if (!id) {
+                    return;
+                }
+                const state = {
+                    id,
+                    el,
+                    x: Number(el.dataset.chaosNodeX) || 0,
+                    y: Number(el.dataset.chaosNodeY) || 0,
+                    baseX: Number(el.dataset.chaosNodeX) || 0,
+                    baseY: Number(el.dataset.chaosNodeY) || 0,
+                    w: Number(el.dataset.chaosNodeW) || 0,
+                    h: Number(el.dataset.chaosNodeH) || 0,
+                };
+                const saved = overrides.get(id);
+                if (saved && typeof saved === 'object') {
+                    state.x = Number(saved.x) || state.x;
+                    state.y = Number(saved.y) || state.y;
+                }
+                nodeStates.set(id, state);
+            });
+
+            const edgeStates = [];
+            const edgesByNodeId = new Map();
+            const addEdgeRef = (nodeID, edgeState) => {
+                if (!nodeID) {
+                    return;
+                }
+                if (!edgesByNodeId.has(nodeID)) {
+                    edgesByNodeId.set(nodeID, []);
+                }
+                edgesByNodeId.get(nodeID).push(edgeState);
+            };
+            panel.querySelectorAll('[data-chaos-flow-edge]').forEach((el) => {
+                const fromId = String(el.dataset.chaosEdgeFrom || '').trim();
+                const toId = String(el.dataset.chaosEdgeTo || '').trim();
+                if (!fromId || !toId || !nodeStates.has(fromId) || !nodeStates.has(toId)) {
+                    return;
+                }
+                const edgeState = {
+                    el,
+                    fromId,
+                    toId,
+                    edgeIndex: Number(el.dataset.chaosEdgeIndex) || 0,
+                    count: Number(el.dataset.chaosEdgeCount) || 0,
+                    underlayEl: el.querySelector('[data-chaos-flow-edge-underlay]'),
+                    coreEl: el.querySelector('[data-chaos-flow-edge-core]'),
+                    arrowEl: el.querySelector('[data-chaos-flow-edge-arrow]'),
+                    dotFromEl: el.querySelector('[data-chaos-flow-edge-dot-from]'),
+                    dotToEl: el.querySelector('[data-chaos-flow-edge-dot-to]'),
+                };
+                edgeStates.push(edgeState);
+                addEdgeRef(fromId, edgeState);
+                addEdgeRef(toId, edgeState);
+            });
+
+            const applyNodeTransform = (node) => {
+                if (!node || !node.el) {
+                    return;
+                }
+                node.el.setAttribute('transform', `translate(${node.x},${node.y})`);
+                node.el.dataset.chaosNodeX = String(node.x);
+                node.el.dataset.chaosNodeY = String(node.y);
+            };
+
+            const applyEdgeGeometry = (edgeState) => {
+                if (!edgeState) {
+                    return;
+                }
+                const from = nodeStates.get(edgeState.fromId);
+                const to = nodeStates.get(edgeState.toId);
+                if (!from || !to) {
+                    return;
+                }
+                const geom = computeChaosMapFlowEdgeGeometry({
+                    from,
+                    to,
+                    edgeIndex: edgeState.edgeIndex,
+                    count: edgeState.count,
+                }, {
+                    isModal,
+                    maxEdgeCount,
+                });
+                if (edgeState.underlayEl) {
+                    edgeState.underlayEl.setAttribute('d', geom.path);
+                    edgeState.underlayEl.setAttribute('stroke-width', (geom.strokeWidth + 5.5).toFixed(2));
+                }
+                if (edgeState.coreEl) {
+                    edgeState.coreEl.setAttribute('d', geom.path);
+                    edgeState.coreEl.setAttribute('stroke-width', geom.strokeWidth.toFixed(2));
+                }
+                if (edgeState.arrowEl) {
+                    edgeState.arrowEl.setAttribute('d', geom.arrowHeadPath);
+                }
+                if (edgeState.dotFromEl) {
+                    edgeState.dotFromEl.setAttribute('cx', geom.x1.toFixed(1));
+                    edgeState.dotFromEl.setAttribute('cy', geom.y1.toFixed(1));
+                }
+                if (edgeState.dotToEl) {
+                    edgeState.dotToEl.setAttribute('cx', geom.targetAnchorX.toFixed(1));
+                    edgeState.dotToEl.setAttribute('cy', geom.y2.toFixed(1));
+                }
+            };
+
+            const rerouteEdgesForNode = (nodeID) => {
+                (edgesByNodeId.get(nodeID) || []).forEach((edgeState) => applyEdgeGeometry(edgeState));
+            };
+            const rerouteAllEdges = () => {
+                edgeStates.forEach((edgeState) => applyEdgeGeometry(edgeState));
+            };
+            const resetNodeLayout = () => {
+                overrides.clear();
+                nodeStates.forEach((node) => {
+                    node.x = node.baseX;
+                    node.y = node.baseY;
+                    applyNodeTransform(node);
+                });
+                rerouteAllEdges();
+            };
+
+            nodeStates.forEach((node) => applyNodeTransform(node));
+            edgeStates.forEach((edgeState) => applyEdgeGeometry(edgeState));
+            applyZoom(canvasState.zoom || 1, { preserveCenter: false });
+
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', () => {
+                    applyZoom((canvasState.zoom || 1) / 1.2);
+                });
+            }
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', () => {
+                    applyZoom((canvasState.zoom || 1) * 1.2);
+                });
+            }
+            if (zoomResetBtn) {
+                zoomResetBtn.addEventListener('click', () => {
+                    applyZoom(1);
+                });
+            }
+            if (zoomFitBtn) {
+                zoomFitBtn.addEventListener('click', () => {
+                    fitZoom();
+                });
+            }
+            if (layoutResetBtn) {
+                layoutResetBtn.addEventListener('click', () => {
+                    resetNodeLayout();
+                });
+            }
+
+            const svgScale = () => {
+                const rect = svg.getBoundingClientRect();
+                const width = Math.max(1, rect.width);
+                const height = Math.max(1, rect.height);
+                return {
+                    x: (viewBox.width || width) / width,
+                    y: (viewBox.height || height) / height,
+                };
+            };
+
+            let panState = null;
+            const stopPan = () => {
+                if (!panState) {
+                    return;
+                }
+                try {
+                    if (viewport.hasPointerCapture && viewport.hasPointerCapture(panState.pointerId)) {
+                        viewport.releasePointerCapture(panState.pointerId);
+                    }
+                } catch (_err) {
+                    // ignore
+                }
+                panState = null;
+                viewport.classList.remove('is-panning');
+            };
+            viewport.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                if (event.target && event.target.closest && event.target.closest('[data-chaos-flow-node]')) {
+                    return;
+                }
+                panState = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    scrollLeft: viewport.scrollLeft,
+                    scrollTop: viewport.scrollTop,
+                };
+                try {
+                    if (viewport.setPointerCapture) {
+                        viewport.setPointerCapture(event.pointerId);
+                    }
+                } catch (_err) {
+                    // ignore
+                }
+                viewport.classList.add('is-panning');
+                event.preventDefault();
+            });
+            viewport.addEventListener('pointermove', (event) => {
+                if (!panState || event.pointerId !== panState.pointerId) {
+                    return;
+                }
+                viewport.scrollLeft = panState.scrollLeft - (event.clientX - panState.startX);
+                viewport.scrollTop = panState.scrollTop - (event.clientY - panState.startY);
+                event.preventDefault();
+            });
+            viewport.addEventListener('pointerup', stopPan);
+            viewport.addEventListener('pointercancel', stopPan);
+            viewport.addEventListener('pointerleave', (event) => {
+                if (panState && event.buttons === 0) {
+                    stopPan();
+                }
+            });
+            viewport.addEventListener('wheel', (event) => {
+                const targetInLegend = event.target && event.target.closest && event.target.closest('.chaos-map-flow-legend');
+                if (targetInLegend) {
+                    return;
+                }
+                const targetInSvg = !!(event.target && svg && (event.target === svg || (event.target.closest && event.target.closest('[data-chaos-flow-svg]'))));
+                if (!targetInSvg) {
+                    return;
+                }
+                if (dragState || panState) {
+                    return;
+                }
+                if (event.shiftKey) {
+                    return;
+                }
+                const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+                if (!Number.isFinite(dominantDelta) || dominantDelta === 0) {
+                    return;
+                }
+                const ctrlLike = event.ctrlKey || event.metaKey;
+                const plainWheelZoom = !ctrlLike && !event.altKey;
+                if (!ctrlLike && !plainWheelZoom) {
+                    return;
+                }
+                const step = dominantDelta < 0 ? 1.12 : (1 / 1.12);
+                applyZoom((canvasState.zoom || 1) * step, {
+                    anchorClientX: event.clientX,
+                    anchorClientY: event.clientY,
+                });
+                event.preventDefault();
+            }, { passive: false });
+
+            let dragState = null;
+            const stopDrag = () => {
+                if (!dragState) {
+                    return;
+                }
+                try {
+                    if (dragState.node && dragState.node.el && dragState.node.el.hasPointerCapture && dragState.node.el.hasPointerCapture(dragState.pointerId)) {
+                        dragState.node.el.releasePointerCapture(dragState.pointerId);
+                    }
+                } catch (_err) {
+                    // ignore
+                }
+                if (dragState.node && dragState.node.el) {
+                    dragState.node.el.classList.remove('is-dragging');
+                }
+                dragState = null;
+                panel.classList.remove('is-dragging-node');
+            };
+            svg.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                const nodeEl = event.target && event.target.closest ? event.target.closest('[data-chaos-flow-node]') : null;
+                if (!nodeEl) {
+                    return;
+                }
+                const nodeID = String(nodeEl.dataset.chaosNodeId || '').trim();
+                const node = nodeID ? nodeStates.get(nodeID) : null;
+                if (!node) {
+                    return;
+                }
+                dragState = {
+                    pointerId: event.pointerId,
+                    node,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startX: node.x,
+                    startY: node.y,
+                };
+                node.el.classList.add('is-dragging');
+                panel.classList.add('is-dragging-node');
+                try {
+                    if (node.el.setPointerCapture) {
+                        node.el.setPointerCapture(event.pointerId);
+                    }
+                } catch (_err) {
+                    // ignore
+                }
+                stopPan();
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            svg.addEventListener('pointermove', (event) => {
+                if (!dragState || event.pointerId !== dragState.pointerId) {
+                    return;
+                }
+                const scale = svgScale();
+                const dx = (event.clientX - dragState.startClientX) * scale.x;
+                const dy = (event.clientY - dragState.startClientY) * scale.y;
+                const node = dragState.node;
+                node.x = clamp(dragState.startX + dx, pad, Math.max(pad, (viewBox.width || 0) - node.w - pad));
+                node.y = clamp(dragState.startY + dy, pad, Math.max(pad, (viewBox.height || 0) - node.h - pad));
+                applyNodeTransform(node);
+                rerouteEdgesForNode(node.id);
+                overrides.set(node.id, { x: node.x, y: node.y });
+                event.preventDefault();
+            });
+            svg.addEventListener('pointerup', stopDrag);
+            svg.addEventListener('pointercancel', stopDrag);
+            svg.addEventListener('pointerleave', (event) => {
+                if (dragState && event.buttons === 0) {
+                    stopDrag();
+                }
+            });
+        });
+    };
+
+    const renderChaosFlowModal = () => {
+        if (!flowContent) {
+            return;
+        }
+        const areas = getChaosMapAreas();
+        if (!areas.length) {
+            flowContent.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
+            return;
+        }
+        flowContent.innerHTML = chaosMapFlowMarkup(areas, {
+            isModal: true,
+            markerId: 'chaos-map-flow-arrow-modal',
+        });
+        initChaosFlowCanvasInteractions(flowContent);
+    };
+
+    const chaosReportFileName = () => (loadedRunID ? `chaos-discovery-report-${loadedRunID}.md` : 'chaos-discovery-report.md');
+
+    const setReportRawToggleState = (rawMode) => {
+        reportRawMarkdownMode = !!rawMode;
+        if (!reportRawToggleBtn) {
+            return;
+        }
+        reportRawToggleBtn.setAttribute('aria-pressed', reportRawMarkdownMode ? 'true' : 'false');
+        reportRawToggleBtn.textContent = reportRawMarkdownMode ? 'Formatted View' : 'Raw Markdown';
+    };
+
+    const renderChaosReportCurrentView = () => {
+        if (!reportContent) {
+            return;
+        }
+        const text = String(latestChaosReportMarkdown || '');
+        if (!text.trim()) {
+            reportContent.classList.remove('is-raw');
+            reportContent.innerHTML = '<p class="subtle">No report content returned.</p>';
+            return;
+        }
+        if (reportRawMarkdownMode) {
+            reportContent.classList.add('is-raw');
+            reportContent.innerHTML = '';
+            const textarea = document.createElement('textarea');
+            textarea.className = 'chaos-report-raw-textarea';
+            textarea.setAttribute('aria-label', 'Chaos report raw markdown');
+            textarea.setAttribute('spellcheck', 'false');
+            textarea.readOnly = true;
+            textarea.value = text;
+            reportContent.appendChild(textarea);
+            try {
+                textarea.focus();
+                textarea.select();
+            } catch (_err) {
+                // ignore
+            }
+        } else {
+            reportContent.classList.remove('is-raw');
+            reportContent.innerHTML = renderChaosReportMarkdown(text);
+        }
+        reportContent.scrollTop = 0;
+    };
+
+    const setChaosReportContent = (markdown) => {
+        latestChaosReportMarkdown = String(markdown || '');
+        renderChaosReportCurrentView();
+    };
+
+    const fetchChaosReportMarkdown = async () => {
+        const resp = await fetch('/chaos/report', { method: 'POST' });
+        if (!resp.ok) {
+            let errText = '';
+            try {
+                errText = await resp.text();
+            } catch (_err) {
+                errText = '';
+            }
+            throw new Error(errText || `HTTP ${resp.status}`);
+        }
+        return resp.text();
+    };
+
+    const refreshChaosReportView = async (options = {}) => {
+        if (!reportContent) {
+            return '';
+        }
+        setReportStatus(options.statusMessage || 'Loading chaos report...');
+        reportContent.innerHTML = '<p class="subtle">Loading report\u2026</p>';
+        try {
+            const markdown = await fetchChaosReportMarkdown();
+            latestChaosReportMarkdown = String(markdown || '');
+            setChaosReportContent(latestChaosReportMarkdown);
+            setReportStatus('Chaos discovery report loaded.');
+            return latestChaosReportMarkdown;
+        } catch (err) {
+            const message = (err && err.message) ? err.message : 'Failed to load chaos report.';
+            setReportStatus(message, true);
+            reportContent.innerHTML = `<p class="subtle">${escapeHtml(message)}</p>`;
+            throw err;
+        }
+    };
+
+    const downloadChaosReportMarkdown = async () => {
+        let markdown = String(latestChaosReportMarkdown || '');
+        if (!markdown.trim()) {
+            markdown = await fetchChaosReportMarkdown();
+            latestChaosReportMarkdown = String(markdown || '');
+        }
+        const blob = new Blob([markdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = chaosReportFileName();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const openChaosReportModal = async () => {
+        if (!reportModal) {
+            return;
+        }
+        openChaosModal(reportModal, chaosReportTopFocusSelector);
+        try {
+            if (reportContent) {
+                reportContent.scrollTop = 0;
+            }
+        } catch (_err) {
+            // ignore
+        }
+        await refreshChaosReportView();
+    };
+
+    const renderChaosMap = () => {
+        if (!mapList) {
+            return;
+        }
+        const areas = getChaosMapAreas();
+        if (!areas.length) {
+            if (mapViewBtn) {
+                mapViewBtn.disabled = true;
+            }
+            mapList.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
+            return;
+        }
+        if (mapViewBtn) {
+            mapViewBtn.disabled = false;
+        }
+        mapList.innerHTML = '';
+        const templateGroups = buildChaosMapTemplateGroups(areas).groups;
+        templateGroups.forEach((group) => {
+            const hash = String(group.representativeHash || '').trim();
+            const cardKey = String(group.templateId || hash || 'screen').trim();
+            const memberHashes = Array.isArray(group.memberHashes) ? group.memberHashes.slice() : (hash ? [hash] : []);
+            const hint = mergeScreenHintsForHashes(memberHashes);
+            const mergedKeyAssignments = normalizeKeyAssignments(hint.keyAssignments || {});
+            const fieldDiscovery = summarizeChaosGroupFieldDiscovery(group);
             const card = document.createElement('section');
             card.className = 'chaos-map-card';
             card.dataset.chaosMapHash = hash;
+            card.dataset.chaosMapTemplate = cardKey;
 
             const edgeRows = [];
-            const keyPresses = area.keyPresses && typeof area.keyPresses === 'object' ? area.keyPresses : {};
+            const keyPresses = group.keyPresses && typeof group.keyPresses === 'object' ? group.keyPresses : {};
             Object.entries(keyPresses).forEach(([key, kp]) => {
                 if (!kp || typeof kp !== 'object') {
                     return;
@@ -1476,38 +4380,52 @@
                 const destList = Object.entries(dests)
                     .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
                     .slice(0, 3)
-                    .map(([toHash, count]) => `${escapeHtml(String(toHash || '').slice(0, 8))} (${count})`)
+                    .map(([toTemplateID, count]) => {
+                        const destLabel = String((group.destinationLabelByTemplateId && group.destinationLabelByTemplateId[toTemplateID]) || toTemplateID || '').trim();
+                        const compactLabel = destLabel || String(toTemplateID || '').slice(0, 8);
+                        return `${escapeHtml(compactLabel.slice(0, 28))} (${count})`;
+                    })
                     .join(', ');
                 const presses = Number(kp.presses) || 0;
                 const progs = Number(kp.progressions) || 0;
-                edgeRows.push(`<div class="chaos-map-edge"><strong>${escapeHtml(key)}</strong> · ${presses} press${presses === 1 ? '' : 'es'} · ${progs} progression${progs === 1 ? '' : 's'}${destList ? ` · to ${destList}` : ''}</div>`);
+                edgeRows.push(`<div class="chaos-map-edge"><strong>${escapeHtml(key)}</strong> | ${presses} press${presses === 1 ? '' : 'es'} | ${progs} progression${progs === 1 ? '' : 's'}${destList ? ` | to ${destList}` : ''}</div>`);
             });
             edgeRows.sort();
+
+            const titleLabel = String(group.label || hash || 'Screen').trim() || 'Screen';
+            const hashMeta = group.memberHashes.length > 1
+                ? `${group.memberHashes.length} variants merged`
+                : (hash || 'unknown-hash');
 
             card.innerHTML = `
                 <div class="chaos-map-card-header">
                     <div class="chaos-map-card-title">
-                        <strong>${escapeHtml(area.label || hash || 'Screen')}</strong>
-                        <span class="chaos-map-card-hash">${escapeHtml(hash || 'unknown-hash')}</span>
+                        <strong>${escapeHtml(titleLabel)}</strong>
+                        <span class="chaos-map-card-hash">${escapeHtml(hashMeta)}</span>
                     </div>
-                    <span class="chaos-map-chip">${Number(area.visits) || 0} visits</span>
+                    <span class="chaos-map-chip">${Number(group.visits) || 0} visits</span>
                 </div>
                 <div class="chaos-map-chip-row">
-                    <span class="chaos-map-chip">${Number(area.fieldCount) || 0} fields</span>
-                    <span class="chaos-map-chip">${Number(area.inputFieldCount) || 0} inputs</span>
-                    <span class="chaos-map-chip">${Number(area.numericFieldCount) || 0} numeric</span>
+                    <span class="chaos-map-chip">${Number(group.fieldCount) || 0} fields</span>
+                    <span class="chaos-map-chip">${Number(group.inputFieldCount) || 0} inputs</span>
+                    <span class="chaos-map-chip">${Number(group.numericFieldCount) || 0} numeric</span>
                     <span class="chaos-map-chip">${Object.keys(keyPresses).length} keys</span>
+                    ${group.memberHashes.length > 1 ? `<span class="chaos-map-chip">${group.memberHashes.length} variants</span>` : ''}
+                    ${fieldDiscovery.fields > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.fields} discovered fields</span>` : ''}
+                    ${fieldDiscovery.triedValues > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.triedValues} tried values</span>` : ''}
+                    ${fieldDiscovery.workingValues > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.workingValues} working values</span>` : ''}
+                    ${fieldDiscovery.progressions > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.progressions} field progressions</span>` : ''}
                 </div>
-                ${minimapMarkupForArea(area)}
                 <div class="chaos-map-edges">${edgeRows.length ? edgeRows.join('') : '<div class="chaos-map-edge subtle">No key usage yet.</div>'}</div>
+                ${chaosMapFieldDiscoveryTableMarkup(group)}
                 <div class="chaos-map-hints">
                     <div class="chaos-hint-field">
-                        <label class="chaos-hint-field-label" for="chaos-map-data-${hash}">Known Data</label>
-                        <textarea id="chaos-map-data-${hash}" data-chaos-map-known-data placeholder="Known values for this screen (comma or newline separated)">${formatListLines(hint.knownData)}</textarea>
+                        <label class="chaos-hint-field-label" for="chaos-map-data-${cardKey}">Known Data</label>
+                        <textarea id="chaos-map-data-${cardKey}" data-chaos-map-known-data placeholder="Known values for this screen (comma or newline separated)">${formatListLines(hint.knownData)}</textarea>
                     </div>
                     <div class="chaos-hint-field">
-                        <label class="chaos-hint-field-label" for="chaos-map-keys-${hash}">Known Keys</label>
-                        <textarea id="chaos-map-keys-${hash}" data-chaos-map-known-keys placeholder="Known keys for this screen (e.g. PF3, Enter, Down)">${formatListLines(hint.knownKeys)}</textarea>
+                        <label class="chaos-hint-field-label" for="chaos-map-keys-${cardKey}">Known Keys</label>
+                        <textarea id="chaos-map-keys-${cardKey}" data-chaos-map-known-keys placeholder="Known keys for this screen (e.g. PF3, Enter, Down)">${formatListLines(hint.knownKeys)}</textarea>
                     </div>
                 </div>
                 <div class="chaos-map-card-actions">
@@ -1524,11 +4442,11 @@
             const collectDraft = () => ({
                 knownData: parseListLines(knownDataEl ? knownDataEl.value : ''),
                 knownKeys: parseListLines(knownKeysEl ? knownKeysEl.value : ''),
-                keyAssignments: (screenHintsByHash[hash] && screenHintsByHash[hash].keyAssignments) ? screenHintsByHash[hash].keyAssignments : {},
+                keyAssignments: mergedKeyAssignments,
             });
             const syncDraft = () => {
                 const draft = collectDraft();
-                markScreenHintDraftDirty(hash, draft);
+                markScreenHintDraftDirtyForHashes(memberHashes, draft);
                 if (cardStatus) {
                     cardStatus.textContent = 'Unsaved changes';
                 }
@@ -1542,13 +4460,15 @@
             if (saveBtn) {
                 saveBtn.addEventListener('click', async () => {
                     if (cardStatus) {
-                        cardStatus.textContent = 'Saving…';
+                        cardStatus.textContent = 'Saving...';
                     }
                     const draft = collectDraft();
-                    screenHintDrafts[hash] = { ...draft, _dirty: false };
-                    await saveScreenHint(hash, draft);
+                    memberHashes.forEach((memberHash) => {
+                        screenHintDrafts[memberHash] = { ...draft, _dirty: false };
+                    });
+                    const saved = await saveScreenHintsForHashes(memberHashes, draft);
                     if (cardStatus) {
-                        cardStatus.textContent = 'Saved';
+                        cardStatus.textContent = saved ? 'Saved' : 'Save failed';
                     }
                 });
             }
@@ -1722,12 +4642,15 @@
             }
             const payload = await resp.json();
             const loadedHints = normalizeHints(payload.hints || []);
+            const loadedKeyBlacklist = parseListLines(payload.keyBlacklist || []);
             chaosHints = loadedHints;
             if (hintsModal && !hintsModal.hidden && hintsDirty) {
                 setHintsStatus('Loaded saved hints; unsaved edits were kept.');
                 return chaosHints;
             }
+            chaosKeyBlacklist = loadedKeyBlacklist;
             renderHints(chaosHints);
+            renderChaosKeyBlacklist(chaosKeyBlacklist);
             setHintsStatus(chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.');
             return chaosHints;
         } catch (_err) {
@@ -1738,18 +4661,21 @@
 
     const saveHints = async () => {
         const draftHints = collectHintsFromUI();
+        const draftKeyBlacklist = collectChaosKeyBlacklistFromUI();
         try {
             const resp = await fetch('/chaos/hints', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hints: draftHints }),
+                body: JSON.stringify({ hints: draftHints, keyBlacklist: draftKeyBlacklist }),
             });
             if (!resp.ok) {
                 throw new Error('request failed');
             }
             const payload = await resp.json();
             chaosHints = normalizeHints(payload.hints || []);
+            chaosKeyBlacklist = parseListLines(payload.keyBlacklist || []);
             renderHints(chaosHints);
+            renderChaosKeyBlacklist(chaosKeyBlacklist);
             setHintsStatus(`Saved ${chaosHints.length} hint(s).`);
             hintsDirty = false;
         } catch (_err) {
@@ -1812,6 +4738,23 @@
         renderChaosMap();
     };
 
+    const openChaosFlowFromMap = () => {
+        openChaosModal(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]', { keepPrevious: true });
+        setFlowStatus('Loading discovery flow...');
+        window.requestAnimationFrame(() => {
+            if (!flowModal || flowModal.hidden) {
+                return;
+            }
+            renderChaosFlowModal();
+            if (flowContent) {
+                flowContent.scrollTop = 0;
+            }
+            const areaCount = getChaosMapUniqueScreenCount();
+            setFlowStatus(areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
+        });
+    };
+
     const isRecordingActive = () => {
         if (body && body.dataset.recordingActive === 'true') {
             return true;
@@ -1871,6 +4814,11 @@
             'Stop recording/playback before resuming chaos exploration'
         );
         setButtonDisabledState(
+            extendBtn,
+            !running && blockedByWorkflow,
+            'Stop recording/playback before extending chaos exploration'
+        );
+        setButtonDisabledState(
             recordingStartButton,
             running,
             'Stop chaos exploration before starting recording'
@@ -1915,10 +4863,16 @@
             stopBtn.hidden = !running;
         }
         if (resumeBtn) {
-            resumeBtn.hidden = running || !loadedRunID;
+            resumeBtn.hidden = running || !loadedRunID || completed;
+        }
+        if (extendBtn) {
+            extendBtn.hidden = running || !completed || !loadedRunID;
         }
         if (exportBtn) {
             exportBtn.hidden = running || !hasData;
+        }
+        if (reportBtn) {
+            reportBtn.hidden = running || !hasData;
         }
         if (removeBtn) {
             removeBtn.hidden = running || !hasData;
@@ -1935,19 +4889,19 @@
             if (statsText && hasStats) {
                 let txt = completed ? `Complete: ${status.stepsRun} attempts` : `${status.stepsRun} attempts`;
                 if (status.transitions > 0) {
-                    txt += ` · ${status.transitions} transitions`;
+                    txt += ` | ${status.transitions} transitions`;
                 }
                 if (status.uniqueScreens > 0) {
-                    txt += ` · ${status.uniqueScreens} screens`;
+                    txt += ` | ${status.uniqueScreens} screens`;
                 }
                 if (status.uniqueInputs > 0) {
-                    txt += ` · ${status.uniqueInputs} inputs`;
+                    txt += ` | ${status.uniqueInputs} inputs`;
                 }
                 if (status.error) {
-                    txt += ' · error';
+                    txt += ' | error';
                 }
                 if (completed && loadedRunID) {
-                    txt += ` · run ${loadedRunID}`;
+                    txt += ` | run ${loadedRunID}`;
                 }
                 statsText.textContent = txt;
             }
@@ -1969,7 +4923,7 @@
                 pollTimer = setTimeout(pollStatus, 1000);
             }
         } catch (_err) {
-            // Network error – stop polling
+            // Network error â€“ stop polling
         }
     };
 
@@ -2065,20 +5019,90 @@
             if (hintsList && hintsList.children.length === 0) {
                 renderHints(chaosHints);
             }
+            renderChaosKeyBlacklist(chaosKeyBlacklist);
             await loadHints();
+            focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
+        });
+    }
+    if (hintsMaximizeBtn) {
+        hintsMaximizeBtn.addEventListener('click', () => {
+            setHintsModalMaximized(true);
+            focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
+        });
+    }
+    if (hintsMinimizeBtn) {
+        hintsMinimizeBtn.addEventListener('click', () => {
+            setHintsModalMaximized(false);
             focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
         });
     }
     if (mapOpenBtn) {
         mapOpenBtn.addEventListener('click', async () => {
-            openChaosModal(mapModal, '[data-chaos-map-refresh], [data-chaos-map-save]');
-            setChaosMapStatus('Loading chaos map…');
+            openChaosModal(mapModal, chaosMapTopFocusSelector);
+            setChaosMapStatus('Loading chaos mapâ€¦');
             await loadScreenHints();
             await pollStatus();
             renderChaosMap();
-            const areaCount = latestMindMap && latestMindMap.areas ? Object.keys(latestMindMap.areas).length : 0;
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} discovered screen(s).` : 'No chaos map data yet.');
-            focusModalElement(mapModal, '[data-chaos-map-refresh], [data-chaos-map-save]');
+            if (mapList) {
+                mapList.scrollTop = 0;
+            }
+            if (mapModal) {
+                const modalPanel = mapModal.querySelector('.modal');
+                if (modalPanel) {
+                    modalPanel.scrollTop = 0;
+                }
+                const modalStack = mapModal.querySelector('.stack');
+                if (modalStack) {
+                    modalStack.scrollTop = 0;
+                }
+            }
+            const areaCount = getChaosMapUniqueScreenCount();
+            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            focusModalElement(mapModal, chaosMapTopFocusSelector);
+        });
+    }
+    if (mapViewBtn) {
+        mapViewBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (mapViewBtn.disabled) {
+                return;
+            }
+            openChaosFlowFromMap();
+        });
+    }
+    if (mapList) {
+        mapList.addEventListener('click', (event) => {
+            const fieldToggleBtn = event.target && event.target.closest ? event.target.closest('[data-chaos-map-field-toggle]') : null;
+            if (!fieldToggleBtn) {
+                return;
+            }
+            event.preventDefault();
+            const container = fieldToggleBtn.closest('[data-chaos-map-field-discovery]');
+            if (!container) {
+                return;
+            }
+            const topCount = Math.max(1, Number(fieldToggleBtn.dataset.topCount) || 8);
+            const totalCount = Math.max(0, Number(fieldToggleBtn.dataset.totalCount) || 0);
+            const showAll = container.dataset.fieldMode !== 'all';
+            container.dataset.fieldMode = showAll ? 'all' : 'top';
+            fieldToggleBtn.textContent = showAll ? 'Top fields' : 'All fields';
+            fieldToggleBtn.setAttribute('aria-pressed', showAll ? 'true' : 'false');
+
+            container.querySelectorAll('.chaos-map-field-row-extra').forEach((row) => {
+                row.hidden = !showAll;
+            });
+
+            const countEl = container.querySelector('[data-chaos-map-field-count]');
+            if (countEl) {
+                const shownCount = showAll ? totalCount : Math.min(topCount, totalCount);
+                countEl.textContent = `${shownCount}${totalCount > shownCount ? ` / ${totalCount}` : ''} field${totalCount === 1 ? '' : 's'} shown`;
+            }
+            const noteEl = container.querySelector('[data-chaos-map-field-note]');
+            if (noteEl) {
+                noteEl.textContent = showAll
+                    ? 'Showing all discovered fields for this screen.'
+                    : `Showing top ${topCount} fields by progression/writes.`;
+            }
         });
     }
     if (hintsModal) {
@@ -2090,6 +5114,31 @@
         hintsModal.addEventListener('click', (event) => {
             if (event.target === hintsModal) {
                 closeChaosModal(hintsModal);
+            }
+        });
+    }
+    if (startLogConfirmModal) {
+        startLogConfirmCancelButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(startLogConfirmModal);
+            });
+        });
+        if (startLogConfirmContinueBtn) {
+            startLogConfirmContinueBtn.addEventListener('click', () => {
+                settleStartLogConfirm('continue');
+            });
+        }
+        if (startLogConfirmDisableBtn) {
+            startLogConfirmDisableBtn.addEventListener('click', () => {
+                if (startLogConfirmDisableBtn.disabled) {
+                    return;
+                }
+                settleStartLogConfirm('disable');
+            });
+        }
+        startLogConfirmModal.addEventListener('click', (event) => {
+            if (event.target === startLogConfirmModal) {
+                closeChaosModal(startLogConfirmModal);
             }
         });
     }
@@ -2105,12 +5154,121 @@
             }
         });
     }
+    if (flowModal) {
+        flowModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(flowModal);
+            });
+        });
+        flowModal.addEventListener('click', (event) => {
+            if (event.target === flowModal) {
+                closeChaosModal(flowModal);
+            }
+        });
+    }
+    if (reportModal) {
+        reportModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(reportModal);
+            });
+        });
+        reportModal.addEventListener('click', (event) => {
+            if (event.target === reportModal) {
+                closeChaosModal(reportModal);
+            }
+        });
+    }
     if (mapRefreshBtn) {
         mapRefreshBtn.addEventListener('click', async () => {
-            setChaosMapStatus('Refreshing chaos map…');
+            setChaosMapStatus('Refreshing chaos mapâ€¦');
             await refreshChaosMapView();
-            const areaCount = latestMindMap && latestMindMap.areas ? Object.keys(latestMindMap.areas).length : 0;
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} discovered screen(s).` : 'No chaos map data yet.');
+            const areaCount = getChaosMapUniqueScreenCount();
+            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+        });
+    }
+    if (mapMaximizeBtn) {
+        mapMaximizeBtn.addEventListener('click', () => {
+            setMapModalMaximized(true);
+            focusModalElement(mapModal, chaosMapTopFocusSelector);
+        });
+    }
+    if (mapMinimizeBtn) {
+        mapMinimizeBtn.addEventListener('click', () => {
+            setMapModalMaximized(false);
+            focusModalElement(mapModal, chaosMapTopFocusSelector);
+        });
+    }
+    if (flowRefreshBtn) {
+        flowRefreshBtn.addEventListener('click', async () => {
+            setFlowStatus('Refreshing discovery flow...');
+            await refreshChaosMapView();
+            renderChaosFlowModal();
+            if (flowContent) {
+                flowContent.scrollTop = 0;
+            }
+            const areaCount = getChaosMapUniqueScreenCount();
+            setFlowStatus(areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
+        });
+    }
+    if (flowMaximizeBtn) {
+        flowMaximizeBtn.addEventListener('click', () => {
+            setFlowModalMaximized(true);
+            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
+        });
+    }
+    if (flowMinimizeBtn) {
+        flowMinimizeBtn.addEventListener('click', () => {
+            setFlowModalMaximized(false);
+            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
+        });
+    }
+    if (reportRefreshBtn) {
+        reportRefreshBtn.addEventListener('click', async () => {
+            setButtonBusy(reportRefreshBtn, true);
+            try {
+                await refreshChaosReportView({ statusMessage: 'Refreshing chaos report...' });
+                focusModalElement(reportModal, chaosReportTopFocusSelector);
+            } catch (_err) {
+                // handled in refreshChaosReportView
+            } finally {
+                setButtonBusy(reportRefreshBtn, false);
+            }
+        });
+    }
+    if (reportRawToggleBtn) {
+        reportRawToggleBtn.addEventListener('click', () => {
+            setReportRawToggleState(!reportRawMarkdownMode);
+            renderChaosReportCurrentView();
+            setReportStatus(reportRawMarkdownMode ? 'Showing raw markdown for copy/paste.' : 'Showing formatted report view.');
+            if (!reportRawMarkdownMode) {
+                focusModalElement(reportModal, chaosReportTopFocusSelector);
+            }
+        });
+    }
+    if (reportDownloadBtn) {
+        reportDownloadBtn.addEventListener('click', async () => {
+            setButtonBusy(reportDownloadBtn, true);
+            try {
+                await downloadChaosReportMarkdown();
+                setReportStatus('Report downloaded.');
+            } catch (err) {
+                setReportStatus((err && err.message) ? err.message : 'Failed to download report.', true);
+            } finally {
+                setButtonBusy(reportDownloadBtn, false);
+            }
+        });
+    }
+    if (reportMaximizeBtn) {
+        reportMaximizeBtn.addEventListener('click', () => {
+            setReportModalMaximized(true);
+            focusModalElement(reportModal, chaosReportTopFocusSelector);
+        });
+    }
+    if (reportMinimizeBtn) {
+        reportMinimizeBtn.addEventListener('click', () => {
+            setReportModalMaximized(false);
+            focusModalElement(reportModal, chaosReportTopFocusSelector);
         });
     }
     if (hintsAddBtn) {
@@ -2149,6 +5307,9 @@
         hintsSaveBtn.addEventListener('click', () => {
             saveHints();
         });
+    }
+    if (hintsKeyBlacklistInput) {
+        hintsKeyBlacklistInput.addEventListener('input', markHintsDirty);
     }
 
     // Read chaos config from the settings modal fields (populated from CHAOS_* settings).
@@ -2207,41 +5368,84 @@
             cfg.outputFile = outputFile;
         }
 
+        cfg.forceOverrideExistingInputs = getBool('CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', true);
         cfg.excludeNoProgressEvents = getBool('CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', true);
 
         const draftHints = (hintsModal && !hintsModal.hidden) ? collectHintsFromUI() : chaosHints;
         if (Array.isArray(draftHints) && draftHints.length > 0) {
             cfg.hints = draftHints;
         }
+        const draftKeyBlacklist = (hintsModal && !hintsModal.hidden)
+            ? collectChaosKeyBlacklistFromUI()
+            : chaosKeyBlacklist;
+        if (Array.isArray(draftKeyBlacklist) && draftKeyBlacklist.length > 0) {
+            cfg.keyBlacklist = draftKeyBlacklist;
+        }
 
         return cfg;
     };
 
+    const startChaosRun = async () => {
+        if (!startBtn) {
+            return;
+        }
+        setButtonBusy(startBtn, true);
+        try {
+            const cfg = readChaosConfig();
+            const resp = await fetch('/chaos/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg),
+            });
+            if (resp.ok) {
+                updateUI({ active: true, stepsRun: 0, transitions: 0 });
+                pollStatus();
+            }
+        } catch (_err) {
+            // Ignore
+        } finally {
+            setButtonBusy(startBtn, false);
+            applyChaosInterlocks();
+        }
+    };
+
     // Initial status check on page load.
+    try {
+        setHintsModalMaximized(window.localStorage.getItem('h3270ChaosHintsModalMaximized') === '1');
+    } catch (_err) {
+        setHintsModalMaximized(false);
+    }
+    try {
+        setMapModalMaximized(window.localStorage.getItem('h3270ChaosMapModalMaximized') === '1');
+    } catch (_err) {
+        setMapModalMaximized(false);
+    }
+    try {
+        setFlowModalMaximized(window.localStorage.getItem('h3270ChaosFlowModalMaximized') === '1');
+    } catch (_err) {
+        setFlowModalMaximized(false);
+    }
+    try {
+        setReportModalMaximized(window.localStorage.getItem('h3270ChaosReportModalMaximized') === '1');
+    } catch (_err) {
+        setReportModalMaximized(false);
+    }
+    setReportRawToggleState(false);
     syncChaosSectionLayout();
     loadHints();
     pollStatus();
 
     if (startBtn) {
         startBtn.addEventListener('click', async () => {
-            setButtonBusy(startBtn, true);
-            try {
-                const cfg = readChaosConfig();
-                const resp = await fetch('/chaos/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cfg),
-                });
-                if (resp.ok) {
-                    updateUI({ active: true, stepsRun: 0, transitions: 0 });
-                    pollStatus();
-                }
-            } catch (_err) {
-                // Ignore
-            } finally {
-                setButtonBusy(startBtn, false);
-                applyChaosInterlocks();
+            if (startBtn.disabled || startBtn.getAttribute('aria-busy') === 'true') {
+                return;
             }
+            const proceed = await confirmLoggingBeforeChaosStart();
+            if (!proceed) {
+                applyChaosInterlocks();
+                return;
+            }
+            await startChaosRun();
         });
     }
 
@@ -2301,6 +5505,14 @@
             if (!loadedRunID) {
                 return;
             }
+            if (resumeBtn.disabled || resumeBtn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
+            const proceed = await confirmLoggingBeforeChaosStart();
+            if (!proceed) {
+                applyChaosInterlocks();
+                return;
+            }
             setButtonBusy(resumeBtn, true);
             try {
                 const cfg = readChaosConfig();
@@ -2317,6 +5529,41 @@
                 // Ignore
             } finally {
                 setButtonBusy(resumeBtn, false);
+                applyChaosInterlocks();
+            }
+        });
+    }
+
+    if (extendBtn) {
+        extendBtn.addEventListener('click', async () => {
+            if (!loadedRunID) {
+                return;
+            }
+            if (extendBtn.disabled || extendBtn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
+            const proceed = await confirmLoggingBeforeChaosStart();
+            if (!proceed) {
+                applyChaosInterlocks();
+                return;
+            }
+            setButtonBusy(extendBtn, true);
+            try {
+                const cfg = readChaosConfig();
+                cfg.extendLimits = true;
+                const resp = await fetch('/chaos/resume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg),
+                });
+                if (resp.ok) {
+                    updateUI({ active: true, stepsRun: 0, transitions: 0, loadedRunID });
+                    pollStatus();
+                }
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(extendBtn, false);
                 applyChaosInterlocks();
             }
         });
@@ -2343,6 +5590,20 @@
                 // Ignore
             } finally {
                 setButtonBusy(exportBtn, false);
+                applyChaosInterlocks();
+            }
+        });
+    }
+
+    if (reportBtn) {
+        reportBtn.addEventListener('click', async () => {
+            setButtonBusy(reportBtn, true);
+            try {
+                await openChaosReportModal();
+            } catch (_err) {
+                // Ignore
+            } finally {
+                setButtonBusy(reportBtn, false);
                 applyChaosInterlocks();
             }
         });

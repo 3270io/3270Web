@@ -653,6 +653,7 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 	_, r, sessID := setupFullChaosTestApp(t, mockHost)
 
 	savePayload, _ := json.Marshal(map[string]interface{}{
+		"keyBlacklist": []string{" pf3 ", "PF12", "", "PF(3)"},
 		"hints": []map[string]interface{}{
 			{
 				"transaction": " CEMT ",
@@ -716,6 +717,63 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 	}
 	if got, _ := firstKeys["Confirm"].(string); got != "Enter" {
 		t.Fatalf("first hint keyAssignments[Confirm] = %q, want Enter", got)
+	}
+	keyBlacklist, ok := loadResp["keyBlacklist"].([]interface{})
+	if !ok {
+		t.Fatalf("keyBlacklist payload has wrong type: %T", loadResp["keyBlacklist"])
+	}
+	if len(keyBlacklist) != 2 {
+		t.Fatalf("keyBlacklist length = %d, want 2", len(keyBlacklist))
+	}
+	if got, _ := keyBlacklist[0].(string); got != "PF(3)" {
+		t.Fatalf("keyBlacklist[0] = %q, want PF(3)", got)
+	}
+	if got, _ := keyBlacklist[1].(string); got != "PF(12)" {
+		t.Fatalf("keyBlacklist[1] = %q, want PF(12)", got)
+	}
+}
+
+func TestChaosHints_SaveAndLoad_WithoutSession(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	_, r, _ := setupFullChaosTestApp(t, mockHost)
+
+	savePayload, _ := json.Marshal(map[string]interface{}{
+		"keyBlacklist": []string{"PF3"},
+		"hints": []map[string]interface{}{
+			{"transaction": "CEMT"},
+		},
+	})
+
+	// No session cookie: defaults are global and should still be accessible.
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/chaos/hints", bytes.NewReader(savePayload))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("save hints without session: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/chaos/hints", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("load hints without session: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("load hints without session response invalid JSON: %v", err)
+	}
+	if _, ok := resp["hints"].([]interface{}); !ok {
+		t.Fatalf("hints payload has wrong type: %T", resp["hints"])
+	}
+	if kb, ok := resp["keyBlacklist"].([]interface{}); !ok || len(kb) != 1 {
+		t.Fatalf("keyBlacklist payload = %#v, want single entry", resp["keyBlacklist"])
 	}
 }
 

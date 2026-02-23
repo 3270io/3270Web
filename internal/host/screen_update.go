@@ -335,15 +335,32 @@ func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
 }
 
 func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols int) error {
-	s.Height = len(tokenRows)
-	if s.Height == 0 {
-		s.Width = 0
-		s.Buffer = nil
+	decodedHeight := len(tokenRows)
+	if decodedHeight == 0 {
+		if enforcedRows > 0 {
+			s.Height = enforcedRows
+		} else {
+			s.Height = 0
+		}
+		if enforcedCols > 0 {
+			s.Width = enforcedCols
+		} else {
+			s.Width = 0
+		}
+		if s.Height > 0 && s.Width > 0 {
+			s.Buffer = make([][]rune, s.Height)
+			for y := 0; y < s.Height; y++ {
+				s.Buffer[y] = make([]rune, s.Width)
+			}
+		} else {
+			s.Buffer = nil
+		}
 		s.Fields = nil
 		return nil
 	}
 
-	s.Buffer = make([][]rune, s.Height)
+	s.Height = decodedHeight
+	s.Buffer = make([][]rune, decodedHeight)
 	s.Fields = nil
 
 	state := &decodeState{
@@ -367,15 +384,42 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 		}
 		s.Buffer[y] = row
 	}
-	// Use enforced dimensions if available, otherwise use calculated width
-	if enforcedCols > 0 && width > enforcedCols {
+	// Preserve the terminal dimensions reported by status/model when available.
+	switch {
+	case enforcedCols > 0:
 		s.Width = enforcedCols
-	} else {
+	default:
 		s.Width = width
 	}
-	if enforcedRows > 0 && s.Height > enforcedRows {
-		s.Height = enforcedRows
+	targetHeight := decodedHeight
+	if enforcedRows > 0 {
+		targetHeight = enforcedRows
 	}
+	if targetHeight < 0 {
+		targetHeight = 0
+	}
+	if s.Width < 0 {
+		s.Width = 0
+	}
+	if s.Width > 0 {
+		for y := 0; y < len(s.Buffer); y++ {
+			if len(s.Buffer[y]) < s.Width {
+				row := make([]rune, s.Width)
+				copy(row, s.Buffer[y])
+				s.Buffer[y] = row
+			} else if len(s.Buffer[y]) > s.Width {
+				s.Buffer[y] = s.Buffer[y][:s.Width]
+			}
+		}
+	}
+	if targetHeight < len(s.Buffer) {
+		s.Buffer = s.Buffer[:targetHeight]
+	} else if targetHeight > len(s.Buffer) {
+		for y := len(s.Buffer); y < targetHeight; y++ {
+			s.Buffer = append(s.Buffer, make([]rune, s.Width))
+		}
+	}
+	s.Height = targetHeight
 
 	if state.fieldStartX >= 0 && s.Width > 0 && s.Height > 0 {
 		endX := s.Width - 1

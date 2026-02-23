@@ -9,6 +9,8 @@ import (
 )
 
 const maxKnownValuesPerField = 12
+const maxScreenPreviewRows = 24
+const maxScreenPreviewCols = 80
 
 // MindMap captures a lightweight graph of discovered application areas.
 // Areas are keyed by screen hash (or a synthetic ID when seeded from a recording).
@@ -18,18 +20,25 @@ type MindMap struct {
 
 // MindMapArea represents one discovered application area.
 type MindMapArea struct {
-	Hash               string                          `json:"hash"`
-	Label              string                          `json:"label,omitempty"`
-	Visits             int                             `json:"visits"`
-	FirstSeen          time.Time                       `json:"firstSeen,omitempty"`
-	LastSeen           time.Time                       `json:"lastSeen,omitempty"`
-	FieldCount         int                             `json:"fieldCount"`
-	InputFieldCount    int                             `json:"inputFieldCount"`
-	NumericFieldCount  int                             `json:"numericFieldCount"`
-	HiddenFieldCount   int                             `json:"hiddenFieldCount"`
-	FieldMetadata      map[string]MindMapFieldMetadata `json:"fieldMetadata,omitempty"`
-	KnownWorkingValues map[string][]string             `json:"knownWorkingValues,omitempty"`
-	KeyPresses         map[string]*MindMapKeyPress     `json:"keyPresses,omitempty"`
+	Hash               string                           `json:"hash"`
+	Label              string                           `json:"label,omitempty"`
+	Visits             int                              `json:"visits"`
+	FirstSeen          time.Time                        `json:"firstSeen,omitempty"`
+	LastSeen           time.Time                        `json:"lastSeen,omitempty"`
+	ScreenWidth        int                              `json:"screenWidth,omitempty"`
+	ScreenHeight       int                              `json:"screenHeight,omitempty"`
+	PreviewText        string                           `json:"previewText,omitempty"`
+	PreviewWidth       int                              `json:"previewWidth,omitempty"`
+	PreviewHeight      int                              `json:"previewHeight,omitempty"`
+	FieldCount         int                              `json:"fieldCount"`
+	InputFieldCount    int                              `json:"inputFieldCount"`
+	NumericFieldCount  int                              `json:"numericFieldCount"`
+	HiddenFieldCount   int                              `json:"hiddenFieldCount"`
+	FieldMetadata      map[string]MindMapFieldMetadata  `json:"fieldMetadata,omitempty"`
+	FieldDiscovery     map[string]MindMapFieldDiscovery `json:"fieldDiscovery,omitempty"`
+	KnownTriedValues   map[string][]string              `json:"knownTriedValues,omitempty"`
+	KnownWorkingValues map[string][]string              `json:"knownWorkingValues,omitempty"`
+	KeyPresses         map[string]*MindMapKeyPress      `json:"keyPresses,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.
@@ -40,6 +49,19 @@ type MindMapFieldMetadata struct {
 	Numeric   bool `json:"numeric"`
 	Hidden    bool `json:"hidden"`
 	MultiLine bool `json:"multiLine"`
+}
+
+// MindMapFieldDiscovery captures per-field discovery statistics for a screen.
+// A "progression" means the overall attempt transitioned to a different screen
+// after a successful write to this field.
+type MindMapFieldDiscovery struct {
+	Writes          int       `json:"writes"`
+	WriteSuccesses  int       `json:"writeSuccesses"`
+	Progressions    int       `json:"progressions"`
+	LastTriedAt     time.Time `json:"lastTriedAt,omitempty"`
+	LastWorkedAt    time.Time `json:"lastWorkedAt,omitempty"`
+	LastValue       string    `json:"lastValue,omitempty"`
+	LastWorkedValue string    `json:"lastWorkedValue,omitempty"`
 }
 
 // MindMapKeyPress captures how a key is used from an area.
@@ -68,6 +90,18 @@ func (m *MindMap) clone() *MindMap {
 			next.FieldMetadata = make(map[string]MindMapFieldMetadata, len(area.FieldMetadata))
 			for fKey, meta := range area.FieldMetadata {
 				next.FieldMetadata[fKey] = meta
+			}
+		}
+		if len(area.FieldDiscovery) > 0 {
+			next.FieldDiscovery = make(map[string]MindMapFieldDiscovery, len(area.FieldDiscovery))
+			for fKey, meta := range area.FieldDiscovery {
+				next.FieldDiscovery[fKey] = meta
+			}
+		}
+		if len(area.KnownTriedValues) > 0 {
+			next.KnownTriedValues = make(map[string][]string, len(area.KnownTriedValues))
+			for fKey, values := range area.KnownTriedValues {
+				next.KnownTriedValues[fKey] = append([]string(nil), values...)
 			}
 		}
 		if len(area.KnownWorkingValues) > 0 {
@@ -113,6 +147,8 @@ func (m *MindMap) ensureArea(hash string) *MindMapArea {
 	area := &MindMapArea{
 		Hash:               hash,
 		FieldMetadata:      make(map[string]MindMapFieldMetadata),
+		FieldDiscovery:     make(map[string]MindMapFieldDiscovery),
+		KnownTriedValues:   make(map[string][]string),
 		KnownWorkingValues: make(map[string][]string),
 		KeyPresses:         make(map[string]*MindMapKeyPress),
 	}
@@ -132,6 +168,13 @@ func (m *MindMap) observeScreen(hash string, screen *host.Screen, seenAt time.Ti
 	area.Visits++
 	if screen == nil {
 		return
+	}
+	area.ScreenWidth, area.ScreenHeight = screenDimensions(screen)
+	previewText, previewWidth, previewHeight := screenPreview(screen)
+	if previewText != "" {
+		area.PreviewText = previewText
+		area.PreviewWidth = previewWidth
+		area.PreviewHeight = previewHeight
 	}
 	label, fieldCount, inputCount, numericCount, hiddenCount, fieldMeta := summarizeScreenArea(screen)
 	if label != "" {
@@ -185,21 +228,41 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	}
 
 	if !attempt.Transitioned {
-		return
+		// Keep field discovery metadata even when the attempt does not transition.
+	}
+	if area.FieldDiscovery == nil {
+		area.FieldDiscovery = make(map[string]MindMapFieldDiscovery)
+	}
+	if area.KnownTriedValues == nil {
+		area.KnownTriedValues = make(map[string][]string)
 	}
 	if area.KnownWorkingValues == nil {
 		area.KnownWorkingValues = make(map[string][]string)
 	}
 	for _, fw := range attempt.FieldWrites {
-		if !fw.Success {
-			continue
+		fieldKey := mindMapFieldKey(fw.Row, fw.Column, fw.Length)
+		fd := area.FieldDiscovery[fieldKey]
+		fd.Writes++
+		fd.LastTriedAt = attempt.Time
+		if fw.Success {
+			fd.WriteSuccesses++
 		}
 		value := strings.TrimSpace(fw.Value)
-		if value == "" {
-			continue
+		if value != "" {
+			fd.LastValue = value
+			if fw.Success {
+				area.KnownTriedValues[fieldKey] = appendUniqueLimited(area.KnownTriedValues[fieldKey], value, maxKnownValuesPerField*2)
+			}
 		}
-		fieldKey := mindMapFieldKey(fw.Row, fw.Column, fw.Length)
-		area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], value, maxKnownValuesPerField)
+		if attempt.Transitioned && fw.Success {
+			fd.Progressions++
+			fd.LastWorkedAt = attempt.Time
+			if value != "" {
+				fd.LastWorkedValue = value
+				area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], value, maxKnownValuesPerField)
+			}
+		}
+		area.FieldDiscovery[fieldKey] = fd
 	}
 }
 
@@ -259,6 +322,97 @@ func areaLabelFromScreen(screen *host.Screen) string {
 		}
 	}
 	return fmt.Sprintf("%dx%d screen", screen.Height, screen.Width)
+}
+
+func screenDimensions(screen *host.Screen) (int, int) {
+	if screen == nil {
+		return 0, 0
+	}
+	width := screen.Width
+	height := screen.Height
+	if height <= 0 {
+		height = len(screen.Buffer)
+	}
+	if width <= 0 {
+		for _, row := range screen.Buffer {
+			if len(row) > width {
+				width = len(row)
+			}
+		}
+	}
+	return width, height
+}
+
+func screenPreview(screen *host.Screen) (string, int, int) {
+	if screen == nil {
+		return "", 0, 0
+	}
+	screenWidth, screenHeight := screenDimensions(screen)
+	if screenWidth <= 0 || screenHeight <= 0 {
+		return "", 0, 0
+	}
+	previewWidth := screenWidth
+	if previewWidth > maxScreenPreviewCols {
+		previewWidth = maxScreenPreviewCols
+	}
+	previewHeight := screenHeight
+	if previewHeight > maxScreenPreviewRows {
+		previewHeight = maxScreenPreviewRows
+	}
+	if previewWidth <= 0 || previewHeight <= 0 {
+		return "", 0, 0
+	}
+
+	grid := make([][]rune, previewHeight)
+	for y := 0; y < previewHeight; y++ {
+		row := make([]rune, previewWidth)
+		for x := 0; x < previewWidth; x++ {
+			ch := screen.CharAt(x, y)
+			if ch == 0 {
+				ch = ' '
+			}
+			row[x] = ch
+		}
+		grid[y] = row
+	}
+
+	// Preserve visible input values so the preview shows a real captured example.
+	// Hidden fields are still masked.
+	for _, f := range unprotectedFields(screen) {
+		if f == nil {
+			continue
+		}
+		if !f.IsHidden() {
+			continue
+		}
+		curX, curY := f.StartX, f.StartY
+		endX, endY := f.EndX, f.EndY
+		for {
+			if curY >= 0 && curY < previewHeight && curX >= 0 && curX < previewWidth {
+				grid[curY][curX] = '*'
+			}
+			if curX == endX && curY == endY {
+				break
+			}
+			curX++
+			if curX >= screenWidth {
+				curX = 0
+				curY++
+				if curY >= screenHeight {
+					break
+				}
+			}
+		}
+	}
+
+	var b strings.Builder
+	for y := 0; y < previewHeight; y++ {
+		b.WriteString(string(grid[y]))
+		if y < previewHeight-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String(), previewWidth, previewHeight
 }
 
 func truncateForLabel(value string, maxRunes int) string {

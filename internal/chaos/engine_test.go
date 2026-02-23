@@ -3,6 +3,7 @@ package chaos
 import (
 	"encoding/json"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.MaxFieldLength <= 0 {
 		t.Error("DefaultConfig.MaxFieldLength must be positive")
+	}
+	if !cfg.ForceOverrideExistingInputs {
+		t.Error("DefaultConfig.ForceOverrideExistingInputs must default to true")
 	}
 	if !cfg.ExcludeNoProgressEvents {
 		t.Error("DefaultConfig.ExcludeNoProgressEvents must default to true")
@@ -176,6 +180,144 @@ func TestHintKeyBoostsForScreen(t *testing.T) {
 	}
 	if _, ok := boosts["Enter"]; ok {
 		t.Fatalf("Enter should not be boosted when label is absent, boosts=%v", boosts)
+	}
+}
+
+func TestInferScreenHelpKeyAssignmentsAndBoosts(t *testing.T) {
+	s := buildMockScreen()
+	copy(s.Buffer[23], []rune("PF3 Logoff   PF8 Next Page   Enter=Select"))
+
+	assignments := inferScreenHelpKeyAssignments(s)
+	if assignments == nil {
+		t.Fatal("inferScreenHelpKeyAssignments returned nil")
+	}
+	if got := assignments["LOGOFF"]; got != "PF(3)" {
+		t.Fatalf("LOGOFF assignment = %q, want %q", got, "PF(3)")
+	}
+	if got := assignments["NEXT PAGE"]; got != "PF(8)" {
+		t.Fatalf("NEXT PAGE assignment = %q, want %q", got, "PF(8)")
+	}
+	if got := assignments["SELECT"]; got != "Enter" {
+		t.Fatalf("SELECT assignment = %q, want %q", got, "Enter")
+	}
+
+	boosts := inferScreenHelpKeyBoosts(s)
+	if boosts["PF(8)"] <= boosts["PF(3)"] {
+		t.Fatalf("expected PF(8) boost (%d) to exceed PF(3) boost (%d) for Next vs Logoff", boosts["PF(8)"], boosts["PF(3)"])
+	}
+	if boosts["Enter"] <= 0 {
+		t.Fatalf("Enter boost = %d, want > 0", boosts["Enter"])
+	}
+}
+
+func TestEngineDefaultHints_AppliedWithUserOverride(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Hints = []Hint{
+		{KeyAssignments: map[string]string{"Help": "PF2"}},
+	}
+	e := New(nil, cfg)
+	if len(e.defaultHintTx) == 0 || len(e.defaultHintData) == 0 {
+		t.Fatal("expected built-in fallback hints to be populated")
+	}
+	if e.hintKeyMappings == nil || len(e.hintKeyMappings) == 0 {
+		t.Fatal("expected merged key mappings to include defaults")
+	}
+	if got := e.hintKeyMappings["HELP"]; got != "PF(2)" {
+		t.Fatalf("user mapping should override default HELP mapping: got %q want %q", got, "PF(2)")
+	}
+	if got := e.hintKeyMappings["NEXT"]; got != "PF(8)" {
+		t.Fatalf("expected built-in NEXT mapping, got %q", got)
+	}
+}
+
+func TestPickHintValueForFieldPool_PrefersExactLength(t *testing.T) {
+	rng := rand.New(rand.NewSource(1)) //nolint:gosec
+	counts := map[string]int{}
+	for i := 0; i < 500; i++ {
+		got := pickHintValueForFieldPool(rng, []string{"A", "ABC"}, 3, false)
+		counts[got]++
+	}
+	// Exact-length values should be more likely, but not exclusive.
+	if counts["ABC"] <= counts["A"] {
+		t.Fatalf("expected exact-length hint to be preferred, got counts=%v", counts)
+	}
+	if counts["A"] == 0 {
+		t.Fatalf("expected non-exact hints to remain selectable, got counts=%v", counts)
+	}
+}
+
+func TestPrepareFieldWriteValue_PadsToOverwriteExistingTail(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 0, 0, 5, 0, 0, 0) // length 6
+	f.SetValue("EXISTS")
+
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(21)) //nolint:gosec
+
+	got := e.prepareFieldWriteValue(f, "ABC")
+	if len(got) != 6 {
+		t.Fatalf("prepareFieldWriteValue len = %d, want 6", len(got))
+	}
+	if got != "ABC   " {
+		t.Fatalf("prepareFieldWriteValue = %q, want %q", got, "ABC   ")
+	}
+}
+
+func TestPrepareFieldWriteValue_AvoidsReusingSamePrefilledValue(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 0, 0, 5, 0, 0, 0) // length 6
+	f.SetValue("ABC   ")
+
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(42)) //nolint:gosec
+
+	got := e.prepareFieldWriteValue(f, "ABC")
+	if len(got) != 6 {
+		t.Fatalf("prepareFieldWriteValue len = %d, want 6", len(got))
+	}
+	if normalizeFieldValueForCompare(got) == normalizeFieldValueForCompare("ABC   ") {
+		t.Fatalf("prepareFieldWriteValue reused existing field value: %q", got)
+	}
+}
+
+func TestClearFieldBeforeWrite_ClearsFieldCells(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Connected = true
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 2, 1, 7, 1, 0, 0) // row 1, col 2-7 (len 6)
+	if err := h.WriteStringAt(1, 2, "ABCDEF"); err != nil {
+		t.Fatalf("seed write: %v", err)
+	}
+
+	e := New(h, DefaultConfig())
+	if err := e.clearFieldBeforeWrite(f); err != nil {
+		t.Fatalf("clearFieldBeforeWrite error: %v", err)
+	}
+	for x := 2; x <= 7; x++ {
+		if ch := h.Screen.CharAt(x, 1); ch != ' ' {
+			t.Fatalf("screen char at (%d,%d) = %q, want space", x, 1, ch)
+		}
+	}
+}
+
+func TestChooseAIDKeyBoosted_RespectsKeyBlacklist(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AIDKeyWeights = map[string]int{
+		"Enter": 1,
+		"PF3":   100,
+	}
+	cfg.KeyBlacklist = []string{"PF(3)"}
+
+	e := New(nil, cfg)
+	e.rng = rand.New(rand.NewSource(11)) //nolint:gosec
+
+	for i := 0; i < 50; i++ {
+		if got := e.chooseAIDKeyBoosted(map[string]int{"PF(3)": 1000}); got == "PF(3)" {
+			t.Fatalf("blacklisted key PF(3) was selected on iteration %d", i)
+		}
 	}
 }
 
@@ -375,12 +517,24 @@ func TestGenerateValueForField_UsesHints(t *testing.T) {
 	e := New(nil, cfg)
 	e.rng = rand.New(rand.NewSource(2)) //nolint:gosec
 
-	v := e.generateValueForField(f, true)
-	if v == "" {
-		t.Fatal("generateValueForField returned empty value with hints configured")
+	hintHits := 0
+	randomHits := 0
+	for i := 0; i < 100; i++ {
+		v := e.generateValueForField(f, true)
+		if v == "" {
+			t.Fatal("generateValueForField returned empty value with hints configured")
+		}
+		if strings.TrimSpace(v) == "CEMT" || strings.TrimSpace(v) == "ABC123" {
+			hintHits++
+		} else {
+			randomHits++
+		}
 	}
-	if v != "CEMT" && v != "ABC123" {
-		t.Fatalf("generateValueForField = %q, want one of configured hint values", v)
+	if hintHits == 0 {
+		t.Fatalf("expected hint values to be used sometimes, got hintHits=%d randomHits=%d", hintHits, randomHits)
+	}
+	if randomHits == 0 {
+		t.Fatalf("expected non-hint values to be used sometimes (chaos), got hintHits=%d randomHits=%d", hintHits, randomHits)
 	}
 }
 
@@ -848,7 +1002,7 @@ func TestGenerateValueForFieldWith_PrefersKnownValues(t *testing.T) {
 	hitKnown := 0
 	const tries = 50
 	for i := 0; i < tries; i++ {
-		v := e.generateValueForFieldWith(f, false, knownValues, nil)
+		v := e.generateValueForFieldWith(f, false, knownValues, nil, nil)
 		if v == "SIGNONX" {
 			hitKnown++
 		}

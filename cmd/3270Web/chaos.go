@@ -134,15 +134,18 @@ func (s *chaosEngineStore) clearRemoved(sessionID string) {
 
 // chaosStartRequest is the JSON body accepted by POST /chaos/start.
 type chaosStartRequest struct {
-	MaxSteps                int            `json:"maxSteps"`
-	TimeBudgetSec           float64        `json:"timeBudgetSec"`
-	StepDelaySec            float64        `json:"stepDelaySec"`
-	Seed                    int64          `json:"seed"`
-	AIDKeyWeights           map[string]int `json:"aidKeyWeights"`
-	OutputFile              string         `json:"outputFile"`
-	MaxFieldLength          int            `json:"maxFieldLength"`
-	Hints                   []chaos.Hint   `json:"hints"`
-	ExcludeNoProgressEvents *bool          `json:"excludeNoProgressEvents"`
+	MaxSteps                    int            `json:"maxSteps"`
+	TimeBudgetSec               float64        `json:"timeBudgetSec"`
+	StepDelaySec                float64        `json:"stepDelaySec"`
+	Seed                        int64          `json:"seed"`
+	AIDKeyWeights               map[string]int `json:"aidKeyWeights"`
+	KeyBlacklist                []string       `json:"keyBlacklist"`
+	OutputFile                  string         `json:"outputFile"`
+	MaxFieldLength              int            `json:"maxFieldLength"`
+	ForceOverrideExistingInputs *bool          `json:"forceOverrideExistingInputs"`
+	Hints                       []chaos.Hint   `json:"hints"`
+	ExcludeNoProgressEvents     *bool          `json:"excludeNoProgressEvents"`
+	ExtendLimits                bool           `json:"extendLimits"`
 }
 
 // ChaosStartHandler handles POST /chaos/start.
@@ -173,11 +176,17 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		if len(req.AIDKeyWeights) > 0 {
 			cfg.AIDKeyWeights = req.AIDKeyWeights
 		}
+		if len(req.KeyBlacklist) > 0 {
+			cfg.KeyBlacklist = append([]string(nil), req.KeyBlacklist...)
+		}
 		if req.OutputFile != "" {
 			cfg.OutputFile = req.OutputFile
 		}
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
+		}
+		if req.ForceOverrideExistingInputs != nil {
+			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
 		}
 		if len(req.Hints) > 0 {
 			cfg.Hints = sanitizeChaosHints(req.Hints)
@@ -186,9 +195,14 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
 		}
 	}
-	if len(cfg.Hints) == 0 {
-		if savedHints, err := app.loadChaosHints(); err == nil && len(savedHints) > 0 {
-			cfg.Hints = savedHints
+	if len(cfg.Hints) == 0 || len(cfg.KeyBlacklist) == 0 {
+		if saved, err := app.loadChaosHintsPayload(); err == nil {
+			if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
+				cfg.Hints = saved.Hints
+			}
+			if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
+				cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
+			}
 		}
 	}
 	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
@@ -371,7 +385,7 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 		}
 	} else if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader)
+		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader, chaos.WorkflowDiscoveryMetadataFromSavedRun(run))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -379,7 +393,7 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
 		app.chaosEngines.setLoadedRun(s.ID, run)
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader)
+		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader, chaos.WorkflowDiscoveryMetadataFromSavedRun(run))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -635,11 +649,17 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		if len(req.AIDKeyWeights) > 0 {
 			cfg.AIDKeyWeights = req.AIDKeyWeights
 		}
+		if len(req.KeyBlacklist) > 0 {
+			cfg.KeyBlacklist = append([]string(nil), req.KeyBlacklist...)
+		}
 		if req.OutputFile != "" {
 			cfg.OutputFile = req.OutputFile
 		}
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
+		}
+		if req.ForceOverrideExistingInputs != nil {
+			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
 		}
 		if len(req.Hints) > 0 {
 			cfg.Hints = sanitizeChaosHints(req.Hints)
@@ -648,10 +668,21 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
 		}
 	}
-	if len(cfg.Hints) == 0 {
-		if savedHints, err := app.loadChaosHints(); err == nil && len(savedHints) > 0 {
-			cfg.Hints = savedHints
+	if len(cfg.Hints) == 0 || len(cfg.KeyBlacklist) == 0 {
+		if saved, err := app.loadChaosHintsPayload(); err == nil {
+			if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
+				cfg.Hints = saved.Hints
+			}
+			if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
+				cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
+			}
 		}
+	}
+	if req.ExtendLimits && cfg.MaxSteps > 0 {
+		// "Extend" treats maxSteps as an additional budget beyond the loaded run's
+		// existing attempts so a completed run can continue instead of immediately
+		// stopping at the same cap.
+		cfg.MaxSteps = loaded.StepsRun + cfg.MaxSteps
 	}
 	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
@@ -681,7 +712,8 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 }
 
 type chaosHintsPayload struct {
-	Hints []chaos.Hint `json:"hints"`
+	Hints        []chaos.Hint `json:"hints"`
+	KeyBlacklist []string     `json:"keyBlacklist,omitempty"`
 }
 
 type chaosHintsExtractResponse struct {
@@ -702,39 +734,36 @@ type chaosScreenHintUpsertRequest struct {
 
 // ChaosHintsGetHandler handles GET /chaos/hints – returns saved chaos hints.
 func (app *App) ChaosHintsGetHandler(c *gin.Context) {
-	s := app.getSession(c)
-	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
-		return
-	}
-	hints, err := app.loadChaosHints()
+	payload, err := app.loadChaosHintsPayload()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"hints": hints})
+	c.JSON(http.StatusOK, gin.H{
+		"hints":        payload.Hints,
+		"keyBlacklist": payload.KeyBlacklist,
+	})
 }
 
 // ChaosHintsSaveHandler handles POST /chaos/hints – persists chaos hint data.
 func (app *App) ChaosHintsSaveHandler(c *gin.Context) {
-	s := app.getSession(c)
-	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
-		return
-	}
 	var req chaosHintsPayload
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body"})
 		return
 	}
-	hints := sanitizeChaosHints(req.Hints)
-	if err := app.saveChaosHints(hints); err != nil {
+	payload := chaosHintsPayload{
+		Hints:        sanitizeChaosHints(req.Hints),
+		KeyBlacklist: sanitizeChaosKeyBlacklist(req.KeyBlacklist),
+	}
+	if err := app.saveChaosHintsPayload(payload); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"status": "saved",
-		"hints":  hints,
+		"status":       "saved",
+		"hints":        payload.Hints,
+		"keyBlacklist": payload.KeyBlacklist,
 	})
 }
 
@@ -840,6 +869,23 @@ func sanitizeChaosHints(hints []chaos.Hint) []chaos.Hint {
 			KnownData:      known,
 			KeyAssignments: assignments,
 		})
+	}
+	return out
+}
+
+func sanitizeChaosKeyBlacklist(keys []string) []string {
+	if len(keys) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(keys))
+	seen := make(map[string]bool)
+	for _, raw := range keys {
+		key := sanitizeChaosHintKeyName(raw)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, key)
 	}
 	return out
 }
@@ -1053,30 +1099,48 @@ func looksLikeTransactionCode(value string) bool {
 }
 
 func (app *App) loadChaosHints() ([]chaos.Hint, error) {
+	payload, err := app.loadChaosHintsPayload()
+	if err != nil {
+		return nil, err
+	}
+	return payload.Hints, nil
+}
+
+func (app *App) loadChaosHintsPayload() (chaosHintsPayload, error) {
 	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
-		return []chaos.Hint{}, nil
+		return chaosHintsPayload{Hints: []chaos.Hint{}, KeyBlacklist: []string{}}, nil
 	}
 	app.chaosHintsMu.Lock()
 	defer app.chaosHintsMu.Unlock()
 	data, err := os.ReadFile(app.chaosHintsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []chaos.Hint{}, nil
+			return chaosHintsPayload{Hints: []chaos.Hint{}, KeyBlacklist: []string{}}, nil
 		}
-		return nil, fmt.Errorf("read chaos hints: %w", err)
+		return chaosHintsPayload{}, fmt.Errorf("read chaos hints: %w", err)
 	}
 	var payload chaosHintsPayload
 	if err := json.Unmarshal(data, &payload); err == nil {
-		return sanitizeChaosHints(payload.Hints), nil
+		return chaosHintsPayload{
+			Hints:        sanitizeChaosHints(payload.Hints),
+			KeyBlacklist: sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+		}, nil
 	}
 	var hints []chaos.Hint
 	if err := json.Unmarshal(data, &hints); err != nil {
-		return nil, fmt.Errorf("parse chaos hints: %w", err)
+		return chaosHintsPayload{}, fmt.Errorf("parse chaos hints: %w", err)
 	}
-	return sanitizeChaosHints(hints), nil
+	return chaosHintsPayload{
+		Hints:        sanitizeChaosHints(hints),
+		KeyBlacklist: []string{},
+	}, nil
 }
 
 func (app *App) saveChaosHints(hints []chaos.Hint) error {
+	return app.saveChaosHintsPayload(chaosHintsPayload{Hints: hints})
+}
+
+func (app *App) saveChaosHintsPayload(payload chaosHintsPayload) error {
 	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
 		return fmt.Errorf("chaos hints path not configured")
 	}
@@ -1085,7 +1149,10 @@ func (app *App) saveChaosHints(hints []chaos.Hint) error {
 	if err := os.MkdirAll(filepath.Dir(app.chaosHintsPath), 0750); err != nil {
 		return fmt.Errorf("create chaos hints directory: %w", err)
 	}
-	payload := chaosHintsPayload{Hints: sanitizeChaosHints(hints)}
+	payload = chaosHintsPayload{
+		Hints:        sanitizeChaosHints(payload.Hints),
+		KeyBlacklist: sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+	}
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal chaos hints: %w", err)
@@ -1352,31 +1419,38 @@ func cloneSessionChaosAttempt(attempt session.ChaosAttempt) session.ChaosAttempt
 	return out
 }
 
-func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *chaos.WorkflowHeader) ([]byte, error) {
-	export := WorkflowConfig{
-		Host:  hostName,
-		Port:  port,
-		Steps: steps,
+func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *chaos.WorkflowHeader, discovery *chaos.WorkflowDiscoveryMetadata) ([]byte, error) {
+	type workflowExportWithChaosMetadata struct {
+		WorkflowConfig
+		ChaosDiscovery *chaos.WorkflowDiscoveryMetadata `json:"ChaosDiscovery,omitempty"`
+	}
+	export := workflowExportWithChaosMetadata{
+		WorkflowConfig: WorkflowConfig{
+			Host:  hostName,
+			Port:  port,
+			Steps: steps,
+		},
+		ChaosDiscovery: discovery,
 	}
 	if header == nil {
 		header = chaosSeedWorkflowHeader(nil)
 	}
 	if header != nil {
 		if header.EveryStepDelay != nil {
-			export.EveryStepDelay = &session.WorkflowDelayRange{
+			export.WorkflowConfig.EveryStepDelay = &session.WorkflowDelayRange{
 				Min: header.EveryStepDelay.Min,
 				Max: header.EveryStepDelay.Max,
 			}
 		}
 		if header.EndOfTaskDelay != nil {
-			export.EndOfTaskDelay = &session.WorkflowDelayRange{
+			export.WorkflowConfig.EndOfTaskDelay = &session.WorkflowDelayRange{
 				Min: header.EndOfTaskDelay.Min,
 				Max: header.EndOfTaskDelay.Max,
 			}
 		}
-		export.OutputFilePath = header.OutputFilePath
-		export.RampUpBatchSize = header.RampUpBatchSize
-		export.RampUpDelay = header.RampUpDelay
+		export.WorkflowConfig.OutputFilePath = header.OutputFilePath
+		export.WorkflowConfig.RampUpBatchSize = header.RampUpBatchSize
+		export.WorkflowConfig.RampUpDelay = header.RampUpDelay
 	}
 	return json.MarshalIndent(export, "", "  ")
 }

@@ -200,6 +200,9 @@
                         <button type="button" class="icon-button" data-chaos-resume hidden data-tippy-content="Resume chaos exploration from loaded run" aria-label="Resume chaos exploration from loaded run">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
                         </button>
+                        <button type="button" class="icon-button" data-chaos-extend hidden data-tippy-content="Extend completed chaos run" aria-label="Extend completed chaos run">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                        </button>
                         <button type="button" class="icon-button" data-chaos-hints-open data-tippy-content="Edit chaos hints" aria-label="Edit chaos hints">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
                         </button>
@@ -209,6 +212,9 @@
                     </div>
                     <span class="chaos-controls-divider" data-chaos-divider aria-hidden="true"></span>
                     <div class="chaos-controls-section" data-chaos-section="output" aria-label="Chaos output actions">
+                        <button type="button" class="icon-button" data-chaos-report hidden data-tippy-content="View chaos discovery report" aria-label="View chaos discovery report">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h10l6 6v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm9 1.5V10h5.5M6 14h12v1.5H6V14zm0 3h12v1.5H6V17zm0-6h7v1.5H6V11z"/></svg>
+                        </button>
                         <button type="button" class="icon-button" data-chaos-export hidden data-tippy-content="Download chaos workflow JSON" aria-label="Download chaos workflow JSON">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
                         </button>
@@ -223,6 +229,9 @@
                     <span class="active-run-label">Active Run</span>
                     <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
                     <span class="status-text active-run-meta" data-active-run-meta></span>
+                    <button type="button" class="active-run-extend" data-active-run-extend data-tippy-content="Extend chaos run" aria-label="Extend chaos run" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                    </button>
                     <button type="button" class="active-run-close" data-active-run-close data-tippy-content="Dismiss active run row" aria-label="Dismiss active run row">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3z"/></svg>
                     </button>
@@ -321,10 +330,23 @@
         <div class="modal modal-chaos-hints" role="dialog" aria-modal="true" aria-labelledby="chaos-hints-modal-title" tabindex="-1">
             <div class="modal-header">
                 <h3 id="chaos-hints-modal-title">Chaos Hints</h3>
-                <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
+                <div class="logs-modal-header-actions">
+                    <button type="button" class="icon-button" data-chaos-hints-maximize aria-expanded="false" data-tippy-content="Maximize chaos hints" aria-label="Maximize chaos hints">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-chaos-hints-minimize aria-expanded="true" data-tippy-content="Restore chaos hints size" aria-label="Restore chaos hints size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
+                </div>
             </div>
             <div class="stack">
                 <p class="subtle chaos-hints-help">Add transactions, known data, and optional screen label to keyboard key mappings (for example, Return = PF3) to guide chaos behavior.</p>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-key-blacklist">Blocked Keys</label>
+                    <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="Keys chaos must never press (one per line)\nPF3\nPF12"></textarea>
+                    <p class="subtle">Use this to block dangerous keys such as logoff/exit PF keys.</p>
+                </div>
                 <div class="chaos-hints-list" data-chaos-hints-list></div>
                 <div class="modal-actions">
                     <button type="button" data-chaos-hints-add>Add hint</button>
@@ -344,11 +366,24 @@
         <div class="modal modal-chaos-map" role="dialog" aria-modal="true" aria-labelledby="chaos-map-modal-title" tabindex="-1">
             <div class="modal-header">
                 <h3 id="chaos-map-modal-title">Chaos Map</h3>
-                <button type="button" class="modal-close" data-chaos-map-close>Close</button>
+                <div class="settings-modal-actions">
+                    <button type="button" class="icon-button" data-chaos-map-maximize aria-expanded="false" data-tippy-content="Maximize chaos map" aria-label="Maximize chaos map">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-chaos-map-minimize aria-expanded="true" data-tippy-content="Restore chaos map size" aria-label="Restore chaos map size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" class="modal-close" data-chaos-map-close>Close</button>
+                </div>
             </div>
             <div class="stack">
                 <p class="subtle chaos-map-help">Live application structure discovered by chaos. Add screen-specific hints to guide known data values and key presses for each screen.</p>
-                <div class="subtle" data-chaos-map-status aria-live="polite"></div>
+                <div class="chaos-map-status-row">
+                    <div class="subtle" data-chaos-map-status aria-live="polite"></div>
+                    <div class="settings-modal-actions chaos-map-status-actions">
+                        <button type="button" data-chaos-map-view data-chaos-flow-open>View Map</button>
+                    </div>
+                </div>
                 <div class="chaos-map-list" data-chaos-map-list>
                     <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
                 </div>
@@ -356,6 +391,81 @@
             <div class="modal-actions">
                 <button type="button" data-chaos-map-refresh>Refresh</button>
                 <button type="button" data-chaos-map-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-flow-modal hidden>
+        <div class="modal modal-chaos-flow" role="dialog" aria-modal="true" aria-labelledby="chaos-flow-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-flow-modal-title">Chaos Discovery Flow</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" class="icon-button" data-chaos-flow-maximize aria-expanded="false" data-tippy-content="Maximize discovery flow" aria-label="Maximize discovery flow">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-chaos-flow-minimize aria-expanded="true" data-tippy-content="Restore discovery flow size" aria-label="Restore discovery flow size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" class="modal-close" data-chaos-flow-close>Close</button>
+                </div>
+            </div>
+            <div class="stack">
+                <p class="subtle chaos-map-help">A larger view of the discovered screen flow, grouped to ignore input data variants on the same screen layout.</p>
+                <div class="subtle" data-chaos-flow-status aria-live="polite"></div>
+                <div data-chaos-flow-content>
+                    <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-flow-refresh>Refresh</button>
+                <button type="button" data-chaos-flow-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-report-modal hidden>
+        <div class="modal modal-chaos-report" role="dialog" aria-modal="true" aria-labelledby="chaos-report-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-report-modal-title">Chaos Discovery Report</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" class="icon-button" data-chaos-report-maximize aria-expanded="false" data-tippy-content="Maximize chaos report" aria-label="Maximize chaos report">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-chaos-report-minimize aria-expanded="true" data-tippy-content="Restore chaos report size" aria-label="Restore chaos report size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" class="modal-close" data-chaos-report-close>Close</button>
+                </div>
+            </div>
+            <div class="stack">
+                <p class="subtle chaos-map-help">A formatted markdown report summarising discovered screens, working inputs, and observed function keys.</p>
+                <div class="subtle chaos-report-status" data-chaos-report-status aria-live="polite"></div>
+                <div class="chaos-report-viewer" data-chaos-report-content>
+                    <p class="subtle">No report loaded yet. Start or load a chaos run, then open the report.</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-report-refresh>Refresh</button>
+                <button type="button" data-chaos-report-raw-toggle aria-pressed="false">Raw Markdown</button>
+                <button type="button" data-chaos-report-download>Download Report</button>
+                <button type="button" data-chaos-report-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-start-log-confirm-modal hidden>
+        <div class="modal modal-chaos-start-log-confirm" role="dialog" aria-modal="true" aria-labelledby="chaos-start-log-confirm-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-start-log-confirm-title">Verbose Logging Is Enabled</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" class="modal-close" data-chaos-start-log-confirm-cancel>Cancel</button>
+                </div>
+            </div>
+            <div class="stack">
+                <p class="subtle chaos-start-log-confirm-help">Verbose logging can slow Chaos runs and generate large log files.</p>
+                <p class="chaos-start-log-confirm-message" data-chaos-start-log-confirm-message>Continue with logging enabled, or disable logging and then start Chaos mode?</p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-start-log-confirm-disable>Disable Logging + Start Chaos</button>
+                <button type="button" data-chaos-start-log-confirm-continue>Start Chaos with Logging Enabled</button>
+                <button type="button" data-chaos-start-log-confirm-cancel>Cancel</button>
             </div>
         </div>
     </div>
@@ -499,7 +609,12 @@
                 <h3 id="settings-modal-title">Settings</h3>
                 <div class="settings-modal-actions">
                     <button type="button" data-settings-refresh>Refresh</button>
-                    <button type="button" data-settings-maximize aria-pressed="false">Maximize</button>
+                    <button type="button" class="icon-button" data-settings-maximize aria-expanded="false" data-tippy-content="Maximize settings" aria-label="Maximize settings">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-settings-minimize aria-expanded="true" data-tippy-content="Restore settings size" aria-label="Restore settings size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
                     <button type="button" data-settings-close>Close</button>
                 </div>
             </div>

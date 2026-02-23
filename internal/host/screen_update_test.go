@@ -240,7 +240,7 @@ func TestScreenWidthTruncation(t *testing.T) {
 	}
 
 	// Now test with a wider buffer (simulating what happens when s3270 reports
-// dimensions exceeding model limits, e.g., due to -oversize option)
+	// dimensions exceeding model limits, e.g., due to -oversize option)
 	// Create status for model 2, but with buffer containing data beyond 80 columns
 	wideTokens := make([]string, 100)
 	for i := 0; i < 100; i++ {
@@ -280,12 +280,12 @@ func TestOversizeScreenTruncation(t *testing.T) {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	// Screen should be truncated to model 2 limits: 24 rows x 80 columns
-	// (status reports 30 rows, but we only have 1 row of data, so Height should be 1)
+	// Screen should preserve the model 2 viewport dimensions (24x80), even when
+	// only one row currently contains non-blank data.
 	if screen.Width != 80 {
 		t.Errorf("expected width to be truncated to 80 for model 2, got %d", screen.Width)
 	}
-	if screen.Height != 1 {
-		t.Errorf("expected height to be 1 (one data line), got %d", screen.Height)
+	if screen.Height != 24 {
+		t.Errorf("expected height to be 24 (model 2 viewport), got %d", screen.Height)
 	}
 }

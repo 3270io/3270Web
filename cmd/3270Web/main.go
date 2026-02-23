@@ -82,7 +82,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.2"
+var appVersion = "0.2.1"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -209,6 +209,7 @@ func main() {
 	r.POST("/chaos/remove", app.ChaosRemoveHandler)
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
+	r.POST("/chaos/report", app.ChaosReportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
 	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
@@ -1346,6 +1347,7 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_SEED"] = "0"
 	defaults["CHAOS_MAX_FIELD_LENGTH"] = "40"
 	defaults["CHAOS_OUTPUT_FILE"] = ""
+	defaults["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"] = "true"
 	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
 
 	settings := make(map[string]string)
@@ -1688,7 +1690,7 @@ func validateSettingValue(key, value string, specs map[string]config.S3270Option
 		return nil
 	}
 
-	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" || key == "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS" {
+	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" || key == "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS" || key == "CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS" {
 		if !isStrictBool(value) {
 			return fmt.Errorf("must be true or false")
 		}
@@ -1852,7 +1854,8 @@ func (app *App) LogsAccessHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"enabled": os.Getenv("ALLOW_LOG_ACCESS") == "true",
+		"enabled":        os.Getenv("ALLOW_LOG_ACCESS") == "true",
+		"verboseLogging": s.Prefs.VerboseLogging,
 	})
 }
 

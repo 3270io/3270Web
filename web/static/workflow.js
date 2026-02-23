@@ -148,6 +148,9 @@
   const activeRunRow = document.querySelector('[data-active-run-row]');
   const activeRunChip = document.querySelector('[data-active-run-chip]');
   const activeRunMeta = document.querySelector('[data-active-run-meta]');
+  const activeRunExtend = document.querySelector('[data-active-run-extend]');
+  const activeRunClose = document.querySelector('[data-active-run-close]');
+  const chaosExtendButton = document.querySelector('[data-chaos-extend]');
   const playbackDebugControls = document.querySelector('[data-playback-debug-controls]');
   const playbackPlayControls = document.querySelector('[data-playback-play-controls]');
   const playbackStatusText = document.querySelector('[data-playback-status-text]');
@@ -190,6 +193,7 @@
   let lastChaosActive = false;
   let lastPaused = body.dataset.playbackPaused === 'true';
   let lastPayload = null;
+  let dismissedActiveRunKey = '';
   const trackingEnabledKey = 'workflowStatusTrackingEnabled';
   let trackingEnabled = true;
 
@@ -359,6 +363,22 @@
 
   const joinParts = (parts) => parts.filter(Boolean).join(' · ');
 
+  const activeRunDismissKeyForPayload = (payload, mode) => {
+    if (!payload || !mode) {
+      return '';
+    }
+    if (mode === 'recording') {
+      return `recording:${payload.recordingStartedAt || ''}`;
+    }
+    if (mode === 'playback') {
+      return `playback:${payload.playbackStartedAt || ''}:${payload.playbackMode || ''}:${payload.playbackCompleted ? '1' : '0'}`;
+    }
+    if (mode === 'chaos') {
+      return `chaos:${payload.chaosLoadedRunID || ''}:${payload.chaosStartedAt || ''}:${payload.chaosStoppedAt || ''}`;
+    }
+    return mode;
+  };
+
   const updateActiveRunRow = (payload) => {
     if (!activeRunRow || !activeRunChip || !activeRunMeta || !payload) {
       return;
@@ -439,14 +459,48 @@
     }
 
     if (!mode || !metadata) {
+      dismissedActiveRunKey = '';
+      if (activeRunRow) {
+        delete activeRunRow.dataset.dismissKey;
+      }
+      setHidden(activeRunExtend, true);
+      setHidden(activeRunClose, true);
       setHidden(activeRunRow, true);
       setHidden(activeRunContainer, true);
       return;
     }
 
+    const dismissKey = activeRunDismissKeyForPayload(payload, mode);
+    if (activeRunRow) {
+      activeRunRow.dataset.dismissKey = dismissKey;
+    }
+    if (dismissedActiveRunKey && dismissKey && dismissedActiveRunKey === dismissKey) {
+      setHidden(activeRunExtend, true);
+      setHidden(activeRunClose, true);
+      setHidden(activeRunRow, true);
+      setHidden(activeRunContainer, true);
+      return;
+    }
+    if (dismissedActiveRunKey && dismissKey && dismissedActiveRunKey !== dismissKey) {
+      dismissedActiveRunKey = '';
+    }
+
+    const canExtendChaosFromRow =
+      mode === 'chaos' &&
+      !chaosActive &&
+      !!payload.chaosLoadedRunID &&
+      !!activeRunExtend &&
+      !!chaosExtendButton &&
+      !chaosExtendButton.hidden;
+    const showCloseButton = !recordingActive && !playbackActive && !chaosActive && !!dismissKey;
     const displayText = truncateText(metadata, compactMetaMaxChars);
     setHidden(activeRunContainer, false);
     setHidden(activeRunRow, false);
+    setHidden(activeRunExtend, !canExtendChaosFromRow);
+    if (activeRunExtend && chaosExtendButton) {
+      activeRunExtend.disabled = !!chaosExtendButton.disabled;
+    }
+    setHidden(activeRunClose, !showCloseButton);
     activeRunChip.dataset.runMode = mode;
     activeRunChip.textContent = chip;
     activeRunMeta.textContent = displayText;
@@ -791,6 +845,39 @@
       }
     });
   });
+
+  if (activeRunClose) {
+    activeRunClose.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissedActiveRunKey = (activeRunRow && activeRunRow.dataset.dismissKey) || 'manual';
+      setHidden(activeRunExtend, true);
+      setHidden(activeRunClose, true);
+      setHidden(activeRunRow, true);
+      setHidden(activeRunContainer, true);
+    });
+    activeRunClose.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.stopPropagation();
+      }
+    });
+  }
+
+  if (activeRunExtend) {
+    activeRunExtend.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!chaosExtendButton || chaosExtendButton.hidden || chaosExtendButton.disabled) {
+        return;
+      }
+      chaosExtendButton.click();
+    });
+    activeRunExtend.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.stopPropagation();
+      }
+    });
+  }
 
   if (statusWidgetToggle) {
     statusWidgetToggle.addEventListener('click', () => {

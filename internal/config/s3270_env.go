@@ -606,6 +606,8 @@ func buildDotEnvContent() string {
 	buf.WriteString("CHAOS_SEED=0\n")
 	buf.WriteString("CHAOS_MAX_FIELD_LENGTH=40\n")
 	buf.WriteString("CHAOS_OUTPUT_FILE=\n")
+	buf.WriteString("# Overwrite prefilled input values more aggressively during chaos runs.\n")
+	buf.WriteString("CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS=true\n")
 	buf.WriteString("# Exclude no-progress chaos events (no screen transition) from chaos event history.\n")
 	buf.WriteString("CHAOS_EXCLUDE_NO_PROGRESS_EVENTS=true\n")
 	return buf.String()
