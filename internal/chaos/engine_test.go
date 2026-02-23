@@ -1373,6 +1373,33 @@ func TestMindMapRecordAttempt_TracksSingleVsMultiFieldProgressions(t *testing.T)
 	}
 }
 
+func TestMindMapRecordAttempt_UsesFieldsTargetedForStrategyLearning(t *testing.T) {
+	m := newMindMap()
+	m.recordAttempt(Attempt{
+		FromHash:       "screen-a",
+		ToHash:         "screen-b",
+		AIDKey:         "Enter",
+		Transitioned:   true,
+		Time:           time.Now(),
+		FieldWrites:    []AttemptFieldWrite{{Row: 1, Column: 1, Length: 4, Value: "ABCD", Success: true}},
+		FieldsTargeted: 3,
+	})
+
+	area := m.Areas["screen-a"]
+	if area == nil {
+		t.Fatal("expected area to be created")
+	}
+	if area.FieldCountProgressions[3] != 1 {
+		t.Fatalf("expected progression to be tracked for targeted count 3, got %v", area.FieldCountProgressions)
+	}
+	if area.FieldCountProgressions[1] != 0 {
+		t.Fatalf("did not expect progression to be tracked as single-field, got %v", area.FieldCountProgressions)
+	}
+	if area.KeyPresses["Enter"] == nil || area.KeyPresses["Enter"].MultiFieldProgressions != 1 {
+		t.Fatalf("expected Enter multi-field progression tracking, got %+v", area.KeyPresses["Enter"])
+	}
+}
+
 func TestEngineStatusFiltersNoProgressAttemptsByDefault(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {
@@ -1692,6 +1719,46 @@ func TestGenerateValueForFieldWith_PrefersKnownValues(t *testing.T) {
 	}
 }
 
+func TestGenerateValueForFieldWith_PrefersRicherKnownPools(t *testing.T) {
+	s := &host.Screen{Width: 80, Height: 24}
+	f := host.NewField(s, 0x00, 0, 0, 7, 0, 0, 0) // col 0-7, length 8
+
+	cfg := DefaultConfig()
+	cfg.MaxFieldLength = 10
+	one := New(nil, cfg)
+	rich := New(nil, cfg)
+	one.rng = rand.New(rand.NewSource(41))  //nolint:gosec
+	rich.rng = rand.New(rand.NewSource(41)) //nolint:gosec
+
+	key := mindMapFieldKey(1, 1, 8)
+	singlePool := map[string][]string{key: {"SIGNON1"}}
+	richPool := map[string][]string{key: {"SIGNON1", "SIGNON2", "SIGNON3", "SIGNON4", "SIGNON5"}}
+	richSet := map[string]struct{}{
+		"SIGNON1": {},
+		"SIGNON2": {},
+		"SIGNON3": {},
+		"SIGNON4": {},
+		"SIGNON5": {},
+	}
+
+	const tries = 400
+	singleHits := 0
+	richHits := 0
+	for i := 0; i < tries; i++ {
+		if v := one.generateValueForFieldWith(f, false, singlePool, nil, nil); v == "SIGNON1" {
+			singleHits++
+		}
+		if v := rich.generateValueForFieldWith(f, false, richPool, nil, nil); v != "" {
+			if _, ok := richSet[v]; ok {
+				richHits++
+			}
+		}
+	}
+	if richHits <= singleHits {
+		t.Fatalf("expected richer known pool reuse to exceed single-value pool reuse, single=%d rich=%d", singleHits, richHits)
+	}
+}
+
 // TestSnapshotAreaValuesLocked verifies that snapshotAreaValuesLocked returns
 // a deep copy of the known working values for a given screen hash.
 func TestSnapshotAreaValuesLocked(t *testing.T) {
@@ -1769,6 +1836,27 @@ func TestSnapshotKeyBoostsLocked_PrefersKeyForCurrentFieldStrategy(t *testing.T)
 	}
 	if singleBoosts["Enter"] <= singleBoosts["PF(8)"] {
 		t.Fatalf("expected Enter to be preferred for single-field attempts, boosts=%v", singleBoosts)
+	}
+}
+
+func TestSnapshotKeyBoostsLocked_PrefersHigherStrategyConversionRate(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("hash-rate")
+	area.KeyPresses["Enter"] = &MindMapKeyPress{
+		Presses:                 20,
+		Progressions:            2,
+		SingleFieldProgressions: 2,
+	}
+	area.KeyPresses["PF(8)"] = &MindMapKeyPress{
+		Presses:                 2,
+		Progressions:            2,
+		SingleFieldProgressions: 2,
+	}
+
+	boosts := e.snapshotKeyBoostsLocked("hash-rate", 1)
+	if boosts["PF(8)"] <= boosts["Enter"] {
+		t.Fatalf("expected PF(8) to be preferred with higher single-field conversion rate, boosts=%v", boosts)
 	}
 }
 

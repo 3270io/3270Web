@@ -1021,8 +1021,16 @@ func (e *Engine) snapshotKeyBoostsLocked(hash string, targetFieldCount int) map[
 			boosts[key] += progressions * 10
 			if targetFieldCount == 1 {
 				boosts[key] += kp.SingleFieldProgressions * 4
+				if kp.SingleFieldProgressions > 0 && kp.Presses > 0 {
+					// Reward keys that convert single-field attempts reliably.
+					boosts[key] += (kp.SingleFieldProgressions * 20) / kp.Presses
+				}
 			} else if targetFieldCount > 1 {
 				boosts[key] += kp.MultiFieldProgressions * 4
+				if kp.MultiFieldProgressions > 0 && kp.Presses > 0 {
+					// Reward keys that convert multi-field attempts reliably.
+					boosts[key] += (kp.MultiFieldProgressions * 20) / kp.Presses
+				}
 			}
 		} else if kp.Presses >= minPressesForPenalty {
 			// Penalise keys pressed many times without causing any transition.
@@ -1751,7 +1759,14 @@ func (e *Engine) generateValueForFieldWithPolicy(
 			if values, ok := knownValues[key]; ok && len(values) > 0 {
 				// Use a known working value 80 % of the time so that the engine
 				// still occasionally explores new inputs rather than repeating.
-				if e.rng.Intn(100) < 80 {
+				chance := 80
+				if extra := len(values) - 1; extra > 0 {
+					chance += extra * 3
+					if chance > 95 {
+						chance = 95
+					}
+				}
+				if e.rng.Intn(100) < chance {
 					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
 						return v
 					}
@@ -1770,7 +1785,14 @@ func (e *Engine) generateValueForFieldWithPolicy(
 			key := mindMapFieldKey(row, col, length)
 			if values, ok := triedValues[key]; ok && len(values) > 0 {
 				// Lower probability than known-working values to preserve breadth.
-				if e.rng.Intn(100) < 35 {
+				chance := 35
+				if extra := len(values) - 1; extra > 0 {
+					chance += extra * 2
+					if chance > 60 {
+						chance = 60
+					}
+				}
+				if e.rng.Intn(100) < chance {
 					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
 						return v
 					}
