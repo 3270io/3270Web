@@ -237,13 +237,17 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 			successfulWrites++
 		}
 	}
+	learningFieldCount := successfulWrites
+	if attempt.FieldsTargeted > 0 {
+		learningFieldCount = attempt.FieldsTargeted
+	}
 
 	toHash := strings.TrimSpace(attempt.ToHash)
 	if attempt.Transitioned && toHash != "" {
 		keyPress.Progressions++
-		if successfulWrites == 1 {
+		if successfulWrites > 0 && learningFieldCount == 1 {
 			keyPress.SingleFieldProgressions++
-		} else if successfulWrites > 1 {
+		} else if successfulWrites > 0 && learningFieldCount > 1 {
 			keyPress.MultiFieldProgressions++
 		}
 		if keyPress.Destinations == nil {
@@ -267,9 +271,9 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	if area.FieldCountProgressions == nil {
 		area.FieldCountProgressions = make(map[int]int)
 	}
-	if attempt.Transitioned && successfulWrites > 0 {
-		area.FieldCountProgressions[successfulWrites]++
-		if successfulWrites == 1 {
+	if attempt.Transitioned && successfulWrites > 0 && learningFieldCount > 0 {
+		area.FieldCountProgressions[learningFieldCount]++
+		if learningFieldCount == 1 {
 			area.SingleFieldProgressions++
 		} else {
 			area.MultiFieldProgressions++
