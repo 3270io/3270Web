@@ -189,6 +189,7 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 	}
 	sb.WriteString(`" class="`)
 	sb.WriteString(class)
+	r.writeFieldColorAndHighlightClasses(sb, f)
 	sb.WriteString(`" value="`)
 	r.writeEscaped(sb, val)
 	sb.WriteString(`" maxlength="`)
@@ -298,6 +299,50 @@ func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Fie
 			if !first {
 				sb.WriteString(" ")
 			}
+			sb.WriteString(h)
+		}
+	}
+}
+
+func (r *HtmlRenderer) writeFieldColorAndHighlightClasses(sb *strings.Builder, f *host.Field) {
+	if f == nil {
+		return
+	}
+	if f.Color != host.AttrColDefault {
+		c := ""
+		switch f.Color {
+		case host.AttrColBlue:
+			c = "color-blue"
+		case host.AttrColRed:
+			c = "color-red"
+		case host.AttrColPink:
+			c = "color-pink"
+		case host.AttrColGreen:
+			c = "color-green"
+		case host.AttrColTurquoise:
+			c = "color-turquoise"
+		case host.AttrColYellow:
+			c = "color-yellow"
+		case host.AttrColWhite:
+			c = "color-white"
+		}
+		if c != "" {
+			sb.WriteString(" ")
+			sb.WriteString(c)
+		}
+	}
+	if f.ExtendedHighlight != host.AttrEhDefault {
+		h := ""
+		switch f.ExtendedHighlight {
+		case host.AttrEhBlink:
+			h = "highlight-blink"
+		case host.AttrEhRevVideo:
+			h = "highlight-rev-video"
+		case host.AttrEhUnderscore:
+			h = "highlight-underscore"
+		}
+		if h != "" {
+			sb.WriteString(" ")
 			sb.WriteString(h)
 		}
 	}

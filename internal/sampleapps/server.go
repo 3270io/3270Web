@@ -71,6 +71,8 @@ func handlerFor(appID string) handler {
 		return handleApp1
 	case "app2":
 		return handleApp2
+	case "app3":
+		return handleApp3
 	default:
 		return nil
 	}

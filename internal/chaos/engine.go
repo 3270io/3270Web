@@ -1430,48 +1430,33 @@ func normalizeChaosKeyName(key string) string {
 		return ""
 	}
 
-	upper := strings.ToUpper(trimmed)
-	lower := strings.ToLower(trimmed)
+	compacted := strings.NewReplacer(" ", "", "_", "", "-", "", "(", "", ")", "").Replace(trimmed)
+	compactedUpper := strings.ToUpper(compacted)
+	compactedLower := strings.ToLower(compacted)
 
-	// Accept workflow-style key aliases (e.g. PressPF3, PressEnter) by
-	// normalizing the suffix through the same alias logic used for raw keys.
-	if len(trimmed) > 5 && strings.EqualFold(trimmed[:5], "Press") {
-		if normalized := normalizeChaosKeyName(trimmed[5:]); normalized != "" {
-			return normalized
-		}
+	// Accept workflow-style aliases (e.g. PressPF3, Press Enter, Press_Back_Tab).
+	if strings.HasPrefix(compactedUpper, "PRESS") && len(compactedUpper) > len("PRESS") {
+		compactedUpper = strings.TrimPrefix(compactedUpper, "PRESS")
+		compactedLower = strings.TrimPrefix(compactedLower, "press")
 	}
 
-	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
-		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
-			return fmt.Sprintf("PF(%d)", n)
-		}
-		return ""
-	}
-	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
-		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 3 {
-			return fmt.Sprintf("PA(%d)", n)
-		}
-		return ""
-	}
-	if strings.HasPrefix(upper, "PF") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil && n >= 1 && n <= 24 {
+	if strings.HasPrefix(compactedUpper, "PF") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "PF")); err == nil && n >= 1 && n <= 24 {
 			return fmt.Sprintf("PF(%d)", n)
 		}
 	}
-	if strings.HasPrefix(upper, "PA") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil && n >= 1 && n <= 3 {
+	if strings.HasPrefix(compactedUpper, "PA") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "PA")); err == nil && n >= 1 && n <= 3 {
 			return fmt.Sprintf("PA(%d)", n)
 		}
 	}
-	if strings.HasPrefix(upper, "F") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "F")); err == nil && n >= 1 && n <= 24 {
+	if strings.HasPrefix(compactedUpper, "F") {
+		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "F")); err == nil && n >= 1 && n <= 24 {
 			return fmt.Sprintf("PF(%d)", n)
 		}
 	}
-	switch lower {
-	case "enter":
+	switch compactedLower {
+	case "enter", "return":
 		return "Enter"
 	case "tab":
 		return "Tab"
@@ -1481,19 +1466,19 @@ func normalizeChaosKeyName(key string) string {
 		return "Clear"
 	case "reset":
 		return "Reset"
-	case "eraseeof", "erase_eof":
+	case "eraseeof":
 		return "EraseEOF"
-	case "eraseinput", "erase_input":
+	case "eraseinput":
 		return "EraseInput"
 	case "dup":
 		return "Dup"
-	case "fieldmark", "field_mark":
+	case "fieldmark":
 		return "FieldMark"
-	case "sysreq", "sys_req":
+	case "sysreq":
 		return "SysReq"
 	case "attn":
 		return "Attn"
-	case "newline", "new_line":
+	case "newline":
 		return "Newline"
 	case "backspace":
 		return "BackSpace"

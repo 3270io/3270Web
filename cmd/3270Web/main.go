@@ -76,6 +76,7 @@ const sampleAppPrefix = "sampleapp:"
 var sampleAppConfigs = []SampleAppConfig{
 	{ID: "app1", Name: "Sample App 1 - Name Entry & Validation"},
 	{ID: "app2", Name: "Sample App 2 - RSS Newsreader"},
+	{ID: "app3", Name: "Sample App 3 - BMS Field Attribute Test Matrix"},
 }
 
 const defaultSampleAppPort = 3270

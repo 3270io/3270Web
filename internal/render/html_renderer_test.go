@@ -258,3 +258,26 @@ func TestWriteEscaped(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderInputFieldAddsColorAndHighlightClasses(t *testing.T) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+	}
+
+	f := host.NewField(screen, 0x00, 10, 5, 20, 5, host.AttrColBlue, host.AttrEhUnderscore)
+	f.SetValue("Hello")
+	screen.Fields = []*host.Field{f}
+
+	r := NewHtmlRenderer()
+	out := r.Render(screen, "/submit", "")
+
+	if !strings.Contains(out, `class="color-input color-blue highlight-underscore"`) {
+		t.Fatalf("expected input field classes with color/highlight, got output: %s", out)
+	}
+}

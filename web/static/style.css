@@ -58,6 +58,13 @@ body.bg-paused .bg-overlay canvas {
   --fg-muted: #8bdc79;
   --accent: #39ff14;
   --accent-2: #7cff3b;
+  --term-color-blue: #0000ff;
+  --term-color-red: #ff0000;
+  --term-color-pink: #ff77ff;
+  --term-color-green: #00ff00;
+  --term-color-turquoise: #00ffff;
+  --term-color-yellow: #ffff00;
+  --term-color-white: #ffffff;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
   --error-bg: rgba(255, 120, 120, 0.15);
@@ -151,6 +158,13 @@ body.theme-light {
   --fg-muted: #72604a;
   --accent: #0f6d8f;
   --accent-2: #b6621f;
+  --term-color-blue: #1f4aa8;
+  --term-color-red: #a32626;
+  --term-color-pink: #a63a8a;
+  --term-color-green: #1f7d2b;
+  --term-color-turquoise: #0f7f8f;
+  --term-color-yellow: #7a5a00;
+  --term-color-white: #3a3126;
   --bg-overlay-opacity: 0.14;
 }
 
@@ -302,6 +316,13 @@ body.theme-not3270 {
   --fg-muted: #72604a;
   --accent: #0f6d8f;
   --accent-2: #b6621f;
+  --term-color-blue: #1f4aa8;
+  --term-color-red: #a32626;
+  --term-color-pink: #a63a8a;
+  --term-color-green: #1f7d2b;
+  --term-color-turquoise: #0f7f8f;
+  --term-color-yellow: #7a5a00;
+  --term-color-white: #3a3126;
   --bg-overlay-opacity: 0.14;
 }
 
@@ -1186,31 +1207,31 @@ pre, pre input, textarea {
 }
 
 .color-blue {
-  color: #0000ff;
+  color: var(--term-color-blue);
 }
 
 .color-red {
-  color: #ff0000;
+  color: var(--term-color-red);
 }
 
 .color-pink {
-  color: #ff77ff;
+  color: var(--term-color-pink);
 }
 
 .color-green {
-  color: #00ff00;
+  color: var(--term-color-green);
 }
 
 .color-turquoise {
-  color: #00ffff;
+  color: var(--term-color-turquoise);
 }
 
 .color-yellow {
-  color: #ffff00;
+  color: var(--term-color-yellow);
 }
 
 .color-white {
-  color: #ffffff;
+  color: var(--term-color-white);
 }
 
 .highlight-rev-video {
@@ -1222,6 +1243,19 @@ pre, pre input, textarea {
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
+  text-decoration-color: currentColor;
+  text-decoration-skip-ink: none;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+
+.h3270-input.highlight-underscore,
+.h3270-input-intensified.highlight-underscore,
+.color-input.highlight-underscore,
+.color-input-intensified.highlight-underscore,
+.h3270-input-hidden.highlight-underscore,
+.color-input-hidden.highlight-underscore {
+  border-bottom-color: currentColor;
+  border-bottom-width: 2px;
 }
 
 .highlight-blink {

@@ -419,12 +419,17 @@ func TestNormalizeChaosKeyName_WorkflowPressAliases(t *testing.T) {
 		want string
 	}{
 		{"PressEnter", "Enter"},
+		{"Press Enter", "Enter"},
+		{"return", "Enter"},
 		{"PressTab", "Tab"},
 		{"PressBackTab", "BackTab"},
+		{"Press Back Tab", "BackTab"},
+		{"back_tab", "BackTab"},
 		{"PressClear", "Clear"},
 		{"PressReset", "Reset"},
 		{"PressEraseEOF", "EraseEOF"},
 		{"PressErase_EOF", "EraseEOF"},
+		{"erase-eof", "EraseEOF"},
 		{"PressEraseInput", "EraseInput"},
 		{"PressErase_Input", "EraseInput"},
 		{"PressDup", "Dup"},
@@ -444,8 +449,15 @@ func TestNormalizeChaosKeyName_WorkflowPressAliases(t *testing.T) {
 		{"PressLeft", "Left"},
 		{"PressRight", "Right"},
 		{"PressPF3", "PF(3)"},
+		{"Press PF3", "PF(3)"},
+		{"Press PF(3)", "PF(3)"},
 		{"PressPF24", "PF(24)"},
+		{"PF 3", "PF(3)"},
+		{"PF-3", "PF(3)"},
+		{"PF_3", "PF(3)"},
+		{"F 3", "PF(3)"},
 		{"PressPA1", "PA(1)"},
+		{"PA 1", "PA(1)"},
 		{"presspf3", "PF(3)"},
 	}
 	for _, tc := range cases {

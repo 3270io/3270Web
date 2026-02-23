@@ -3367,20 +3367,82 @@
         const rowGap = spacious ? (nodesHavePreview ? 112 : 84) : 56;
         const colKeys = Array.from(columns.keys()).sort((a, b) => a - b);
         const maxRows = colKeys.reduce((max, key) => Math.max(max, (columns.get(key) || []).length), 1);
-        const width = (colKeys.length * nodeW) + ((Math.max(0, colKeys.length - 1)) * colGap) + (padX * 2);
-        const height = (maxRows * nodeH) + ((Math.max(0, maxRows - 1)) * rowGap) + (padY * 2);
-
-        colKeys.forEach((col, colIndex) => {
-            const colNodes = columns.get(col) || [];
+        const colHeights = new Map(colKeys.map((key) => {
+            const colNodes = columns.get(key) || [];
             const colHeight = (colNodes.length * nodeH) + (Math.max(0, colNodes.length - 1) * rowGap);
-            const startY = padY + Math.max(0, (height - (padY * 2) - colHeight) / 2);
-            colNodes.forEach((node, rowIndex) => {
-                const n = nodeByHash.get(node.hash);
-                n.x = padX + (colIndex * (nodeW + colGap));
-                n.y = startY + (rowIndex * (nodeH + rowGap));
-                n.w = nodeW;
-                n.h = nodeH;
+            return [key, colHeight];
+        }));
+        const colBandGapY = spacious ? (nodesHavePreview ? 180 : 140) : rowGap;
+
+        let width = (colKeys.length * nodeW) + ((Math.max(0, colKeys.length - 1)) * colGap) + (padX * 2);
+        let height = (maxRows * nodeH) + ((Math.max(0, maxRows - 1)) * rowGap) + (padY * 2);
+
+        let placementBands = [{ keys: colKeys.slice() }];
+        if (spacious && colKeys.length >= 5) {
+            const targetAspect = 1.9;
+            const maxBandRows = Math.min(4, colKeys.length);
+            let best = null;
+            for (let bandRows = 1; bandRows <= maxBandRows; bandRows += 1) {
+                const colsPerBand = Math.ceil(colKeys.length / bandRows);
+                const bands = [];
+                for (let i = 0; i < bandRows; i += 1) {
+                    const start = i * colsPerBand;
+                    const keys = colKeys.slice(start, start + colsPerBand);
+                    if (!keys.length) {
+                        continue;
+                    }
+                    bands.push({ keys });
+                }
+                if (!bands.length) {
+                    continue;
+                }
+                const bandHeights = bands.map((band) => band.keys.reduce((m, key) => Math.max(m, colHeights.get(key) || nodeH), nodeH));
+                const testWidth = (colsPerBand * nodeW) + (Math.max(0, colsPerBand - 1) * colGap) + (padX * 2);
+                const testHeight = (bandHeights.reduce((sum, v) => sum + v, 0))
+                    + (Math.max(0, bands.length - 1) * colBandGapY)
+                    + (padY * 2);
+                const aspect = testWidth / Math.max(1, testHeight);
+                const score = Math.abs(aspect - targetAspect) + (bandRows > 1 ? 0.08 * (bandRows - 1) : 0);
+                if (!best || score < best.score) {
+                    best = {
+                        score,
+                        bands,
+                        colsPerBand,
+                        bandHeights,
+                        width: testWidth,
+                        height: testHeight,
+                    };
+                }
+            }
+            if (best && best.bands.length > 1) {
+                placementBands = best.bands;
+                width = best.width;
+                height = best.height;
+            }
+        }
+
+        let bandY = padY;
+        placementBands.forEach((band) => {
+            const bandKeys = Array.isArray(band.keys) ? band.keys : [];
+            if (!bandKeys.length) {
+                return;
+            }
+            const bandHeight = bandKeys.reduce((m, key) => Math.max(m, colHeights.get(key) || nodeH), nodeH);
+            const bandWidth = (bandKeys.length * nodeW) + (Math.max(0, bandKeys.length - 1) * colGap);
+            const bandStartX = padX + Math.max(0, ((width - (padX * 2)) - bandWidth) / 2);
+            bandKeys.forEach((col, colIndex) => {
+                const colNodes = columns.get(col) || [];
+                const colHeight = colHeights.get(col) || nodeH;
+                const startY = bandY + Math.max(0, (bandHeight - colHeight) / 2);
+                colNodes.forEach((node, rowIndex) => {
+                    const n = nodeByHash.get(node.hash);
+                    n.x = bandStartX + (colIndex * (nodeW + colGap));
+                    n.y = startY + (rowIndex * (nodeH + rowGap));
+                    n.w = nodeW;
+                    n.h = nodeH;
+                });
             });
+            bandY += bandHeight + colBandGapY;
         });
 
         const laidOutEdges = edges
