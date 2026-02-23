@@ -110,6 +110,47 @@ func TestHashScreen(t *testing.T) {
 	}
 }
 
+func TestHashScreen_IgnoresUnprotectedFieldContents(t *testing.T) {
+	s := buildMockScreen()
+	if len(s.Fields) < 2 || s.Fields[1] == nil || s.Fields[1].IsProtected() {
+		t.Fatal("buildMockScreen should provide an unprotected input field")
+	}
+
+	// Input field in buildMockScreen is row 2, col 10..19.
+	copy(s.Buffer[2][10:], []rune("ALICE     "))
+	h1 := hashScreen(s)
+	if h1 == "" {
+		t.Fatal("hashScreen returned empty hash")
+	}
+
+	copy(s.Buffer[2][10:], []rune("BOB       "))
+	h2 := hashScreen(s)
+	if h2 == "" {
+		t.Fatal("hashScreen returned empty hash after input change")
+	}
+	if h1 != h2 {
+		t.Fatalf("hashScreen changed for unprotected field content edit: %q != %q", h1, h2)
+	}
+}
+
+func TestHashScreen_ProtectedTextStillAffectsHash(t *testing.T) {
+	s := buildMockScreen()
+	copy(s.Buffer[0][0:], []rune("STATIC LABEL"))
+	h1 := hashScreen(s)
+	if h1 == "" {
+		t.Fatal("hashScreen returned empty hash")
+	}
+
+	copy(s.Buffer[0][0:], []rune("CHANGEDLBL "))
+	h2 := hashScreen(s)
+	if h2 == "" {
+		t.Fatal("hashScreen returned empty hash after protected text change")
+	}
+	if h1 == h2 {
+		t.Fatalf("hashScreen should change when protected text changes; both=%q", h1)
+	}
+}
+
 func TestUnprotectedFields(t *testing.T) {
 	s := buildMockScreen()
 	fields := unprotectedFields(s)
@@ -551,6 +592,96 @@ func TestGenerateValueForField_UsesHints(t *testing.T) {
 	}
 }
 
+func TestEngineFirstScreenHintKey_UsesHintOnFirstAttempt(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Screen = buildMockScreen()
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 1
+	cfg.StepDelay = 0
+	cfg.Seed = 20260223
+	cfg.ExcludeNoProgressEvents = false
+	cfg.ScreenHints = map[string]ScreenHint{
+		FirstScreenHintKey: {
+			KnownData: []string{"CEMT"},
+		},
+	}
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.LastAttempt == nil {
+		t.Fatal("expected LastAttempt to be populated")
+	}
+	if len(st.LastAttempt.FieldWrites) == 0 {
+		t.Fatalf("expected a field write on first attempt, got %#v", st.LastAttempt)
+	}
+	got := strings.TrimSpace(st.LastAttempt.FieldWrites[0].Value)
+	if got != "CEMT" {
+		t.Fatalf("first attempt wrote %q, want first-screen hint value %q", got, "CEMT")
+	}
+}
+
+func TestEngineFirstScreenHintKey_PreservesSamePrefilledHintValue(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := buildMockScreen()
+	if len(s.Fields) < 2 {
+		t.Fatal("buildMockScreen should include an input field")
+	}
+	s.Fields[1].SetValue("CEMT      ")
+	h.Screen = s
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 1
+	cfg.StepDelay = 0
+	cfg.Seed = 9
+	cfg.ExcludeNoProgressEvents = false
+	cfg.ScreenHints = map[string]ScreenHint{
+		FirstScreenHintKey: {
+			KnownData: []string{"CEMT"},
+		},
+	}
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.LastAttempt == nil || len(st.LastAttempt.FieldWrites) == 0 {
+		t.Fatalf("expected field write attempt, got %#v", st.LastAttempt)
+	}
+	got := strings.TrimSpace(st.LastAttempt.FieldWrites[0].Value)
+	if got != "CEMT" {
+		t.Fatalf("first attempt rewrote hinted prefilled value as %q, want %q", got, "CEMT")
+	}
+}
+
 func TestFitHintValueForField_NumericFilter(t *testing.T) {
 	got := fitHintValueForField("AB12CD34", 6, true)
 	if got != "1234" {
@@ -796,7 +927,7 @@ func TestEngineStatusIncludesMindMap(t *testing.T) {
 		t.Fatal("expected at least one area in mind map")
 	}
 	foundKeyPress := false
-	foundKnownValue := false
+	foundFieldLearning := false
 	for _, area := range st.MindMap.Areas {
 		if area == nil {
 			continue
@@ -804,9 +935,12 @@ func TestEngineStatusIncludesMindMap(t *testing.T) {
 		if len(area.KeyPresses) > 0 {
 			foundKeyPress = true
 		}
+		if len(area.KnownTriedValues) > 0 || len(area.FieldDiscovery) > 0 {
+			foundFieldLearning = true
+		}
 		for _, values := range area.KnownWorkingValues {
 			if len(values) > 0 {
-				foundKnownValue = true
+				foundFieldLearning = true
 				break
 			}
 		}
@@ -814,8 +948,8 @@ func TestEngineStatusIncludesMindMap(t *testing.T) {
 	if !foundKeyPress {
 		t.Error("mind map should include key press metadata")
 	}
-	if !foundKnownValue {
-		t.Error("mind map should include known working values")
+	if !foundFieldLearning {
+		t.Error("mind map should include field discovery or learned values")
 	}
 }
 

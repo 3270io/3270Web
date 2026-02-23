@@ -1518,6 +1518,9 @@
     const hintsMinimizeBtn = document.querySelector('[data-chaos-hints-minimize]');
     const hintsList = document.querySelector('[data-chaos-hints-list]');
     const hintsKeyBlacklistInput = document.querySelector('[data-chaos-key-blacklist]');
+    const firstScreenKnownDataInput = document.querySelector('[data-chaos-first-screen-known-data]');
+    const firstScreenKnownKeysInput = document.querySelector('[data-chaos-first-screen-known-keys]');
+    const firstScreenKeyAssignmentsInput = document.querySelector('[data-chaos-first-screen-key-assignments]');
     const hintsAddBtn = document.querySelector('[data-chaos-hints-add]');
     const hintsLoadRecordingBtn = document.querySelector('[data-chaos-hints-load-recording]');
     const hintsRecordingInput = document.querySelector('[data-chaos-hints-recording-input]');
@@ -1571,6 +1574,7 @@
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
     let chaosHints = [];
     let chaosKeyBlacklist = [];
+    let chaosFirstScreenHint = { knownData: [], knownKeys: [], keyAssignments: {} };
     let hintsDirty = false;
     let hintsModalMaximized = false;
     let mapModalMaximized = false;
@@ -2062,6 +2066,27 @@
         hintsKeyBlacklistInput.value = formatListLines(keys);
     };
 
+    const collectFirstScreenHintFromUI = () => {
+        return normalizeScreenHint({
+            knownData: firstScreenKnownDataInput ? firstScreenKnownDataInput.value : '',
+            knownKeys: firstScreenKnownKeysInput ? firstScreenKnownKeysInput.value : '',
+            keyAssignments: parseKeyAssignments(firstScreenKeyAssignmentsInput ? firstScreenKeyAssignmentsInput.value : ''),
+        });
+    };
+
+    const renderFirstScreenHint = (hint) => {
+        const normalized = normalizeScreenHint(hint || {});
+        if (firstScreenKnownDataInput) {
+            firstScreenKnownDataInput.value = formatListLines(normalized.knownData);
+        }
+        if (firstScreenKnownKeysInput) {
+            firstScreenKnownKeysInput.value = formatListLines(normalized.knownKeys);
+        }
+        if (firstScreenKeyAssignmentsInput) {
+            firstScreenKeyAssignmentsInput.value = formatKeyAssignments(normalized.keyAssignments || {});
+        }
+    };
+
     const parseKnownData = (value) => {
         if (!value) {
             return [];
@@ -2550,6 +2575,53 @@
         return `<div class="chaos-map-minimap">${inner}</div>`;
     };
 
+    const chaosMapFlowTemplatePreviewSignature = (area) => {
+        if (!area || typeof area !== 'object') {
+            return '';
+        }
+        const rawText = String(area.previewText || '');
+        if (!rawText) {
+            return '';
+        }
+        const width = Math.max(0, Number(area.previewWidth) || Number(area.screenWidth) || 0);
+        const height = Math.max(0, Number(area.previewHeight) || Number(area.screenHeight) || 0);
+        if (width <= 0 || height <= 0) {
+            return rawText.replace(/\r/g, '');
+        }
+
+        const lines = rawText.replace(/\r/g, '').split('\n');
+        const grid = Array.from({ length: height }, (_, y) =>
+            Array.from(String(lines[y] || '').padEnd(width, ' ').slice(0, width))
+        );
+        const fieldMeta = area.fieldMetadata && typeof area.fieldMetadata === 'object'
+            ? Object.values(area.fieldMetadata).filter((f) => f && typeof f === 'object')
+            : [];
+
+        fieldMeta.forEach((f) => {
+            let x = Math.max(1, Number(f.column) || 1) - 1;
+            let y = Math.max(1, Number(f.row) || 1) - 1;
+            let remaining = Math.max(1, Number(f.length) || 1);
+            while (remaining > 0) {
+                if (y < 0 || y >= height) {
+                    break;
+                }
+                if (x >= 0 && x < width) {
+                    grid[y][x] = ' ';
+                    remaining -= 1;
+                }
+                x += 1;
+                if (x >= width) {
+                    x = 0;
+                    y += 1;
+                }
+            }
+        });
+
+        return grid
+            .map((row) => row.join('').replace(/\s+$/g, ''))
+            .join('\n');
+    };
+
     const chaosMapFlowTemplateKey = (area) => {
         if (!area || typeof area !== 'object') {
             return '';
@@ -2559,6 +2631,11 @@
         const screenHeight = Number(area.screenHeight) || 0;
         const previewWidth = Number(area.previewWidth) || 0;
         const previewHeight = Number(area.previewHeight) || 0;
+        const fieldCount = Number(area.fieldCount) || 0;
+        const inputFieldCount = Number(area.inputFieldCount) || 0;
+        const numericFieldCount = Number(area.numericFieldCount) || 0;
+        const hiddenFieldCount = Number(area.hiddenFieldCount) || 0;
+        const previewSignature = chaosMapFlowTemplatePreviewSignature(area);
         const fieldMeta = area.fieldMetadata && typeof area.fieldMetadata === 'object'
             ? Object.values(area.fieldMetadata).filter((f) => f && typeof f === 'object')
             : [];
@@ -2566,6 +2643,7 @@
             .map((f) => ({
                 row: Math.max(0, Number(f.row) || 0),
                 col: Math.max(0, Number(f.column) || 0),
+                len: Math.max(0, Number(f.length) || 0),
                 num: !!f.numeric,
                 hid: !!f.hidden,
                 mul: !!f.multiLine,
@@ -2573,18 +2651,24 @@
             .sort((a, b) =>
                 a.row - b.row ||
                 a.col - b.col ||
+                a.len - b.len ||
                 Number(a.num) - Number(b.num) ||
                 Number(a.hid) - Number(b.hid) ||
                 Number(a.mul) - Number(b.mul)
             )
-            .map((f) => `${f.row},${f.col},${f.num ? 1 : 0},${f.hid ? 1 : 0},${f.mul ? 1 : 0}`);
+            .map((f) => `${f.row},${f.col},${f.len},${f.num ? 1 : 0},${f.hid ? 1 : 0},${f.mul ? 1 : 0}`);
         return [
             `l:${label}`,
             `sw:${screenWidth}`,
             `sh:${screenHeight}`,
             `pw:${previewWidth}`,
             `ph:${previewHeight}`,
+            `fc:${fieldCount}`,
+            `ifc:${inputFieldCount}`,
+            `nfc:${numericFieldCount}`,
+            `hfc:${hiddenFieldCount}`,
             `fm:${metaParts.join(';')}`,
+            `pv:${previewSignature}`,
         ].join('|');
     };
 
@@ -2718,6 +2802,7 @@
                 return;
             }
             const areaVisits = Number(area.visits) || 0;
+            const areaFirstSeenMs = Date.parse(area.firstSeen || '') || 0;
             const areaLastSeenMs = Date.parse(area.lastSeen || '') || 0;
             const templateKey = chaosMapFlowTemplateKey(area) || `hash:${rawHash}`;
             const templateId = chaosMapFlowTemplateId(templateKey);
@@ -2736,12 +2821,16 @@
                     sampleArea: area,
                     sampleVisits: areaVisits,
                     sampleLastSeenMs: areaLastSeenMs,
+                    firstSeenMs: areaFirstSeenMs,
                 };
                 groupedByTemplate.set(templateId, group);
             }
             group.visits += areaVisits;
             group.inputs = Math.max(group.inputs, Number(area.inputFieldCount) || 0);
             group.variants += 1;
+            if (areaFirstSeenMs > 0 && (!group.firstSeenMs || areaFirstSeenMs < group.firstSeenMs)) {
+                group.firstSeenMs = areaFirstSeenMs;
+            }
             if (!String(group.label || '').trim() && String(area.label || '').trim()) {
                 group.label = String(area.label || '').trim();
             }
@@ -2774,6 +2863,7 @@
                     keys: group.keysSet.size,
                     variants: group.variants,
                     sampleHash: group.sampleHash,
+                    firstSeenMs: Number(group.firstSeenMs) || 0,
                     previewText: typeof sampleArea.previewText === 'string' ? sampleArea.previewText : '',
                     previewWidth: Number(sampleArea.previewWidth) || 0,
                     previewHeight: Number(sampleArea.previewHeight) || 0,
@@ -2781,7 +2871,7 @@
                     screenHeight: Number(sampleArea.screenHeight) || 0,
                 };
             })
-            .sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash));
+            .sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
 
         const maxNodes = 28;
         const nodes = groupedNodes.slice(0, maxNodes);
@@ -2837,6 +2927,27 @@
                 };
             });
 
+        const incomingTransitionsByNode = new Map();
+        edges.forEach((edge) => {
+            if (!edge || !edge.toHash) {
+                return;
+            }
+            incomingTransitionsByNode.set(
+                edge.toHash,
+                (incomingTransitionsByNode.get(edge.toHash) || 0) + (Number(edge.count) || 0)
+            );
+        });
+        nodes.forEach((node) => {
+            if (!node || typeof node !== 'object') {
+                return;
+            }
+            node.incomingTransitions = incomingTransitionsByNode.get(node.hash) || 0;
+        });
+        nodes.sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
+        nodes.forEach((node, index) => {
+            node.discoveryOrder = index;
+        });
+
         return {
             nodes,
             edges,
@@ -2887,6 +2998,59 @@
     };
 
     const edgeKeyForFlow = (edge) => `${String(edge && edge.fromHash || '')}->${String(edge && edge.toHash || '')}`;
+
+    const compareChaosFlowTimestampAscUnknownLast = (aMs, bMs) => {
+        const a = Number(aMs) || 0;
+        const b = Number(bMs) || 0;
+        if (a > 0 && b > 0 && a !== b) {
+            return a - b;
+        }
+        if (a > 0 && b <= 0) {
+            return -1;
+        }
+        if (a <= 0 && b > 0) {
+            return 1;
+        }
+        return 0;
+    };
+
+    const compareChaosFlowNodesByDiscovery = (a, b) => {
+        const aOrder = Number(a && a.discoveryOrder);
+        const bOrder = Number(b && b.discoveryOrder);
+        const aHasOrder = Number.isFinite(aOrder) && aOrder >= 0;
+        const bHasOrder = Number.isFinite(bOrder) && bOrder >= 0;
+        if (aHasOrder && bHasOrder && aOrder !== bOrder) {
+            return aOrder - bOrder;
+        }
+        if (aHasOrder && !bHasOrder) {
+            return -1;
+        }
+        if (!aHasOrder && bHasOrder) {
+            return 1;
+        }
+
+        const firstSeenCmp = compareChaosFlowTimestampAscUnknownLast(
+            Number(a && a.firstSeenMs) || 0,
+            Number(b && b.firstSeenMs) || 0
+        );
+        if (firstSeenCmp !== 0) {
+            return firstSeenCmp;
+        }
+
+        const aIncoming = Number(a && a.incomingTransitions) || 0;
+        const bIncoming = Number(b && b.incomingTransitions) || 0;
+        if (aIncoming !== bIncoming) {
+            return aIncoming - bIncoming;
+        }
+
+        const aVisits = Number(a && a.visits) || 0;
+        const bVisits = Number(b && b.visits) || 0;
+        if (bVisits !== aVisits) {
+            return bVisits - aVisits;
+        }
+
+        return String(a && a.hash || '').localeCompare(String(b && b.hash || ''));
+    };
 
     const mergeChaosFlowPreviewVariants = (variants) => {
         const list = (Array.isArray(variants) ? variants : [])
@@ -3001,10 +3165,15 @@
         const visits = Number(node && node.visits) || 0;
         const inputs = Number(node && node.inputs) || 0;
         const variants = Number(node && node.variants) || 0;
+        const discoveryOrder = Number(node && node.discoveryOrder);
+        const discoveryIndex = Number.isFinite(discoveryOrder) && discoveryOrder >= 0 ? (discoveryOrder + 1) : 0;
+        const discoveryText = discoveryIndex > 0 ? `Discovered #${discoveryIndex}` : '';
         const screenW = Number(node && node.screenWidth) || 0;
         const screenH = Number(node && node.screenHeight) || 0;
         const dimsText = screenW > 0 && screenH > 0 ? `${screenH}x${screenW}` : '';
+        const footerLabel = discoveryIndex > 0 ? `#${discoveryIndex} ${label}` : label;
         const metaLine = [
+            discoveryText,
             dimsText,
             `${visits} visit${visits === 1 ? '' : 's'}`,
             `${inputs} input${inputs === 1 ? '' : 's'}`,
@@ -3032,7 +3201,7 @@
                 <rect class="chaos-map-flow-node-screen-bg${placeholder ? ' is-placeholder' : ''}" x="${previewX}" y="${previewY}" width="${previewW}" height="${previewH}" rx="8" ry="8"></rect>
                 <text class="chaos-map-flow-node-screen-text${placeholder ? ' is-placeholder' : ''}" xml:space="preserve">${lineMarkup}</text>
                 <rect class="chaos-map-flow-node-footer-bg" x="1" y="${footerY}" width="${Math.max(1, outerW - 2)}" height="${Math.max(1, footerHeight - 1)}" rx="0" ry="0"></rect>
-                <text class="chaos-map-flow-node-footer-label" x="${previewX}" y="${(footerY + (isModal ? 16 : 13)).toFixed(1)}">${escapeHtml(label.slice(0, isModal ? 44 : 28))}</text>
+                <text class="chaos-map-flow-node-footer-label" x="${previewX}" y="${(footerY + (isModal ? 16 : 13)).toFixed(1)}">${escapeHtml(footerLabel.slice(0, isModal ? 44 : 28))}</text>
                 <text class="chaos-map-flow-node-footer-meta" x="${previewX}" y="${(outerH - (isModal ? 11 : 9)).toFixed(1)}">${escapeHtml(metaLine.slice(0, isModal ? 72 : 44))}</text>
             </g>
         `;
@@ -3068,7 +3237,7 @@
         outgoing.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
         incoming.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
 
-        const sortedNodes = nodes.slice().sort((a, b) => (Number(b.visits) || 0) - (Number(a.visits) || 0) || String(a.hash).localeCompare(String(b.hash)));
+        const sortedNodes = nodes.slice().sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
         const root = sortedNodes[0];
         const visited = new Set(root ? [root.hash] : []);
         const selectedKeys = new Set();
@@ -3150,7 +3319,7 @@
         });
         outgoing.forEach((list) => list.sort((a, b) => b.count - a.count));
 
-        const sorted = [...nodeByHash.values()].sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash));
+        const sorted = [...nodeByHash.values()].sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
         const root = sorted[0];
         const depth = new Map();
         const queue = [];
@@ -3187,7 +3356,7 @@
             }
             columns.get(d).push(node);
         });
-        columns.forEach((list) => list.sort((a, b) => b.visits - a.visits || a.hash.localeCompare(b.hash)));
+        columns.forEach((list) => list.sort((a, b) => compareChaosFlowNodesByDiscovery(a, b)));
 
         const nodesHavePreview = nodes.some((node) => String(node && node.previewText || '').trim() !== '');
         const nodeW = spacious ? (nodesHavePreview ? 440 : 360) : 272;
@@ -3268,7 +3437,16 @@
             `;
         }).join('');
         const nodeMarkup = layout.nodes.map((node) => {
-            const nodeTitle = `${node.label} | ${node.visits} visit${node.visits === 1 ? '' : 's'} | ${node.inputs} input${node.inputs === 1 ? '' : 's'}${node.variants > 1 ? ` | ${node.variants} variants merged` : ''}`;
+            const discoveryOrder = Number(node && node.discoveryOrder);
+            const discoveryIndex = Number.isFinite(discoveryOrder) && discoveryOrder >= 0 ? (discoveryOrder + 1) : 0;
+            const discoveryText = discoveryIndex > 0 ? `Discovered #${discoveryIndex}` : '';
+            const nodeTitle = [
+                discoveryText,
+                String(node.label || ''),
+                `${node.visits} visit${node.visits === 1 ? '' : 's'}`,
+                `${node.inputs} input${node.inputs === 1 ? '' : 's'}`,
+                node.variants > 1 ? `${node.variants} variants merged` : '',
+            ].filter(Boolean).join(' | ');
             return `
                 <g
                     class="chaos-map-flow-node"
@@ -4643,7 +4821,9 @@
             const payload = await resp.json();
             const loadedHints = normalizeHints(payload.hints || []);
             const loadedKeyBlacklist = parseListLines(payload.keyBlacklist || []);
+            const loadedFirstScreenHint = normalizeScreenHint(payload.firstScreenHint || {});
             chaosHints = loadedHints;
+            chaosFirstScreenHint = loadedFirstScreenHint;
             if (hintsModal && !hintsModal.hidden && hintsDirty) {
                 setHintsStatus('Loaded saved hints; unsaved edits were kept.');
                 return chaosHints;
@@ -4651,6 +4831,7 @@
             chaosKeyBlacklist = loadedKeyBlacklist;
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
+            renderFirstScreenHint(chaosFirstScreenHint);
             setHintsStatus(chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.');
             return chaosHints;
         } catch (_err) {
@@ -4662,11 +4843,16 @@
     const saveHints = async () => {
         const draftHints = collectHintsFromUI();
         const draftKeyBlacklist = collectChaosKeyBlacklistFromUI();
+        const draftFirstScreenHint = collectFirstScreenHintFromUI();
         try {
             const resp = await fetch('/chaos/hints', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hints: draftHints, keyBlacklist: draftKeyBlacklist }),
+                body: JSON.stringify({
+                    hints: draftHints,
+                    keyBlacklist: draftKeyBlacklist,
+                    firstScreenHint: draftFirstScreenHint,
+                }),
             });
             if (!resp.ok) {
                 throw new Error('request failed');
@@ -4674,8 +4860,10 @@
             const payload = await resp.json();
             chaosHints = normalizeHints(payload.hints || []);
             chaosKeyBlacklist = parseListLines(payload.keyBlacklist || []);
+            chaosFirstScreenHint = normalizeScreenHint(payload.firstScreenHint || {});
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
+            renderFirstScreenHint(chaosFirstScreenHint);
             setHintsStatus(`Saved ${chaosHints.length} hint(s).`);
             hintsDirty = false;
         } catch (_err) {
@@ -5311,6 +5499,15 @@
     if (hintsKeyBlacklistInput) {
         hintsKeyBlacklistInput.addEventListener('input', markHintsDirty);
     }
+    if (firstScreenKnownDataInput) {
+        firstScreenKnownDataInput.addEventListener('input', markHintsDirty);
+    }
+    if (firstScreenKnownKeysInput) {
+        firstScreenKnownKeysInput.addEventListener('input', markHintsDirty);
+    }
+    if (firstScreenKeyAssignmentsInput) {
+        firstScreenKeyAssignmentsInput.addEventListener('input', markHintsDirty);
+    }
 
     // Read chaos config from the settings modal fields (populated from CHAOS_* settings).
     const readChaosConfig = () => {
@@ -5380,6 +5577,20 @@
             : chaosKeyBlacklist;
         if (Array.isArray(draftKeyBlacklist) && draftKeyBlacklist.length > 0) {
             cfg.keyBlacklist = draftKeyBlacklist;
+        }
+        const draftFirstScreenHint = (hintsModal && !hintsModal.hidden)
+            ? collectFirstScreenHintFromUI()
+            : chaosFirstScreenHint;
+        if (draftFirstScreenHint && (
+            (Array.isArray(draftFirstScreenHint.knownData) && draftFirstScreenHint.knownData.length > 0) ||
+            (Array.isArray(draftFirstScreenHint.knownKeys) && draftFirstScreenHint.knownKeys.length > 0) ||
+            (draftFirstScreenHint.keyAssignments && Object.keys(draftFirstScreenHint.keyAssignments).length > 0)
+        )) {
+            cfg.firstScreenHint = {
+                knownData: draftFirstScreenHint.knownData || [],
+                knownKeys: draftFirstScreenHint.knownKeys || [],
+                keyAssignments: draftFirstScreenHint.keyAssignments || {},
+            };
         }
 
         return cfg;

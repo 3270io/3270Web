@@ -757,6 +757,20 @@ body.terminal-fit-active .card {
   color: var(--fg-muted);
 }
 
+.modal-chaos-hints .chaos-hint-field input,
+.modal-chaos-hints .chaos-hint-field textarea {
+  width: 100%;
+  margin: 0;
+}
+
+.modal-chaos-hints .chaos-hint-field textarea {
+  min-height: 72px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .chaos-hint-row input,
 .chaos-hint-row textarea {
   width: 100%;
@@ -770,6 +784,35 @@ body.terminal-fit-active .card {
   font-size: 0.82rem;
 }
 
+.chaos-hint-group {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-2) 75%, transparent);
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chaos-hint-group > legend {
+  padding: 0 8px;
+  margin-left: -2px;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+.chaos-hint-group .modal-actions {
+  margin-top: 2px;
+}
+
+.chaos-hint-row-static {
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(280px, 1.4fr);
+}
+
 .chaos-hint-remove {
   align-self: end;
   white-space: nowrap;
@@ -778,6 +821,10 @@ body.terminal-fit-active .card {
 
 @media (max-width: 780px) {
   .chaos-hint-row {
+    grid-template-columns: 1fr;
+  }
+
+  .chaos-hint-row-static {
     grid-template-columns: 1fr;
   }
 

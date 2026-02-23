@@ -134,18 +134,19 @@ func (s *chaosEngineStore) clearRemoved(sessionID string) {
 
 // chaosStartRequest is the JSON body accepted by POST /chaos/start.
 type chaosStartRequest struct {
-	MaxSteps                    int            `json:"maxSteps"`
-	TimeBudgetSec               float64        `json:"timeBudgetSec"`
-	StepDelaySec                float64        `json:"stepDelaySec"`
-	Seed                        int64          `json:"seed"`
-	AIDKeyWeights               map[string]int `json:"aidKeyWeights"`
-	KeyBlacklist                []string       `json:"keyBlacklist"`
-	OutputFile                  string         `json:"outputFile"`
-	MaxFieldLength              int            `json:"maxFieldLength"`
-	ForceOverrideExistingInputs *bool          `json:"forceOverrideExistingInputs"`
-	Hints                       []chaos.Hint   `json:"hints"`
-	ExcludeNoProgressEvents     *bool          `json:"excludeNoProgressEvents"`
-	ExtendLimits                bool           `json:"extendLimits"`
+	MaxSteps                    int               `json:"maxSteps"`
+	TimeBudgetSec               float64           `json:"timeBudgetSec"`
+	StepDelaySec                float64           `json:"stepDelaySec"`
+	Seed                        int64             `json:"seed"`
+	AIDKeyWeights               map[string]int    `json:"aidKeyWeights"`
+	KeyBlacklist                []string          `json:"keyBlacklist"`
+	OutputFile                  string            `json:"outputFile"`
+	MaxFieldLength              int               `json:"maxFieldLength"`
+	ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
+	Hints                       []chaos.Hint      `json:"hints"`
+	FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
+	ExcludeNoProgressEvents     *bool             `json:"excludeNoProgressEvents"`
+	ExtendLimits                bool              `json:"extendLimits"`
 }
 
 // ChaosStartHandler handles POST /chaos/start.
@@ -195,17 +196,22 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
 		}
 	}
-	if len(cfg.Hints) == 0 || len(cfg.KeyBlacklist) == 0 {
-		if saved, err := app.loadChaosHintsPayload(); err == nil {
-			if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
-				cfg.Hints = saved.Hints
-			}
-			if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
-				cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
-			}
+	var savedHints chaosHintsPayload
+	if saved, err := app.loadChaosHintsPayload(); err == nil {
+		savedHints = saved
+		if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
+			cfg.Hints = saved.Hints
+		}
+		if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
+			cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
 		}
 	}
 	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
+	if req.FirstScreenHint != nil {
+		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *req.FirstScreenHint)
+	} else if savedHints.FirstScreenHint != nil {
+		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *savedHints.FirstScreenHint)
+	}
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -668,14 +674,14 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
 		}
 	}
-	if len(cfg.Hints) == 0 || len(cfg.KeyBlacklist) == 0 {
-		if saved, err := app.loadChaosHintsPayload(); err == nil {
-			if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
-				cfg.Hints = saved.Hints
-			}
-			if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
-				cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
-			}
+	var savedHints chaosHintsPayload
+	if saved, err := app.loadChaosHintsPayload(); err == nil {
+		savedHints = saved
+		if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
+			cfg.Hints = saved.Hints
+		}
+		if len(cfg.KeyBlacklist) == 0 && len(saved.KeyBlacklist) > 0 {
+			cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
 		}
 	}
 	if req.ExtendLimits && cfg.MaxSteps > 0 {
@@ -685,6 +691,11 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		cfg.MaxSteps = loaded.StepsRun + cfg.MaxSteps
 	}
 	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
+	if req.FirstScreenHint != nil {
+		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *req.FirstScreenHint)
+	} else if savedHints.FirstScreenHint != nil {
+		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *savedHints.FirstScreenHint)
+	}
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -712,8 +723,9 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 }
 
 type chaosHintsPayload struct {
-	Hints        []chaos.Hint `json:"hints"`
-	KeyBlacklist []string     `json:"keyBlacklist,omitempty"`
+	Hints           []chaos.Hint      `json:"hints"`
+	KeyBlacklist    []string          `json:"keyBlacklist,omitempty"`
+	FirstScreenHint *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
 }
 
 type chaosHintsExtractResponse struct {
@@ -740,8 +752,9 @@ func (app *App) ChaosHintsGetHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"hints":        payload.Hints,
-		"keyBlacklist": payload.KeyBlacklist,
+		"hints":           payload.Hints,
+		"keyBlacklist":    payload.KeyBlacklist,
+		"firstScreenHint": payload.FirstScreenHint,
 	})
 }
 
@@ -753,17 +766,19 @@ func (app *App) ChaosHintsSaveHandler(c *gin.Context) {
 		return
 	}
 	payload := chaosHintsPayload{
-		Hints:        sanitizeChaosHints(req.Hints),
-		KeyBlacklist: sanitizeChaosKeyBlacklist(req.KeyBlacklist),
+		Hints:           sanitizeChaosHints(req.Hints),
+		KeyBlacklist:    sanitizeChaosKeyBlacklist(req.KeyBlacklist),
+		FirstScreenHint: sanitizeChaosScreenHintPtr(req.FirstScreenHint),
 	}
 	if err := app.saveChaosHintsPayload(payload); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"status":       "saved",
-		"hints":        payload.Hints,
-		"keyBlacklist": payload.KeyBlacklist,
+		"status":          "saved",
+		"hints":           payload.Hints,
+		"keyBlacklist":    payload.KeyBlacklist,
+		"firstScreenHint": payload.FirstScreenHint,
 	})
 }
 
@@ -947,6 +962,30 @@ func sanitizeChaosScreenHint(h chaos.ScreenHint) chaos.ScreenHint {
 	}
 }
 
+func sanitizeChaosScreenHintPtr(h *chaos.ScreenHint) *chaos.ScreenHint {
+	if h == nil {
+		return nil
+	}
+	clean := sanitizeChaosScreenHint(*h)
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		return nil
+	}
+	return &clean
+}
+
+func mergeFirstScreenHintIntoChaosScreenHints(in map[string]chaos.ScreenHint, hint chaos.ScreenHint) map[string]chaos.ScreenHint {
+	clean := sanitizeChaosScreenHint(hint)
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		return cloneChaosScreenHintsMap(in)
+	}
+	out := cloneChaosScreenHintsMap(in)
+	if out == nil {
+		out = make(map[string]chaos.ScreenHint)
+	}
+	out[chaos.FirstScreenHintKey] = clean
+	return out
+}
+
 func cloneChaosScreenHintsMap(in map[string]chaos.ScreenHint) map[string]chaos.ScreenHint {
 	if len(in) == 0 {
 		return nil
@@ -1122,8 +1161,9 @@ func (app *App) loadChaosHintsPayload() (chaosHintsPayload, error) {
 	var payload chaosHintsPayload
 	if err := json.Unmarshal(data, &payload); err == nil {
 		return chaosHintsPayload{
-			Hints:        sanitizeChaosHints(payload.Hints),
-			KeyBlacklist: sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+			Hints:           sanitizeChaosHints(payload.Hints),
+			KeyBlacklist:    sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+			FirstScreenHint: sanitizeChaosScreenHintPtr(payload.FirstScreenHint),
 		}, nil
 	}
 	var hints []chaos.Hint
@@ -1131,8 +1171,9 @@ func (app *App) loadChaosHintsPayload() (chaosHintsPayload, error) {
 		return chaosHintsPayload{}, fmt.Errorf("parse chaos hints: %w", err)
 	}
 	return chaosHintsPayload{
-		Hints:        sanitizeChaosHints(hints),
-		KeyBlacklist: []string{},
+		Hints:           sanitizeChaosHints(hints),
+		KeyBlacklist:    []string{},
+		FirstScreenHint: nil,
 	}, nil
 }
 
@@ -1150,8 +1191,9 @@ func (app *App) saveChaosHintsPayload(payload chaosHintsPayload) error {
 		return fmt.Errorf("create chaos hints directory: %w", err)
 	}
 	payload = chaosHintsPayload{
-		Hints:        sanitizeChaosHints(payload.Hints),
-		KeyBlacklist: sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+		Hints:           sanitizeChaosHints(payload.Hints),
+		KeyBlacklist:    sanitizeChaosKeyBlacklist(payload.KeyBlacklist),
+		FirstScreenHint: sanitizeChaosScreenHintPtr(payload.FirstScreenHint),
 	}
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {

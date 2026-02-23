@@ -654,6 +654,15 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 
 	savePayload, _ := json.Marshal(map[string]interface{}{
 		"keyBlacklist": []string{" pf3 ", "PF12", "", "PF(3)"},
+		"firstScreenHint": map[string]interface{}{
+			"knownData": []string{" 1 ", "USER01", "USER01"},
+			"knownKeys": []string{" enter ", "PF8", "pf8"},
+			"keyAssignments": map[string]string{
+				" Select ": " enter ",
+				"Return":   " pf3 ",
+				"":         "PF8",
+			},
+		},
 		"hints": []map[string]interface{}{
 			{
 				"transaction": " CEMT ",
@@ -730,6 +739,28 @@ func TestChaosHints_SaveAndLoad(t *testing.T) {
 	}
 	if got, _ := keyBlacklist[1].(string); got != "PF(12)" {
 		t.Fatalf("keyBlacklist[1] = %q, want PF(12)", got)
+	}
+	firstScreenHint, ok := loadResp["firstScreenHint"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("firstScreenHint payload has wrong type: %T", loadResp["firstScreenHint"])
+	}
+	firstScreenKnownData, _ := firstScreenHint["knownData"].([]interface{})
+	if len(firstScreenKnownData) != 2 {
+		t.Fatalf("firstScreenHint knownData length = %d, want 2", len(firstScreenKnownData))
+	}
+	if got, _ := firstScreenKnownData[0].(string); got != "1" {
+		t.Fatalf("firstScreenHint knownData[0] = %q, want 1", got)
+	}
+	firstScreenKnownKeys, _ := firstScreenHint["knownKeys"].([]interface{})
+	if len(firstScreenKnownKeys) != 2 {
+		t.Fatalf("firstScreenHint knownKeys length = %d, want 2", len(firstScreenKnownKeys))
+	}
+	firstScreenAssignments, _ := firstScreenHint["keyAssignments"].(map[string]interface{})
+	if len(firstScreenAssignments) != 2 {
+		t.Fatalf("firstScreenHint keyAssignments length = %d, want 2", len(firstScreenAssignments))
+	}
+	if got, _ := firstScreenAssignments["Select"].(string); got != "Enter" {
+		t.Fatalf("firstScreenHint keyAssignments[Select] = %q, want Enter", got)
 	}
 }
 

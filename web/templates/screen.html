@@ -347,12 +347,33 @@
                     <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="Keys chaos must never press (one per line)\nPF3\nPF12"></textarea>
                     <p class="subtle">Use this to block dangerous keys such as logoff/exit PF keys.</p>
                 </div>
-                <div class="chaos-hints-list" data-chaos-hints-list></div>
-                <div class="modal-actions">
-                    <button type="button" data-chaos-hints-add>Add hint</button>
-                    <button type="button" data-chaos-hints-load-recording>Load from recording</button>
-                    <input type="file" accept=".json,application/json" data-chaos-hints-recording-input hidden>
-                </div>
+                <fieldset class="chaos-hint-group">
+                    <legend>First Screen Hints</legend>
+                    <div class="chaos-hint-row chaos-hint-row-static">
+                        <div class="chaos-hint-field">
+                            <label class="chaos-hint-field-label" for="chaos-first-screen-known-data">First Screen Known Data</label>
+                            <textarea id="chaos-first-screen-known-data" data-chaos-first-screen-known-data placeholder="Known values for the first screen (comma or newline separated)"></textarea>
+                        </div>
+                        <div class="chaos-hint-field">
+                            <label class="chaos-hint-field-label" for="chaos-first-screen-known-keys">First Screen Known Keys</label>
+                            <textarea id="chaos-first-screen-known-keys" data-chaos-first-screen-known-keys placeholder="Known keys for the first screen (e.g. Enter, PF8)"></textarea>
+                        </div>
+                        <div class="chaos-hint-field">
+                            <label class="chaos-hint-field-label" for="chaos-first-screen-key-assignments">First Screen Key Assignments</label>
+                            <textarea id="chaos-first-screen-key-assignments" data-chaos-first-screen-key-assignments placeholder="Label = Key (one per line)\nReturn = PF3\nSelect = Enter"></textarea>
+                            <p class="subtle">Applied only on the first screen of a chaos start/resume, useful for login or initial menu selection.</p>
+                        </div>
+                    </div>
+                </fieldset>
+                <fieldset class="chaos-hint-group">
+                    <legend>General Hints</legend>
+                    <div class="chaos-hints-list" data-chaos-hints-list></div>
+                    <div class="modal-actions">
+                        <button type="button" data-chaos-hints-add>Add hint</button>
+                        <button type="button" data-chaos-hints-load-recording>Load from recording</button>
+                        <input type="file" accept=".json,application/json" data-chaos-hints-recording-input hidden>
+                    </div>
+                </fieldset>
                 <div class="subtle" data-chaos-hints-status aria-live="polite"></div>
             </div>
             <div class="modal-actions">

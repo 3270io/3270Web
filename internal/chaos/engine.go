@@ -528,6 +528,7 @@ func (e *Engine) run() {
 	if e.cfg.TimeBudget > 0 {
 		deadline = time.Now().Add(e.cfg.TimeBudget)
 	}
+	firstLoopPass := true
 
 	for {
 		// Check for stop signal.
@@ -541,6 +542,7 @@ func (e *Engine) run() {
 		e.mu.Lock()
 		steps := e.stepsRun
 		e.mu.Unlock()
+		isFirstAttempt := firstLoopPass
 
 		if e.cfg.MaxSteps > 0 && steps >= e.cfg.MaxSteps {
 			return
@@ -581,18 +583,28 @@ func (e *Engine) run() {
 		triedValues := e.snapshotAreaTriedValuesLocked(currentHash)
 		keyBoosts := e.snapshotKeyBoostsLocked(currentHash)
 		screenHint := e.snapshotScreenHintLocked(currentHash)
+		if isFirstAttempt {
+			firstScreenHint := e.snapshotScreenHintLocked(FirstScreenHintKey)
+			screenHint = mergeScreenHints(firstScreenHint, screenHint)
+		}
 		e.mu.Unlock()
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))
+		forceHintValues := isFirstAttempt && e.hasUserFieldHints(screenHint)
+
+		if forceHintValues {
+			fields = e.selectFirstScreenTargetFields(unprotectedFields(screen))
+			attempt.FieldsTargeted = len(fields)
+		}
 
 		for idx, f := range fields {
-			value := e.generateValueForFieldWith(f, idx == 0, knownValues, triedValues, screenHint)
+			value := e.generateValueForFieldWithPolicy(f, idx == 0, knownValues, triedValues, screenHint, forceHintValues)
 			if value == "" {
 				continue
 			}
 			if e.cfg.ForceOverrideExistingInputs {
-				value = e.prepareFieldWriteValue(f, value)
+				value = e.prepareFieldWriteValueWithPolicy(f, value, forceHintValues)
 				if value == "" {
 					continue
 				}
@@ -717,6 +729,7 @@ func (e *Engine) run() {
 			case <-time.After(e.cfg.StepDelay):
 			}
 		}
+		firstLoopPass = false
 	}
 }
 
@@ -788,6 +801,40 @@ func (e *Engine) snapshotScreenHintLocked(hash string) *ScreenHint {
 	}
 	clone := sanitizeScreenHint(h)
 	return &clone
+}
+
+func mergeScreenHints(base, override *ScreenHint) *ScreenHint {
+	if base == nil && override == nil {
+		return nil
+	}
+	merged := ScreenHint{}
+	if base != nil {
+		merged.KnownData = append(merged.KnownData, base.KnownData...)
+		merged.KnownKeys = append(merged.KnownKeys, base.KnownKeys...)
+		if len(base.KeyAssignments) > 0 {
+			merged.KeyAssignments = make(map[string]string, len(base.KeyAssignments))
+			for k, v := range base.KeyAssignments {
+				merged.KeyAssignments[k] = v
+			}
+		}
+	}
+	if override != nil {
+		merged.KnownData = append(merged.KnownData, override.KnownData...)
+		merged.KnownKeys = append(merged.KnownKeys, override.KnownKeys...)
+		if len(override.KeyAssignments) > 0 {
+			if merged.KeyAssignments == nil {
+				merged.KeyAssignments = make(map[string]string, len(override.KeyAssignments))
+			}
+			for k, v := range override.KeyAssignments {
+				merged.KeyAssignments[k] = v
+			}
+		}
+	}
+	clean := sanitizeScreenHint(merged)
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		return nil
+	}
+	return &clean
 }
 
 // snapshotKeyBoostsLocked returns a map of AID key → boost amount derived
@@ -1508,11 +1555,14 @@ func (e *Engine) generateValueForField(f *host.Field, preferTransaction bool) st
 	return e.generateValueForFieldWith(f, preferTransaction, nil, nil, nil)
 }
 
-// generateValueForFieldWith extends generateValueForField with optional
-// per-screen known-working values learned from previous transitions. Callers
-// that hold the engine lock must snapshot area values before calling; this
-// function must not touch e.mindMap directly.
-func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool, knownValues map[string][]string, triedValues map[string][]string, screenHint *ScreenHint) string {
+func (e *Engine) generateValueForFieldWithPolicy(
+	f *host.Field,
+	preferTransaction bool,
+	knownValues map[string][]string,
+	triedValues map[string][]string,
+	screenHint *ScreenHint,
+	forceHints bool,
+) string {
 	// 1. Prefer values already known to work on this screen / field position.
 	if len(knownValues) > 0 {
 		row := f.StartY + 1
@@ -1551,14 +1601,26 @@ func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool
 		}
 	}
 	// 3. Fall back to user-supplied hints.
-	if hinted := e.hintValueForField(f, preferTransaction, screenHint); hinted != "" {
+	if hinted := e.hintValueForFieldWithPolicy(f, preferTransaction, screenHint, forceHints); hinted != "" {
 		return hinted
 	}
 	// 4. Generate a random value appropriate for the field type.
 	return e.generateValue(f)
 }
 
+// generateValueForFieldWith extends generateValueForField with optional
+// per-screen known-working values learned from previous transitions. Callers
+// that hold the engine lock must snapshot area values before calling; this
+// function must not touch e.mindMap directly.
+func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool, knownValues map[string][]string, triedValues map[string][]string, screenHint *ScreenHint) string {
+	return e.generateValueForFieldWithPolicy(f, preferTransaction, knownValues, triedValues, screenHint, false)
+}
+
 func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screenHint *ScreenHint) string {
+	return e.hintValueForFieldWithPolicy(f, preferTransaction, screenHint, false)
+}
+
+func (e *Engine) hintValueForFieldWithPolicy(f *host.Field, preferTransaction bool, screenHint *ScreenHint, force bool) string {
 	if len(e.hintTransactions) == 0 && len(e.hintKnownData) == 0 &&
 		len(e.defaultHintTx) == 0 && len(e.defaultHintData) == 0 &&
 		(screenHint == nil || len(screenHint.KnownData) == 0) {
@@ -1577,12 +1639,12 @@ func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screen
 	}
 	numeric := f.IsNumeric()
 
-	if screenHint != nil && len(screenHint.KnownData) > 0 && e.rng.Intn(100) < 70 {
+	if screenHint != nil && len(screenHint.KnownData) > 0 && (force || e.rng.Intn(100) < 70) {
 		if v := pickHintValueForFieldPool(e.rng, screenHint.KnownData, length, numeric); v != "" {
 			return v
 		}
 	}
-	if preferTransaction && len(e.hintTransactions) > 0 && e.rng.Intn(100) < 65 {
+	if preferTransaction && len(e.hintTransactions) > 0 && (force || e.rng.Intn(100) < 65) {
 		if v := pickHintValueForFieldPool(e.rng, e.hintTransactions, length, numeric); v != "" {
 			return v
 		}
@@ -1591,7 +1653,7 @@ func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screen
 	if len(pool) == 0 {
 		pool = e.hintTransactions
 	}
-	if len(pool) > 0 && e.rng.Intn(100) < 55 {
+	if len(pool) > 0 && (force || e.rng.Intn(100) < 55) {
 		if v := pickHintValueForFieldPool(e.rng, pool, length, numeric); v != "" {
 			return v
 		}
@@ -1600,7 +1662,7 @@ func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screen
 	if len(pool) == 0 {
 		pool = e.defaultHintTx
 	}
-	if len(pool) > 0 && e.rng.Intn(100) < 35 {
+	if len(pool) > 0 && (force || e.rng.Intn(100) < 35) {
 		if v := pickHintValueForFieldPool(e.rng, pool, length, numeric); v != "" {
 			return v
 		}
@@ -1609,6 +1671,10 @@ func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screen
 }
 
 func (e *Engine) prepareFieldWriteValue(f *host.Field, candidate string) string {
+	return e.prepareFieldWriteValueWithPolicy(f, candidate, false)
+}
+
+func (e *Engine) prepareFieldWriteValueWithPolicy(f *host.Field, candidate string, allowSamePrefilled bool) string {
 	if e == nil || f == nil {
 		return ""
 	}
@@ -1621,7 +1687,7 @@ func (e *Engine) prepareFieldWriteValue(f *host.Field, candidate string) string 
 		return ""
 	}
 	current := fieldCurrentValueForWriteWidth(f, width)
-	if sameNonBlankFieldValue(current, proposed) {
+	if !allowSamePrefilled && sameNonBlankFieldValue(current, proposed) {
 		alt := e.generateValue(f)
 		if alt != "" {
 			if altExpanded := e.expandWriteValueForField(alt, width, f.IsNumeric()); altExpanded != "" {
@@ -1868,22 +1934,68 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 }
 
 // hashScreen produces a short stable fingerprint of the screen state based on
-// its text content and field structure. Cursor position is intentionally
+// normalized screen text and field structure. Cursor position is intentionally
 // excluded: on 3270 terminals the cursor moves freely between input fields
 // (e.g. via Tab) without changing the logical screen, so including it would
 // cause the same screen to appear as many different "areas" in the MindMap and
 // make Tab key presses register as false screen transitions.
 //
-// Field positions and attribute codes are included so that two screens with
-// identical text but different field layouts (e.g. one has a numeric field
-// where the other has an alphanumeric field, or fields at different row/column
-// offsets) are correctly identified as distinct screens.
+// Unprotected field contents are normalized to spaces so the same logical
+// screen is not split into many hashes just because chaos typed different data
+// into input fields (or the host redisplays previously entered values).
+// Protected text and field positions/attribute codes are still included so two
+// screens with identical input layouts but different labels/help text remain
+// distinguishable.
 func hashScreen(s *host.Screen) string {
 	if s == nil {
 		return ""
 	}
+	width, height := screenDimensions(s)
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
+	maskedInputCells := make([]bool, width*height)
+	for _, f := range s.Fields {
+		if f == nil || f.IsProtected() {
+			continue
+		}
+		curX, curY := f.StartX, f.StartY
+		endX, endY := f.EndX, f.EndY
+		for {
+			if curX >= 0 && curX < width && curY >= 0 && curY < height {
+				maskedInputCells[(curY*width)+curX] = true
+			}
+			if curX == endX && curY == endY {
+				break
+			}
+			curX++
+			if curX >= width {
+				curX = 0
+				curY++
+				if curY >= height {
+					break
+				}
+			}
+		}
+	}
+
 	h := sha256.New()
-	fmt.Fprintf(h, "%s|%d", s.Text(), len(s.Fields))
+	fmt.Fprintf(h, "%dx%d|", width, height)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			ch := s.CharAt(x, y)
+			if ch == 0 {
+				ch = ' '
+			}
+			if maskedInputCells[(y*width)+x] {
+				ch = ' '
+			}
+			fmt.Fprintf(h, "%c", ch)
+		}
+		fmt.Fprint(h, "\n")
+	}
+	fmt.Fprintf(h, "|%d", len(s.Fields))
 	for _, f := range s.Fields {
 		if f == nil {
 			continue
@@ -1913,14 +2025,7 @@ func (e *Engine) selectTargetFields(fields []*host.Field) []*host.Field {
 		return fields
 	}
 
-	allSingleCell := true
-	for _, f := range fields {
-		if fieldLength(f) != 1 {
-			allSingleCell = false
-			break
-		}
-	}
-	if allSingleCell {
+	if allFieldsSingleCell(fields) {
 		return []*host.Field{fields[e.rng.Intn(len(fields))]}
 	}
 
@@ -1956,6 +2061,41 @@ func (e *Engine) selectTargetFields(fields []*host.Field) []*host.Field {
 		out = append(out, fields[idx])
 	}
 	return out
+}
+
+func allFieldsSingleCell(fields []*host.Field) bool {
+	if len(fields) == 0 {
+		return false
+	}
+	for _, f := range fields {
+		if fieldLength(f) != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Engine) selectFirstScreenTargetFields(fields []*host.Field) []*host.Field {
+	if len(fields) <= 1 {
+		return fields
+	}
+	// Preserve the single-cell menu heuristic; otherwise initial login/selection
+	// screens with multi-character fields should be filled more completely when
+	// user hints are present.
+	if allFieldsSingleCell(fields) {
+		return e.selectTargetFields(fields)
+	}
+	return fields
+}
+
+func (e *Engine) hasUserFieldHints(screenHint *ScreenHint) bool {
+	if e == nil {
+		return screenHint != nil && len(screenHint.KnownData) > 0
+	}
+	if len(e.hintTransactions) > 0 || len(e.hintKnownData) > 0 {
+		return true
+	}
+	return screenHint != nil && len(screenHint.KnownData) > 0
 }
 
 // fieldLength returns the maximum number of characters that fit in f.

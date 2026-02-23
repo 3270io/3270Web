@@ -2,6 +2,12 @@ package chaos
 
 import "time"
 
+// FirstScreenHintKey is a reserved ScreenHints map key used to apply hints only
+// to the very first screen processed when a chaos run starts or resumes.
+// It is intentionally non-hash-like so it cannot collide with normal screen
+// hashes (which are short lowercase hex values).
+const FirstScreenHintKey = "__FIRST_SCREEN__"
+
 // Hint describes optional user-provided guidance for chaos exploration.
 // Transaction is typically a known transaction code, and KnownData contains
 // known working values that can be reused as field inputs. KeyAssignments maps
