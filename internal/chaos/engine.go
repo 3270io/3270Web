@@ -571,6 +571,9 @@ func (e *Engine) run() {
 		// Fill unprotected fields with random values.
 		var batchSteps []session.WorkflowStep
 		fields := unprotectedFields(screen)
+		if len(fields) > 1 {
+			fields = []*host.Field{fields[e.rng.Intn(len(fields))]}
+		}
 		attempt.FieldsTargeted = len(fields)
 
 		// Snapshot learned data for this screen area under a brief lock so that
@@ -632,7 +635,20 @@ func (e *Engine) run() {
 		// Choose and send an AID key (adaptive: prefer keys that previously
 		// caused screen transitions from the current area).
 		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
+		if isBlacklistedKeyInSet(e.blacklistedKeys, aidKey) {
+			aidKey = fallbackChaosKey(e.blacklistedKeys)
+		}
 		attempt.AIDKey = aidKey
+		if strings.TrimSpace(aidKey) == "" {
+			attempt.Error = "no non-blacklisted AID key available"
+			e.mu.Lock()
+			e.lastErr = attempt.Error
+			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
+			e.recordMindMapAttemptLocked(attempt)
+			e.appendAttemptLocked(attempt)
+			e.mu.Unlock()
+			return
+		}
 		if err := e.h.SendKey(aidKey); err != nil {
 			attempt.Error = err.Error()
 			e.mu.Lock()
@@ -942,7 +958,7 @@ func fallbackChaosKey(blocked map[string]struct{}) string {
 			return key
 		}
 	}
-	return "Enter"
+	return ""
 }
 
 func pickHintValueForFieldPool(rng *rand.Rand, pool []string, length int, numeric bool) string {
