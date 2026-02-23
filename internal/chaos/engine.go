@@ -634,7 +634,7 @@ func (e *Engine) run() {
 
 		// Fill unprotected fields with random values.
 		var batchSteps []session.WorkflowStep
-		fields := e.selectTargetFields(unprotectedFields(screen))
+		fields := e.selectTargetFieldsForScreen(currentHash, unprotectedFields(screen))
 		attempt.FieldsTargeted = len(fields)
 
 		// Snapshot learned data for this screen area under a brief lock so that
@@ -643,7 +643,6 @@ func (e *Engine) run() {
 		e.mu.Lock()
 		knownValues := e.snapshotAreaValuesLocked(currentHash)
 		triedValues := e.snapshotAreaTriedValuesLocked(currentHash)
-		keyBoosts := e.snapshotKeyBoostsLocked(currentHash)
 		screenHint := e.snapshotScreenHintLocked(currentHash)
 		applyFirstScreenHint, firstScreenHintReason := e.shouldApplyFirstScreenHintForHashLocked(currentHash, isFirstAttempt)
 		if applyFirstScreenHint {
@@ -653,15 +652,16 @@ func (e *Engine) run() {
 			attempt.FirstScreenHintReason = firstScreenHintReason
 		}
 		e.mu.Unlock()
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))
 		forceHintValues := applyFirstScreenHint && e.hasUserFieldHints(screenHint)
 
 		if forceHintValues {
 			fields = e.selectFirstScreenTargetFields(unprotectedFields(screen))
 			attempt.FieldsTargeted = len(fields)
 		}
+		keyBoosts := e.snapshotKeyBoostsLocked(currentHash, attempt.FieldsTargeted)
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))
 
 		for idx, f := range fields {
 			value := e.generateValueForFieldWithPolicy(f, idx == 0, knownValues, triedValues, screenHint, forceHintValues)
@@ -1000,7 +1000,7 @@ func mergeScreenHints(base, override *ScreenHint) *ScreenHint {
 // times from this screen without ever causing a transition receive a negative
 // boost (penalty) to steer the engine toward less-explored alternatives.
 // Must be called with e.mu held.
-func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
+func (e *Engine) snapshotKeyBoostsLocked(hash string, targetFieldCount int) map[string]int {
 	if e.mindMap == nil || hash == "" {
 		return nil
 	}
@@ -1019,6 +1019,11 @@ func (e *Engine) snapshotKeyBoostsLocked(hash string) map[string]int {
 				progressions = maxProgressionBoostFactor
 			}
 			boosts[key] += progressions * 10
+			if targetFieldCount == 1 {
+				boosts[key] += kp.SingleFieldProgressions * 4
+			} else if targetFieldCount > 1 {
+				boosts[key] += kp.MultiFieldProgressions * 4
+			}
 		} else if kp.Presses >= minPressesForPenalty {
 			// Penalise keys pressed many times without causing any transition.
 			boosts[key] -= kp.Presses
@@ -2193,6 +2198,69 @@ func unprotectedFields(s *host.Screen) []*host.Field {
 // attempt. It can select one, several, or all fields. On screens where every
 // unprotected field is single-cell, it deterministically selects one field to
 // avoid overfilling option-style input grids.
+func (e *Engine) selectTargetFieldsForScreen(hash string, fields []*host.Field) []*host.Field {
+	if preferred := e.preferredFieldTargetCountForScreen(hash, len(fields)); preferred > 0 {
+		return e.selectTargetFieldsWithCount(fields, preferred)
+	}
+	return e.selectTargetFields(fields)
+}
+
+func (e *Engine) preferredFieldTargetCountForScreen(hash string, total int) int {
+	if total <= 1 {
+		return total
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.mindMap == nil || strings.TrimSpace(hash) == "" {
+		return 0
+	}
+	area, ok := e.mindMap.Areas[hash]
+	if !ok || area == nil || len(area.FieldCountProgressions) == 0 {
+		return 0
+	}
+	bestCount := 0
+	bestScore := 0
+	for count, score := range area.FieldCountProgressions {
+		if count <= 0 || count > total || score <= 0 {
+			continue
+		}
+		if score > bestScore {
+			bestScore = score
+			bestCount = count
+		}
+	}
+	if bestCount == 0 {
+		return 0
+	}
+	if bestCount == 1 && area.SingleFieldProgressions <= area.MultiFieldProgressions {
+		return 0
+	}
+	if bestCount > 1 && area.MultiFieldProgressions < area.SingleFieldProgressions {
+		return 0
+	}
+	// Keep exploration breadth while still strongly preferring previously
+	// successful field-count strategies on this screen.
+	if e.rng.Intn(100) < 75 {
+		return bestCount
+	}
+	return 0
+}
+
+func (e *Engine) selectTargetFieldsWithCount(fields []*host.Field, targetCount int) []*host.Field {
+	n := len(fields)
+	if n <= 1 || targetCount <= 0 || targetCount >= n {
+		return fields
+	}
+	selected := make([]int, targetCount)
+	copy(selected, e.rng.Perm(n)[:targetCount])
+	sort.Ints(selected)
+	out := make([]*host.Field, 0, targetCount)
+	for _, idx := range selected {
+		out = append(out, fields[idx])
+	}
+	return out
+}
+
 func (e *Engine) selectTargetFields(fields []*host.Field) []*host.Field {
 	if len(fields) <= 1 {
 		return fields

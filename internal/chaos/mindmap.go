@@ -20,26 +20,29 @@ type MindMap struct {
 
 // MindMapArea represents one discovered application area.
 type MindMapArea struct {
-	Hash               string                           `json:"hash"`
-	Label              string                           `json:"label,omitempty"`
-	Visits             int                              `json:"visits"`
-	FirstSeen          time.Time                        `json:"firstSeen,omitempty"`
-	LastSeen           time.Time                        `json:"lastSeen,omitempty"`
-	ScreenWidth        int                              `json:"screenWidth,omitempty"`
-	ScreenHeight       int                              `json:"screenHeight,omitempty"`
-	PreviewText        string                           `json:"previewText,omitempty"`
-	PreviewWidth       int                              `json:"previewWidth,omitempty"`
-	PreviewHeight      int                              `json:"previewHeight,omitempty"`
-	FieldCount         int                              `json:"fieldCount"`
-	InputFieldCount    int                              `json:"inputFieldCount"`
-	NumericFieldCount  int                              `json:"numericFieldCount"`
-	HiddenFieldCount   int                              `json:"hiddenFieldCount"`
-	FieldMetadata      map[string]MindMapFieldMetadata  `json:"fieldMetadata,omitempty"`
-	FieldDiscovery     map[string]MindMapFieldDiscovery `json:"fieldDiscovery,omitempty"`
-	KnownTriedValues   map[string][]string              `json:"knownTriedValues,omitempty"`
-	KnownWorkingValues map[string][]string              `json:"knownWorkingValues,omitempty"`
-	KeyPresses         map[string]*MindMapKeyPress      `json:"keyPresses,omitempty"`
-	DedupSignature     string                           `json:"dedupSignature,omitempty"`
+	Hash                    string                           `json:"hash"`
+	Label                   string                           `json:"label,omitempty"`
+	Visits                  int                              `json:"visits"`
+	FirstSeen               time.Time                        `json:"firstSeen,omitempty"`
+	LastSeen                time.Time                        `json:"lastSeen,omitempty"`
+	ScreenWidth             int                              `json:"screenWidth,omitempty"`
+	ScreenHeight            int                              `json:"screenHeight,omitempty"`
+	PreviewText             string                           `json:"previewText,omitempty"`
+	PreviewWidth            int                              `json:"previewWidth,omitempty"`
+	PreviewHeight           int                              `json:"previewHeight,omitempty"`
+	FieldCount              int                              `json:"fieldCount"`
+	InputFieldCount         int                              `json:"inputFieldCount"`
+	NumericFieldCount       int                              `json:"numericFieldCount"`
+	HiddenFieldCount        int                              `json:"hiddenFieldCount"`
+	FieldMetadata           map[string]MindMapFieldMetadata  `json:"fieldMetadata,omitempty"`
+	FieldDiscovery          map[string]MindMapFieldDiscovery `json:"fieldDiscovery,omitempty"`
+	KnownTriedValues        map[string][]string              `json:"knownTriedValues,omitempty"`
+	KnownWorkingValues      map[string][]string              `json:"knownWorkingValues,omitempty"`
+	FieldCountProgressions  map[int]int                      `json:"fieldCountProgressions,omitempty"`
+	SingleFieldProgressions int                              `json:"singleFieldProgressions,omitempty"`
+	MultiFieldProgressions  int                              `json:"multiFieldProgressions,omitempty"`
+	KeyPresses              map[string]*MindMapKeyPress      `json:"keyPresses,omitempty"`
+	DedupSignature          string                           `json:"dedupSignature,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.
@@ -67,10 +70,12 @@ type MindMapFieldDiscovery struct {
 
 // MindMapKeyPress captures how a key is used from an area.
 type MindMapKeyPress struct {
-	Presses      int            `json:"presses"`
-	Progressions int            `json:"progressions"`
-	Destinations map[string]int `json:"destinations,omitempty"`
-	LastUsedAt   time.Time      `json:"lastUsedAt,omitempty"`
+	Presses                 int            `json:"presses"`
+	Progressions            int            `json:"progressions"`
+	SingleFieldProgressions int            `json:"singleFieldProgressions,omitempty"`
+	MultiFieldProgressions  int            `json:"multiFieldProgressions,omitempty"`
+	Destinations            map[string]int `json:"destinations,omitempty"`
+	LastUsedAt              time.Time      `json:"lastUsedAt,omitempty"`
 }
 
 func newMindMap() *MindMap {
@@ -111,6 +116,12 @@ func (m *MindMap) clone() *MindMap {
 				next.KnownWorkingValues[fKey] = append([]string(nil), values...)
 			}
 		}
+		if len(area.FieldCountProgressions) > 0 {
+			next.FieldCountProgressions = make(map[int]int, len(area.FieldCountProgressions))
+			for count, progressions := range area.FieldCountProgressions {
+				next.FieldCountProgressions[count] = progressions
+			}
+		}
 		if len(area.KeyPresses) > 0 {
 			next.KeyPresses = make(map[string]*MindMapKeyPress, len(area.KeyPresses))
 			for aid, keyPress := range area.KeyPresses {
@@ -146,12 +157,13 @@ func (m *MindMap) ensureArea(hash string) *MindMapArea {
 		return existing
 	}
 	area := &MindMapArea{
-		Hash:               hash,
-		FieldMetadata:      make(map[string]MindMapFieldMetadata),
-		FieldDiscovery:     make(map[string]MindMapFieldDiscovery),
-		KnownTriedValues:   make(map[string][]string),
-		KnownWorkingValues: make(map[string][]string),
-		KeyPresses:         make(map[string]*MindMapKeyPress),
+		Hash:                   hash,
+		FieldMetadata:          make(map[string]MindMapFieldMetadata),
+		FieldDiscovery:         make(map[string]MindMapFieldDiscovery),
+		KnownTriedValues:       make(map[string][]string),
+		KnownWorkingValues:     make(map[string][]string),
+		FieldCountProgressions: make(map[int]int),
+		KeyPresses:             make(map[string]*MindMapKeyPress),
 	}
 	m.Areas[hash] = area
 	return area
@@ -219,10 +231,21 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	}
 	keyPress.Presses++
 	keyPress.LastUsedAt = attempt.Time
+	successfulWrites := 0
+	for _, fw := range attempt.FieldWrites {
+		if fw.Success {
+			successfulWrites++
+		}
+	}
 
 	toHash := strings.TrimSpace(attempt.ToHash)
 	if attempt.Transitioned && toHash != "" {
 		keyPress.Progressions++
+		if successfulWrites == 1 {
+			keyPress.SingleFieldProgressions++
+		} else if successfulWrites > 1 {
+			keyPress.MultiFieldProgressions++
+		}
 		if keyPress.Destinations == nil {
 			keyPress.Destinations = make(map[string]int)
 		}
@@ -240,6 +263,17 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	}
 	if area.KnownWorkingValues == nil {
 		area.KnownWorkingValues = make(map[string][]string)
+	}
+	if area.FieldCountProgressions == nil {
+		area.FieldCountProgressions = make(map[int]int)
+	}
+	if attempt.Transitioned && successfulWrites > 0 {
+		area.FieldCountProgressions[successfulWrites]++
+		if successfulWrites == 1 {
+			area.SingleFieldProgressions++
+		} else {
+			area.MultiFieldProgressions++
+		}
 	}
 	for _, fw := range attempt.FieldWrites {
 		fieldKey := mindMapFieldKey(fw.Row, fw.Column, fw.Length)

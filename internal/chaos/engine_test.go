@@ -1184,6 +1184,31 @@ func TestSelectTargetFields_AllSingleCellTargetsOne(t *testing.T) {
 	}
 }
 
+func TestSelectTargetFieldsForScreen_PrefersLearnedSuccessfulFieldCount(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(5)) //nolint:gosec
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("hash-learned-count")
+	area.FieldCountProgressions[3] = 12
+	area.MultiFieldProgressions = 12
+
+	s := &host.Screen{Width: 80, Height: 24}
+	fields := []*host.Field{
+		host.NewField(s, 0x00, 1, 1, 5, 1, 0, 0),
+		host.NewField(s, 0x00, 10, 1, 14, 1, 0, 0),
+		host.NewField(s, 0x00, 20, 1, 24, 1, 0, 0),
+		host.NewField(s, 0x00, 30, 1, 34, 1, 0, 0),
+	}
+
+	counts := map[int]int{}
+	for i := 0; i < 300; i++ {
+		counts[len(e.selectTargetFieldsForScreen("hash-learned-count", fields))]++
+	}
+	if counts[3] <= counts[1] || counts[3] <= counts[len(fields)] {
+		t.Fatalf("expected learned target size 3 to be preferred, got counts=%v", counts)
+	}
+}
+
 func TestEngineSingleCellInputsTargetOneFieldPerAttempt(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {
@@ -1303,6 +1328,48 @@ func TestEngineStatusIncludesMindMap(t *testing.T) {
 	}
 	if !foundFieldLearning {
 		t.Error("mind map should include field discovery or learned values")
+	}
+}
+
+func TestMindMapRecordAttempt_TracksSingleVsMultiFieldProgressions(t *testing.T) {
+	m := newMindMap()
+	m.recordAttempt(Attempt{
+		FromHash:       "screen-a",
+		ToHash:         "screen-b",
+		AIDKey:         "Enter",
+		Transitioned:   true,
+		Time:           time.Now(),
+		FieldWrites:    []AttemptFieldWrite{{Row: 1, Column: 1, Length: 4, Value: "ABCD", Success: true}},
+		FieldsTargeted: 1,
+	})
+	m.recordAttempt(Attempt{
+		FromHash:     "screen-a",
+		ToHash:       "screen-c",
+		AIDKey:       "PF(8)",
+		Transitioned: true,
+		Time:         time.Now(),
+		FieldWrites: []AttemptFieldWrite{
+			{Row: 1, Column: 1, Length: 4, Value: "ABCD", Success: true},
+			{Row: 2, Column: 1, Length: 4, Value: "EFGH", Success: true},
+		},
+		FieldsTargeted: 2,
+	})
+
+	area := m.Areas["screen-a"]
+	if area == nil {
+		t.Fatal("expected area to be created")
+	}
+	if area.SingleFieldProgressions != 1 || area.MultiFieldProgressions != 1 {
+		t.Fatalf("unexpected field progression counters: single=%d multi=%d", area.SingleFieldProgressions, area.MultiFieldProgressions)
+	}
+	if area.FieldCountProgressions[1] != 1 || area.FieldCountProgressions[2] != 1 {
+		t.Fatalf("unexpected per-field-count progressions: %v", area.FieldCountProgressions)
+	}
+	if area.KeyPresses["Enter"] == nil || area.KeyPresses["Enter"].SingleFieldProgressions != 1 {
+		t.Fatalf("expected Enter single-field progression tracking, got %+v", area.KeyPresses["Enter"])
+	}
+	if area.KeyPresses["PF(8)"] == nil || area.KeyPresses["PF(8)"].MultiFieldProgressions != 1 {
+		t.Fatalf("expected PF(8) multi-field progression tracking, got %+v", area.KeyPresses["PF(8)"])
 	}
 }
 
@@ -1660,7 +1727,7 @@ func TestSnapshotKeyBoostsLocked(t *testing.T) {
 	// Clear: many presses, 0 progressions → should receive a penalty.
 	area.KeyPresses["Clear"] = &MindMapKeyPress{Presses: minPressesForPenalty + 3, Progressions: 0}
 
-	boosts := e.snapshotKeyBoostsLocked("hash1")
+	boosts := e.snapshotKeyBoostsLocked("hash1", 0)
 	if boosts == nil {
 		t.Fatal("snapshotKeyBoostsLocked returned nil when progressions exist")
 	}
@@ -1674,6 +1741,34 @@ func TestSnapshotKeyBoostsLocked(t *testing.T) {
 	if boosts["Clear"] >= 0 {
 		t.Errorf("Clear should have a negative boost (penalty) after %d presses with no progression, got %d",
 			minPressesForPenalty+3, boosts["Clear"])
+	}
+}
+
+func TestSnapshotKeyBoostsLocked_PrefersKeyForCurrentFieldStrategy(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	area := e.mindMap.ensureArea("hash-strategy")
+	area.KeyPresses["PF(8)"] = &MindMapKeyPress{
+		Presses:                 10,
+		Progressions:            4,
+		SingleFieldProgressions: 1,
+		MultiFieldProgressions:  4,
+	}
+	area.KeyPresses["Enter"] = &MindMapKeyPress{
+		Presses:                 10,
+		Progressions:            4,
+		SingleFieldProgressions: 4,
+		MultiFieldProgressions:  1,
+	}
+
+	multiBoosts := e.snapshotKeyBoostsLocked("hash-strategy", 3)
+	singleBoosts := e.snapshotKeyBoostsLocked("hash-strategy", 1)
+
+	if multiBoosts["PF(8)"] <= multiBoosts["Enter"] {
+		t.Fatalf("expected PF(8) to be preferred for multi-field attempts, boosts=%v", multiBoosts)
+	}
+	if singleBoosts["Enter"] <= singleBoosts["PF(8)"] {
+		t.Fatalf("expected Enter to be preferred for single-field attempts, boosts=%v", singleBoosts)
 	}
 }
 
@@ -1760,7 +1855,7 @@ func TestSnapshotKeyBoostsLocked_ProgressionCap(t *testing.T) {
 	// Progression count far above the cap.
 	area.KeyPresses["Enter"] = &MindMapKeyPress{Presses: 100, Progressions: 100}
 
-	boosts := e.snapshotKeyBoostsLocked("hashcap")
+	boosts := e.snapshotKeyBoostsLocked("hashcap", 0)
 	if boosts == nil {
 		t.Fatal("snapshotKeyBoostsLocked returned nil when progressions exist")
 	}
