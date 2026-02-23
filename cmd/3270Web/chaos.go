@@ -83,7 +83,7 @@ func (s *chaosEngineStore) upsertScreenHint(sessionID, screenHash string, hint c
 		s.screenHints[sessionID] = make(map[string]chaos.ScreenHint)
 	}
 	clean := sanitizeChaosScreenHint(hint)
-	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 		delete(s.screenHints[sessionID], key)
 	} else {
 		s.screenHints[sessionID][key] = clean
@@ -142,6 +142,7 @@ type chaosStartRequest struct {
 	KeyBlacklist                []string          `json:"keyBlacklist"`
 	OutputFile                  string            `json:"outputFile"`
 	MaxFieldLength              int               `json:"maxFieldLength"`
+	ScreenDedupSimilarity       float64           `json:"screenDedupSimilarity"`
 	ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
 	Hints                       []chaos.Hint      `json:"hints"`
 	FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
@@ -185,6 +186,9 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
+		}
+		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
+			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
 		}
 		if req.ForceOverrideExistingInputs != nil {
 			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
@@ -329,21 +333,33 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 		// Include loaded run info if present.
 		if loaded, ok2 := app.chaosEngines.getLoadedRun(s.ID); ok2 {
 			resp["loadedRunID"] = loaded.ID
-			if resp["stepsRun"] == 0 && loaded.StepsRun > 0 {
-				resp["stepsRun"] = loaded.StepsRun
+			if loaded.StepsRun > 0 {
+				if cur, ok := resp["stepsRun"].(int); !ok || loaded.StepsRun > cur {
+					resp["stepsRun"] = loaded.StepsRun
+				}
 			}
-			if resp["transitions"] == 0 && loaded.Transitions > 0 {
-				resp["transitions"] = loaded.Transitions
+			if loaded.Transitions > 0 {
+				if cur, ok := resp["transitions"].(int); !ok || loaded.Transitions > cur {
+					resp["transitions"] = loaded.Transitions
+				}
 			}
-			if resp["uniqueScreens"] == 0 && loaded.UniqueScreens > 0 {
-				resp["uniqueScreens"] = loaded.UniqueScreens
+			if loaded.UniqueScreens > 0 {
+				if cur, ok := resp["uniqueScreens"].(int); !ok || loaded.UniqueScreens > cur {
+					resp["uniqueScreens"] = loaded.UniqueScreens
+				}
 			}
-			if resp["uniqueInputs"] == 0 && loaded.UniqueInputs > 0 {
-				resp["uniqueInputs"] = loaded.UniqueInputs
+			if loaded.UniqueInputs > 0 {
+				if cur, ok := resp["uniqueInputs"].(int); !ok || loaded.UniqueInputs > cur {
+					resp["uniqueInputs"] = loaded.UniqueInputs
+				}
 			}
-			if _, hasMindMap := resp["mindMap"]; !hasMindMap {
-				if mindMapJSON := chaosMindMapToJSON(loaded.MindMap); mindMapJSON != nil {
-					resp["mindMap"] = mindMapJSON
+			// Prefer the finalized saved-run mind map over any stale session snapshot.
+			if mindMapJSON := chaosMindMapToJSON(loaded.MindMap); mindMapJSON != nil {
+				resp["mindMap"] = mindMapJSON
+			}
+			if _, hasFirst := resp["firstScreenHash"]; !hasFirst {
+				if firstHash := chaosFirstScreenHashFromAttempts(loaded.Attempts); firstHash != "" {
+					resp["firstScreenHash"] = firstHash
 				}
 			}
 		}
@@ -518,6 +534,10 @@ type chaosLoadRequest struct {
 	RunID string `json:"runID"`
 }
 
+type chaosDeleteRunRequest struct {
+	RunID string `json:"runID"`
+}
+
 // ChaosLoadHandler handles POST /chaos/load – loads a saved run into the session.
 func (app *App) ChaosLoadHandler(c *gin.Context) {
 	s := app.getSession(c)
@@ -552,6 +572,38 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 		"uniqueInputs":  run.UniqueInputs,
 		"mindMap":       chaosMindMapToJSON(run.MindMap),
 	})
+}
+
+// ChaosDeleteRunHandler handles POST /chaos/runs/delete – deletes a saved run from disk.
+func (app *App) ChaosDeleteRunHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+
+	var req chaosDeleteRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RunID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "runID is required"})
+		return
+	}
+	runID := strings.TrimSpace(req.RunID)
+	if err := chaos.DeleteRun(app.chaosRunsDir, runID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If the deleted run is currently loaded in this session, clear the loaded reference.
+	if loaded, ok := app.chaosEngines.getLoadedRun(s.ID); ok && loaded != nil && loaded.ID == runID {
+		app.chaosEngines.deleteLoadedRun(s.ID)
+		withSessionLock(s, func() {
+			if s.Chaos != nil && s.Chaos.LoadedRunID == runID {
+				s.Chaos.LoadedRunID = ""
+			}
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "deleted", "runID": runID})
 }
 
 // ChaosLoadRecordingHandler handles POST /chaos/load-recording – seeds chaos
@@ -664,6 +716,9 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		if req.MaxFieldLength > 0 {
 			cfg.MaxFieldLength = req.MaxFieldLength
 		}
+		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
+			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
+		}
 		if req.ForceOverrideExistingInputs != nil {
 			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
 		}
@@ -741,6 +796,7 @@ type chaosScreenHintUpsertRequest struct {
 	ScreenHash     string            `json:"screenHash"`
 	KnownData      []string          `json:"knownData"`
 	KnownKeys      []string          `json:"knownKeys"`
+	BlockedKeys    []string          `json:"blockedKeys"`
 	KeyAssignments map[string]string `json:"keyAssignments"`
 }
 
@@ -844,6 +900,7 @@ func (app *App) ChaosScreenHintsSaveHandler(c *gin.Context) {
 	updated := app.chaosEngines.upsertScreenHint(s.ID, screenHash, chaos.ScreenHint{
 		KnownData:      req.KnownData,
 		KnownKeys:      req.KnownKeys,
+		BlockedKeys:    req.BlockedKeys,
 		KeyAssignments: req.KeyAssignments,
 	})
 	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
@@ -948,6 +1005,16 @@ func sanitizeChaosScreenHint(h chaos.ScreenHint) chaos.ScreenHint {
 		seenKeys[k] = true
 		knownKeys = append(knownKeys, k)
 	}
+	blockedKeys := make([]string, 0, len(h.BlockedKeys))
+	seenBlocked := make(map[string]bool)
+	for _, raw := range h.BlockedKeys {
+		k := sanitizeChaosHintKeyName(raw)
+		if k == "" || seenBlocked[k] {
+			continue
+		}
+		seenBlocked[k] = true
+		blockedKeys = append(blockedKeys, k)
+	}
 	assignments := make(map[string]string)
 	for rawLabel, rawKey := range h.KeyAssignments {
 		label := strings.TrimSpace(rawLabel)
@@ -963,6 +1030,7 @@ func sanitizeChaosScreenHint(h chaos.ScreenHint) chaos.ScreenHint {
 	return chaos.ScreenHint{
 		KnownData:      knownData,
 		KnownKeys:      knownKeys,
+		BlockedKeys:    blockedKeys,
 		KeyAssignments: assignments,
 	}
 }
@@ -972,7 +1040,7 @@ func sanitizeChaosScreenHintPtr(h *chaos.ScreenHint) *chaos.ScreenHint {
 		return nil
 	}
 	clean := sanitizeChaosScreenHint(*h)
-	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 		return nil
 	}
 	return &clean
@@ -980,7 +1048,7 @@ func sanitizeChaosScreenHintPtr(h *chaos.ScreenHint) *chaos.ScreenHint {
 
 func mergeFirstScreenHintIntoChaosScreenHints(in map[string]chaos.ScreenHint, hint chaos.ScreenHint) map[string]chaos.ScreenHint {
 	clean := sanitizeChaosScreenHint(hint)
-	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 		return cloneChaosScreenHintsMap(in)
 	}
 	out := cloneChaosScreenHintsMap(in)
@@ -1002,7 +1070,7 @@ func cloneChaosScreenHintsMap(in map[string]chaos.ScreenHint) map[string]chaos.S
 			continue
 		}
 		clean := sanitizeChaosScreenHint(hint)
-		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 			continue
 		}
 		out[key] = clean
@@ -1224,6 +1292,11 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 	if st.LoadedRunID != "" {
 		resp["loadedRunID"] = st.LoadedRunID
 	}
+	if st.FirstScreenHash != "" {
+		resp["firstScreenHash"] = st.FirstScreenHash
+	} else if firstHash := chaosFirstScreenHashFromAttempts(st.RecentAttempts); firstHash != "" {
+		resp["firstScreenHash"] = firstHash
+	}
 	if !st.StartedAt.IsZero() {
 		resp["startedAt"] = st.StartedAt.Format(time.RFC3339)
 	}
@@ -1266,6 +1339,9 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 	if state.LoadedRunID != "" {
 		resp["loadedRunID"] = state.LoadedRunID
 	}
+	if firstHash := sessionChaosFirstScreenHashFromAttempts(state.RecentAttempts); firstHash != "" {
+		resp["firstScreenHash"] = firstHash
+	}
 	if !state.StartedAt.IsZero() {
 		resp["startedAt"] = state.StartedAt.Format(time.RFC3339)
 	}
@@ -1289,6 +1365,24 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 		resp["error"] = state.Error
 	}
 	return resp
+}
+
+func chaosFirstScreenHashFromAttempts(attempts []chaos.Attempt) string {
+	for _, attempt := range attempts {
+		if hash := strings.TrimSpace(attempt.FromHash); hash != "" {
+			return hash
+		}
+	}
+	return ""
+}
+
+func sessionChaosFirstScreenHashFromAttempts(attempts []session.ChaosAttempt) string {
+	for _, attempt := range attempts {
+		if hash := strings.TrimSpace(attempt.FromHash); hash != "" {
+			return hash
+		}
+	}
+	return ""
 }
 
 func marshalChaosMindMap(mindMap *chaos.MindMap) json.RawMessage {

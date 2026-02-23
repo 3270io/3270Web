@@ -203,6 +203,13 @@
     }
   };
 
+  const hideActiveRunRow = () => {
+    setHidden(activeRunExtend, true);
+    setHidden(activeRunClose, true);
+    setHidden(activeRunRow, true);
+    setHidden(activeRunContainer, true);
+  };
+
   const defaultButtonTooltip = (button) => {
     if (!button) {
       return '';
@@ -851,10 +858,7 @@
       event.preventDefault();
       event.stopPropagation();
       dismissedActiveRunKey = (activeRunRow && activeRunRow.dataset.dismissKey) || 'manual';
-      setHidden(activeRunExtend, true);
-      setHidden(activeRunClose, true);
-      setHidden(activeRunRow, true);
-      setHidden(activeRunContainer, true);
+      hideActiveRunRow();
     });
     activeRunClose.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -993,8 +997,14 @@
   const removeRecordingForm = document.querySelector('form[action="/workflow/remove"]');
   if (removeRecordingForm) {
     removeRecordingForm.addEventListener('submit', () => {
-      setHidden(activeRunRow, true);
-      setHidden(activeRunContainer, true);
+      hideActiveRunRow();
     });
   }
+
+  const playbackStartForms = document.querySelectorAll('form[action="/workflow/play"], form[action="/workflow/debug"]');
+  playbackStartForms.forEach((form) => {
+    form.addEventListener('submit', () => {
+      hideActiveRunRow();
+    });
+  });
 })();

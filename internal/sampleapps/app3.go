@@ -19,6 +19,7 @@ const (
 	app3PageAttrOps
 	app3PagePFKeys
 	app3PageResults
+	app3PageAltScreen
 )
 
 type app3State struct {
@@ -26,23 +27,38 @@ type app3State struct {
 	values  map[string]string
 	lastAID string
 	status  string
+	devinfo go3270.DevInfo
 }
 
 func handleApp3(conn net.Conn) {
 	defer conn.Close()
 
-	go3270.NegotiateTelnet(conn)
+	devinfo, err := go3270.NegotiateTelnet(conn)
+	if err != nil {
+		return
+	}
 
 	state := &app3State{
 		page:    app3PageMenu,
 		values:  map[string]string{},
 		lastAID: "[none]",
 		status:  "PF8 Next | PF7/PF4 Prev | PF3 Exit",
+		devinfo: devinfo,
 	}
 
 	for {
 		screen, row, col := state.buildScreen()
-		resp, err := go3270.ShowScreen(screen, state.values, row, col, conn)
+		var resp go3270.Response
+		if state.page == app3PageAltScreen && state.devinfo != nil {
+			resp, err = go3270.ShowScreenOpts(screen, state.values, conn, go3270.ScreenOpts{
+				AltScreen: state.devinfo,
+				Codepage:  state.devinfo.Codepage(),
+				CursorRow: row,
+				CursorCol: col,
+			})
+		} else {
+			resp, err = go3270.ShowScreen(screen, state.values, row, col, conn)
+		}
 		if err != nil {
 			return
 		}
@@ -99,6 +115,9 @@ func (s *app3State) handleAID(resp go3270.Response) bool {
 	case go3270.AIDPF11:
 		s.page = app3PageResults
 		s.status = "Results / field echo screen."
+	case go3270.AIDPF13:
+		s.page = app3PageAltScreen
+		s.status = "Alternate-screen demo (ScreenOpts.AltScreen)."
 	case go3270.AIDPF4, go3270.AIDPF7:
 		s.page = app3PrevPage(s.page)
 		s.status = fmt.Sprintf("Moved to previous page via %s.", s.lastAID)
@@ -121,12 +140,12 @@ func (s *app3State) handleEnter() {
 	case app3PageMenu:
 		choice := strings.TrimSpace(s.values["menuChoice"])
 		if choice == "" {
-			s.status = "Enter a screen number (1-6) then press Enter."
+			s.status = "Enter a screen number (1-7) then press Enter."
 			return
 		}
 		n, err := strconv.Atoi(choice)
-		if err != nil || n < 1 || n > 6 {
-			s.status = fmt.Sprintf("Invalid menu choice %q. Use 1-6.", choice)
+		if err != nil || n < 1 || n > 7 {
+			s.status = fmt.Sprintf("Invalid menu choice %q. Use 1-7.", choice)
 			return
 		}
 		switch n {
@@ -142,6 +161,8 @@ func (s *app3State) handleEnter() {
 			s.page = app3PagePFKeys
 		case 6:
 			s.page = app3PageResults
+		case 7:
+			s.page = app3PageAltScreen
 		}
 		s.status = fmt.Sprintf("Opened screen %d via Enter.", n)
 	case app3PageInputs:
@@ -164,7 +185,7 @@ func (s *app3State) clearEditableValues() {
 
 func app3PrevPage(p app3Page) app3Page {
 	order := []app3Page{
-		app3PageMenu, app3PageInputs, app3PageColors, app3PageHighlights, app3PageAttrOps, app3PagePFKeys, app3PageResults,
+		app3PageMenu, app3PageInputs, app3PageColors, app3PageHighlights, app3PageAttrOps, app3PagePFKeys, app3PageResults, app3PageAltScreen,
 	}
 	for i, v := range order {
 		if v == p {
@@ -179,7 +200,7 @@ func app3PrevPage(p app3Page) app3Page {
 
 func app3NextPage(p app3Page) app3Page {
 	order := []app3Page{
-		app3PageMenu, app3PageInputs, app3PageColors, app3PageHighlights, app3PageAttrOps, app3PagePFKeys, app3PageResults,
+		app3PageMenu, app3PageInputs, app3PageColors, app3PageHighlights, app3PageAttrOps, app3PagePFKeys, app3PageResults, app3PageAltScreen,
 	}
 	for i, v := range order {
 		if v == p {
@@ -203,8 +224,10 @@ func (s *app3State) buildScreen() (go3270.Screen, int, int) {
 		return s.buildPFKeyScreen(), 0, 0
 	case app3PageResults:
 		return s.buildResultsScreen(), 0, 0
+	case app3PageAltScreen:
+		return s.buildAltScreenDemo(), 0, 0
 	default:
-		return s.buildMenuScreen(), 14, 16
+		return s.buildMenuScreen(), 15, 16
 	}
 }
 
@@ -218,11 +241,12 @@ func (s *app3State) buildMenuScreen() go3270.Screen {
 		{Row: 7, Col: 0, Content: "4) AttributeOnly + PositionOnly demo (inline SA attributes and SBA-only positioning)"},
 		{Row: 8, Col: 0, Content: "5) PF/PA/Clear/Enter capture screen (PF1-PF24 visible and testable)"},
 		{Row: 9, Col: 0, Content: "6) Results screen (echo values, lengths, KeepSpaces behavior, last AID)"},
-		{Row: 11, Col: 0, Color: go3270.Turquoise, Content: "PF key navigation: PF2 Inputs | PF5 Colors | PF6 Highlights | PF9 Key Test | PF10 Attr | PF11 Results"},
-		{Row: 12, Col: 0, Color: go3270.Yellow, Content: "PF1/PF12 Menu | PF7/PF4 Prev | PF8 Next | PF3 Exit | Clear resets editable sample values"},
-		{Row: 14, Col: 0, Content: "Menu Choice (1-6):"},
-		{Row: 14, Col: 16, Name: "menuChoice", Write: true, Highlighting: go3270.Underscore},
-		{Row: 14, Col: 19, Autoskip: true},
+		{Row: 10, Col: 0, Content: "7) Alternate Screen demo (ScreenOpts.AltScreen / terminal alternate dimensions)"},
+		{Row: 12, Col: 0, Color: go3270.Turquoise, Content: "PF2 Inputs | PF5 Colors | PF6 Highlights | PF9 Key Test | PF10 Attr | PF11 Results | PF13 Alt"},
+		{Row: 13, Col: 0, Color: go3270.Yellow, Content: "PF1/PF12 Menu | PF7/PF4 Prev | PF8 Next | PF3 Exit | Clear resets editable sample values"},
+		{Row: 15, Col: 0, Content: "Menu Choice (1-7):"},
+		{Row: 15, Col: 16, Name: "menuChoice", Write: true, Highlighting: go3270.Underscore},
+		{Row: 15, Col: 19, Autoskip: true},
 	}
 	return app3FinalizeScreen(screen, "Menu", s.lastAID, s.status)
 }
@@ -464,11 +488,90 @@ func (s *app3State) buildResultsScreen() go3270.Screen {
 	return app3FinalizeScreen(screen, "Results", s.lastAID, s.status)
 }
 
+func (s *app3State) buildAltScreenDemo() go3270.Screen {
+	rows, cols := 24, 80
+	termType := "unknown"
+	if s.devinfo != nil {
+		rows, cols = s.devinfo.AltDimensions()
+		termType = s.devinfo.TerminalType()
+	}
+	if rows < 24 {
+		rows = 24
+	}
+	if cols < 80 {
+		cols = 80
+	}
+	hasLargerAlt := rows > 24 || cols > 80
+
+	screen := make(go3270.Screen, 0, rows+20)
+	bannerText := "ALT SCREEN ACTIVE: alternate size is larger than 24x80"
+	bannerColor := go3270.Green
+	if !hasLargerAlt {
+		bannerText = "ALT SCREEN ACTIVE: client alternate size is 24x80 (same as default)"
+		bannerColor = go3270.Yellow
+	}
+	screen = append(screen,
+		go3270.Field{Row: 0, Col: 0, Intense: true, Content: trimTo("Alternate Screen Demo (ScreenOpts.AltScreen)", cols)},
+		go3270.Field{Row: 1, Col: 0, Content: trimTo(fmt.Sprintf("TerminalType=%s | AltDimensions=%dx%d", termType, rows, cols), cols)},
+		go3270.Field{Row: 2, Col: 0, Color: bannerColor, Highlighting: go3270.ReverseVideo, Content: trimTo(bannerText, cols)},
+		go3270.Field{Row: 3, Col: 0, Color: go3270.Turquoise, Content: trimTo("This page is rendered using alternate screen mode when supported by the client.", cols)},
+	)
+
+	var ruler strings.Builder
+	for i := 0; i < cols; i++ {
+		ruler.WriteByte(byte('0' + (i % 10)))
+	}
+	screen = append(screen, go3270.Field{Row: 5, Col: 0, Content: ruler.String()})
+
+	maxProbeRows := min(14, rows-11)
+	for i := 0; i < maxProbeRows; i++ {
+		y := 6 + i
+		screen = append(screen, go3270.Field{Row: y, Col: 0, Content: fmt.Sprintf("R%02d", y)})
+		x := min(cols-1, 6+(i*4))
+		screen = append(screen, go3270.Field{Row: y, Col: x, PositionOnly: true, Content: "*"})
+	}
+
+	inputRow := max(8, rows-6)
+	label := "Alt screen input:"
+	inputCol := 0
+	inputStart := inputCol + len(label) + 1
+	inputEnd := min(cols-2, inputStart+24)
+	if inputStart < cols-1 {
+		screen = append(screen,
+			go3270.Field{Row: inputRow, Col: inputCol, Content: trimTo(label, cols)},
+			go3270.Field{Row: inputRow, Col: inputStart, Name: "altScreenInput", Write: true, Highlighting: go3270.Underscore, Color: go3270.Green},
+			go3270.Field{Row: inputRow, Col: inputEnd, Autoskip: true},
+		)
+	}
+
+	note := "Client reports alternate screen larger than 24x80."
+	if rows == 24 && cols == 80 {
+		note = "Client alternate screen is 24x80 (same as default). Demo still uses ScreenOpts.AltScreen."
+	}
+	screen = append(screen, go3270.Field{
+		Row: max(7, inputRow+1), Col: 0, Content: trimTo(note, cols),
+	})
+
+	brText := fmt.Sprintf("Bottom-right marker (%d,%d)", rows-1, cols-1)
+	brRow := rows - 3
+	if brRow < 6 {
+		brRow = 6
+	}
+	brCol := max(0, cols-len(brText)-1)
+	screen = append(screen,
+		go3270.Field{Row: brRow, Col: brCol, Color: go3270.Yellow, Highlighting: go3270.Underscore, Content: trimTo(brText, cols-brCol)},
+		go3270.Field{Row: rows - 2, Col: max(0, cols-1), PositionOnly: true, Content: "+"},
+		go3270.Field{Row: rows - 1, Col: 0, Content: trimTo("PF1/PF12 Menu PF4/PF7 Prev PF8 Next PF13 Alt PF3 Exit", cols)},
+	)
+
+	return screen
+}
+
 func app3FinalizeScreen(screen go3270.Screen, pageTitle, lastAID, status string) go3270.Screen {
 	footer := []go3270.Field{
 		{Row: 21, Col: 0, Color: go3270.Turquoise, Content: fmt.Sprintf("Page: %s", pageTitle)},
 		{Row: 21, Col: 18, Content: fmt.Sprintf("Last AID: %s", lastAID)},
-		{Row: 22, Col: 0, Content: "PF1/PF12 Menu  PF2 Inputs  PF5 Colors  PF6 Highlights  PF9 PF Keys  PF10 Attr  PF11 Results"},
+		{Row: 22, Col: 0, Content: "PF1/PF12 Menu PF2 Inputs PF5 Colors PF6 High PF9 Keys PF10 Attr PF11 Results PF13 Alt"},
 		{Row: 23, Col: 0, Content: "PF4/PF7 Prev  PF8 Next  Enter Apply/Select  Clear Reset Inputs  PF3 Exit"},
 	}
 	if strings.TrimSpace(status) != "" {
@@ -490,4 +593,18 @@ func trimTo(s string, max int) string {
 		return s[:max]
 	}
 	return s[:max-3] + "..."
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -213,6 +213,7 @@ func main() {
 	r.POST("/chaos/report", app.ChaosReportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
+	r.POST("/chaos/runs/delete", app.ChaosDeleteRunHandler)
 	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
 	r.POST("/chaos/resume", app.ChaosResumeHandler)
 	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
@@ -1347,6 +1348,7 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_STEP_DELAY_SEC"] = "0.5"
 	defaults["CHAOS_SEED"] = "0"
 	defaults["CHAOS_MAX_FIELD_LENGTH"] = "40"
+	defaults["CHAOS_SCREEN_DEDUP_SIMILARITY"] = "0.985"
 	defaults["CHAOS_OUTPUT_FILE"] = ""
 	defaults["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"] = "true"
 	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
@@ -1694,6 +1696,13 @@ func validateSettingValue(key, value string, specs map[string]config.S3270Option
 	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" || key == "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS" || key == "CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS" {
 		if !isStrictBool(value) {
 			return fmt.Errorf("must be true or false")
+		}
+		return nil
+	}
+	if key == "CHAOS_SCREEN_DEDUP_SIMILARITY" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil || parsed <= 0 || parsed > 1 {
+			return fmt.Errorf("must be a number > 0 and <= 1")
 		}
 		return nil
 	}

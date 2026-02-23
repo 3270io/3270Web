@@ -640,6 +640,22 @@ body.terminal-fit-active .card {
   border: 1px solid var(--border);
 }
 
+.workflow-status-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.workflow-status-file-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
 .recording-indicator {
   width: 14px;
   height: 14px;
@@ -728,8 +744,6 @@ body.terminal-fit-active .card {
 }
 
 .chaos-run-load-btn {
-  align-self: flex-end;
-  margin-top: 4px;
   padding: 3px 10px;
   font-size: 0.8em;
   border: 1px solid var(--accent-color, #a855f7);
@@ -741,6 +755,28 @@ body.terminal-fit-active .card {
 
 .chaos-run-load-btn:hover {
   background: var(--accent-color, #a855f7);
+  color: #fff;
+}
+
+.chaos-run-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.chaos-run-delete-btn {
+  padding: 3px 10px;
+  font-size: 0.8em;
+  border: 1px solid #cc5b5b;
+  border-radius: 3px;
+  background: transparent;
+  color: #cc5b5b;
+  cursor: pointer;
+}
+
+.chaos-run-delete-btn:hover {
+  background: #cc5b5b;
   color: #fff;
 }
 
@@ -1082,6 +1118,13 @@ a {
 pre, pre input, textarea {
   font-family: var(--mono);
   font-size: var(--terminal-cell-size);
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "liga" 0, "calt" 0, "kern" 0;
+  font-optical-sizing: none;
+  letter-spacing: 0;
+  word-spacing: 0;
   border-style: none;
   outline: none;
   background-color: var(--bg);
@@ -1100,10 +1143,13 @@ pre, pre input, textarea {
 .renderer-form input,
 .renderer-form textarea {
   line-height: var(--terminal-cell-size);
+  text-rendering: optimizeSpeed;
 }
 
 .renderer-form pre {
   margin: 0;
+  white-space: pre;
+  tab-size: 1;
 }
 
 .screen-container {
@@ -1129,6 +1175,9 @@ pre, pre input, textarea {
   display: flex;
   font-family: var(--mono);
   font-size: var(--terminal-cell-size);
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0, "kern" 0;
   gap: 16px;
   line-height: var(--terminal-cell-size);
   margin: 0;
@@ -1148,6 +1197,8 @@ pre, pre input, textarea {
 .color-input-intensified,
 .h3270-input-hidden,
 .color-input-hidden {
+  appearance: none;
+  -webkit-appearance: none;
   background: transparent;
   border: none !important;
   border-bottom: 1px solid var(--accent);
@@ -1157,6 +1208,12 @@ pre, pre input, textarea {
   padding: 0;
   box-sizing: content-box;
   min-width: 0;
+  display: inline-block;
+  vertical-align: top;
+  height: var(--terminal-cell-size);
+  line-height: var(--terminal-cell-size);
+  font-family: inherit;
+  font-size: inherit;
 }
 
 /* Block cursor for compatible browsers */
@@ -1835,12 +1892,17 @@ pre, pre input, textarea {
 .modal-chaos-flow {
   width: min(1300px, 100%);
   max-width: calc(100vw - 40px);
+  max-height: min(96vh, 1400px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .modal-chaos-flow .stack {
   width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: hidden;
+  padding-right: 4px;
 }
 
 .modal-chaos-report {
@@ -2379,6 +2441,8 @@ pre, pre input, textarea {
 .modal-chaos-flow [data-chaos-flow-content] {
   width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 

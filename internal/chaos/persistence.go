@@ -122,6 +122,21 @@ func LoadRun(dir, runID string) (*SavedRun, error) {
 	return &run, nil
 }
 
+// DeleteRun removes the saved run file for the given run ID from dir.
+func DeleteRun(dir, runID string) error {
+	if dir == "" {
+		return fmt.Errorf("chaos runs directory not configured")
+	}
+	path := filepath.Join(dir, runFileName(runID))
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("run %q not found", runID)
+		}
+		return fmt.Errorf("delete run file: %w", err)
+	}
+	return nil
+}
+
 // NewRunID generates a sortable, unique identifier for a chaos run using
 // the current time and a short random suffix.
 func NewRunID() string {

@@ -26,6 +26,7 @@ type Hint struct {
 type ScreenHint struct {
 	KnownData      []string          `json:"knownData,omitempty"`
 	KnownKeys      []string          `json:"knownKeys,omitempty"`
+	BlockedKeys    []string          `json:"blockedKeys,omitempty"`
 	KeyAssignments map[string]string `json:"keyAssignments,omitempty"`
 }
 
@@ -75,6 +76,11 @@ type Config struct {
 	// when no screen transition occurs.
 	ExcludeNoProgressEvents bool `json:"excludeNoProgressEvents"`
 
+	// ScreenDedupSimilarity is the threshold (0-1) used to merge highly similar
+	// screens into one discovered area in the mind map, reducing false
+	// "new screens" caused by echoed values. Higher values are stricter.
+	ScreenDedupSimilarity float64 `json:"screenDedupSimilarity,omitempty"`
+
 	// ExportHost and ExportPort are optional metadata used when writing
 	// workflow-compatible chaos output files.
 	ExportHost string `json:"-"`
@@ -90,6 +96,7 @@ func DefaultConfig() Config {
 		MaxFieldLength:              40,
 		ForceOverrideExistingInputs: true,
 		ExcludeNoProgressEvents:     true,
+		ScreenDedupSimilarity:       0.985,
 		AIDKeyWeights: map[string]int{
 			"Enter":  70,
 			"PF(1)":  5,

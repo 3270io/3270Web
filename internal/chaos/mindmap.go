@@ -39,6 +39,7 @@ type MindMapArea struct {
 	KnownTriedValues   map[string][]string              `json:"knownTriedValues,omitempty"`
 	KnownWorkingValues map[string][]string              `json:"knownWorkingValues,omitempty"`
 	KeyPresses         map[string]*MindMapKeyPress      `json:"keyPresses,omitempty"`
+	DedupSignature     string                           `json:"dedupSignature,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.
@@ -192,6 +193,7 @@ func (m *MindMap) observeScreen(hash string, screen *host.Screen, seenAt time.Ti
 			area.FieldMetadata[key] = meta
 		}
 	}
+	area.DedupSignature = buildAreaDedupSignature(screen)
 }
 
 func (m *MindMap) recordAttempt(attempt Attempt) {
@@ -442,4 +444,71 @@ func appendUniqueLimited(values []string, candidate string, max int) []string {
 		values = values[1:]
 	}
 	return append(values, candidate)
+}
+
+func buildAreaDedupSignature(screen *host.Screen) string {
+	if screen == nil {
+		return ""
+	}
+	width, height := screenDimensions(screen)
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	maskedInputCells := make([]bool, width*height)
+	for _, f := range screen.Fields {
+		if f == nil || f.IsProtected() {
+			continue
+		}
+		curX, curY := f.StartX, f.StartY
+		for {
+			if curX >= 0 && curX < width && curY >= 0 && curY < height {
+				maskedInputCells[(curY*width)+curX] = true
+			}
+			if curX == f.EndX && curY == f.EndY {
+				break
+			}
+			curX++
+			if curX >= width {
+				curX = 0
+				curY++
+				if curY >= height {
+					break
+				}
+			}
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%dx%d|", width, height)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			ch := screen.CharAt(x, y)
+			if ch == 0 {
+				ch = ' '
+			}
+			if maskedInputCells[(y*width)+x] {
+				ch = ' '
+			}
+			// Preserve layout and punctuation, but abstract alphanumerics so
+			// echoed values don't fragment the mind map into near-duplicates.
+			switch {
+			case ch >= 'A' && ch <= 'Z':
+				ch = 'A'
+			case ch >= 'a' && ch <= 'z':
+				ch = 'a'
+			case ch >= '0' && ch <= '9':
+				ch = '9'
+			}
+			b.WriteRune(ch)
+		}
+		b.WriteByte('\n')
+	}
+	fmt.Fprintf(&b, "|fields:%d", len(screen.Fields))
+	for _, f := range screen.Fields {
+		if f == nil {
+			continue
+		}
+		fmt.Fprintf(&b, "|%d,%d,%d,%d,%d,%d,%d", f.StartY, f.StartX, f.EndY, f.EndX, f.FieldCode, f.Color, f.ExtendedHighlight)
+	}
+	return b.String()
 }

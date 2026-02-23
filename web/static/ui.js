@@ -159,6 +159,7 @@
         CHAOS_STEP_DELAY_SEC: '0.5',
         CHAOS_SEED: '0',
         CHAOS_MAX_FIELD_LENGTH: '40',
+        CHAOS_SCREEN_DEDUP_SIMILARITY: '0.985',
         CHAOS_OUTPUT_FILE: '',
         CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS: 'true',
         CHAOS_EXCLUDE_NO_PROGRESS_EVENTS: 'true',
@@ -316,6 +317,7 @@
                 { key: 'CHAOS_STEP_DELAY_SEC', label: 'Step delay (seconds)', type: 'text', helper: 'Pause between submissions in seconds (e.g. 0.5).' },
                 { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
                 { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
+                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.97 merges value-echo variants more aggressively). Default 0.985 is a balanced starting point.' },
                 { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
                 { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
                 { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
@@ -1520,6 +1522,7 @@
     const hintsKeyBlacklistInput = document.querySelector('[data-chaos-key-blacklist]');
     const firstScreenKnownDataInput = document.querySelector('[data-chaos-first-screen-known-data]');
     const firstScreenKnownKeysInput = document.querySelector('[data-chaos-first-screen-known-keys]');
+    const firstScreenBlockedKeysInput = document.querySelector('[data-chaos-first-screen-blocked-keys]');
     const firstScreenKeyAssignmentsInput = document.querySelector('[data-chaos-first-screen-key-assignments]');
     const hintsAddBtn = document.querySelector('[data-chaos-hints-add]');
     const hintsLoadRecordingBtn = document.querySelector('[data-chaos-hints-load-recording]');
@@ -1542,7 +1545,7 @@
     const flowMinimizeBtn = document.querySelector('[data-chaos-flow-minimize]');
     const flowContent = document.querySelector('[data-chaos-flow-content]');
     const flowStatus = document.querySelector('[data-chaos-flow-status]');
-    const flowRefreshBtn = document.querySelector('[data-chaos-flow-refresh]');
+    const flowRefreshButtons = Array.from(document.querySelectorAll('[data-chaos-flow-refresh]'));
     const reportModal = document.querySelector('[data-chaos-report-modal]');
     const reportModalClose = document.querySelectorAll('[data-chaos-report-close]');
     const reportMaximizeBtn = document.querySelector('[data-chaos-report-maximize]');
@@ -1574,7 +1577,7 @@
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
     let chaosHints = [];
     let chaosKeyBlacklist = [];
-    let chaosFirstScreenHint = { knownData: [], knownKeys: [], keyAssignments: {} };
+    let chaosFirstScreenHint = { knownData: [], knownKeys: [], blockedKeys: [], keyAssignments: {} };
     let hintsDirty = false;
     let hintsModalMaximized = false;
     let mapModalMaximized = false;
@@ -1583,6 +1586,7 @@
     let reportRawMarkdownMode = false;
     let hintRowSequence = 0;
     let latestMindMap = null;
+    let latestFirstScreenHash = '';
     let screenHintsByHash = {};
     let screenHintDrafts = {};
     let latestChaosReportMarkdown = '';
@@ -2070,6 +2074,7 @@
         return normalizeScreenHint({
             knownData: firstScreenKnownDataInput ? firstScreenKnownDataInput.value : '',
             knownKeys: firstScreenKnownKeysInput ? firstScreenKnownKeysInput.value : '',
+            blockedKeys: firstScreenBlockedKeysInput ? firstScreenBlockedKeysInput.value : '',
             keyAssignments: parseKeyAssignments(firstScreenKeyAssignmentsInput ? firstScreenKeyAssignmentsInput.value : ''),
         });
     };
@@ -2081,6 +2086,9 @@
         }
         if (firstScreenKnownKeysInput) {
             firstScreenKnownKeysInput.value = formatListLines(normalized.knownKeys);
+        }
+        if (firstScreenBlockedKeysInput) {
+            firstScreenBlockedKeysInput.value = formatListLines(normalized.blockedKeys);
         }
         if (firstScreenKeyAssignmentsInput) {
             firstScreenKeyAssignmentsInput.value = formatKeyAssignments(normalized.keyAssignments || {});
@@ -2164,7 +2172,7 @@
 
     const normalizeScreenHint = (raw) => {
         if (!raw || typeof raw !== 'object') {
-            return { knownData: [], knownKeys: [], keyAssignments: {} };
+            return { knownData: [], knownKeys: [], blockedKeys: [], keyAssignments: {} };
         }
         const knownData = Array.isArray(raw.knownData)
             ? raw.knownData.map((v) => String(v || '').trim()).filter(Boolean)
@@ -2172,9 +2180,13 @@
         const knownKeys = Array.isArray(raw.knownKeys)
             ? raw.knownKeys.map((v) => String(v || '').trim()).filter(Boolean)
             : parseListLines(raw.knownKeys || '');
+        const blockedKeys = Array.isArray(raw.blockedKeys)
+            ? raw.blockedKeys.map((v) => String(v || '').trim()).filter(Boolean)
+            : parseListLines(raw.blockedKeys || '');
         return {
             knownData,
             knownKeys,
+            blockedKeys,
             keyAssignments: normalizeKeyAssignments(raw.keyAssignments || {}),
         };
     };
@@ -2190,7 +2202,7 @@
                 return;
             }
             const norm = normalizeScreenHint(hint);
-            if (!norm.knownData.length && !norm.knownKeys.length && !Object.keys(norm.keyAssignments).length) {
+            if (!norm.knownData.length && !norm.knownKeys.length && !norm.blockedKeys.length && !Object.keys(norm.keyAssignments).length) {
                 return;
             }
             out[key] = norm;
@@ -2626,6 +2638,17 @@
         if (!area || typeof area !== 'object') {
             return '';
         }
+        const dedupSignature = String(area.dedupSignature || '').trim();
+        if (dedupSignature) {
+            const screenWidth = Number(area.screenWidth) || 0;
+            const screenHeight = Number(area.screenHeight) || 0;
+            return [
+                'dedup',
+                `sw:${screenWidth}`,
+                `sh:${screenHeight}`,
+                `sig:${dedupSignature}`,
+            ].join('|');
+        }
         const label = String(area.label || '').trim().toLowerCase();
         const screenWidth = Number(area.screenWidth) || 0;
         const screenHeight = Number(area.screenHeight) || 0;
@@ -2871,7 +2894,25 @@
                     screenHeight: Number(sampleArea.screenHeight) || 0,
                 };
             })
-            .sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
+            .sort((a, b) =>
+                compareChaosFlowTimestampAscUnknownLast(
+                    Number(a && a.firstSeenMs) || 0,
+                    Number(b && b.firstSeenMs) || 0
+                ) || String(a && a.hash || '').localeCompare(String(b && b.hash || ''))
+            );
+
+        groupedNodes.forEach((node) => {
+            const nodeHash = String(node && node.hash || '').trim();
+            if (!nodeHash) {
+                return;
+            }
+            if (!chaosFlowStableDiscoveryRankByHash.has(nodeHash)) {
+                chaosFlowStableDiscoveryRankByHash.set(nodeHash, chaosFlowStableDiscoveryRankSeq);
+                chaosFlowStableDiscoveryRankSeq += 1;
+            }
+            node.stableDiscoveryRank = chaosFlowStableDiscoveryRankByHash.get(nodeHash);
+        });
+        groupedNodes.sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
 
         const maxNodes = 28;
         const nodes = groupedNodes.slice(0, maxNodes);
@@ -2911,9 +2952,24 @@
             });
         });
 
+        const nodeRankForEdges = new Map(nodes.map((node, idx) => [node.hash, Number(node.stableDiscoveryRank) >= 0 ? Number(node.stableDiscoveryRank) : idx]));
         const edges = Array.from(edgeMap.values())
-            .sort((a, b) => b.count - a.count || a.fromHash.localeCompare(b.fromHash) || a.toHash.localeCompare(b.toHash))
-            .slice(0, 72)
+            .sort((a, b) => {
+                const aFrom = nodeRankForEdges.has(a.fromHash) ? nodeRankForEdges.get(a.fromHash) : Number.MAX_SAFE_INTEGER;
+                const bFrom = nodeRankForEdges.has(b.fromHash) ? nodeRankForEdges.get(b.fromHash) : Number.MAX_SAFE_INTEGER;
+                if (aFrom !== bFrom) {
+                    return aFrom - bFrom;
+                }
+                const aTo = nodeRankForEdges.has(a.toHash) ? nodeRankForEdges.get(a.toHash) : Number.MAX_SAFE_INTEGER;
+                const bTo = nodeRankForEdges.has(b.toHash) ? nodeRankForEdges.get(b.toHash) : Number.MAX_SAFE_INTEGER;
+                if (aTo !== bTo) {
+                    return aTo - bTo;
+                }
+                return (Number(b.count) || 0) - (Number(a.count) || 0)
+                    || a.fromHash.localeCompare(b.fromHash)
+                    || a.toHash.localeCompare(b.toHash);
+            })
+            .slice(0, 256)
             .map((edge) => {
                 const topKeys = Array.from(edge.keys.entries())
                     .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
@@ -2942,6 +2998,12 @@
                 return;
             }
             node.incomingTransitions = incomingTransitionsByNode.get(node.hash) || 0;
+            if (!Number.isFinite(Number(node.stableDiscoveryRank))) {
+                const nodeHash = String(node.hash || '').trim();
+                if (nodeHash && chaosFlowStableDiscoveryRankByHash.has(nodeHash)) {
+                    node.stableDiscoveryRank = chaosFlowStableDiscoveryRankByHash.get(nodeHash);
+                }
+            }
         });
         nodes.sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
         nodes.forEach((node, index) => {
@@ -3026,6 +3088,20 @@
             return -1;
         }
         if (!aHasOrder && bHasOrder) {
+            return 1;
+        }
+
+        const aStable = Number(a && a.stableDiscoveryRank);
+        const bStable = Number(b && b.stableDiscoveryRank);
+        const aHasStable = Number.isFinite(aStable) && aStable >= 0;
+        const bHasStable = Number.isFinite(bStable) && bStable >= 0;
+        if (aHasStable && bHasStable && aStable !== bStable) {
+            return aStable - bStable;
+        }
+        if (aHasStable && !bHasStable) {
+            return -1;
+        }
+        if (!aHasStable && bHasStable) {
             return 1;
         }
 
@@ -3234,37 +3310,57 @@
             outgoing.get(edge.fromHash).push(edge);
             incoming.get(edge.toHash).push(edge);
         });
-        outgoing.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
-        incoming.forEach((list) => list.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)));
-
         const sortedNodes = nodes.slice().sort((a, b) => compareChaosFlowNodesByDiscovery(a, b));
-        const root = sortedNodes[0];
-        const visited = new Set(root ? [root.hash] : []);
-        const selectedKeys = new Set();
-        const queue = root ? [root.hash] : [];
+        const nodeOrderByHash = new Map(sortedNodes.map((node, idx) => [node.hash, idx]));
+        const compareEdgesForDiscoveryPath = (a, b) => {
+            const aFrom = nodeOrderByHash.get(a && a.fromHash);
+            const bFrom = nodeOrderByHash.get(b && b.fromHash);
+            const aTo = nodeOrderByHash.get(a && a.toHash);
+            const bTo = nodeOrderByHash.get(b && b.toHash);
+            const aFromOrder = Number.isFinite(aFrom) ? aFrom : Number.MAX_SAFE_INTEGER;
+            const bFromOrder = Number.isFinite(bFrom) ? bFrom : Number.MAX_SAFE_INTEGER;
+            if (aFromOrder !== bFromOrder) {
+                return aFromOrder - bFromOrder;
+            }
+            const aToOrder = Number.isFinite(aTo) ? aTo : Number.MAX_SAFE_INTEGER;
+            const bToOrder = Number.isFinite(bTo) ? bTo : Number.MAX_SAFE_INTEGER;
+            if (aToOrder !== bToOrder) {
+                return aToOrder - bToOrder;
+            }
+            const aCount = Number(a && a.count) || 0;
+            const bCount = Number(b && b.count) || 0;
+            if (bCount !== aCount) {
+                return bCount - aCount;
+            }
+            return edgeKeyForFlow(a).localeCompare(edgeKeyForFlow(b));
+        };
+        outgoing.forEach((list) => list.sort(compareEdgesForDiscoveryPath));
+        incoming.forEach((list) => list.sort(compareEdgesForDiscoveryPath));
 
-        while (queue.length) {
-            const fromHash = queue.shift();
-            (outgoing.get(fromHash) || []).forEach((edge) => {
-                const toHash = edge.toHash;
-                if (!toHash || visited.has(toHash)) {
-                    return;
-                }
-                const key = edgeKeyForFlow(edge);
-                if (selectedKeys.has(key)) {
-                    return;
-                }
-                selectedKeys.add(key);
-                visited.add(toHash);
-                queue.push(toHash);
-            });
+        const root = sortedNodes[0];
+        const selectedKeys = new Set();
+        const visited = new Set();
+        if (root && root.hash) {
+            visited.add(root.hash);
         }
 
-        sortedNodes.forEach((node) => {
-            if (!node || visited.has(node.hash)) {
+        sortedNodes.forEach((node, idx) => {
+            if (!node || !node.hash || idx === 0) {
                 return;
             }
-            const bestIncoming = (incoming.get(node.hash) || [])[0];
+            const incomingEdges = (incoming.get(node.hash) || []).filter((edge) => {
+                const fromOrder = nodeOrderByHash.get(edge && edge.fromHash);
+                return Number.isFinite(fromOrder) && fromOrder < idx;
+            });
+            incomingEdges.sort((a, b) => {
+                const aVisited = visited.has(a.fromHash) ? 0 : 1;
+                const bVisited = visited.has(b.fromHash) ? 0 : 1;
+                if (aVisited !== bVisited) {
+                    return aVisited - bVisited;
+                }
+                return compareEdgesForDiscoveryPath(a, b);
+            });
+            const bestIncoming = incomingEdges[0] || (incoming.get(node.hash) || [])[0];
             if (bestIncoming) {
                 selectedKeys.add(edgeKeyForFlow(bestIncoming));
             }
@@ -3428,12 +3524,10 @@
                 return;
             }
             const bandHeight = bandKeys.reduce((m, key) => Math.max(m, colHeights.get(key) || nodeH), nodeH);
-            const bandWidth = (bandKeys.length * nodeW) + (Math.max(0, bandKeys.length - 1) * colGap);
-            const bandStartX = padX + Math.max(0, ((width - (padX * 2)) - bandWidth) / 2);
+            const bandStartX = padX;
             bandKeys.forEach((col, colIndex) => {
                 const colNodes = columns.get(col) || [];
-                const colHeight = colHeights.get(col) || nodeH;
-                const startY = bandY + Math.max(0, (bandHeight - colHeight) / 2);
+                const startY = bandY;
                 colNodes.forEach((node, rowIndex) => {
                     const n = nodeByHash.get(node.hash);
                     n.x = bandStartX + (colIndex * (nodeW + colGap));
@@ -3625,9 +3719,19 @@
         `;
     };
 
-    const getChaosMapAreas = () => {
+    const getChaosMapAreas = (options = {}) => {
+        const includeFirstScreen = !!options.includeFirstScreen;
+        const excludedFirstHash = includeFirstScreen ? '' : String(latestFirstScreenHash || '').trim();
         const areas = latestMindMap && latestMindMap.areas && typeof latestMindMap.areas === 'object'
-            ? Object.values(latestMindMap.areas).filter((a) => a && typeof a === 'object')
+            ? Object.values(latestMindMap.areas).filter((a) => {
+                if (!a || typeof a !== 'object') {
+                    return false;
+                }
+                if (!excludedFirstHash) {
+                    return true;
+                }
+                return String(a.hash || '').trim() !== excludedFirstHash;
+            })
             : [];
         areas.sort((a, b) => {
             const aVisits = Number(a.visits) || 0;
@@ -3642,7 +3746,10 @@
         return areas;
     };
 
-    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosMapAreas()).groups.length;
+    const getChaosMapCardAreas = () => getChaosMapAreas({ includeFirstScreen: false });
+    const getChaosFlowAreas = () => getChaosMapAreas({ includeFirstScreen: true });
+
+    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosMapCardAreas()).groups.length;
     const chaosFlowNodePositionOverrides = {
         inline: new Map(),
         modal: new Map(),
@@ -3651,6 +3758,8 @@
         inline: { zoom: 1 },
         modal: { zoom: 1 },
     };
+    const chaosFlowStableDiscoveryRankByHash = new Map();
+    let chaosFlowStableDiscoveryRankSeq = 0;
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -4361,8 +4470,8 @@
                     return;
                 }
                 const ctrlLike = event.ctrlKey || event.metaKey;
-                const plainWheelZoom = !ctrlLike && !event.altKey;
-                if (!ctrlLike && !plainWheelZoom) {
+                const explicitZoomGesture = ctrlLike || event.altKey;
+                if (!explicitZoomGesture) {
                     return;
                 }
                 const step = dominantDelta < 0 ? 1.12 : (1 / 1.12);
@@ -4454,7 +4563,7 @@
         if (!flowContent) {
             return;
         }
-        const areas = getChaosMapAreas();
+        const areas = getChaosFlowAreas();
         if (!areas.length) {
             flowContent.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
             return;
@@ -4585,7 +4694,7 @@
         if (!mapList) {
             return;
         }
-        const areas = getChaosMapAreas();
+        const areas = getChaosMapCardAreas();
         if (!areas.length) {
             if (mapViewBtn) {
                 mapViewBtn.disabled = true;
@@ -5105,6 +5214,17 @@
         if (status && status.loadedRunID) {
             loadedRunID = status.loadedRunID;
         }
+        if (status && typeof status.firstScreenHash === 'string') {
+            latestFirstScreenHash = status.firstScreenHash.trim();
+        } else if (running && (Number(status.stepsRun) || 0) === 0) {
+            latestFirstScreenHash = '';
+        } else if (status && !running && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+            latestFirstScreenHash = '';
+        }
+        const suppressStoredChaosDisplay = !running && isPlaybackActive();
+        const visibleLoadedRunID = suppressStoredChaosDisplay ? null : loadedRunID;
+        const visibleHasData = suppressStoredChaosDisplay ? false : hasData;
+        const visibleCompleted = suppressStoredChaosDisplay ? false : completed;
 
         if (startBtn) {
             startBtn.hidden = running;
@@ -5113,31 +5233,31 @@
             stopBtn.hidden = !running;
         }
         if (resumeBtn) {
-            resumeBtn.hidden = running || !loadedRunID || completed;
+            resumeBtn.hidden = running || !visibleLoadedRunID || visibleCompleted;
         }
         if (extendBtn) {
-            extendBtn.hidden = running || !completed || !loadedRunID;
+            extendBtn.hidden = running || !visibleCompleted || !visibleLoadedRunID;
         }
         if (exportBtn) {
-            exportBtn.hidden = running || !hasData;
+            exportBtn.hidden = running || !visibleHasData;
         }
         if (reportBtn) {
-            reportBtn.hidden = running || !hasData;
+            reportBtn.hidden = running || !visibleHasData;
         }
         if (removeBtn) {
-            removeBtn.hidden = running || !hasData;
+            removeBtn.hidden = running || !visibleHasData;
         }
         if (indicator) {
             indicator.hidden = !running;
         }
         if (completeIndicator) {
-            completeIndicator.hidden = !completed;
+            completeIndicator.hidden = !visibleCompleted;
         }
         if (statsIndicator) {
-            const hasStats = !!(status && (status.stepsRun > 0 || status.transitions > 0));
+            const hasStats = !suppressStoredChaosDisplay && !!(status && (status.stepsRun > 0 || status.transitions > 0));
             statsIndicator.hidden = !hasStats;
             if (statsText && hasStats) {
-                let txt = completed ? `Complete: ${status.stepsRun} attempts` : `${status.stepsRun} attempts`;
+                let txt = visibleCompleted ? `Complete: ${status.stepsRun} attempts` : `${status.stepsRun} attempts`;
                 if (status.transitions > 0) {
                     txt += ` | ${status.transitions} transitions`;
                 }
@@ -5150,8 +5270,8 @@
                 if (status.error) {
                     txt += ' | error';
                 }
-                if (completed && loadedRunID) {
-                    txt += ` | run ${loadedRunID}`;
+                if (visibleCompleted && visibleLoadedRunID) {
+                    txt += ` | run ${visibleLoadedRunID}`;
                 }
                 statsText.textContent = txt;
             }
@@ -5169,7 +5289,10 @@
             }
             const status = await resp.json();
             updateUI(status);
-            if (status.active) {
+            const finalizingCompletedRun = !status.active
+                && (Number(status.stepsRun) || 0) > 0
+                && !String(status.loadedRunID || '').trim();
+            if (status.active || finalizingCompletedRun) {
                 pollTimer = setTimeout(pollStatus, 1000);
             }
         } catch (_err) {
@@ -5208,7 +5331,10 @@
                         <span class="subtle">${date}</span>
                     </div>
                     <div class="chaos-run-stats subtle">${meta}</div>
-                    <button type="button" class="chaos-run-load-btn" data-load-run-id="${r.id}">Load</button>
+                    <div class="chaos-run-actions">
+                        <button type="button" class="chaos-run-load-btn" data-load-run-id="${r.id}">Load</button>
+                        <button type="button" class="chaos-run-delete-btn" data-delete-run-id="${r.id}">Delete</button>
+                    </div>
                 </div>`;
             });
             runsList.innerHTML = items.join('');
@@ -5241,6 +5367,51 @@
                         // Ignore
                     }
                     closeChaosModal(runsModal);
+                });
+            });
+            runsList.querySelectorAll('[data-delete-run-id]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const rid = btn.getAttribute('data-delete-run-id');
+                    if (!rid) {
+                        return;
+                    }
+                    if (!window.confirm(`Delete saved chaos run ${rid}?`)) {
+                        return;
+                    }
+                    btn.disabled = true;
+                    try {
+                        const respDelete = await fetch('/chaos/runs/delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ runID: rid }),
+                        });
+                        if (!respDelete.ok) {
+                            btn.disabled = false;
+                            return;
+                        }
+                        const row = btn.closest('.chaos-run-item');
+                        if (row) {
+                            row.remove();
+                        }
+                        if (loadedRunID === rid) {
+                            loadedRunID = null;
+                            updateUI({
+                                active: false,
+                                stepsRun: 0,
+                                transitions: 0,
+                                uniqueScreens: 0,
+                                uniqueInputs: 0,
+                            });
+                            if (typeof window.refreshWorkflowStatus === 'function') {
+                                await window.refreshWorkflowStatus();
+                            }
+                        }
+                        if (!runsList.querySelector('.chaos-run-item')) {
+                            runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
+                        }
+                    } catch (_e) {
+                        btn.disabled = false;
+                    }
                 });
             });
             focusModalElement(runsModal, '[data-load-run-id], [data-chaos-runs-close]');
@@ -5448,8 +5619,8 @@
             focusModalElement(mapModal, chaosMapTopFocusSelector);
         });
     }
-    if (flowRefreshBtn) {
-        flowRefreshBtn.addEventListener('click', async () => {
+    flowRefreshButtons.forEach((btn) => {
+        btn.addEventListener('click', async () => {
             setFlowStatus('Refreshing discovery flow...');
             await refreshChaosMapView();
             renderChaosFlowModal();
@@ -5460,7 +5631,7 @@
             setFlowStatus(areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.');
             focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
         });
-    }
+    });
     if (flowMaximizeBtn) {
         flowMaximizeBtn.addEventListener('click', () => {
             setFlowModalMaximized(true);
@@ -5567,6 +5738,9 @@
     if (firstScreenKnownKeysInput) {
         firstScreenKnownKeysInput.addEventListener('input', markHintsDirty);
     }
+    if (firstScreenBlockedKeysInput) {
+        firstScreenBlockedKeysInput.addEventListener('input', markHintsDirty);
+    }
     if (firstScreenKeyAssignmentsInput) {
         firstScreenKeyAssignmentsInput.addEventListener('input', markHintsDirty);
     }
@@ -5621,6 +5795,10 @@
         if (!isNaN(maxFieldLength) && maxFieldLength > 0) {
             cfg.maxFieldLength = maxFieldLength;
         }
+        const screenDedupSimilarity = parseFloat(getVal('CHAOS_SCREEN_DEDUP_SIMILARITY'));
+        if (!isNaN(screenDedupSimilarity) && screenDedupSimilarity > 0 && screenDedupSimilarity <= 1) {
+            cfg.screenDedupSimilarity = screenDedupSimilarity;
+        }
 
         const outputFile = getVal('CHAOS_OUTPUT_FILE');
         if (outputFile) {
@@ -5646,11 +5824,13 @@
         if (draftFirstScreenHint && (
             (Array.isArray(draftFirstScreenHint.knownData) && draftFirstScreenHint.knownData.length > 0) ||
             (Array.isArray(draftFirstScreenHint.knownKeys) && draftFirstScreenHint.knownKeys.length > 0) ||
+            (Array.isArray(draftFirstScreenHint.blockedKeys) && draftFirstScreenHint.blockedKeys.length > 0) ||
             (draftFirstScreenHint.keyAssignments && Object.keys(draftFirstScreenHint.keyAssignments).length > 0)
         )) {
             cfg.firstScreenHint = {
                 knownData: draftFirstScreenHint.knownData || [],
                 knownKeys: draftFirstScreenHint.knownKeys || [],
+                blockedKeys: draftFirstScreenHint.blockedKeys || [],
                 keyAssignments: draftFirstScreenHint.keyAssignments || {},
             };
         }

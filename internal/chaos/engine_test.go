@@ -10,6 +10,90 @@ import (
 	"github.com/jnnngs/3270Web/internal/host"
 )
 
+type scriptedChaosHost struct {
+	screens    []*host.Screen
+	index      int
+	connected  bool
+	sentKeys   []string
+	writeCalls []string
+}
+
+func (h *scriptedChaosHost) Start() error                        { h.connected = true; return nil }
+func (h *scriptedChaosHost) Stop() error                         { h.connected = false; return nil }
+func (h *scriptedChaosHost) IsConnected() bool                   { return h.connected }
+func (h *scriptedChaosHost) UpdateScreen() error                 { return nil }
+func (h *scriptedChaosHost) MoveCursor(row, col int) error       { return nil }
+func (h *scriptedChaosHost) SubmitScreen() error                 { return nil }
+func (h *scriptedChaosHost) SubmitUnformatted(data string) error { return nil }
+func (h *scriptedChaosHost) GetScreen() *host.Screen {
+	if len(h.screens) == 0 {
+		return nil
+	}
+	if h.index < 0 {
+		h.index = 0
+	}
+	if h.index >= len(h.screens) {
+		h.index = len(h.screens) - 1
+	}
+	return h.screens[h.index]
+}
+func (h *scriptedChaosHost) SendKey(key string) error {
+	h.sentKeys = append(h.sentKeys, key)
+	if h.index < len(h.screens)-1 {
+		h.index++
+	}
+	return nil
+}
+func (h *scriptedChaosHost) WriteStringAt(row, col int, text string) error {
+	h.writeCalls = append(h.writeCalls, text)
+	s := h.GetScreen()
+	if s == nil {
+		return nil
+	}
+	if row < 0 || row >= s.Height || col < 0 || col >= s.Width {
+		return nil
+	}
+	for i, r := range []rune(text) {
+		if col+i >= s.Width {
+			break
+		}
+		s.Buffer[row][col+i] = r
+	}
+	return nil
+}
+
+func buildScriptedChaosScreen(label string, withInput bool) *host.Screen {
+	s := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range s.Buffer {
+		s.Buffer[i] = make([]rune, 80)
+	}
+	for i, r := range []rune(label) {
+		if i >= 40 {
+			break
+		}
+		s.Buffer[0][i] = r
+	}
+	labelEnd := len([]rune(label)) + 1
+	if labelEnd > 39 {
+		labelEnd = 39
+	}
+	if labelEnd < 0 {
+		labelEnd = 0
+	}
+	// Protected title field.
+	s.Fields = append(s.Fields, host.NewField(s, host.AttrProtected, 0, 0, labelEnd, 0, host.AttrColGreen, host.AttrEhDefault))
+	if withInput {
+		// One writable field so first-screen KnownData can be applied.
+		s.Fields = append(s.Fields, host.NewField(s, 0x00, 10, 4, 21, 4, host.AttrColDefault, host.AttrEhUnderscore))
+	}
+	return s
+}
+
 // buildMockScreen returns a simple formatted screen with one unprotected
 // field and one protected label field.
 func buildMockScreen() *host.Screen {
@@ -27,6 +111,13 @@ func buildMockScreen() *host.Screen {
 	// Unprotected input field at row 2, col 10-19.
 	s.Fields = append(s.Fields, host.NewField(s, 0x00, 10, 2, 19, 2, 0, 0))
 	return s
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -771,6 +862,176 @@ func TestEngineFirstScreenHintKey_PreservesSamePrefilledHintValue(t *testing.T) 
 	got := strings.TrimSpace(st.LastAttempt.FieldWrites[0].Value)
 	if got != "CEMT" {
 		t.Fatalf("first attempt rewrote hinted prefilled value as %q, want %q", got, "CEMT")
+	}
+}
+
+func TestEngineFirstScreenHintKey_ReusedWhenFirstScreenHashReappears(t *testing.T) {
+	screenA1 := buildScriptedChaosScreen("FIRST SCREEN A", true)
+	screenB := buildScriptedChaosScreen("SECOND SCREEN B", false)
+	screenA2 := buildScriptedChaosScreen("FIRST SCREEN A", true)
+	h := &scriptedChaosHost{
+		screens:   []*host.Screen{screenA1, screenB, screenA2},
+		connected: true,
+	}
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 3
+	cfg.StepDelay = 0
+	cfg.Seed = 12345
+	cfg.ExcludeNoProgressEvents = false
+	cfg.ScreenDedupSimilarity = 1
+	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
+	cfg.KeyBlacklist = []string{"Enter"}
+	cfg.ScreenHints = map[string]ScreenHint{
+		FirstScreenHintKey: {
+			KnownData: []string{"CEMT"},
+			KnownKeys: []string{"PF6"},
+		},
+	}
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.StepsRun != 3 {
+		t.Fatalf("StepsRun=%d, want 3", st.StepsRun)
+	}
+	if len(st.RecentAttempts) < 3 {
+		t.Fatalf("RecentAttempts len=%d, want >= 3", len(st.RecentAttempts))
+	}
+	a1 := st.RecentAttempts[len(st.RecentAttempts)-3]
+	a2 := st.RecentAttempts[len(st.RecentAttempts)-2]
+	a3 := st.RecentAttempts[len(st.RecentAttempts)-1]
+
+	if a1.FromHash == "" || a3.FromHash == "" {
+		t.Fatalf("expected non-empty hashes for repeated first screen: a1=%q a3=%q", a1.FromHash, a3.FromHash)
+	}
+	if a1.FromHash != a3.FromHash {
+		t.Fatalf("first screen hash mismatch on revisit: a1=%q a3=%q", a1.FromHash, a3.FromHash)
+	}
+	if a2.FromHash == a1.FromHash {
+		t.Fatalf("middle screen hash should differ from first screen hash, both=%q", a1.FromHash)
+	}
+
+	if a1.AIDKey != "PF(6)" {
+		t.Fatalf("attempt1 AIDKey=%q, want PF(6) from first-screen known key hint", a1.AIDKey)
+	}
+	if a3.AIDKey != "PF(6)" {
+		t.Fatalf("attempt3 AIDKey=%q, want PF(6) when first screen reappears", a3.AIDKey)
+	}
+
+	if len(a1.FieldWrites) == 0 || strings.TrimSpace(a1.FieldWrites[0].Value) != "CEMT" {
+		t.Fatalf("attempt1 first-screen hint data not used, got %#v", a1.FieldWrites)
+	}
+	if len(a3.FieldWrites) == 0 || strings.TrimSpace(a3.FieldWrites[0].Value) != "CEMT" {
+		t.Fatalf("attempt3 first-screen hint data not reused on repeated first screen, got %#v", a3.FieldWrites)
+	}
+}
+
+func TestEngineFirstScreenHintKey_BlockedKeysApplyOnlyToFirstScreen(t *testing.T) {
+	screenA := buildScriptedChaosScreen("FIRST SCREEN A", true)
+	screenB := buildScriptedChaosScreen("SECOND SCREEN B", true)
+	screenBHash := hashScreen(screenB)
+	h := &scriptedChaosHost{
+		screens:   []*host.Screen{screenA, screenB},
+		connected: true,
+	}
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 2
+	cfg.StepDelay = 0
+	cfg.Seed = 424242
+	cfg.ExcludeNoProgressEvents = false
+	cfg.ScreenDedupSimilarity = 1
+	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
+	cfg.KeyBlacklist = []string{"Enter"}
+	cfg.ScreenHints = map[string]ScreenHint{
+		FirstScreenHintKey: {
+			KnownKeys:   []string{"PF6"},
+			BlockedKeys: []string{"PF6"},
+		},
+		screenBHash: {
+			KnownKeys: []string{"PF6"},
+		},
+	}
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if len(st.RecentAttempts) < 2 {
+		t.Fatalf("RecentAttempts len=%d, want >=2", len(st.RecentAttempts))
+	}
+	a1 := st.RecentAttempts[len(st.RecentAttempts)-2]
+	a2 := st.RecentAttempts[len(st.RecentAttempts)-1]
+	if a1.AIDKey == "PF(6)" {
+		t.Fatalf("attempt1 AIDKey=%q, want first-screen blocked key to be skipped", a1.AIDKey)
+	}
+	if a2.AIDKey != "PF(6)" {
+		t.Fatalf("attempt2 AIDKey=%q, want PF(6) allowed on non-first screen", a2.AIDKey)
+	}
+}
+
+func TestCanonicalizeObservedScreenHashLocked_MergesEchoValueVariants(t *testing.T) {
+	makeEchoScreen := func(protectedLine string) *host.Screen {
+		s := &host.Screen{
+			Width:       80,
+			Height:      24,
+			IsFormatted: true,
+			Buffer:      make([][]rune, 24),
+		}
+		for y := range s.Buffer {
+			s.Buffer[y] = make([]rune, 80)
+		}
+		for i, r := range []rune(protectedLine) {
+			if i >= 79 {
+				break
+			}
+			s.Buffer[2][i] = r
+		}
+		s.Fields = []*host.Field{
+			host.NewField(s, host.AttrProtected, 0, 2, minInt(len([]rune(protectedLine)), 79), 2, host.AttrColDefault, host.AttrEhDefault),
+			host.NewField(s, 0x00, 10, 4, 21, 4, host.AttrColDefault, host.AttrEhUnderscore),
+		}
+		return s
+	}
+
+	screenA := makeEchoScreen("ACCOUNT 123456 ENTER TO CONTINUE")
+	screenB := makeEchoScreen("ACCOUNT 987654 ENTER TO CONTINUE")
+	hashA := hashScreen(screenA)
+	hashB := hashScreen(screenB)
+	if hashA == hashB {
+		t.Fatalf("raw hashes unexpectedly equal; test requires distinct hashes")
+	}
+
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	now := time.Now()
+	e.mindMap.observeScreen(hashA, screenA, now)
+
+	e.mu.Lock()
+	got := e.canonicalizeObservedScreenHashLocked(hashB, screenB)
+	e.mu.Unlock()
+	if got != hashA {
+		t.Fatalf("canonicalized hash = %q, want existing hash %q for echoed-value variant", got, hashA)
 	}
 }
 

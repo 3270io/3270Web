@@ -118,7 +118,9 @@
                             {{ if .LoadedWorkflow }}
                             <span class="workflow-status">
                                 <span class="subtle">Loaded:</span>
-                                <strong>{{ .LoadedWorkflowName }}</strong>
+                                <span class="workflow-status-file-icon" role="img" aria-label="Loaded recording file: {{ .LoadedWorkflowName }}" data-tippy-content="{{ .LoadedWorkflowName }} ({{ .LoadedWorkflowSize }} bytes)">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L17.5 8H14zM8 12h8v1.75H8zm0 3.5h8v1.75H8zm0-7h4v1.75H8z"/></svg>
+                                </span>
                             </span>
                             <form action="/workflow/play" method="post" class="workflow-form">
                                 <button type="submit" class="icon-button" data-tippy-content="Play recording" aria-label="Play recording" {{ if or .RecordingActive .PlaybackActive }}disabled{{ end }}>
@@ -359,6 +361,10 @@
                             <textarea id="chaos-first-screen-known-keys" data-chaos-first-screen-known-keys placeholder="Known keys for the first screen (e.g. Enter, PF8)"></textarea>
                         </div>
                         <div class="chaos-hint-field">
+                            <label class="chaos-hint-field-label" for="chaos-first-screen-blocked-keys">First Screen Blocked Keys</label>
+                            <textarea id="chaos-first-screen-blocked-keys" data-chaos-first-screen-blocked-keys placeholder="Keys to block only on the first screen (one per line)\nPF3\nPF12"></textarea>
+                        </div>
+                        <div class="chaos-hint-field">
                             <label class="chaos-hint-field-label" for="chaos-first-screen-key-assignments">First Screen Key Assignments</label>
                             <textarea id="chaos-first-screen-key-assignments" data-chaos-first-screen-key-assignments placeholder="Label = Key (one per line)\nReturn = PF3\nSelect = Enter"></textarea>
                             <p class="subtle">Applied only on the first screen of a chaos start/resume, useful for login or initial menu selection.</p>
@@ -431,7 +437,12 @@
             </div>
             <div class="stack">
                 <p class="subtle chaos-map-help">A larger view of the discovered screen flow, grouped to ignore input data variants on the same screen layout.</p>
-                <div class="subtle" data-chaos-flow-status aria-live="polite"></div>
+                <div class="chaos-map-status-row">
+                    <div class="subtle" data-chaos-flow-status aria-live="polite"></div>
+                    <div class="settings-modal-actions chaos-map-status-actions">
+                        <button type="button" data-chaos-flow-refresh>Refresh</button>
+                    </div>
+                </div>
                 <div data-chaos-flow-content>
                     <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
                 </div>

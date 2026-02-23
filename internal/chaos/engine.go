@@ -27,19 +27,20 @@ type Transition struct {
 
 // Status is a snapshot of the engine's current state.
 type Status struct {
-	Active         bool           `json:"active"`
-	StepsRun       int            `json:"stepsRun"`
-	StartedAt      time.Time      `json:"startedAt,omitempty"`
-	StoppedAt      time.Time      `json:"stoppedAt,omitempty"`
-	Transitions    int            `json:"transitions"`
-	UniqueScreens  int            `json:"uniqueScreens"`
-	UniqueInputs   int            `json:"uniqueInputs"`
-	AIDKeyCounts   map[string]int `json:"aidKeyCounts,omitempty"`
-	LoadedRunID    string         `json:"loadedRunID,omitempty"`
-	LastAttempt    *Attempt       `json:"lastAttempt,omitempty"`
-	RecentAttempts []Attempt      `json:"recentAttempts,omitempty"`
-	MindMap        *MindMap       `json:"mindMap,omitempty"`
-	Error          string         `json:"error,omitempty"`
+	Active          bool           `json:"active"`
+	StepsRun        int            `json:"stepsRun"`
+	StartedAt       time.Time      `json:"startedAt,omitempty"`
+	StoppedAt       time.Time      `json:"stoppedAt,omitempty"`
+	Transitions     int            `json:"transitions"`
+	UniqueScreens   int            `json:"uniqueScreens"`
+	UniqueInputs    int            `json:"uniqueInputs"`
+	AIDKeyCounts    map[string]int `json:"aidKeyCounts,omitempty"`
+	LoadedRunID     string         `json:"loadedRunID,omitempty"`
+	FirstScreenHash string         `json:"firstScreenHash,omitempty"`
+	LastAttempt     *Attempt       `json:"lastAttempt,omitempty"`
+	RecentAttempts  []Attempt      `json:"recentAttempts,omitempty"`
+	MindMap         *MindMap       `json:"mindMap,omitempty"`
+	Error           string         `json:"error,omitempty"`
 }
 
 // AttemptFieldWrite captures one field write operation attempted by chaos
@@ -56,16 +57,18 @@ type AttemptFieldWrite struct {
 // Attempt captures granular details for a single chaos submission cycle:
 // field writes, selected AID key, transition result, and any terminal error.
 type Attempt struct {
-	Attempt        int                 `json:"attempt"`
-	Time           time.Time           `json:"time"`
-	FromHash       string              `json:"fromHash,omitempty"`
-	ToHash         string              `json:"toHash,omitempty"`
-	AIDKey         string              `json:"aidKey,omitempty"`
-	FieldsTargeted int                 `json:"fieldsTargeted"`
-	FieldsWritten  int                 `json:"fieldsWritten"`
-	Transitioned   bool                `json:"transitioned"`
-	Error          string              `json:"error,omitempty"`
-	FieldWrites    []AttemptFieldWrite `json:"fieldWrites,omitempty"`
+	Attempt                int                 `json:"attempt"`
+	Time                   time.Time           `json:"time"`
+	FromHash               string              `json:"fromHash,omitempty"`
+	ToHash                 string              `json:"toHash,omitempty"`
+	AIDKey                 string              `json:"aidKey,omitempty"`
+	FirstScreenHintApplied bool                `json:"firstScreenHintApplied,omitempty"`
+	FirstScreenHintReason  string              `json:"firstScreenHintReason,omitempty"`
+	FieldsTargeted         int                 `json:"fieldsTargeted"`
+	FieldsWritten          int                 `json:"fieldsWritten"`
+	Transitioned           bool                `json:"transitioned"`
+	Error                  string              `json:"error,omitempty"`
+	FieldWrites            []AttemptFieldWrite `json:"fieldWrites,omitempty"`
 }
 
 const maxRecentAttempts = 40
@@ -117,6 +120,7 @@ type Engine struct {
 	hintKeyMappings  map[string]string
 	screenHints      map[string]ScreenHint
 	blacklistedKeys  map[string]struct{}
+	firstScreenHash  string
 }
 
 // New creates a new Engine with the given host and configuration.
@@ -176,6 +180,29 @@ func (e *Engine) SetKeyBlacklist(keys []string) {
 	e.blacklistedKeys = normalizeChaosKeySet(keys)
 }
 
+func (e *Engine) shouldApplyFirstScreenHintForHashLocked(currentHash string, isFirstAttempt bool) (bool, string) {
+	if e == nil {
+		return false, ""
+	}
+	if strings.TrimSpace(currentHash) == "" {
+		if isFirstAttempt {
+			return true, "initial"
+		}
+		return false, ""
+	}
+	if isFirstAttempt && strings.TrimSpace(e.firstScreenHash) == "" {
+		e.firstScreenHash = currentHash
+		return true, "initial"
+	}
+	if strings.TrimSpace(e.firstScreenHash) != "" && e.firstScreenHash == currentHash {
+		if isFirstAttempt {
+			return true, "initial"
+		}
+		return true, "hash_match"
+	}
+	return false, ""
+}
+
 func (e *Engine) blacklistedKeysSnapshot() map[string]struct{} {
 	if e == nil {
 		return nil
@@ -201,7 +228,7 @@ func (e *Engine) SetScreenHint(hash string, hint ScreenHint) {
 		e.screenHints = make(map[string]ScreenHint)
 	}
 	clean := sanitizeScreenHint(hint)
-	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 		delete(e.screenHints, key)
 		return
 	}
@@ -286,19 +313,20 @@ func (e *Engine) Status() Status {
 	}
 	mindMap := e.mindMap.clone()
 	return Status{
-		Active:         e.active,
-		StepsRun:       e.stepsRun,
-		StartedAt:      e.startedAt,
-		StoppedAt:      e.stoppedAt,
-		Transitions:    len(e.transitions),
-		UniqueScreens:  len(e.screenHashes),
-		UniqueInputs:   len(e.uniqueInputs),
-		AIDKeyCounts:   aidCopy,
-		LoadedRunID:    e.loadedRunID,
-		LastAttempt:    lastAttempt,
-		RecentAttempts: attempts,
-		MindMap:        mindMap,
-		Error:          e.lastErr,
+		Active:          e.active,
+		StepsRun:        e.stepsRun,
+		StartedAt:       e.startedAt,
+		StoppedAt:       e.stoppedAt,
+		Transitions:     len(e.transitions),
+		UniqueScreens:   len(e.screenHashes),
+		UniqueInputs:    len(e.uniqueInputs),
+		AIDKeyCounts:    aidCopy,
+		LoadedRunID:     e.loadedRunID,
+		FirstScreenHash: e.firstScreenHash,
+		LastAttempt:     lastAttempt,
+		RecentAttempts:  attempts,
+		MindMap:         mindMap,
+		Error:           e.lastErr,
 	}
 }
 
@@ -515,6 +543,13 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}
+	e.firstScreenHash = ""
+	if len(saved.Attempts) > 0 {
+		firstHash := strings.TrimSpace(saved.Attempts[0].FromHash)
+		if firstHash != "" {
+			e.firstScreenHash = firstHash
+		}
+	}
 
 	e.active = true
 	e.startedAt = time.Now()
@@ -585,6 +620,12 @@ func (e *Engine) run() {
 		}
 
 		currentHash := hashScreen(screen)
+		e.mu.Lock()
+		currentHash = e.canonicalizeObservedScreenHashLocked(currentHash, screen)
+		// Capture the current screen before any writes/key presses so the mind map
+		// always records the true starting screen for this attempt.
+		e.observeMindMapAreaLocked(currentHash, screen, time.Now())
+		e.mu.Unlock()
 		attempt := Attempt{
 			Attempt:  steps + 1,
 			Time:     time.Now(),
@@ -604,15 +645,18 @@ func (e *Engine) run() {
 		triedValues := e.snapshotAreaTriedValuesLocked(currentHash)
 		keyBoosts := e.snapshotKeyBoostsLocked(currentHash)
 		screenHint := e.snapshotScreenHintLocked(currentHash)
-		if isFirstAttempt {
+		applyFirstScreenHint, firstScreenHintReason := e.shouldApplyFirstScreenHintForHashLocked(currentHash, isFirstAttempt)
+		if applyFirstScreenHint {
 			firstScreenHint := e.snapshotScreenHintLocked(FirstScreenHintKey)
 			screenHint = mergeScreenHints(firstScreenHint, screenHint)
+			attempt.FirstScreenHintApplied = true
+			attempt.FirstScreenHintReason = firstScreenHintReason
 		}
 		e.mu.Unlock()
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))
-		forceHintValues := isFirstAttempt && e.hasUserFieldHints(screenHint)
+		forceHintValues := applyFirstScreenHint && e.hasUserFieldHints(screenHint)
 
 		if forceHintValues {
 			fields = e.selectFirstScreenTargetFields(unprotectedFields(screen))
@@ -666,6 +710,9 @@ func (e *Engine) run() {
 		// caused screen transitions from the current area).
 		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
 		blocked := e.blacklistedKeysSnapshot()
+		if screenHint != nil && len(screenHint.BlockedKeys) > 0 {
+			blocked = mergeChaosKeySets(blocked, normalizeChaosKeySet(screenHint.BlockedKeys))
+		}
 		if isBlacklistedKeyInSet(blocked, aidKey) {
 			aidKey = fallbackChaosKey(blocked)
 		}
@@ -674,7 +721,6 @@ func (e *Engine) run() {
 			attempt.Error = "no non-blacklisted AID key available"
 			e.mu.Lock()
 			e.lastErr = attempt.Error
-			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
 			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
@@ -684,7 +730,6 @@ func (e *Engine) run() {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
-			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
 			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
@@ -697,7 +742,6 @@ func (e *Engine) run() {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
-			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
 			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
@@ -707,6 +751,9 @@ func (e *Engine) run() {
 		newHash := ""
 		if newScreen != nil {
 			newHash = hashScreen(newScreen)
+			e.mu.Lock()
+			newHash = e.canonicalizeObservedScreenHashLocked(newHash, newScreen)
+			e.mu.Unlock()
 		}
 		attempt.ToHash = newHash
 		attempt.Transitioned = newHash != "" && newHash != currentHash
@@ -714,7 +761,6 @@ func (e *Engine) run() {
 
 		// Record the step and any state transition.
 		e.mu.Lock()
-		e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
 		if newHash != "" {
 			e.observeMindMapAreaLocked(newHash, newScreen, attempt.Time)
 		}
@@ -760,6 +806,92 @@ func (e *Engine) observeMindMapAreaLocked(hash string, screen *host.Screen, seen
 		e.mindMap = newMindMap()
 	}
 	e.mindMap.observeScreen(hash, screen, seenAt)
+}
+
+func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *host.Screen) string {
+	rawHash = strings.TrimSpace(rawHash)
+	if rawHash == "" || screen == nil {
+		return rawHash
+	}
+	if e.mindMap == nil || len(e.mindMap.Areas) == 0 {
+		return rawHash
+	}
+	if _, ok := e.mindMap.Areas[rawHash]; ok {
+		return rawHash
+	}
+
+	candidateSig := buildAreaDedupSignature(screen)
+	if candidateSig == "" {
+		return rawHash
+	}
+	bestHash := ""
+	bestScore := 0.0
+	cw, ch := screenDimensions(screen)
+	candidateFields := len(screen.Fields)
+	for areaHash, area := range e.mindMap.Areas {
+		if area == nil || strings.TrimSpace(areaHash) == "" {
+			continue
+		}
+		if areaHash == rawHash {
+			return rawHash
+		}
+		if area.ScreenWidth > 0 && area.ScreenHeight > 0 && (area.ScreenWidth != cw || area.ScreenHeight != ch) {
+			continue
+		}
+		// Coarse structural gate before expensive string compare.
+		if area.FieldCount > 0 || candidateFields > 0 {
+			diff := area.FieldCount - candidateFields
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 2 {
+				continue
+			}
+		}
+		score := similarityRatio(candidateSig, area.DedupSignature)
+		if score > bestScore {
+			bestScore = score
+			bestHash = areaHash
+		}
+	}
+	threshold := e.cfg.ScreenDedupSimilarity
+	if threshold <= 0 || threshold > 1 {
+		threshold = 0.985
+	}
+	if bestHash != "" && bestScore >= threshold {
+		return bestHash
+	}
+	return rawHash
+}
+
+func similarityRatio(a, b string) float64 {
+	if a == "" || b == "" {
+		return 0
+	}
+	if a == b {
+		return 1
+	}
+	ar := []rune(a)
+	br := []rune(b)
+	maxLen := len(ar)
+	if len(br) > maxLen {
+		maxLen = len(br)
+	}
+	if maxLen == 0 {
+		return 1
+	}
+	minLen := len(ar)
+	if len(br) < minLen {
+		minLen = len(br)
+	}
+	matches := 0
+	for i := 0; i < minLen; i++ {
+		if ar[i] == br[i] {
+			matches++
+		}
+	}
+	// Penalize length mismatches heavily so only very-near duplicates collapse.
+	return float64(matches) / float64(maxLen)
 }
 
 func (e *Engine) recordMindMapAttemptLocked(attempt Attempt) {
@@ -833,6 +965,7 @@ func mergeScreenHints(base, override *ScreenHint) *ScreenHint {
 	if base != nil {
 		merged.KnownData = append(merged.KnownData, base.KnownData...)
 		merged.KnownKeys = append(merged.KnownKeys, base.KnownKeys...)
+		merged.BlockedKeys = append(merged.BlockedKeys, base.BlockedKeys...)
 		if len(base.KeyAssignments) > 0 {
 			merged.KeyAssignments = make(map[string]string, len(base.KeyAssignments))
 			for k, v := range base.KeyAssignments {
@@ -843,6 +976,7 @@ func mergeScreenHints(base, override *ScreenHint) *ScreenHint {
 	if override != nil {
 		merged.KnownData = append(merged.KnownData, override.KnownData...)
 		merged.KnownKeys = append(merged.KnownKeys, override.KnownKeys...)
+		merged.BlockedKeys = append(merged.BlockedKeys, override.BlockedKeys...)
 		if len(override.KeyAssignments) > 0 {
 			if merged.KeyAssignments == nil {
 				merged.KeyAssignments = make(map[string]string, len(override.KeyAssignments))
@@ -853,7 +987,7 @@ func mergeScreenHints(base, override *ScreenHint) *ScreenHint {
 		}
 	}
 	clean := sanitizeScreenHint(merged)
-	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+	if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 		return nil
 	}
 	return &clean
@@ -1001,6 +1135,20 @@ func normalizeChaosKeySet(keys []string) map[string]struct{} {
 	}
 	if len(out) == 0 {
 		return nil
+	}
+	return out
+}
+
+func mergeChaosKeySets(base, extra map[string]struct{}) map[string]struct{} {
+	if len(base) == 0 && len(extra) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(base)+len(extra))
+	for key := range base {
+		out[key] = struct{}{}
+	}
+	for key := range extra {
+		out[key] = struct{}{}
 	}
 	return out
 }
@@ -1514,7 +1662,7 @@ func cloneScreenHints(in map[string]ScreenHint) map[string]ScreenHint {
 			continue
 		}
 		clean := sanitizeScreenHint(hint)
-		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.KeyAssignments) == 0 {
+		if len(clean.KnownData) == 0 && len(clean.KnownKeys) == 0 && len(clean.BlockedKeys) == 0 && len(clean.KeyAssignments) == 0 {
 			continue
 		}
 		out[key] = clean
@@ -1546,6 +1694,16 @@ func sanitizeScreenHint(h ScreenHint) ScreenHint {
 		seenKeys[k] = true
 		knownKeys = append(knownKeys, k)
 	}
+	blockedKeys := make([]string, 0, len(h.BlockedKeys))
+	seenBlockedKeys := make(map[string]bool)
+	for _, raw := range h.BlockedKeys {
+		k := normalizeChaosKeyName(raw)
+		if k == "" || seenBlockedKeys[k] {
+			continue
+		}
+		seenBlockedKeys[k] = true
+		blockedKeys = append(blockedKeys, k)
+	}
 	assignments := make(map[string]string)
 	for rawLabel, rawKey := range h.KeyAssignments {
 		label := strings.TrimSpace(rawLabel)
@@ -1561,6 +1719,7 @@ func sanitizeScreenHint(h ScreenHint) ScreenHint {
 	return ScreenHint{
 		KnownData:      knownData,
 		KnownKeys:      knownKeys,
+		BlockedKeys:    blockedKeys,
 		KeyAssignments: assignments,
 	}
 }
