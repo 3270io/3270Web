@@ -570,7 +570,7 @@ func (e *Engine) run() {
 
 		// Fill unprotected fields with random values.
 		var batchSteps []session.WorkflowStep
-		fields := unprotectedFields(screen)
+		fields := e.selectTargetFields(unprotectedFields(screen))
 		attempt.FieldsTargeted = len(fields)
 
 		// Snapshot learned data for this screen area under a brief lock so that
@@ -632,7 +632,20 @@ func (e *Engine) run() {
 		// Choose and send an AID key (adaptive: prefer keys that previously
 		// caused screen transitions from the current area).
 		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
+		if isBlacklistedKeyInSet(e.blacklistedKeys, aidKey) {
+			aidKey = fallbackChaosKey(e.blacklistedKeys)
+		}
 		attempt.AIDKey = aidKey
+		if strings.TrimSpace(aidKey) == "" {
+			attempt.Error = "no non-blacklisted AID key available"
+			e.mu.Lock()
+			e.lastErr = attempt.Error
+			e.observeMindMapAreaLocked(currentHash, screen, attempt.Time)
+			e.recordMindMapAttemptLocked(attempt)
+			e.appendAttemptLocked(attempt)
+			e.mu.Unlock()
+			return
+		}
 		if err := e.h.SendKey(aidKey); err != nil {
 			attempt.Error = err.Error()
 			e.mu.Lock()
@@ -942,7 +955,7 @@ func fallbackChaosKey(blocked map[string]struct{}) string {
 			return key
 		}
 	}
-	return "Enter"
+	return ""
 }
 
 func pickHintValueForFieldPool(rng *rand.Rand, pool []string, length int, numeric bool) string {
@@ -1889,6 +1902,60 @@ func unprotectedFields(s *host.Screen) []*host.Field {
 		}
 	}
 	return result
+}
+
+// selectTargetFields chooses which unprotected fields to populate in this
+// attempt. It can select one, several, or all fields. On screens where every
+// unprotected field is single-cell, it deterministically selects one field to
+// avoid overfilling option-style input grids.
+func (e *Engine) selectTargetFields(fields []*host.Field) []*host.Field {
+	if len(fields) <= 1 {
+		return fields
+	}
+
+	allSingleCell := true
+	for _, f := range fields {
+		if fieldLength(f) != 1 {
+			allSingleCell = false
+			break
+		}
+	}
+	if allSingleCell {
+		return []*host.Field{fields[e.rng.Intn(len(fields))]}
+	}
+
+	n := len(fields)
+	oneWeight := 3
+	severalWeight := 3
+	allWeight := 2
+
+	pick := e.rng.Intn(oneWeight + severalWeight + allWeight)
+	targetCount := n
+	switch {
+	case pick < oneWeight:
+		targetCount = 1
+	case pick < oneWeight+severalWeight:
+		if n == 2 {
+			targetCount = 1
+		} else {
+			targetCount = 2 + e.rng.Intn(n-2)
+		}
+	default:
+		targetCount = n
+	}
+
+	if targetCount >= n {
+		return fields
+	}
+	perm := e.rng.Perm(n)
+	selected := make([]int, targetCount)
+	copy(selected, perm[:targetCount])
+	sort.Ints(selected)
+	out := make([]*host.Field, 0, targetCount)
+	for _, idx := range selected {
+		out = append(out, fields[idx])
+	}
+	return out
 }
 
 // fieldLength returns the maximum number of characters that fit in f.

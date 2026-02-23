@@ -321,6 +321,19 @@ func TestChooseAIDKeyBoosted_RespectsKeyBlacklist(t *testing.T) {
 	}
 }
 
+func TestChooseAIDKeyBoosted_AllFallbackKeysBlockedReturnsEmpty(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AIDKeyWeights = map[string]int{
+		"PF3": 100,
+	}
+	cfg.KeyBlacklist = []string{"Enter", "PF1", "PF2", "PF3", "PF4", "PF7", "PF8", "PF12", "Tab"}
+
+	e := New(nil, cfg)
+	if got := e.chooseAIDKeyBoosted(nil); got != "" {
+		t.Fatalf("chooseAIDKeyBoosted = %q, want empty key when all candidates are blacklisted", got)
+	}
+}
+
 func TestEngineStartStop(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {
@@ -634,6 +647,118 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	}
 	if len(st.LastAttempt.FieldWrites) == 0 {
 		t.Error("expected at least one field write record in LastAttempt")
+	}
+}
+
+func TestSelectTargetFields_AllowsOneSeveralOrAll(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(9)) //nolint:gosec
+	s := &host.Screen{Width: 80, Height: 24}
+	fields := []*host.Field{
+		host.NewField(s, 0x00, 1, 1, 5, 1, 0, 0),
+		host.NewField(s, 0x00, 10, 1, 14, 1, 0, 0),
+		host.NewField(s, 0x00, 20, 1, 24, 1, 0, 0),
+		host.NewField(s, 0x00, 30, 1, 34, 1, 0, 0),
+	}
+
+	seenOne := false
+	seenSeveral := false
+	seenAll := false
+	for i := 0; i < 200; i++ {
+		targeted := e.selectTargetFields(fields)
+		switch len(targeted) {
+		case 1:
+			seenOne = true
+		case len(fields):
+			seenAll = true
+		default:
+			seenSeveral = true
+		}
+		if seenOne && seenSeveral && seenAll {
+			break
+		}
+	}
+	if !seenOne || !seenSeveral || !seenAll {
+		t.Fatalf("selection modes seen: one=%v several=%v all=%v", seenOne, seenSeveral, seenAll)
+	}
+}
+
+func TestSelectTargetFields_AllSingleCellTargetsOne(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	e.rng = rand.New(rand.NewSource(21)) //nolint:gosec
+	s := &host.Screen{Width: 80, Height: 24}
+	fields := []*host.Field{
+		host.NewField(s, 0x00, 1, 1, 1, 1, 0, 0),
+		host.NewField(s, 0x00, 3, 1, 3, 1, 0, 0),
+		host.NewField(s, 0x00, 5, 1, 5, 1, 0, 0),
+		host.NewField(s, 0x00, 7, 1, 7, 1, 0, 0),
+	}
+	for i := 0; i < 50; i++ {
+		if got := len(e.selectTargetFields(fields)); got != 1 {
+			t.Fatalf("selectTargetFields len = %d, want 1 for single-cell field screens", got)
+		}
+	}
+}
+
+func TestEngineSingleCellInputsTargetOneFieldPerAttempt(t *testing.T) {
+	h, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range s.Buffer {
+		s.Buffer[i] = make([]rune, 80)
+	}
+	s.Fields = append(s.Fields,
+		host.NewField(s, 0x00, 1, 1, 1, 1, 0, 0),
+		host.NewField(s, 0x00, 10, 1, 10, 1, 0, 0),
+		host.NewField(s, 0x00, 20, 1, 20, 1, 0, 0),
+	)
+	h.Screen = s
+	h.Connected = true
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 1
+	cfg.StepDelay = 0
+	cfg.Seed = 2026
+	cfg.ExcludeNoProgressEvents = false
+	cfg.ForceOverrideExistingInputs = false
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e.Status()
+	if st.LastAttempt == nil {
+		t.Fatal("expected LastAttempt to be populated")
+	}
+	if st.LastAttempt.FieldsTargeted != 1 {
+		t.Fatalf("LastAttempt.FieldsTargeted = %d, want 1", st.LastAttempt.FieldsTargeted)
+	}
+	if len(st.LastAttempt.FieldWrites) > 1 {
+		t.Fatalf("LastAttempt.FieldWrites len = %d, want <= 1", len(st.LastAttempt.FieldWrites))
+	}
+	writeCount := 0
+	for _, cmd := range h.Commands {
+		if cmd == "write" {
+			writeCount++
+		}
+	}
+	if writeCount != 1 {
+		t.Fatalf("write command count = %d, want 1", writeCount)
 	}
 }
 
