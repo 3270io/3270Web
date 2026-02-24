@@ -2,11 +2,11 @@
 
 3270Web is a browser-based IBM 3270 terminal client.
 
-## Quick Start
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tunlxio/tunlx/main/install.sh | bash
-```
+## Screenshots
+![Connect screen](images/connect_image.png)
+![Yorkshire screen](images/yorkshire_image.png)
+![Logging screen](images/logging_image.png)
+![Sample app screen](images/sampleapp1_image.png)
 
 This guide focuses on daily use:
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 type scriptedChaosHost struct {
@@ -137,8 +138,51 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.ForceOverrideExistingInputs {
 		t.Error("DefaultConfig.ForceOverrideExistingInputs must default to true")
 	}
+	if cfg.LearnedInputReuseBias != 1.0 {
+		t.Errorf("DefaultConfig.LearnedInputReuseBias = %v, want 1.0", cfg.LearnedInputReuseBias)
+	}
+	if cfg.LearnedKeyReuseBias != 1.0 {
+		t.Errorf("DefaultConfig.LearnedKeyReuseBias = %v, want 1.0", cfg.LearnedKeyReuseBias)
+	}
 	if !cfg.ExcludeNoProgressEvents {
 		t.Error("DefaultConfig.ExcludeNoProgressEvents must default to true")
+	}
+}
+
+func TestLearnedReuseBiasScalingHelpers(t *testing.T) {
+	e := New(nil, DefaultConfig())
+	if got := e.scaleLearnedInputReuseChance(80); got != 80 {
+		t.Fatalf("scaleLearnedInputReuseChance(80) default = %d, want 80", got)
+	}
+	if got := e.scaleLearnedKeyReuseBoost(120); got != 120 {
+		t.Fatalf("scaleLearnedKeyReuseBoost(120) default = %d, want 120", got)
+	}
+
+	e.cfg.LearnedInputReuseBias = 0.25
+	e.cfg.LearnedKeyReuseBias = 0.25
+	if got := e.scaleLearnedInputReuseChance(80); got != 20 {
+		t.Fatalf("scaleLearnedInputReuseChance(80) bias=.25 = %d, want 20", got)
+	}
+	if got := e.scaleLearnedKeyReuseBoost(120); got != 30 {
+		t.Fatalf("scaleLearnedKeyReuseBoost(120) bias=.25 = %d, want 30", got)
+	}
+
+	e.cfg.LearnedInputReuseBias = 0
+	e.cfg.LearnedKeyReuseBias = 0
+	if got := e.scaleLearnedInputReuseChance(80); got != 0 {
+		t.Fatalf("scaleLearnedInputReuseChance(80) bias=0 = %d, want 0", got)
+	}
+	if got := e.scaleLearnedKeyReuseBoost(120); got != 0 {
+		t.Fatalf("scaleLearnedKeyReuseBoost(120) bias=0 = %d, want 0", got)
+	}
+
+	e.cfg.LearnedInputReuseBias = 0.5
+	e.cfg.LearnedKeyReuseBias = 1.0
+	if got := e.scaleLearnedInputReuseChance(80); got != 40 {
+		t.Fatalf("scaleLearnedInputReuseChance(80) input=.5 = %d, want 40", got)
+	}
+	if got := e.scaleLearnedKeyReuseBoost(120); got != 120 {
+		t.Fatalf("scaleLearnedKeyReuseBoost(120) key=1.0 = %d, want 120", got)
 	}
 }
 
@@ -688,6 +732,75 @@ func TestExportWorkflow(t *testing.T) {
 	}
 	if exported.EndOfTaskDelay == nil {
 		t.Fatal("ExportWorkflow missing EndOfTaskDelay")
+	}
+}
+
+func TestBuildExportWorkflowSteps_SuccessOnlyByDefault(t *testing.T) {
+	transitions := []Transition{
+		{FromHash: "a", ToHash: "b", Steps: []session.WorkflowStep{{Type: "PressEnter"}}},
+		{FromHash: "b", ToHash: "c", Steps: []session.WorkflowStep{{Type: "PressPF3"}}},
+	}
+	attempts := []Attempt{
+		{Attempt: 1, FromHash: "a", Transitioned: true},
+		{Attempt: 2, FromHash: "b", AIDKey: "PF(1)", Transitioned: false},
+		{Attempt: 3, FromHash: "b", Transitioned: true},
+	}
+	mindMap := &MindMap{
+		Areas: map[string]*MindMapArea{
+			"b": {Hash: "b", PreviewText: "Menu Screen", PreviewWidth: 80, PreviewHeight: 24},
+		},
+	}
+
+	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, 1.0)
+	if len(steps) != 2 {
+		t.Fatalf("steps len=%d, want 2 successful steps only", len(steps))
+	}
+	if steps[0].Type != "PressEnter" || steps[1].Type != "PressPF3" {
+		t.Fatalf("unexpected exported steps: %#v", steps)
+	}
+}
+
+func TestBuildExportWorkflowSteps_IncludesSafeUnsuccessfulChecksWhenBalanced(t *testing.T) {
+	transitions := []Transition{
+		{FromHash: "a", ToHash: "b", Steps: []session.WorkflowStep{{Type: "PressEnter"}}},
+		{FromHash: "b", ToHash: "c", Steps: []session.WorkflowStep{{Type: "PressPF3"}}},
+	}
+	attempts := []Attempt{
+		{Attempt: 1, FromHash: "a", Transitioned: true},
+		{Attempt: 2, FromHash: "b", AIDKey: "PF(1)", Transitioned: false},
+		{Attempt: 3, FromHash: "b", Transitioned: true},
+	}
+	mindMap := &MindMap{
+		Areas: map[string]*MindMapArea{
+			"b": {Hash: "b", PreviewText: "  3270 Example Application\n", PreviewWidth: 80, PreviewHeight: 24},
+		},
+	}
+
+	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, 0.5)
+	if len(steps) < 3 {
+		t.Fatalf("steps len=%d, want successful steps plus at least one CheckValue", len(steps))
+	}
+	if steps[0].Type != "PressEnter" {
+		t.Fatalf("first step = %q, want PressEnter", steps[0].Type)
+	}
+	foundCheck := false
+	foundFinal := false
+	for _, step := range steps {
+		if step.Type == "CheckValue" {
+			foundCheck = true
+			if step.Coordinates == nil || step.Coordinates.Row != 1 || step.Coordinates.Column <= 0 || step.Coordinates.Length <= 0 {
+				t.Fatalf("invalid CheckValue coordinates: %+v", step.Coordinates)
+			}
+		}
+		if step.Type == "PressPF3" {
+			foundFinal = true
+		}
+	}
+	if !foundCheck {
+		t.Fatalf("expected a safe CheckValue step for unsuccessful attempt")
+	}
+	if !foundFinal {
+		t.Fatalf("expected final successful transition step to remain present")
 	}
 }
 

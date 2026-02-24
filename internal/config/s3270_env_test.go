@@ -30,6 +30,15 @@ func TestEnsureDotEnv(t *testing.T) {
 	if !strings.Contains(string(content), "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS=true") {
 		t.Errorf("Created .env file does not contain CHAOS_EXCLUDE_NO_PROGRESS_EVENTS default")
 	}
+	if !strings.Contains(string(content), "CHAOS_LEARNED_INPUT_REUSE_BIAS=1.0") {
+		t.Errorf("Created .env file does not contain CHAOS_LEARNED_INPUT_REUSE_BIAS default")
+	}
+	if !strings.Contains(string(content), "CHAOS_LEARNED_KEY_REUSE_BIAS=1.0") {
+		t.Errorf("Created .env file does not contain CHAOS_LEARNED_KEY_REUSE_BIAS default")
+	}
+	if !strings.Contains(string(content), "CHAOS_EXPORT_SUCCESS_BALANCE=1.0") {
+		t.Errorf("Created .env file does not contain CHAOS_EXPORT_SUCCESS_BALANCE default")
+	}
 
 	// Case 2: File exists
 	err = os.WriteFile(envPath, []byte("EXISTING=true"), 0644)

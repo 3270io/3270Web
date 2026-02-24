@@ -83,7 +83,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.2.1"
+var appVersion = "0.2.2"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -480,10 +480,15 @@ func withSessionLock(s *session.Session, fn func()) {
 	fn()
 }
 
+const lastTargetCookieName = "3270Web_last_target"
+
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
 	defaultHost := strings.TrimSpace(hostname)
 	if app.Config.TargetHost.Value != "" {
 		defaultHost = app.Config.TargetHost.Value
+	}
+	if defaultHost == "" {
+		defaultHost = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
 	}
 	if defaultHost == "" {
 		defaultHost = "localhost:3270"
@@ -801,6 +806,9 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 
 func (app *App) DisconnectHandler(c *gin.Context) {
 	if s := app.getSession(c); s != nil {
+		if lastTarget := formatSessionTarget(s); lastTarget != "" {
+			setSessionCookie(c, lastTargetCookieName, lastTarget)
+		}
 		cleanupRecordingFile(s)
 		app.chaosEngines.delete(s.ID)
 		app.chaosEngines.deleteLoadedRun(s.ID)
@@ -1349,6 +1357,9 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_SEED"] = "0"
 	defaults["CHAOS_MAX_FIELD_LENGTH"] = "40"
 	defaults["CHAOS_SCREEN_DEDUP_SIMILARITY"] = "0.985"
+	defaults["CHAOS_LEARNED_INPUT_REUSE_BIAS"] = "1.0"
+	defaults["CHAOS_LEARNED_KEY_REUSE_BIAS"] = "1.0"
+	defaults["CHAOS_EXPORT_SUCCESS_BALANCE"] = "1.0"
 	defaults["CHAOS_OUTPUT_FILE"] = ""
 	defaults["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"] = "true"
 	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
@@ -1700,6 +1711,20 @@ func validateSettingValue(key, value string, specs map[string]config.S3270Option
 		return nil
 	}
 	if key == "CHAOS_SCREEN_DEDUP_SIMILARITY" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil || parsed <= 0 || parsed > 1 {
+			return fmt.Errorf("must be a number > 0 and <= 1")
+		}
+		return nil
+	}
+	if key == "CHAOS_LEARNED_INPUT_REUSE_BIAS" || key == "CHAOS_LEARNED_KEY_REUSE_BIAS" || key == "CHAOS_LEARNED_REUSE_BIAS" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil || parsed < 0 || parsed > 1 {
+			return fmt.Errorf("must be a number >= 0 and <= 1")
+		}
+		return nil
+	}
+	if key == "CHAOS_EXPORT_SUCCESS_BALANCE" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil || parsed <= 0 || parsed > 1 {
 			return fmt.Errorf("must be a number > 0 and <= 1")
@@ -2646,6 +2671,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	app.applyDefaultPrefs(sess)
 	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
 	return nil
 }
 
@@ -2731,6 +2757,40 @@ func setSessionCookie(c *gin.Context, name, value string) {
 		maxAge = -1
 	}
 	c.SetCookie(name, value, maxAge, "/", "", secure, true)
+}
+
+func getCookieValue(c *gin.Context, name string) string {
+	if c == nil {
+		return ""
+	}
+	value, err := c.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return value
+}
+
+func formatSessionTarget(s *session.Session) string {
+	if s == nil {
+		return ""
+	}
+	target := ""
+	withSessionLock(s, func() {
+		host := strings.TrimSpace(s.TargetHost)
+		if host == "" {
+			return
+		}
+		port := s.TargetPort
+		if port <= 0 {
+			port = 3270
+		}
+		if ip := net.ParseIP(host); ip != nil && strings.Contains(host, ":") {
+			target = net.JoinHostPort(host, strconv.Itoa(port))
+			return
+		}
+		target = fmt.Sprintf("%s:%d", host, port)
+	})
+	return target
 }
 
 func (app *App) ensurePrefs(s *session.Session) {

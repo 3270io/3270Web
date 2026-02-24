@@ -10,6 +10,14 @@ import (
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
+type unsupportedWorkflowStepError struct {
+	StepType string
+}
+
+func (e unsupportedWorkflowStepError) Error() string {
+	return fmt.Sprintf("unsupported workflow step type: %s", e.StepType)
+}
+
 func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	if s == nil || workflow == nil {
 		return
@@ -70,6 +78,11 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 		}
 
 		if err := app.applyWorkflowStep(s, step); err != nil {
+			var unsupportedErr unsupportedWorkflowStepError
+			if errors.As(err, &unsupportedErr) {
+				addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped unsupported step: %s", i+1, len(workflow.Steps), unsupportedErr.StepType))
+				continue
+			}
 			addPlaybackEvent(s, fmt.Sprintf("Step %d failed (%s): %v", i+1, step.Type, err))
 			return
 		}
@@ -108,13 +121,17 @@ func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep)
 		if err := app.applyWorkflowFill(s, step); err != nil {
 			return err
 		}
+	case "CheckValue":
+		if err := app.applyWorkflowCheckValue(s, step); err != nil {
+			return err
+		}
 	default:
 		if err := submitWorkflowPendingInput(s); err != nil {
 			return err
 		}
 		key, ok := workflowKeyForStepType(step.Type)
 		if !ok {
-			return fmt.Errorf("unsupported workflow step type: %s", step.Type)
+			return unsupportedWorkflowStepError{StepType: step.Type}
 		}
 		if err := s.Host.SendKey(key); err != nil {
 			return err
@@ -158,6 +175,56 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 			s.Playback.PendingInput = true
 		}
 	})
+	return nil
+}
+
+func (app *App) applyWorkflowCheckValue(s *session.Session, step session.WorkflowStep) error {
+	if s == nil || s.Host == nil {
+		return errors.New("session host is unavailable")
+	}
+	if step.Coordinates == nil {
+		return errors.New("check value step requires coordinates")
+	}
+	if step.Coordinates.Row <= 0 || step.Coordinates.Column <= 0 {
+		return errors.New("check value coordinates must be 1-based positive values")
+	}
+	screen := s.Host.GetScreen()
+	if screen == nil {
+		return errors.New("screen is unavailable")
+	}
+	row := step.Coordinates.Row - 1
+	col := step.Coordinates.Column - 1
+	if row < 0 || row >= screen.Height || col < 0 || col >= screen.Width {
+		return fmt.Errorf("check value coordinates out of bounds: row=%d col=%d", step.Coordinates.Row, step.Coordinates.Column)
+	}
+
+	length := step.Coordinates.Length
+	if length <= 0 {
+		length = len([]rune(step.Text))
+	}
+	if length < 0 {
+		return errors.New("check value length must be non-negative")
+	}
+	if length == 0 {
+		return nil
+	}
+
+	endOffset := length - 1
+	endRow := row
+	endCol := col + endOffset
+	if screen.Width > 0 {
+		endRow += endCol / screen.Width
+		endCol = endCol % screen.Width
+	}
+	if endRow >= screen.Height {
+		return fmt.Errorf("check value range out of bounds: row=%d col=%d length=%d", step.Coordinates.Row, step.Coordinates.Column, length)
+	}
+
+	got := screen.Substring(col, row, endCol, endRow)
+	want := step.Text
+	if got != want {
+		return fmt.Errorf("check value mismatch at row=%d col=%d len=%d: got %q want %q", step.Coordinates.Row, step.Coordinates.Column, length, got, want)
+	}
 	return nil
 }
 

@@ -65,6 +65,17 @@ type Config struct {
 	// the same visible value again).
 	ForceOverrideExistingInputs bool `json:"forceOverrideExistingInputs"`
 
+	// LearnedInputReuseBias controls how strongly chaos prefers previously
+	// observed working input values. Range 0..1 where 0 favors fresh exploration
+	// and 1 preserves the default learned-input bias.
+	LearnedInputReuseBias float64 `json:"learnedInputReuseBias,omitempty"`
+
+	// LearnedKeyReuseBias controls how strongly chaos prefers previously
+	// observed working keys (Enter/PF/etc.) via learned boosting. Range 0..1
+	// where 0 favors fresh key exploration and 1 preserves the default
+	// learned-key bias.
+	LearnedKeyReuseBias float64 `json:"learnedKeyReuseBias,omitempty"`
+
 	// Hints are optional user-provided values used to bias generated inputs.
 	Hints []Hint `json:"hints,omitempty"`
 
@@ -95,6 +106,8 @@ func DefaultConfig() Config {
 		StepDelay:                   500 * time.Millisecond,
 		MaxFieldLength:              40,
 		ForceOverrideExistingInputs: true,
+		LearnedInputReuseBias:       1.0,
+		LearnedKeyReuseBias:         1.0,
 		ExcludeNoProgressEvents:     true,
 		ScreenDedupSimilarity:       0.985,
 		AIDKeyWeights: map[string]int{

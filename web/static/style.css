@@ -2242,6 +2242,7 @@ pre, pre input, textarea {
   padding: 12px;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 6%, transparent);
   cursor: grab;
+  touch-action: none;
 }
 
 .chaos-map-flow-panel.is-modal .chaos-map-flow-viewport {
@@ -3250,8 +3251,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-modal-content {
   position: relative;
-  width: min(1100px, 94vw);
-  height: min(720px, 90vh);
+  width: min(1260px, 96vw);
+  height: min(820px, 92vh);
   background: var(--panel);
   border: 2px solid var(--accent);
   border-radius: 4px;
@@ -3310,7 +3311,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-modal-body {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px 20px 20px;
   min-height: 0;
   display: flex;
@@ -3343,6 +3344,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   gap: 12px;
   min-height: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .settings-theme-row {
@@ -3350,6 +3352,17 @@ html.workflow-status-minimized .workflow-status-widget-header {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.settings-theme-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-theme-selection-group {
+  margin: 0;
 }
 
 .settings-theme-row label {
@@ -3381,12 +3394,12 @@ html.workflow-status-minimized .workflow-status-widget-header {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin-top: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 10px;
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--panel-2) 88%, var(--panel));
   min-width: 0;
 }
 
@@ -3397,12 +3410,13 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-custom-theme-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   align-items: start;
 }
 
 .settings-custom-theme-section {
   min-width: 0;
+  margin: 0;
 }
 
 .settings-custom-theme-title {
@@ -3447,7 +3461,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   align-items: center;
   justify-content: flex-start;
   min-width: 0;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .settings-theme-action {
@@ -3473,7 +3487,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
 .settings-theme-save-name {
@@ -3489,7 +3503,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-custom-theme-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
+  gap: 8px 10px;
 }
 
 .settings-custom-theme-field {
@@ -3498,7 +3512,10 @@ html.workflow-status-minimized .workflow-status-widget-header {
   gap: 8px;
   align-items: center;
   min-width: 0;
-  padding: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 28%, transparent);
 }
 
 .settings-custom-theme-field label {
@@ -3550,7 +3567,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  overflow-x: hidden;
   padding-bottom: 4px;
 }
 
@@ -3583,7 +3601,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   border: 1px solid var(--border);
   background: var(--panel-2);
   border-radius: 12px;
-  padding: 16px;
+  padding: 14px;
   display: none;
   flex-direction: column;
   gap: 12px;
@@ -3621,9 +3639,40 @@ html.workflow-status-minimized .workflow-status-widget-header {
 }
 
 .settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-subgroup {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 72%, var(--panel-2));
+  padding: 10px 12px 12px;
+  min-width: 0;
+}
+
+.settings-subgroup-legend {
+  padding: 0 8px;
+  margin-left: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.settings-subgroup-description {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+}
+
+.settings-subgroup-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px 14px;
+  min-width: 0;
 }
 
 .settings-field {
@@ -3631,6 +3680,10 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
 }
 
 .settings-field label {
@@ -3650,7 +3703,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 85%, var(--panel));
   color: var(--fg);
   font-size: 0.95rem;
 }
@@ -3752,6 +3805,10 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-actions {
   display: flex;
   justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--panel) 92%, transparent) 18%);
+  padding-top: 6px;
 }
 
 .settings-actions button {
@@ -3829,6 +3886,31 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-confirm-actions button:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+@media (max-width: 900px) {
+  .settings-modal-content {
+    width: min(98vw, 1260px);
+    height: min(94vh, 900px);
+  }
+
+  .settings-modal-body {
+    padding: 12px 14px 16px;
+    gap: 12px;
+  }
+
+  .settings-group {
+    padding: 12px;
+  }
+
+  .settings-subgroup-fields {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .settings-field {
+    padding: 8px;
+  }
 }
 
 .theme-save-confirm-backdrop {

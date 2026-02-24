@@ -390,6 +390,16 @@
     }
   }
 
+  function buildThemeSubgroup(title, className) {
+    var fieldset = document.createElement("fieldset");
+    fieldset.className = "settings-subgroup" + (className ? (" " + className) : "");
+    var legend = document.createElement("legend");
+    legend.className = "settings-subgroup-legend";
+    legend.textContent = title;
+    fieldset.appendChild(legend);
+    return fieldset;
+  }
+
   function initCustomThemeEditor(select, refreshThemes) {
     var hostRow = select.closest(".settings-theme-row");
     if (!hostRow) {
@@ -416,36 +426,18 @@
     topRow.className = "settings-custom-theme-top";
     editor.appendChild(topRow);
 
-    var paletteSection = document.createElement("div");
-    paletteSection.className = "settings-custom-theme-section settings-custom-theme-palettes-section";
+    var paletteSection = buildThemeSubgroup("Palettes", "settings-custom-theme-section settings-custom-theme-palettes-section");
     topRow.appendChild(paletteSection);
-
-    var paletteTitle = document.createElement("div");
-    paletteTitle.className = "settings-custom-theme-title";
-    paletteTitle.textContent = "Palettes";
-    paletteSection.appendChild(paletteTitle);
 
     var paletteRow = document.createElement("div");
     paletteRow.className = "settings-theme-palettes";
     paletteSection.appendChild(paletteRow);
 
-    var actionsSection = document.createElement("div");
-    actionsSection.className = "settings-custom-theme-section settings-custom-theme-actions-section";
+    var actionsSection = buildThemeSubgroup("Actions", "settings-custom-theme-section settings-custom-theme-actions-section");
     topRow.appendChild(actionsSection);
 
-    var actionsTitle = document.createElement("div");
-    actionsTitle.className = "settings-custom-theme-title";
-    actionsTitle.textContent = "Actions";
-    actionsSection.appendChild(actionsTitle);
-
-    var fieldsSection = document.createElement("div");
-    fieldsSection.className = "settings-custom-theme-section settings-custom-theme-colors-section";
+    var fieldsSection = buildThemeSubgroup("Colors", "settings-custom-theme-section settings-custom-theme-colors-section");
     editor.appendChild(fieldsSection);
-
-    var fieldsTitle = document.createElement("div");
-    fieldsTitle.className = "settings-custom-theme-title";
-    fieldsTitle.textContent = "Colors";
-    fieldsSection.appendChild(fieldsTitle);
 
     var grid = document.createElement("div");
     grid.className = "settings-custom-theme-grid";
@@ -893,6 +885,8 @@
     if (!select) {
       var slot = document.querySelector("[data-settings-theme-slot]");
       if (slot) {
+        slot.classList.add("settings-theme-slot");
+        var selectionGroup = buildThemeSubgroup("Theme Selection", "settings-theme-selection-group");
         var row = document.createElement("div");
         row.className = "settings-theme-row";
         var label = document.createElement("label");
@@ -902,7 +896,8 @@
         select.id = "theme-select";
         row.appendChild(label);
         row.appendChild(select);
-        slot.appendChild(row);
+        selectionGroup.appendChild(row);
+        slot.appendChild(selectionGroup);
       }
     }
 

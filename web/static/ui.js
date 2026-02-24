@@ -160,6 +160,9 @@
         CHAOS_SEED: '0',
         CHAOS_MAX_FIELD_LENGTH: '40',
         CHAOS_SCREEN_DEDUP_SIMILARITY: '0.985',
+        CHAOS_LEARNED_INPUT_REUSE_BIAS: '1.0',
+        CHAOS_LEARNED_KEY_REUSE_BIAS: '1.0',
+        CHAOS_EXPORT_SUCCESS_BALANCE: '1.0',
         CHAOS_OUTPUT_FILE: '',
         CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS: 'true',
         CHAOS_EXCLUDE_NO_PROGRESS_EVENTS: 'true',
@@ -218,9 +221,54 @@
 
     const groups = [
         {
+            id: 'app',
+            title: 'App',
+            description: 'Application-level behaviors.',
+            sections: [
+                { id: 'app_ui', title: 'Interface', fieldKeys: ['APP_USE_KEYPAD'] },
+                { id: 'app_access', title: 'Access & Tools', fieldKeys: ['ALLOW_LOG_ACCESS'] },
+            ],
+            fields: [
+                { key: 'ALLOW_LOG_ACCESS', label: 'Allow log access', type: 'checkbox', helper: 'Enable viewing log output in the UI.' },
+                { key: 'APP_USE_KEYPAD', label: 'Use keypad', type: 'checkbox', helper: 'Show the virtual keypad by default.' },
+            ],
+        },
+        {
+            id: 'chaos',
+            title: 'Chaos Explorer',
+            description: 'Configuration for chaos exploration runs. Values are used when starting a chaos run from the toolbar.',
+            sections: [
+                { id: 'chaos_limits', title: 'Run Limits', fieldKeys: ['CHAOS_MAX_STEPS', 'CHAOS_TIME_BUDGET_SEC', 'CHAOS_STEP_DELAY_SEC', 'CHAOS_SEED'] },
+                { id: 'chaos_explore', title: 'Exploration Behavior', fieldKeys: ['CHAOS_MAX_FIELD_LENGTH', 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', 'CHAOS_SCREEN_DEDUP_SIMILARITY'] },
+                { id: 'chaos_learning', title: 'Learning & Hints', fieldKeys: ['CHAOS_LEARNED_INPUT_REUSE_BIAS', 'CHAOS_LEARNED_KEY_REUSE_BIAS'] },
+                { id: 'chaos_history', title: 'Event History', fieldKeys: ['CHAOS_EXCLUDE_NO_PROGRESS_EVENTS'] },
+                { id: 'chaos_export', title: 'Export', fieldKeys: ['CHAOS_EXPORT_SUCCESS_BALANCE', 'CHAOS_OUTPUT_FILE'] },
+            ],
+            fields: [
+                { key: 'CHAOS_MAX_STEPS', label: 'Max steps', type: 'text', helper: 'Maximum number of AID key submissions before stopping (0 = unlimited).' },
+                { key: 'CHAOS_TIME_BUDGET_SEC', label: 'Time budget (seconds)', type: 'text', helper: 'Maximum wall-clock seconds before stopping (0 = unlimited).' },
+                { key: 'CHAOS_STEP_DELAY_SEC', label: 'Step delay (seconds)', type: 'text', helper: 'Pause between submissions in seconds (e.g. 0.5).' },
+                { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
+                { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
+                { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
+                { key: 'CHAOS_LEARNED_INPUT_REUSE_BIAS', label: 'Learned input reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working input values. Range 0..1 (0 = explore more, 1 = reuse learned inputs more often).' },
+                { key: 'CHAOS_LEARNED_KEY_REUSE_BIAS', label: 'Learned key reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working keys (Enter/PF/etc.). Range 0..1 (0 = explore more keys, 1 = reuse learned keys more often).' },
+                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.97 merges value-echo variants more aggressively). Default 0.985 is a balanced starting point.' },
+                { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
+                { key: 'CHAOS_EXPORT_SUCCESS_BALANCE', label: 'Export success balance', type: 'text', helper: 'Workflow export balance (0-1]. 1 exports only successful navigation steps. Lower values add sampled unsuccessful attempts as safe CheckValue steps while preserving the successful path.' },
+                { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
+            ],
+        },
+        {
             id: 'connectivity',
             title: 'Connectivity',
             description: 'Network address and connection options.',
+            sections: [
+                { id: 'conn_endpoint', title: 'Host Endpoint', fieldKeys: ['S3270_PORT', 'S3270_CONNECT_TIMEOUT'] },
+                { id: 'conn_network', title: 'Network Family', fieldKeys: ['S3270_PREFER_IPV4', 'S3270_PREFER_IPV6'] },
+                { id: 'conn_proxy', title: 'Proxy', fieldKeys: ['S3270_PROXY'] },
+                { id: 'conn_callbacks', title: 'Protocol Sessions', fieldKeys: ['S3270_CALLBACK', 'S3270_SCRIPT_PORT', 'S3270_SCRIPT_PORT_ONCE', 'S3270_SOCKET'] },
+            ],
             fields: [
                 { key: 'S3270_PORT', label: 'Port', type: 'text', helper: 'TCP port used when connecting to a host.' },
                 { key: 'S3270_PREFER_IPV4', label: 'Prefer IPv4', type: 'checkbox', helper: 'Force IPv4 when multiple addresses are available.' },
@@ -237,6 +285,12 @@
             id: 'tls',
             title: 'TLS/Security',
             description: 'Certificates, verification, and TLS settings.',
+            sections: [
+                { id: 'tls_verify', title: 'Verification', fieldKeys: ['S3270_NO_VERIFY_CERT', 'S3270_ACCEPT_HOSTNAME'] },
+                { id: 'tls_protocol', title: 'Protocol Versions', fieldKeys: ['S3270_TLS_MIN_PROTOCOL', 'S3270_TLS_MAX_PROTOCOL'] },
+                { id: 'tls_client', title: 'Client Credentials', fieldKeys: ['S3270_CERT_FILE', 'S3270_CERT_FILE_TYPE', 'S3270_KEY_FILE', 'S3270_KEY_FILE_TYPE', 'S3270_KEY_PASSWORD', 'S3270_CLIENT_CERT'] },
+                { id: 'tls_trust', title: 'Trust Store', fieldKeys: ['S3270_CA_FILE', 'S3270_CA_DIR', 'S3270_CHAIN_FILE'] },
+            ],
             fields: [
                 { key: 'S3270_NO_VERIFY_CERT', label: 'Disable cert verification', type: 'checkbox', helper: 'Do not verify the TLS host certificate.' },
                 { key: 'S3270_TLS_MIN_PROTOCOL', label: 'TLS min protocol', type: 'select', options: tlsProtocolOptions, allowEmpty: true, helper: 'Lowest TLS protocol to allow.' },
@@ -257,6 +311,11 @@
             id: 'emulation',
             title: 'Emulation',
             description: 'Terminal model, code page, and emulation flags.',
+            sections: [
+                { id: 'emu_terminal', title: 'Terminal Profile', fieldKeys: ['S3270_MODEL', 'S3270_CODE_PAGE', 'S3270_TERMINAL_NAME'] },
+                { id: 'emu_display', title: 'Display Behavior', fieldKeys: ['S3270_NVT', 'S3270_OVERSIZE'] },
+                { id: 'emu_identity', title: 'Host Identity Fields', fieldKeys: ['S3270_DEV_NAME', 'S3270_USER'] },
+            ],
             fields: [
                 { key: 'S3270_MODEL', label: 'Model', type: 'select', options: modelOptions, helper: 'Model of 3270 to emulate.' },
                 {
@@ -278,6 +337,11 @@
             id: 'automation',
             title: 'Automation/Startup',
             description: 'Startup commands and automation hooks.',
+            sections: [
+                { id: 'auto_start', title: 'Startup Actions', fieldKeys: ['S3270_EXEC_COMMAND', 'S3270_LOGIN_MACRO'] },
+                { id: 'auto_server', title: 'Built-in Server', fieldKeys: ['S3270_HTTPD'] },
+                { id: 'auto_require', title: 'Requirements', fieldKeys: ['S3270_MIN_VERSION'] },
+            ],
             fields: [
                 { key: 'S3270_EXEC_COMMAND', label: 'Exec command', type: 'text', helper: 'Command to run instead of connecting to a host.' },
                 { key: 'S3270_LOGIN_MACRO', label: 'Login macro', type: 'text', helper: 'Actions to run when the host connection is established.' },
@@ -289,6 +353,10 @@
             id: 'diagnostics',
             title: 'Diagnostics',
             description: 'Tracing, version checks, and help toggles.',
+            sections: [
+                { id: 'diag_trace', title: 'Tracing', fieldKeys: ['S3270_TRACE', 'S3270_TRACE_FILE', 'S3270_TRACE_FILE_SIZE'] },
+                { id: 'diag_info', title: 'Info & Debug Flags', fieldKeys: ['S3270_HELP', 'S3270_VERSION', 'S3270_UTENV'] },
+            ],
             fields: [
                 { key: 'S3270_TRACE', label: 'Trace', type: 'checkbox', helper: 'Turn on data stream and action tracing.' },
                 { key: 'S3270_TRACE_FILE', label: 'Trace file', type: 'text', helper: 'File for data stream and action tracing.' },
@@ -296,31 +364,6 @@
                 { key: 'S3270_HELP', label: 'Show help', type: 'checkbox', helper: 'Display command-line help and exit.' },
                 { key: 'S3270_VERSION', label: 'Show version', type: 'checkbox', helper: 'Display version information and exit.' },
                 { key: 'S3270_UTENV', label: 'UT env', type: 'checkbox', helper: 'Allow unit-test-specific env vars.' },
-            ],
-        },
-        {
-            id: 'app',
-            title: 'App',
-            description: 'Application-level behaviors.',
-            fields: [
-                { key: 'ALLOW_LOG_ACCESS', label: 'Allow log access', type: 'checkbox', helper: 'Enable viewing log output in the UI.' },
-                { key: 'APP_USE_KEYPAD', label: 'Use keypad', type: 'checkbox', helper: 'Show the virtual keypad by default.' },
-            ],
-        },
-        {
-            id: 'chaos',
-            title: 'Chaos Explorer',
-            description: 'Configuration for chaos exploration runs. Values are used when starting a chaos run from the toolbar.',
-            fields: [
-                { key: 'CHAOS_MAX_STEPS', label: 'Max steps', type: 'text', helper: 'Maximum number of AID key submissions before stopping (0 = unlimited).' },
-                { key: 'CHAOS_TIME_BUDGET_SEC', label: 'Time budget (seconds)', type: 'text', helper: 'Maximum wall-clock seconds before stopping (0 = unlimited).' },
-                { key: 'CHAOS_STEP_DELAY_SEC', label: 'Step delay (seconds)', type: 'text', helper: 'Pause between submissions in seconds (e.g. 0.5).' },
-                { key: 'CHAOS_SEED', label: 'Seed', type: 'text', helper: 'Random seed (0 = use current time).' },
-                { key: 'CHAOS_MAX_FIELD_LENGTH', label: 'Max field length', type: 'text', helper: 'Maximum characters generated per input field.' },
-                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.97 merges value-echo variants more aggressively). Default 0.985 is a balanced starting point.' },
-                { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
-                { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
-                { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
             ],
         },
     ];
@@ -1089,6 +1132,29 @@
         return helper;
     };
 
+    const buildSettingsSubgroup = (title, description = '') => {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'settings-subgroup';
+
+        const legend = document.createElement('legend');
+        legend.className = 'settings-subgroup-legend';
+        legend.textContent = title;
+        fieldset.appendChild(legend);
+
+        if (description) {
+            const desc = document.createElement('div');
+            desc.className = 'settings-subgroup-description subtle';
+            desc.textContent = description;
+            fieldset.appendChild(desc);
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'settings-subgroup-fields';
+        fieldset.appendChild(grid);
+
+        return { fieldset, grid };
+    };
+
     const buildGroups = () => {
         if (!groupsContainer || !tabsContainer) {
             return;
@@ -1098,51 +1164,6 @@
         const previousActive = activeGroupId;
         tabsContainer.innerHTML = '';
         groupsContainer.innerHTML = '';
-
-        if (themeSlot) {
-            const groupId = 'theme';
-            const tabId = `settings-tab-${groupId}`;
-            const panelId = `settings-panel-${groupId}`;
-
-            const tabButton = document.createElement('button');
-            tabButton.type = 'button';
-            tabButton.className = 'settings-tab';
-            tabButton.dataset.settingsTab = '1';
-            tabButton.dataset.groupId = groupId;
-            tabButton.id = tabId;
-            tabButton.setAttribute('role', 'tab');
-            tabButton.setAttribute('aria-controls', panelId);
-            tabButton.textContent = 'Theme';
-            tabButton.addEventListener('click', () => {
-                setActiveGroup(groupId);
-            });
-            tabsContainer.appendChild(tabButton);
-
-            const fieldset = document.createElement('fieldset');
-            fieldset.className = 'settings-group';
-            fieldset.id = panelId;
-            fieldset.dataset.settingsGroup = '1';
-            fieldset.dataset.groupId = groupId;
-            fieldset.setAttribute('role', 'tabpanel');
-            fieldset.setAttribute('aria-labelledby', tabId);
-
-            const header = document.createElement('div');
-            header.className = 'settings-group-header';
-            const title = document.createElement('span');
-            title.className = 'settings-group-title';
-            title.textContent = 'Theme';
-            header.appendChild(title);
-
-            const description = document.createElement('div');
-            description.className = 'subtle';
-            description.textContent = 'Select a system theme, then create, load, or save custom themes.';
-
-            fieldset.appendChild(header);
-            fieldset.appendChild(description);
-            fieldset.appendChild(themeSlot);
-            groupsContainer.appendChild(fieldset);
-            builtGroupIds.push(groupId);
-        }
 
         groups.forEach((group) => {
             const tabId = `settings-tab-${group.id}`;
@@ -1201,6 +1222,7 @@
 
             const fieldsWrap = document.createElement('div');
             fieldsWrap.className = 'settings-fields';
+            const fieldWrappersByKey = new Map();
 
             group.fields.forEach((field) => {
                 const wrapper = document.createElement('div');
@@ -1291,18 +1313,107 @@
 
                 fieldMap.set(field.key, { input, error });
                 fieldMetaMap.set(field.key, field);
-                fieldsWrap.appendChild(wrapper);
+                fieldWrappersByKey.set(field.key, wrapper);
             });
+            const appendedFieldKeys = new Set();
+            const appendFieldTo = (container, key) => {
+                if (!key || appendedFieldKeys.has(key)) {
+                    return false;
+                }
+                const wrapper = fieldWrappersByKey.get(key);
+                if (!wrapper) {
+                    return false;
+                }
+                container.appendChild(wrapper);
+                appendedFieldKeys.add(key);
+                return true;
+            };
+
+            const groupSections = Array.isArray(group.sections) ? group.sections : [];
+            if (groupSections.length > 0) {
+                groupSections.forEach((sectionDef) => {
+                    if (!sectionDef || !Array.isArray(sectionDef.fieldKeys) || sectionDef.fieldKeys.length === 0) {
+                        return;
+                    }
+                    const section = buildSettingsSubgroup(sectionDef.title || 'Settings', sectionDef.description || '');
+                    let appendedAny = false;
+                    sectionDef.fieldKeys.forEach((key) => {
+                        appendedAny = appendFieldTo(section.grid, key) || appendedAny;
+                    });
+                    if (group.id === 'chaos' && sectionDef.id === 'chaos_learning') {
+                        section.grid.appendChild(buildChaosDefaultsSettingsField());
+                        appendedAny = true;
+                    }
+                    if (appendedAny) {
+                        fieldsWrap.appendChild(section.fieldset);
+                    }
+                });
+            }
+
+            // Append any remaining fields not explicitly assigned to a subgroup.
+            const remainingKeys = [];
+            group.fields.forEach((field) => {
+                if (field && field.key && !appendedFieldKeys.has(field.key)) {
+                    remainingKeys.push(field.key);
+                }
+            });
+            if (remainingKeys.length > 0) {
+                const fallbackSection = buildSettingsSubgroup('Additional Settings');
+                remainingKeys.forEach((key) => appendFieldTo(fallbackSection.grid, key));
+                fieldsWrap.appendChild(fallbackSection.fieldset);
+            }
 
             fieldset.appendChild(header);
             fieldset.appendChild(description);
             fieldset.appendChild(fieldsWrap);
-            if (group.id === 'chaos') {
-                fieldsWrap.appendChild(buildChaosDefaultsSettingsField());
-            }
             groupsContainer.appendChild(fieldset);
             builtGroupIds.push(group.id);
         });
+
+        if (themeSlot) {
+            const groupId = 'theme';
+            const tabId = `settings-tab-${groupId}`;
+            const panelId = `settings-panel-${groupId}`;
+
+            const tabButton = document.createElement('button');
+            tabButton.type = 'button';
+            tabButton.className = 'settings-tab';
+            tabButton.dataset.settingsTab = '1';
+            tabButton.dataset.groupId = groupId;
+            tabButton.id = tabId;
+            tabButton.setAttribute('role', 'tab');
+            tabButton.setAttribute('aria-controls', panelId);
+            tabButton.textContent = 'Theme';
+            tabButton.addEventListener('click', () => {
+                setActiveGroup(groupId);
+            });
+            tabsContainer.appendChild(tabButton);
+
+            const fieldset = document.createElement('fieldset');
+            fieldset.className = 'settings-group';
+            fieldset.id = panelId;
+            fieldset.dataset.settingsGroup = '1';
+            fieldset.dataset.groupId = groupId;
+            fieldset.setAttribute('role', 'tabpanel');
+            fieldset.setAttribute('aria-labelledby', tabId);
+
+            const header = document.createElement('div');
+            header.className = 'settings-group-header';
+            const title = document.createElement('span');
+            title.className = 'settings-group-title';
+            title.textContent = 'Theme';
+            header.appendChild(title);
+
+            const description = document.createElement('div');
+            description.className = 'subtle';
+            description.textContent = 'Select a system theme, then create, load, or save custom themes.';
+
+            fieldset.appendChild(header);
+            fieldset.appendChild(description);
+            fieldset.appendChild(themeSlot);
+            groupsContainer.appendChild(fieldset);
+            builtGroupIds.push(groupId);
+        }
 
         const hasPrevious = builtGroupIds.includes(previousActive);
         const initialGroupId = hasPrevious ? previousActive : (builtGroupIds[0] || '');
@@ -4081,6 +4192,7 @@
             if (!viewport || !stage || !svg) {
                 return;
             }
+            const outerFlowScroller = panel.closest('[data-chaos-flow-content]');
             panel.dataset.chaosFlowInteractive = '1';
             const zoomInBtn = panel.querySelector('[data-chaos-flow-zoom-in]');
             const zoomOutBtn = panel.querySelector('[data-chaos-flow-zoom-out]');
@@ -4424,6 +4536,7 @@
                     startY: event.clientY,
                     scrollLeft: viewport.scrollLeft,
                     scrollTop: viewport.scrollTop,
+                    outerScrollTop: outerFlowScroller ? outerFlowScroller.scrollTop : 0,
                 };
                 try {
                     if (viewport.setPointerCapture) {
@@ -4439,8 +4552,31 @@
                 if (!panState || event.pointerId !== panState.pointerId) {
                     return;
                 }
-                viewport.scrollLeft = panState.scrollLeft - (event.clientX - panState.startX);
-                viewport.scrollTop = panState.scrollTop - (event.clientY - panState.startY);
+                const dx = event.clientX - panState.startX;
+                const dy = event.clientY - panState.startY;
+                const desiredLeft = panState.scrollLeft - dx;
+                const desiredTop = panState.scrollTop - dy;
+                const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+                const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+                const clampedLeft = clamp(desiredLeft, 0, maxLeft);
+                const clampedTop = clamp(desiredTop, 0, maxTop);
+                viewport.scrollLeft = clampedLeft;
+                viewport.scrollTop = clampedTop;
+
+                // When the viewport hits its vertical scroll limit, continue the
+                // same drag gesture by scrolling the outer modal content area so
+                // the user can keep panning the full flow canvas context.
+                if (outerFlowScroller && outerFlowScroller !== viewport) {
+                    const verticalOvershoot = desiredTop - clampedTop;
+                    if (verticalOvershoot !== 0) {
+                        const outerMaxTop = Math.max(0, outerFlowScroller.scrollHeight - outerFlowScroller.clientHeight);
+                        outerFlowScroller.scrollTop = clamp(
+                            panState.outerScrollTop + verticalOvershoot,
+                            0,
+                            outerMaxTop,
+                        );
+                    }
+                }
                 event.preventDefault();
             });
             viewport.addEventListener('pointerup', stopPan);
@@ -5798,6 +5934,14 @@
         const screenDedupSimilarity = parseFloat(getVal('CHAOS_SCREEN_DEDUP_SIMILARITY'));
         if (!isNaN(screenDedupSimilarity) && screenDedupSimilarity > 0 && screenDedupSimilarity <= 1) {
             cfg.screenDedupSimilarity = screenDedupSimilarity;
+        }
+        const learnedInputReuseBias = parseFloat(getVal('CHAOS_LEARNED_INPUT_REUSE_BIAS'));
+        if (!isNaN(learnedInputReuseBias) && learnedInputReuseBias >= 0 && learnedInputReuseBias <= 1) {
+            cfg.learnedInputReuseBias = learnedInputReuseBias;
+        }
+        const learnedKeyReuseBias = parseFloat(getVal('CHAOS_LEARNED_KEY_REUSE_BIAS'));
+        if (!isNaN(learnedKeyReuseBias) && learnedKeyReuseBias >= 0 && learnedKeyReuseBias <= 1) {
+            cfg.learnedKeyReuseBias = learnedKeyReuseBias;
         }
 
         const outputFile = getVal('CHAOS_OUTPUT_FILE');

@@ -438,6 +438,16 @@
         chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
         formatElapsed(payload.chaosStartedAt),
       ]);
+    } else if (playbackCompletedState || playbackStep > 0) {
+      mode = 'playback';
+      chip = 'PLAY';
+      metadata = joinParts([
+        playbackCompletedState ? 'complete' : 'idle',
+        playbackStep > 0
+          ? `step ${playbackStep}${playbackTotal > 0 ? `/${playbackTotal}` : ''}`
+          : '',
+        payload.playbackStepType || '',
+      ]);
     } else if (chaosHasData) {
       const stoppedAt = formatStoppedAt(payload.chaosStoppedAt);
       mode = 'chaos';
@@ -448,16 +458,6 @@
         chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
         payload.chaosLoadedRunID ? `run ${payload.chaosLoadedRunID}` : '',
         stoppedAt ? `ended ${stoppedAt}` : '',
-      ]);
-    } else if (playbackCompletedState || playbackStep > 0) {
-      mode = 'playback';
-      chip = 'PLAY';
-      metadata = joinParts([
-        playbackCompletedState ? 'complete' : 'idle',
-        playbackStep > 0
-          ? `step ${playbackStep}${playbackTotal > 0 ? `/${playbackTotal}` : ''}`
-          : '',
-        payload.playbackStepType || '',
       ]);
     } else {
       mode = '';
@@ -543,7 +543,8 @@
     const chaosStepsRun = Number(payload.chaosStepsRun || 0);
     const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
     const chaosHasData = chaosActive || chaosStepsRun > 0;
-    const preferChaosStatus = chaosHasData && !payload.playbackActive && !payload.recordingActive;
+    const playbackCompletedState = !!payload.playbackCompleted && !payload.playbackActive;
+    const preferChaosStatus = chaosHasData && !payload.playbackActive && !payload.recordingActive && !playbackCompletedState;
     const chaosLastAttempt = payload.chaosLastAttempt || null;
 
     let stepLabel = payload.playbackStepLabel || '';

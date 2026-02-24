@@ -217,6 +217,9 @@ func TestSettingsSnapshot_ChaosDefaultsWhenMissing(t *testing.T) {
 		"CHAOS_STEP_DELAY_SEC":             "0.5",
 		"CHAOS_SEED":                       "0",
 		"CHAOS_MAX_FIELD_LENGTH":           "40",
+		"CHAOS_LEARNED_INPUT_REUSE_BIAS":   "1.0",
+		"CHAOS_LEARNED_KEY_REUSE_BIAS":     "1.0",
+		"CHAOS_EXPORT_SUCCESS_BALANCE":     "1.0",
 		"CHAOS_OUTPUT_FILE":                "",
 		"CHAOS_EXCLUDE_NO_PROGRESS_EVENTS": "true",
 	}

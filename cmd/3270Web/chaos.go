@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -143,6 +144,9 @@ type chaosStartRequest struct {
 	OutputFile                  string            `json:"outputFile"`
 	MaxFieldLength              int               `json:"maxFieldLength"`
 	ScreenDedupSimilarity       float64           `json:"screenDedupSimilarity"`
+	LearnedInputReuseBias       *float64          `json:"learnedInputReuseBias"`
+	LearnedKeyReuseBias         *float64          `json:"learnedKeyReuseBias"`
+	LearnedReuseBias            *float64          `json:"learnedReuseBias"` // legacy alias: applies to both if specific values not provided
 	ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
 	Hints                       []chaos.Hint      `json:"hints"`
 	FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
@@ -189,6 +193,16 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
 			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
+		}
+		if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
+			cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
+		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+			cfg.LearnedInputReuseBias = *req.LearnedReuseBias
+		}
+		if req.LearnedKeyReuseBias != nil && *req.LearnedKeyReuseBias >= 0 && *req.LearnedKeyReuseBias <= 1 {
+			cfg.LearnedKeyReuseBias = *req.LearnedKeyReuseBias
+		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+			cfg.LearnedKeyReuseBias = *req.LearnedReuseBias
 		}
 		if req.ForceOverrideExistingInputs != nil {
 			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
@@ -398,16 +412,17 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	})
 
 	var data []byte
+	exportSuccessBalance := app.chaosExportSuccessBalanceSetting()
 	if eng, ok := app.chaosEngines.get(s.ID); ok {
 		var err error
-		data, err = eng.ExportWorkflow(targetHost, targetPort)
+		data, err = eng.ExportWorkflowWithSuccessBalance(targetHost, targetPort, exportSuccessBalance)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	} else if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader, chaos.WorkflowDiscoveryMetadataFromSavedRun(run))
+		data, err = chaos.ExportWorkflowFromSavedRun(run, targetHost, targetPort, exportSuccessBalance)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -415,7 +430,7 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
 		app.chaosEngines.setLoadedRun(s.ID, run)
 		var err error
-		data, err = marshalWorkflowExport(targetHost, targetPort, run.Steps, run.WorkflowHeader, chaos.WorkflowDiscoveryMetadataFromSavedRun(run))
+		data, err = chaos.ExportWorkflowFromSavedRun(run, targetHost, targetPort, exportSuccessBalance)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -433,6 +448,26 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
+}
+
+func (app *App) chaosExportSuccessBalanceSetting() float64 {
+	const defaultBalance = 1.0
+	if app == nil {
+		return defaultBalance
+	}
+	settings, _, err := app.settingsSnapshot(true)
+	if err != nil {
+		return defaultBalance
+	}
+	raw := strings.TrimSpace(settings["CHAOS_EXPORT_SUCCESS_BALANCE"])
+	if raw == "" {
+		return defaultBalance
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v <= 0 || v > 1 {
+		return defaultBalance
+	}
+	return v
 }
 
 func (app *App) loadSessionChaosRunFromDisk(s *session.Session) *chaos.SavedRun {
@@ -718,6 +753,16 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		}
 		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
 			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
+		}
+		if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
+			cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
+		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+			cfg.LearnedInputReuseBias = *req.LearnedReuseBias
+		}
+		if req.LearnedKeyReuseBias != nil && *req.LearnedKeyReuseBias >= 0 && *req.LearnedKeyReuseBias <= 1 {
+			cfg.LearnedKeyReuseBias = *req.LearnedKeyReuseBias
+		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+			cfg.LearnedKeyReuseBias = *req.LearnedReuseBias
 		}
 		if req.ForceOverrideExistingInputs != nil {
 			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs

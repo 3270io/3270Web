@@ -360,12 +360,26 @@ type WorkflowDiscoveryMetadata struct {
 	Error          string         `json:"error,omitempty"`
 }
 
+const defaultChaosExportSuccessBalance = 1.0
+
 // ExportWorkflow returns the learned workflow as indented JSON that is
 // compatible with the existing WorkflowConfig format.
 func (e *Engine) ExportWorkflow(hostName string, port int) ([]byte, error) {
+	return e.ExportWorkflowWithSuccessBalance(hostName, port, defaultChaosExportSuccessBalance)
+}
+
+// ExportWorkflowWithSuccessBalance returns the learned workflow as indented JSON
+// while controlling how many unsuccessful attempts are represented in the
+// exported steps. A balance of 1 exports only successful transition steps.
+func (e *Engine) ExportWorkflowWithSuccessBalance(hostName string, port int, successBalance float64) ([]byte, error) {
 	e.mu.Lock()
-	steps := make([]session.WorkflowStep, len(e.steps))
-	copy(steps, e.steps)
+	rawSteps := make([]session.WorkflowStep, len(e.steps))
+	copy(rawSteps, e.steps)
+	transitions := make([]Transition, len(e.transitions))
+	copy(transitions, e.transitions)
+	attempts := make([]Attempt, len(e.attempts))
+	copy(attempts, e.attempts)
+	mindMap := e.mindMap.clone()
 	header := e.workflowHeader.clone()
 	discovery := e.workflowDiscoveryMetadataLocked()
 	e.mu.Unlock()
@@ -375,6 +389,10 @@ func (e *Engine) ExportWorkflow(hostName string, port int) ([]byte, error) {
 	}
 	if port == 0 {
 		port = e.cfg.ExportPort
+	}
+	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, successBalance)
+	if len(steps) == 0 && len(rawSteps) > 0 {
+		steps = rawSteps
 	}
 
 	export := exportedWorkflow{
@@ -392,6 +410,198 @@ func (e *Engine) ExportWorkflow(hostName string, port int) ([]byte, error) {
 	}
 
 	return json.MarshalIndent(export, "", "  ")
+}
+
+// ExportWorkflowFromSavedRun returns a workflow export JSON payload for a saved
+// run using the same success/unsuccessful balance rules as active-engine export.
+func ExportWorkflowFromSavedRun(run *SavedRun, hostName string, port int, successBalance float64) ([]byte, error) {
+	if run == nil {
+		return nil, fmt.Errorf("saved run is nil")
+	}
+	transitions := make([]Transition, len(run.TransitionList))
+	copy(transitions, run.TransitionList)
+	attempts := make([]Attempt, len(run.Attempts))
+	copy(attempts, run.Attempts)
+	steps := buildExportWorkflowSteps(transitions, attempts, run.MindMap, successBalance)
+	if len(steps) == 0 && len(run.Steps) > 0 {
+		steps = append([]session.WorkflowStep(nil), run.Steps...)
+	}
+	return marshalChaosWorkflowExport(hostName, port, steps, run.WorkflowHeader, WorkflowDiscoveryMetadataFromSavedRun(run))
+}
+
+func marshalChaosWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *WorkflowHeader, discovery *WorkflowDiscoveryMetadata) ([]byte, error) {
+	export := exportedWorkflow{
+		Host:           hostName,
+		Port:           port,
+		Steps:          steps,
+		ChaosDiscovery: discovery,
+	}
+	if header != nil {
+		export.EveryStepDelay = cloneWorkflowDelayRange(header.EveryStepDelay)
+		export.OutputFilePath = header.OutputFilePath
+		export.RampUpBatchSize = header.RampUpBatchSize
+		export.RampUpDelay = header.RampUpDelay
+		export.EndOfTaskDelay = cloneWorkflowDelayRange(header.EndOfTaskDelay)
+	}
+	return json.MarshalIndent(export, "", "  ")
+}
+
+func buildExportWorkflowSteps(transitions []Transition, attempts []Attempt, mindMap *MindMap, successBalance float64) []session.WorkflowStep {
+	balance := clampExportSuccessBalance(successBalance)
+	if len(attempts) == 0 {
+		return flattenTransitionSteps(transitions)
+	}
+	if len(transitions) == 0 {
+		if balance >= 0.999999 {
+			return nil
+		}
+		return buildUnsuccessfulCheckSteps(attempts, mindMap, balance)
+	}
+
+	successCount := 0
+	for _, attempt := range attempts {
+		if isSuccessfulExportAttempt(attempt) {
+			successCount++
+		}
+	}
+	if successCount != len(transitions) {
+		return flattenTransitionSteps(transitions)
+	}
+	maxUnsuccessful := exportUnsuccessfulBudget(successCount, balance)
+	if maxUnsuccessful <= 0 {
+		return flattenTransitionSteps(transitions)
+	}
+
+	steps := make([]session.WorkflowStep, 0, len(transitions)*2)
+	transIdx := 0
+	includedUnsuccessful := 0
+	for _, attempt := range attempts {
+		if isSuccessfulExportAttempt(attempt) {
+			if transIdx < len(transitions) {
+				steps = append(steps, transitions[transIdx].Steps...)
+				transIdx++
+			}
+			continue
+		}
+		if includedUnsuccessful >= maxUnsuccessful {
+			continue
+		}
+		check, ok := exportCheckStepForAttempt(attempt, mindMap)
+		if !ok {
+			continue
+		}
+		steps = append(steps, check)
+		includedUnsuccessful++
+	}
+	// If attempts history was filtered or truncated, append any remaining
+	// successful transitions so the exported workflow still reaches the same path.
+	for ; transIdx < len(transitions); transIdx++ {
+		steps = append(steps, transitions[transIdx].Steps...)
+	}
+	return steps
+}
+
+func flattenTransitionSteps(transitions []Transition) []session.WorkflowStep {
+	if len(transitions) == 0 {
+		return nil
+	}
+	steps := make([]session.WorkflowStep, 0)
+	for _, tr := range transitions {
+		if len(tr.Steps) == 0 {
+			continue
+		}
+		steps = append(steps, tr.Steps...)
+	}
+	return steps
+}
+
+func buildUnsuccessfulCheckSteps(attempts []Attempt, mindMap *MindMap, successBalance float64) []session.WorkflowStep {
+	_ = successBalance
+	steps := make([]session.WorkflowStep, 0, len(attempts))
+	for _, attempt := range attempts {
+		if isSuccessfulExportAttempt(attempt) {
+			continue
+		}
+		check, ok := exportCheckStepForAttempt(attempt, mindMap)
+		if ok {
+			steps = append(steps, check)
+		}
+	}
+	return steps
+}
+
+func isSuccessfulExportAttempt(attempt Attempt) bool {
+	return attempt.Transitioned && strings.TrimSpace(attempt.Error) == ""
+}
+
+func clampExportSuccessBalance(v float64) float64 {
+	if v <= 0 {
+		return defaultChaosExportSuccessBalance
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+func exportUnsuccessfulBudget(successCount int, balance float64) int {
+	if successCount <= 0 || balance >= 1 {
+		return 0
+	}
+	unsuccessRatio := (1 - balance) / balance
+	if unsuccessRatio <= 0 {
+		return 0
+	}
+	return int(float64(successCount) * unsuccessRatio)
+}
+
+func exportCheckStepForAttempt(attempt Attempt, mindMap *MindMap) (session.WorkflowStep, bool) {
+	hash := strings.TrimSpace(attempt.FromHash)
+	if hash == "" || mindMap == nil || len(mindMap.Areas) == 0 {
+		return session.WorkflowStep{}, false
+	}
+	area := mindMap.Areas[hash]
+	if area == nil || strings.TrimSpace(area.PreviewText) == "" {
+		return session.WorkflowStep{}, false
+	}
+	lines := strings.Split(area.PreviewText, "\n")
+	for rowIdx, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		runes := []rune(line)
+		start := -1
+		end := -1
+		for i, r := range runes {
+			if r == ' ' || r == 0 {
+				if start >= 0 {
+					break
+				}
+				continue
+			}
+			if start < 0 {
+				start = i
+			}
+			end = i
+		}
+		if start < 0 || end < start {
+			continue
+		}
+		text := string(runes[start : end+1])
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		return session.WorkflowStep{
+			Type: "CheckValue",
+			Coordinates: &session.WorkflowCoordinates{
+				Row:    rowIdx + 1,
+				Column: start + 1,
+				Length: end - start + 1,
+			},
+			Text: text,
+		}, true
+	}
+	return session.WorkflowStep{}, false
 }
 
 func (e *Engine) workflowDiscoveryMetadataLocked() *WorkflowDiscoveryMetadata {
@@ -1766,6 +1976,7 @@ func (e *Engine) generateValueForFieldWithPolicy(
 						chance = 95
 					}
 				}
+				chance = e.scaleLearnedInputReuseChance(chance)
 				if e.rng.Intn(100) < chance {
 					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
 						return v
@@ -1792,6 +2003,7 @@ func (e *Engine) generateValueForFieldWithPolicy(
 						chance = 60
 					}
 				}
+				chance = e.scaleLearnedInputReuseChance(chance)
 				if e.rng.Intn(100) < chance {
 					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
 						return v
@@ -2094,7 +2306,7 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 		if key == "" || isBlacklistedKeyInSet(blocked, key) {
 			continue
 		}
-		effective[key] += b
+		effective[key] += e.scaleLearnedKeyReuseBoost(b)
 	}
 	// Clamp to minimum weight of 1 so that penalised keys remain selectable
 	// (preserving exploration breadth) rather than being silently excluded.
@@ -2131,6 +2343,51 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 		}
 	}
 	return fallbackChaosKey(blocked)
+}
+
+func clampReuseBias(bias float64) float64 {
+	if bias < 0 {
+		return 0
+	}
+	if bias > 1 {
+		return 1
+	}
+	return bias
+}
+
+func (e *Engine) learnedInputReuseBias() float64 {
+	if e == nil {
+		return 1.0
+	}
+	return clampReuseBias(e.cfg.LearnedInputReuseBias)
+}
+
+func (e *Engine) learnedKeyReuseBias() float64 {
+	if e == nil {
+		return 1.0
+	}
+	return clampReuseBias(e.cfg.LearnedKeyReuseBias)
+}
+
+func (e *Engine) scaleLearnedInputReuseChance(chance int) int {
+	if chance <= 0 {
+		return 0
+	}
+	scaled := int(float64(chance) * e.learnedInputReuseBias())
+	if scaled < 0 {
+		return 0
+	}
+	if scaled > 100 {
+		return 100
+	}
+	return scaled
+}
+
+func (e *Engine) scaleLearnedKeyReuseBoost(boost int) int {
+	if boost == 0 {
+		return 0
+	}
+	return int(float64(boost) * e.learnedKeyReuseBias())
 }
 
 // hashScreen produces a short stable fingerprint of the screen state based on
