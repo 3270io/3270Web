@@ -242,6 +242,7 @@
     window.tippy(tooltipTargets, {
       delay: [150, 0],
       placement: 'bottom',
+      trigger: 'mouseenter',
     });
   }
 

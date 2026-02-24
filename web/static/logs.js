@@ -100,6 +100,7 @@
           window.tippy(logsContent, {
             delay: [150, 0],
             placement: 'top',
+            trigger: 'mouseenter',
           });
         }
       }

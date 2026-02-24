@@ -876,6 +876,24 @@
         }
     };
 
+    const ensureSettingsTooltips = () => {
+        if (!window.tippy || !modal) {
+            return;
+        }
+        const tooltipTargets = modal.querySelectorAll('[data-tippy-content]');
+        for (let i = 0; i < tooltipTargets.length; i += 1) {
+            const target = tooltipTargets[i];
+            if (target._tippy) {
+                continue;
+            }
+            window.tippy(target, {
+                delay: [150, 0],
+                placement: 'bottom',
+                trigger: 'mouseenter',
+            });
+        }
+    };
+
     const setActiveGroup = (groupId) => {
         activeGroupId = groupId || '';
         const tabButtons = tabsContainer ? tabsContainer.querySelectorAll('[data-settings-tab]') : [];
@@ -895,6 +913,7 @@
 
     const openSettingsModal = () => {
         modal.hidden = false;
+        ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
             loadSettings();
         }
