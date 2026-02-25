@@ -146,3 +146,68 @@ func TestApplyWorkflowStep_CheckValueMismatch(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestPlayWorkflow_ContinuesAfterFailedStep(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("NewMockHost failed: %v", err)
+	}
+	mockHost.Connected = true
+	// Write known text so the last CheckValue passes.
+	if err := mockHost.WriteStringAt(0, 0, "SCREEN"); err != nil {
+		t.Fatalf("WriteStringAt failed: %v", err)
+	}
+	sess := &session.Session{Host: mockHost}
+	app := &App{}
+
+	workflow := &WorkflowConfig{
+		Steps: []session.WorkflowStep{
+			// This CheckValue will fail (wrong text).
+			{
+				Type: "CheckValue",
+				Coordinates: &session.WorkflowCoordinates{Row: 1, Column: 1, Length: 6},
+				Text: "NOSUCH",
+			},
+			// This step should still execute after the failed check.
+			{Type: "PressEnter"},
+		},
+	}
+
+	app.playWorkflow(sess, workflow)
+
+	withSessionLock(sess, func() {
+		if sess.Playback != nil && sess.Playback.Active {
+			t.Fatalf("playback should be inactive after completion")
+		}
+	})
+
+	foundEnter := false
+	for _, cmd := range mockHost.Commands {
+		if cmd == "key:Enter" {
+			foundEnter = true
+			break
+		}
+	}
+	if !foundEnter {
+		t.Fatalf("expected PressEnter to execute after failed CheckValue, commands=%v", mockHost.Commands)
+	}
+
+	var sawSkip, sawCompleted bool
+	withSessionLock(sess, func() {
+		for _, ev := range sess.PlaybackEvents {
+			msg := ev.Message
+			if strings.Contains(msg, "skipped failed step") && strings.Contains(msg, "CheckValue") {
+				sawSkip = true
+			}
+			if msg == "Playback completed" {
+				sawCompleted = true
+			}
+		}
+	})
+	if !sawSkip {
+		t.Fatalf("expected skip event for failed CheckValue step")
+	}
+	if !sawCompleted {
+		t.Fatalf("expected playback completion event")
+	}
+}

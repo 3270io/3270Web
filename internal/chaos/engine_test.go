@@ -804,6 +804,66 @@ func TestBuildExportWorkflowSteps_IncludesSafeUnsuccessfulChecksWhenBalanced(t *
 	}
 }
 
+func TestBuildExportWorkflowSteps_ExcludesCheckStepsForUnreachableScreens(t *testing.T) {
+	// Transition only visits screens "a" -> "b". Screen "x" never appears in transitions.
+	transitions := []Transition{
+		{FromHash: "a", ToHash: "b", Steps: []session.WorkflowStep{{Type: "PressEnter"}}},
+	}
+	attempts := []Attempt{
+		{Attempt: 1, FromHash: "a", Transitioned: true},
+		// This failed attempt was on screen "x" which is NOT in any transition.
+		{Attempt: 2, FromHash: "x", AIDKey: "PF(1)", Transitioned: false, Error: "host error"},
+	}
+	mindMap := &MindMap{
+		Areas: map[string]*MindMapArea{
+			"x": {Hash: "x", PreviewText: "  Error Screen Content\n", PreviewWidth: 80, PreviewHeight: 24},
+		},
+	}
+
+	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, 0.5)
+	for _, step := range steps {
+		if step.Type == "CheckValue" {
+			t.Fatalf("expected no CheckValue steps for unreachable screen 'x', but got one: %+v", step)
+		}
+	}
+	if len(steps) == 0 {
+		t.Fatalf("expected transition steps to be present")
+	}
+	if steps[0].Type != "PressEnter" {
+		t.Fatalf("first step = %q, want PressEnter", steps[0].Type)
+	}
+}
+
+func TestBuildExportWorkflowSteps_IncludesCheckStepsForReachableScreens(t *testing.T) {
+	// Transition visits "a" -> "b". Screen "b" is reachable and has a failed attempt.
+	transitions := []Transition{
+		{FromHash: "a", ToHash: "b", Steps: []session.WorkflowStep{{Type: "PressEnter"}}},
+		{FromHash: "b", ToHash: "c", Steps: []session.WorkflowStep{{Type: "PressPF3"}}},
+	}
+	attempts := []Attempt{
+		{Attempt: 1, FromHash: "a", Transitioned: true},
+		// Failed attempt on "b" which IS reachable via transitions.
+		{Attempt: 2, FromHash: "b", AIDKey: "PF(1)", Transitioned: false, Error: "host error"},
+		{Attempt: 3, FromHash: "b", Transitioned: true},
+	}
+	mindMap := &MindMap{
+		Areas: map[string]*MindMapArea{
+			"b": {Hash: "b", PreviewText: "  Menu Screen\n", PreviewWidth: 80, PreviewHeight: 24},
+		},
+	}
+
+	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, 0.5)
+	foundCheck := false
+	for _, step := range steps {
+		if step.Type == "CheckValue" {
+			foundCheck = true
+		}
+	}
+	if !foundCheck {
+		t.Fatalf("expected CheckValue step for reachable screen 'b', got none")
+	}
+}
+
 func TestChooseAIDKey(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Seed = 99
