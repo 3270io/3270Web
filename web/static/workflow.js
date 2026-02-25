@@ -193,6 +193,8 @@
   let lastChaosActive = false;
   let lastPaused = body.dataset.playbackPaused === 'true';
   let lastPayload = null;
+  let lastRecordingActive = false;
+  let lastPlaybackCompleted = body.dataset.playbackCompleted === 'true';
   let dismissedActiveRunKey = '';
   const trackingEnabledKey = 'workflowStatusTrackingEnabled';
   let trackingEnabled = true;
@@ -525,15 +527,43 @@
     if (!payload) {
       return;
     }
+    const prevActive = lastActive;
+    const prevRecording = lastRecordingActive;
+    const prevPlaybackCompleted = lastPlaybackCompleted;
     lastPayload = payload;
     lastActive = !!payload.playbackActive;
     lastChaosActive = !!payload.chaosActive;
     lastPaused = !!payload.playbackPaused;
+    lastRecordingActive = !!payload.recordingActive;
+    lastPlaybackCompleted = !!payload.playbackCompleted && !lastActive;
     body.dataset.playbackActive = lastActive ? 'true' : 'false';
     body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
-    body.dataset.recordingActive = payload.recordingActive ? 'true' : 'false';
+    body.dataset.recordingActive = lastRecordingActive ? 'true' : 'false';
     body.dataset.chaosActive = lastChaosActive ? 'true' : 'false';
+
+    // Fire transition notifications
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+      const notify = window.ThreeSeventyWeb.notify;
+      if (!prevRecording && lastRecordingActive) {
+        notify('Recording started.', 'info');
+      } else if (prevRecording && !lastRecordingActive) {
+        notify('Recording stopped.', 'success');
+      }
+      if (!prevActive && lastActive) {
+        const mode = (payload.playbackMode || '').toLowerCase() === 'debug' ? 'Debug' : 'Playback';
+        notify(mode + ' started.', 'info');
+      } else if (prevActive && !lastActive) {
+        if (!prevPlaybackCompleted && lastPlaybackCompleted) {
+          notify('Playback completed.', 'success');
+        } else {
+          notify('Playback stopped.', 'info');
+        }
+      } else if (!prevPlaybackCompleted && lastPlaybackCompleted) {
+        notify('Playback completed.', 'success');
+      }
+    }
+
     updatePlaybackControls(payload);
     updateActiveRunRow(payload);
     if (!trackingEnabled) {
