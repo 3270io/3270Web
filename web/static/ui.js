@@ -1537,6 +1537,9 @@
 
             populateSettings(data.settings || payload.settings);
             setStatus('Settings saved.');
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+                window.ThreeSeventyWeb.notify('Settings saved.', 'success');
+            }
             const onConnectScreen = window.location.pathname === '/';
             if (onConnectScreen) {
                 const restartNow = await askRestartConfirmation();
@@ -1550,6 +1553,9 @@
             }
         } catch (error) {
             setStatus(error.message || 'Failed to save settings.', true);
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+                window.ThreeSeventyWeb.notify(error.message || 'Failed to save settings.', 'error');
+            }
         }
     };
 
@@ -1705,6 +1711,7 @@
     let hasData = false;
     let loadedRunID = null;
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
+    let lastChaosRunning = false;
     let chaosHints = [];
     let chaosKeyBlacklist = [];
     let chaosFirstScreenHint = { knownData: [], knownKeys: [], blockedKeys: [], keyAssignments: {} };
@@ -5361,9 +5368,11 @@
     };
 
     const updateUI = (status) => {
+        const wasRunning = lastChaosRunning;
         lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
         updateChaosMapFromStatus(status || {});
         const running = !!(status && status.active);
+        lastChaosRunning = running;
         hasData = !!(status && (status.stepsRun > 0 || status.loadedRunID));
         const completed = !running && hasData;
         if (status && status.loadedRunID) {
@@ -5433,6 +5442,14 @@
         }
         syncChaosSectionLayout();
         applyChaosInterlocks();
+        // Fire completion notification when chaos transitions running → completed
+        if (wasRunning && !running && hasData && window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+            const steps = status && status.stepsRun ? status.stepsRun : 0;
+            window.ThreeSeventyWeb.notify(
+                'Chaos exploration complete' + (steps > 0 ? ': ' + steps + ' attempt' + (steps === 1 ? '' : 's') : '') + '.',
+                'success'
+            );
+        }
     };
 
     const pollStatus = async () => {
@@ -6016,6 +6033,9 @@
             if (resp.ok) {
                 updateUI({ active: true, stepsRun: 0, transitions: 0 });
                 pollStatus();
+                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+                    window.ThreeSeventyWeb.notify('Chaos exploration started.', 'info');
+                }
             }
         } catch (_err) {
             // Ignore
@@ -6071,6 +6091,9 @@
             try {
                 await fetch('/chaos/stop', { method: 'POST' });
                 await pollStatus();
+                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+                    window.ThreeSeventyWeb.notify('Chaos exploration stopped.', 'info');
+                }
             } catch (_err) {
                 // Ignore
             } finally {
