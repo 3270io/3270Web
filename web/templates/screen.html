@@ -4,7 +4,7 @@
     <title>3270Web</title>
     <link rel="icon" type="image/png" href="/static/3270Web_logo.png">
     <link rel="apple-touch-icon" href="/static/3270Web_logo.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=10">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=11">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script>
         (function () {
@@ -45,6 +45,7 @@
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
+    <script src="/static/toolbar-section-toggle.js" defer></script>
     <script src="/static/ui.js?v=18" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
 </head>
@@ -86,7 +87,8 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
                 <div class="recording-controls" data-recording-controls>
-                    <span class="recording-controls-label" aria-hidden="true">RECORDING</span>
+                    <button type="button" class="recording-controls-label recording-controls-toggle" data-recording-toggle aria-expanded="true" aria-label="Collapse recording controls" data-tippy-content="Collapse recording controls">RECORDING</button>
+                    <div class="recording-controls-panel">
                     <div class="recording-controls-section" aria-label="Recording actions">
                         <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
                             <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop recording" aria-label="Stop recording">
@@ -144,6 +146,7 @@
                             {{ end }}
                         </div>
                     </div>
+                    </div>
                 </div>
                 <div class="workflow-form" data-playback-debug-controls {{ if or (not .PlaybackActive) (ne .PlaybackMode "debug") }}hidden{{ end }}>
                     <form action="/workflow/step" method="post">
@@ -180,7 +183,8 @@
                 {{ end }}
                 <!-- Chaos exploration controls -->
                 <div class="chaos-controls" data-chaos-controls>
-                    <span class="chaos-controls-label" aria-hidden="true">CHAOS</span>
+                    <button type="button" class="chaos-controls-label chaos-controls-toggle" data-chaos-toggle aria-expanded="true" aria-label="Collapse chaos controls" data-tippy-content="Collapse chaos controls">CHAOS</button>
+                    <div class="chaos-controls-panel">
                     <div class="chaos-controls-section" data-chaos-section="run" aria-label="Chaos run actions">
                         <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
@@ -223,6 +227,7 @@
                         <button type="button" class="icon-button icon-button-stop" data-chaos-remove hidden data-tippy-content="Remove chaos run" aria-label="Remove chaos run">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
                         </button>
+                    </div>
                     </div>
                 </div>
             </div>

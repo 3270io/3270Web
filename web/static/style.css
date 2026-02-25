@@ -575,6 +575,36 @@ body.terminal-fit-active .card {
   color: var(--fg-muted);
 }
 
+.recording-controls-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.recording-controls-toggle:hover {
+  color: var(--fg);
+}
+
+.recording-controls-panel {
+  overflow: hidden;
+  max-width: 900px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-controls.is-collapsed .recording-controls-panel {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  pointer-events: none;
+}
+
 .recording-controls-section {
   display: inline-flex;
   align-items: center;
@@ -611,6 +641,36 @@ body.terminal-fit-active .card {
   letter-spacing: 0.08em;
   font-weight: 700;
   color: var(--fg-muted);
+}
+
+.chaos-controls-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.chaos-controls-toggle:hover {
+  color: var(--fg);
+}
+
+.chaos-controls-panel {
+  overflow: hidden;
+  max-width: 900px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chaos-controls.is-collapsed .chaos-controls-panel {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  pointer-events: none;
 }
 
 .chaos-controls-section {
