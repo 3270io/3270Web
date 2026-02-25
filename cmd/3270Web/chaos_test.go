@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jnnngs/3270Web/internal/chaos"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
@@ -1375,3 +1376,98 @@ func TestChaosRemove_AfterCompletion(t *testing.T) {
 		t.Fatalf("export after remove: want 404, got %d – body: %s", w.Code, w.Body.String())
 	}
 }
+
+// TestChaosStart_RespectsEnvSettings verifies that CHAOS_* environment settings
+// are applied to the chaos config when starting a run, instead of always using
+// the hardcoded defaults.
+func TestChaosStart_RespectsEnvSettings(t *testing.T) {
+	// Write a temporary .env file with custom chaos settings.
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	envContent := "CHAOS_MAX_STEPS=42\nCHAOS_TIME_BUDGET_SEC=999\nCHAOS_STEP_DELAY_SEC=0\nCHAOS_MAX_FIELD_LENGTH=10\nCHAOS_SCREEN_DEDUP_SIMILARITY=0.9\nCHAOS_LEARNED_INPUT_REUSE_BIAS=0.5\nCHAOS_LEARNED_KEY_REUSE_BIAS=0.5\nCHAOS_EXCLUDE_NO_PROGRESS_EVENTS=false\nCHAOS_FORCE_OVERRIDE_EXISTING_INPUTS=false\n"
+	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+		t.Fatalf("failed to write .env: %v", err)
+	}
+
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Screen = buildSampleApp1Screen()
+	mockHost.Connected = true
+
+	gin.SetMode(gin.TestMode)
+	mgr := session.NewManager()
+	sess := mgr.CreateSession(mockHost)
+	sess.TargetHost = "127.0.0.1"
+	sess.TargetPort = 3270
+
+	app := &App{
+		SessionManager: mgr,
+		chaosEngines:   newChaosEngineStore(),
+		chaosHintsPath: filepath.Join(dir, "chaos-hints.json"),
+		envPath:        envPath,
+	}
+
+	r := gin.New()
+	r.POST("/chaos/start", app.ChaosStartHandler)
+	r.POST("/chaos/stop", app.ChaosStopHandler)
+	r.GET("/chaos/status", app.ChaosStatusHandler)
+
+	// Start chaos with no body overrides so that env settings must take effect.
+	w := chaosRequest(r, http.MethodPost, "/chaos/start", nil, sess.ID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("start: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	chaosRequest(r, http.MethodPost, "/chaos/stop", nil, sess.ID) //nolint:errcheck
+
+	// Verify that applyChaosEnvSettings applies all env-configured values to the config.
+	cfg := chaos.DefaultConfig()
+	app.applyChaosEnvSettings(&cfg)
+
+	if cfg.MaxSteps != 42 {
+		t.Errorf("MaxSteps: want 42 (from env), got %d", cfg.MaxSteps)
+	}
+	if cfg.MaxFieldLength != 10 {
+		t.Errorf("MaxFieldLength: want 10 (from env), got %d", cfg.MaxFieldLength)
+	}
+	if cfg.LearnedInputReuseBias != 0.5 {
+		t.Errorf("LearnedInputReuseBias: want 0.5 (from env), got %f", cfg.LearnedInputReuseBias)
+	}
+	if cfg.LearnedKeyReuseBias != 0.5 {
+		t.Errorf("LearnedKeyReuseBias: want 0.5 (from env), got %f", cfg.LearnedKeyReuseBias)
+	}
+	if cfg.ExcludeNoProgressEvents {
+		t.Errorf("ExcludeNoProgressEvents: want false (from env), got true")
+	}
+	if cfg.ForceOverrideExistingInputs {
+		t.Errorf("ForceOverrideExistingInputs: want false (from env), got true")
+	}
+}
+
+// TestChaosReport_WithoutRun verifies that the report endpoint returns 404 when
+// no chaos run is associated with the session.
+func TestChaosReport_WithoutRun(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("failed to create mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	gin.SetMode(gin.TestMode)
+	mgr := session.NewManager()
+	sess := mgr.CreateSession(mockHost)
+	app := &App{
+		SessionManager: mgr,
+		chaosEngines:   newChaosEngineStore(),
+		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
+	}
+	r := gin.New()
+	r.POST("/chaos/report", app.ChaosReportHandler)
+
+	w := chaosRequest(r, http.MethodPost, "/chaos/report", nil, sess.ID)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("report without run: want 404, got %d – body: %s", w.Code, w.Body.String())
+	}
+}
+
