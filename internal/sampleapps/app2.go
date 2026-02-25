@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mmcdole/gofeed"
 	"github.com/racingmars/go3270"
@@ -12,7 +13,7 @@ import (
 
 const (
 	skyNewsFeedURL   = "https://feeds.skynews.com/feeds/rss/uk.xml"
-	metOfficeFeedURL = "https://www.metoffice.gov.uk/public/data/PWSCache/WarningsRSS/Region/UK"
+	metOfficeFeedURL = "https://www.gbnews.com/customfeeds/js/feed/section-based-feed?require_sections=weather"
 	ncscFeedURL      = "https://www.ncsc.gov.uk/api/1/services/v1/all-rss-feed.xml"
 	bbcFeedURL       = "https://feeds.bbci.co.uk/news/rss.xml"
 	app2ScreenWidth  = 80
@@ -22,7 +23,7 @@ var app2FeedSelectionScreen = go3270.Screen{
 	{Row: 0, Col: 27, Intense: true, Content: "RSS Newsreader Application"},
 	{Row: 2, Col: 0, Content: "Select the RSS feed to view:"},
 	{Row: 4, Col: 0, Content: "(1) Sky UK News"},
-	{Row: 5, Col: 0, Content: "(2) Met Office UK Weather"},
+	{Row: 5, Col: 0, Content: "(2) GB News Weather"},
 	{Row: 6, Col: 0, Content: "(3) NCSC Latest"},
 	{Row: 7, Col: 0, Content: "(4) BBC Top Stories"},
 	{Row: 10, Col: 0, Content: "Choice:"},
@@ -98,6 +99,16 @@ func fetchRSSFeed(url string) ([]*gofeed.Item, error) {
 	feed, err := fp.ParseURL(url)
 	if err != nil {
 		return nil, err
+	}
+	if strings.Contains(url, "gbnews.com") && len(feed.Items) == 0 {
+		now := time.Now().Format("2006-01-02 15:04")
+		return []*gofeed.Item{
+			{
+				Title:       "GB News Weather feed: no current items",
+				Description: fmt.Sprintf("The GB News weather RSS feed is reachable but currently returned no items. Checked at %s.", now),
+				Link:        "https://www.gbnews.com/weather",
+			},
+		}, nil
 	}
 	return feed.Items, nil
 }

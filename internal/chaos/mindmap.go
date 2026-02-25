@@ -364,6 +364,39 @@ func areaLabelFromScreen(screen *host.Screen) string {
 	return fmt.Sprintf("%dx%d screen", screen.Height, screen.Width)
 }
 
+func areaTitleDedupSignatureFromScreen(screen *host.Screen) string {
+	return normalizeAreaTitleDedupSignature(areaLabelFromScreen(screen))
+}
+
+func normalizeAreaTitleDedupSignature(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	// Preserve the actual title words (unlike the broader screen dedup signature)
+	// while normalizing common dynamic fragments such as numbers and spacing.
+	collapsed := strings.Join(strings.Fields(trimmed), " ")
+	var b strings.Builder
+	b.Grow(len(collapsed))
+	prevSpace := false
+	for _, r := range strings.ToLower(collapsed) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune('9')
+			prevSpace = false
+		case r == ' ':
+			if !prevSpace {
+				b.WriteRune(' ')
+				prevSpace = true
+			}
+		default:
+			b.WriteRune(r)
+			prevSpace = false
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
 func screenDimensions(screen *host.Screen) (int, int) {
 	if screen == nil {
 		return 0, 0

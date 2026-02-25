@@ -83,7 +83,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.2.2.1"
+var appVersion = "0.2.3"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -1203,6 +1203,8 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"playbackEvents":          events,
 		"chaosActive":             chaosState != nil && chaosState.Active,
 		"chaosStepsRun":           chaosStateStepsRun(chaosState),
+		"chaosMaxSteps":           chaosStateMaxSteps(chaosState),
+		"chaosTimeBudgetMs":       chaosStateTimeBudgetMs(chaosState),
 		"chaosTransitions":        chaosStateTransitions(chaosState),
 		"chaosUniqueScreens":      chaosStateUniqueScreens(chaosState),
 		"chaosUniqueInputs":       chaosStateUniqueInputs(chaosState),
@@ -1257,6 +1259,20 @@ func chaosStateTransitions(state *session.ChaosState) int {
 		return 0
 	}
 	return state.Transitions
+}
+
+func chaosStateMaxSteps(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return state.MaxSteps
+}
+
+func chaosStateTimeBudgetMs(state *session.ChaosState) int64 {
+	if state == nil || state.TimeBudget <= 0 {
+		return 0
+	}
+	return state.TimeBudget.Milliseconds()
 }
 
 func chaosStateUniqueScreens(state *session.ChaosState) int {

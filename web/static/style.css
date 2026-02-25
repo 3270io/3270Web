@@ -2709,6 +2709,52 @@ pre, pre input, textarea {
   gap: 6px;
 }
 
+.chaos-map-card-screen-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chaos-map-card-screen-preview-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+}
+
+.chaos-map-card-screen-preview-bg {
+  fill: color-mix(in srgb, var(--panel-2) 90%, black 10%);
+  stroke: color-mix(in srgb, var(--border) 85%, transparent);
+  stroke-width: 1;
+}
+
+.chaos-map-card-screen-preview-bg.is-placeholder {
+  fill: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.chaos-map-card-screen-preview-text {
+  fill: var(--fg);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.02em;
+}
+
+.chaos-map-card-screen-preview-text.is-placeholder {
+  fill: var(--fg-muted);
+}
+
+.chaos-map-card-screen-preview-meta {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  line-height: 1.2;
+}
+
 .chaos-map-chip {
   border: 1px solid var(--border);
   border-radius: 999px;

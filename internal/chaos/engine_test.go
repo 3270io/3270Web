@@ -1208,6 +1208,53 @@ func TestCanonicalizeObservedScreenHashLocked_MergesEchoValueVariants(t *testing
 	}
 }
 
+func TestCanonicalizeObservedScreenHashLocked_DoesNotMergeDifferentTitlesSameLayout(t *testing.T) {
+	makeScreen := func(title string) *host.Screen {
+		s := &host.Screen{
+			Width:       80,
+			Height:      24,
+			IsFormatted: true,
+			Buffer:      make([][]rune, 24),
+		}
+		for y := range s.Buffer {
+			s.Buffer[y] = make([]rune, 80)
+		}
+		for i, r := range []rune(title) {
+			if i >= 79 {
+				break
+			}
+			s.Buffer[1][i] = r
+		}
+		copy(s.Buffer[3], []rune("Press Enter to continue"))
+		s.Fields = []*host.Field{
+			host.NewField(s, host.AttrProtected, 0, 1, minInt(len([]rune(title))-1, 79), 1, host.AttrColDefault, host.AttrEhDefault),
+			host.NewField(s, host.AttrProtected, 0, 3, 22, 3, host.AttrColDefault, host.AttrEhDefault),
+			host.NewField(s, 0x00, 10, 5, 21, 5, host.AttrColDefault, host.AttrEhUnderscore),
+		}
+		return s
+	}
+
+	screenA := makeScreen("Customer Search")
+	screenB := makeScreen("Payment Review")
+	hashA := hashScreen(screenA)
+	hashB := hashScreen(screenB)
+	if hashA == hashB {
+		t.Fatalf("raw hashes unexpectedly equal; test requires distinct hashes")
+	}
+
+	e := New(nil, DefaultConfig())
+	e.mindMap = newMindMap()
+	now := time.Now()
+	e.mindMap.observeScreen(hashA, screenA, now)
+
+	e.mu.Lock()
+	got := e.canonicalizeObservedScreenHashLocked(hashB, screenB)
+	e.mu.Unlock()
+	if got != hashB {
+		t.Fatalf("canonicalized hash = %q, want raw hash %q for different-title screen", got, hashB)
+	}
+}
+
 func TestFitHintValueForField_NumericFilter(t *testing.T) {
 	got := fitHintValueForField("AB12CD34", 6, true)
 	if got != "1234" {

@@ -109,6 +109,8 @@ type ChaosState struct {
 	StepsRun       int
 	StartedAt      time.Time
 	StoppedAt      time.Time
+	MaxSteps       int
+	TimeBudget     time.Duration
 	Transitions    int
 	UniqueScreens  int
 	UniqueInputs   int

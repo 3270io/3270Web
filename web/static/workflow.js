@@ -189,7 +189,6 @@
     : null;
 
   const placeholderText = 'Playback has not started yet.';
-  const compactMetaMaxChars = 72;
   let lastActive = body.dataset.playbackActive === 'true';
   let lastChaosActive = false;
   let lastPaused = body.dataset.playbackPaused === 'true';
@@ -406,6 +405,20 @@
     return `${seconds}s`;
   };
 
+  const formatDurationMsCompact = (ms) => {
+    const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+  };
+
   const truncateText = (text, maxChars) => {
     const raw = text == null ? '' : String(text).trim();
     if (!raw || raw.length <= maxChars) {
@@ -442,7 +455,10 @@
     const playbackCompletedState = !!payload.playbackCompleted && !playbackActive;
     const chaosActive = !!payload.chaosActive;
     const chaosStepsRun = Number(payload.chaosStepsRun || 0);
+    const chaosMaxSteps = Number(payload.chaosMaxSteps || 0);
+    const chaosTimeBudgetMs = Number(payload.chaosTimeBudgetMs || 0);
     const chaosTransitions = Number(payload.chaosTransitions || 0);
+    const chaosUniqueScreens = Number(payload.chaosUniqueScreens || 0);
     const chaosCompleted = !!payload.chaosCompleted || (!chaosActive && chaosStepsRun > 0);
     const chaosHasData = chaosActive || chaosStepsRun > 0 || !!payload.chaosLoadedRunID;
     const playbackStep = Number(payload.playbackStep || 0);
@@ -451,6 +467,23 @@
     let mode = '';
     let chip = '';
     let metadata = '';
+    const chaosStepsRemaining =
+      chaosMaxSteps > 0 ? Math.max(0, chaosMaxSteps - chaosStepsRun) : 0;
+    const chaosTimeRemaining = (() => {
+      if (!chaosActive || chaosTimeBudgetMs <= 0 || !payload.chaosStartedAt) {
+        return '';
+      }
+      const started = new Date(payload.chaosStartedAt);
+      if (Number.isNaN(started.getTime())) {
+        return '';
+      }
+      const remainingMs = chaosTimeBudgetMs - (Date.now() - started.getTime());
+      return formatDurationMsCompact(Math.max(0, remainingMs));
+    })();
+    const chaosRemainingLabel = joinParts([
+      chaosTimeRemaining ? `${chaosTimeRemaining} left` : '',
+      chaosMaxSteps > 0 ? `${chaosStepsRemaining} steps left` : '',
+    ]);
 
     // Priority order: active recording, active playback, active chaos, then completed/ready states.
     if (recordingActive) {
@@ -481,7 +514,9 @@
       metadata = joinParts([
         'running',
         `${chaosStepsRun} attempts`,
+        chaosUniqueScreens > 0 ? `${chaosUniqueScreens} screens` : '',
         chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
+        chaosRemainingLabel,
         formatElapsed(payload.chaosStartedAt),
       ]);
     } else if (playbackCompletedState || playbackStep > 0) {
@@ -501,6 +536,7 @@
       metadata = joinParts([
         chaosCompleted ? 'complete' : 'loaded',
         chaosStepsRun > 0 ? `${chaosStepsRun} attempts` : '',
+        chaosUniqueScreens > 0 ? `${chaosUniqueScreens} screens` : '',
         chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
         payload.chaosLoadedRunID ? `run ${payload.chaosLoadedRunID}` : '',
         stoppedAt ? `ended ${stoppedAt}` : '',
@@ -546,7 +582,7 @@
       !!chaosExtendButton &&
       !chaosExtendButton.hidden;
     const showCloseButton = !recordingActive && !playbackActive && !chaosActive && !!dismissKey;
-    const displayText = truncateText(metadata, compactMetaMaxChars);
+    const displayText = metadata;
     setHidden(activeRunContainer, false);
     setHidden(activeRunRow, false);
     setHidden(activeRunExtend, !canExtendChaosFromRow);

@@ -31,6 +31,8 @@ type Status struct {
 	StepsRun        int            `json:"stepsRun"`
 	StartedAt       time.Time      `json:"startedAt,omitempty"`
 	StoppedAt       time.Time      `json:"stoppedAt,omitempty"`
+	MaxSteps        int            `json:"maxSteps,omitempty"`
+	TimeBudget      time.Duration  `json:"timeBudget,omitempty"`
 	Transitions     int            `json:"transitions"`
 	UniqueScreens   int            `json:"uniqueScreens"`
 	UniqueInputs    int            `json:"uniqueInputs"`
@@ -317,6 +319,8 @@ func (e *Engine) Status() Status {
 		StepsRun:        e.stepsRun,
 		StartedAt:       e.startedAt,
 		StoppedAt:       e.stoppedAt,
+		MaxSteps:        e.cfg.MaxSteps,
+		TimeBudget:      e.cfg.TimeBudget,
 		Transitions:     len(e.transitions),
 		UniqueScreens:   len(e.screenHashes),
 		UniqueInputs:    len(e.uniqueInputs),
@@ -1051,6 +1055,7 @@ func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *ho
 	if candidateSig == "" {
 		return rawHash
 	}
+	candidateTitleSig := areaTitleDedupSignatureFromScreen(screen)
 	bestHash := ""
 	bestScore := 0.0
 	cw, ch := screenDimensions(screen)
@@ -1075,7 +1080,18 @@ func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *ho
 				continue
 			}
 		}
-		score := similarityRatio(candidateSig, area.DedupSignature)
+		bodyScore := similarityRatio(candidateSig, area.DedupSignature)
+		score := bodyScore
+		if candidateTitleSig != "" {
+			areaTitleSig := normalizeAreaTitleDedupSignature(area.Label)
+			if areaTitleSig != "" {
+				titleScore := similarityRatio(candidateTitleSig, areaTitleSig)
+				// Use the captured title as a light discriminator so screens with
+				// nearly identical layouts but different headings are less likely
+				// to collapse into one "unique screen".
+				score = (bodyScore * 0.9) + (titleScore * 0.1)
+			}
+		}
 		if score > bestScore {
 			bestScore = score
 			bestHash = areaHash

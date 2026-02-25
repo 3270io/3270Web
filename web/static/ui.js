@@ -2885,6 +2885,63 @@
         ].join('|');
     };
 
+    const chaosMapCardScreenPreviewMarkup = (area) => {
+        if (!area || typeof area !== 'object') {
+            return `
+                <div class="chaos-map-card-screen-preview is-empty">
+                    <div class="chaos-map-card-screen-preview-meta">No captured screen preview</div>
+                </div>
+            `;
+        }
+
+        const rawText = String(area.previewText || '');
+        const screenW = Math.max(0, Number(area.previewWidth) || Number(area.screenWidth) || 0);
+        const screenH = Math.max(0, Number(area.previewHeight) || Number(area.screenHeight) || 0);
+        const maxCols = 64;
+        const maxRows = 10;
+        let lines = chaosFlowPreviewLines(rawText, maxCols, maxRows);
+        let placeholder = false;
+        if (!lines.length) {
+            placeholder = true;
+            lines = [
+                'No captured screen preview'.padEnd(24, ' '),
+                'Run or extend chaos to capture one'.padEnd(30, ' '),
+            ];
+        }
+
+        const charWidth = 6.1;
+        const lineHeight = 9.0;
+        const padX = 9;
+        const padY = 10;
+        const cols = Math.max(1, lines.reduce((max, line) => Math.max(max, String(line || '').length), 1));
+        const rows = Math.max(1, lines.length);
+        const svgW = Math.round((cols * charWidth) + (padX * 2));
+        const svgH = Math.round((rows * lineHeight) + (padY * 2));
+        const lineMarkup = lines.map((line, index) => {
+            const y = padY + 7 + (index * lineHeight);
+            return `<tspan x="${padX}" y="${y.toFixed(1)}">${chaosFlowSvgPreserveLine(line)}</tspan>`;
+        }).join('');
+
+        const totalRows = rawText ? rawText.replace(/\r/g, '').split('\n').length : 0;
+        const truncatedRows = Math.max(0, totalRows - rows);
+        const dimsText = screenW > 0 && screenH > 0 ? `${screenH}x${screenW}` : '';
+        const metaParts = [
+            dimsText,
+            placeholder ? 'preview unavailable' : 'captured preview',
+            truncatedRows > 0 ? `+${truncatedRows} more row${truncatedRows === 1 ? '' : 's'}` : '',
+        ].filter(Boolean);
+
+        return `
+            <div class="chaos-map-card-screen-preview${placeholder ? ' is-empty' : ''}">
+                <svg class="chaos-map-card-screen-preview-svg" viewBox="0 0 ${svgW} ${svgH}" preserveAspectRatio="xMinYMin meet" aria-hidden="true">
+                    <rect class="chaos-map-card-screen-preview-bg${placeholder ? ' is-placeholder' : ''}" x="0" y="0" width="${svgW}" height="${svgH}" rx="8" ry="8"></rect>
+                    <text class="chaos-map-card-screen-preview-text${placeholder ? ' is-placeholder' : ''}" xml:space="preserve">${lineMarkup}</text>
+                </svg>
+                <div class="chaos-map-card-screen-preview-meta">${escapeHtml(metaParts.join(' | '))}</div>
+            </div>
+        `;
+    };
+
     const chaosMapFlowTemplateId = (key) => {
         const raw = String(key || '');
         let hash = 2166136261;
@@ -4975,6 +5032,7 @@
                     </div>
                     <span class="chaos-map-chip">${Number(group.visits) || 0} visits</span>
                 </div>
+                ${chaosMapCardScreenPreviewMarkup(group.representativeArea)}
                 <div class="chaos-map-chip-row">
                     <span class="chaos-map-chip">${Number(group.fieldCount) || 0} fields</span>
                     <span class="chaos-map-chip">${Number(group.inputFieldCount) || 0} inputs</span>
