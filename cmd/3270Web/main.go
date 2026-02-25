@@ -1385,7 +1385,7 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_STEP_DELAY_SEC"] = "0.5"
 	defaults["CHAOS_SEED"] = "0"
 	defaults["CHAOS_MAX_FIELD_LENGTH"] = "40"
-	defaults["CHAOS_SCREEN_DEDUP_SIMILARITY"] = "0.985"
+	defaults["CHAOS_SCREEN_DEDUP_SIMILARITY"] = "0.95"
 	defaults["CHAOS_LEARNED_INPUT_REUSE_BIAS"] = "1.0"
 	defaults["CHAOS_LEARNED_KEY_REUSE_BIAS"] = "1.0"
 	defaults["CHAOS_EXPORT_SUCCESS_BALANCE"] = "1.0"

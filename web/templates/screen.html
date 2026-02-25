@@ -341,7 +341,23 @@
                 <p class="subtle">Loading…</p>
             </div>
             <div class="modal-actions">
+                <button type="button" data-chaos-runs-select-all>Select all</button>
+                <button type="button" data-chaos-runs-clear-selection>Unselect all</button>
+                <button type="button" class="danger" data-chaos-runs-delete-selected disabled>Delete selected</button>
                 <button type="button" data-chaos-runs-close>Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-confirm-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-confirm-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-confirm-modal-title" data-chaos-confirm-title>Confirm action</h3>
+                <button type="button" class="modal-close" data-chaos-confirm-cancel>Close</button>
+            </div>
+            <p class="subtle" data-chaos-confirm-message>Are you sure?</p>
+            <div class="modal-actions">
+                <button type="button" data-chaos-confirm-cancel>Cancel</button>
+                <button type="button" class="danger" data-chaos-confirm-ok>Confirm</button>
             </div>
         </div>
     </div>
@@ -467,6 +483,47 @@
             <div class="modal-actions">
                 <button type="button" data-chaos-flow-refresh>Refresh</button>
                 <button type="button" data-chaos-flow-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-flow-screen-hints-modal hidden>
+        <div class="modal modal-chaos-flow-screen-hints" role="dialog" aria-modal="true" aria-labelledby="chaos-flow-screen-hints-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-flow-screen-hints-title">Screen Hints</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" class="icon-button" data-chaos-flow-screen-hints-maximize aria-expanded="false" data-tippy-content="Maximize screen hints" aria-label="Maximize screen hints">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-chaos-flow-screen-hints-minimize aria-expanded="true" data-tippy-content="Restore screen hints size" aria-label="Restore screen hints size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    </button>
+                    <button type="button" class="modal-close" data-chaos-flow-screen-hints-close>Close</button>
+                </div>
+            </div>
+            <div class="stack">
+                <p class="subtle" data-chaos-flow-screen-hints-meta>Select known values and keys to guide chaos for this screen.</p>
+                <div data-chaos-flow-screen-hints-preview></div>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-flow-screen-known-data">Known Data</label>
+                    <textarea id="chaos-flow-screen-known-data" data-chaos-flow-screen-known-data rows="5" placeholder="Known values for this screen (comma or newline separated)"></textarea>
+                </div>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-flow-screen-known-keys">Known Keys</label>
+                    <textarea id="chaos-flow-screen-known-keys" data-chaos-flow-screen-known-keys rows="4" placeholder="Known keys (e.g. PF3, Enter, Down)"></textarea>
+                </div>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-flow-screen-blocked-keys">Blocked Keys</label>
+                    <textarea id="chaos-flow-screen-blocked-keys" data-chaos-flow-screen-blocked-keys rows="4" placeholder="Blocked keys for this screen (one per line)"></textarea>
+                </div>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-flow-screen-key-assignments">Label to Key Mappings</label>
+                    <textarea id="chaos-flow-screen-key-assignments" data-chaos-flow-screen-key-assignments rows="5" placeholder="Return=PF3&#10;Next=PF8"></textarea>
+                </div>
+                <div class="subtle" data-chaos-flow-screen-hints-status aria-live="polite"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-flow-screen-hints-save>Save Screen Hints</button>
+                <button type="button" data-chaos-flow-screen-hints-close>Close</button>
             </div>
         </div>
     </div>

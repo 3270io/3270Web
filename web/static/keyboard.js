@@ -390,6 +390,12 @@
       "[data-about-modal]",
       "[data-chaos-runs-modal]",
       "[data-chaos-hints-modal]",
+      "[data-chaos-map-modal]",
+      "[data-chaos-flow-modal]",
+      "[data-chaos-flow-screen-hints-modal]",
+      "[data-chaos-report-modal]",
+      "[data-chaos-start-log-confirm-modal]",
+      "[data-chaos-confirm-modal]",
       "[data-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {

@@ -1099,7 +1099,7 @@ func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *ho
 	}
 	threshold := e.cfg.ScreenDedupSimilarity
 	if threshold <= 0 || threshold > 1 {
-		threshold = 0.985
+		threshold = 0.95
 	}
 	if bestHash != "" && bestScore >= threshold {
 		return bestHash

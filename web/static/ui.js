@@ -159,7 +159,7 @@
         CHAOS_STEP_DELAY_SEC: '0.5',
         CHAOS_SEED: '0',
         CHAOS_MAX_FIELD_LENGTH: '40',
-        CHAOS_SCREEN_DEDUP_SIMILARITY: '0.985',
+        CHAOS_SCREEN_DEDUP_SIMILARITY: '0.95',
         CHAOS_LEARNED_INPUT_REUSE_BIAS: '1.0',
         CHAOS_LEARNED_KEY_REUSE_BIAS: '1.0',
         CHAOS_EXPORT_SUCCESS_BALANCE: '1.0',
@@ -253,7 +253,7 @@
                 { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
                 { key: 'CHAOS_LEARNED_INPUT_REUSE_BIAS', label: 'Learned input reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working input values. Range 0..1 (0 = explore more, 1 = reuse learned inputs more often).' },
                 { key: 'CHAOS_LEARNED_KEY_REUSE_BIAS', label: 'Learned key reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working keys (Enter/PF/etc.). Range 0..1 (0 = explore more keys, 1 = reuse learned keys more often).' },
-                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.97 merges value-echo variants more aggressively). Default 0.985 is a balanced starting point.' },
+                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.95 merges value-echo variants more aggressively). Default 0.95 is a balanced starting point.' },
                 { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
                 { key: 'CHAOS_EXPORT_SUCCESS_BALANCE', label: 'Export success balance', type: 'text', helper: 'Workflow export balance (0-1]. 1 exports only successful navigation steps. Lower values add sampled unsuccessful attempts as safe CheckValue steps while preserving the successful path.' },
                 { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
@@ -1652,6 +1652,14 @@
     const runsModal = document.querySelector('[data-chaos-runs-modal]');
     const runsModalClose = document.querySelectorAll('[data-chaos-runs-close]');
     const runsList = document.querySelector('[data-chaos-runs-list]');
+    const runsSelectAllBtn = document.querySelector('[data-chaos-runs-select-all]');
+    const runsClearSelectionBtn = document.querySelector('[data-chaos-runs-clear-selection]');
+    const runsDeleteSelectedBtn = document.querySelector('[data-chaos-runs-delete-selected]');
+    const confirmModal = document.querySelector('[data-chaos-confirm-modal]');
+    const confirmTitle = document.querySelector('[data-chaos-confirm-title]');
+    const confirmMessage = document.querySelector('[data-chaos-confirm-message]');
+    const confirmCancelButtons = document.querySelectorAll('[data-chaos-confirm-cancel]');
+    const confirmOkButton = document.querySelector('[data-chaos-confirm-ok]');
     const hintsOpenBtn = document.querySelector('[data-chaos-hints-open]');
     const hintsModal = document.querySelector('[data-chaos-hints-modal]');
     const hintsModalClose = document.querySelectorAll('[data-chaos-hints-close]');
@@ -1685,6 +1693,18 @@
     const flowContent = document.querySelector('[data-chaos-flow-content]');
     const flowStatus = document.querySelector('[data-chaos-flow-status]');
     const flowRefreshButtons = Array.from(document.querySelectorAll('[data-chaos-flow-refresh]'));
+    const flowScreenHintsModal = document.querySelector('[data-chaos-flow-screen-hints-modal]');
+    const flowScreenHintsCloseButtons = document.querySelectorAll('[data-chaos-flow-screen-hints-close]');
+    const flowScreenHintsMaximizeBtn = document.querySelector('[data-chaos-flow-screen-hints-maximize]');
+    const flowScreenHintsMinimizeBtn = document.querySelector('[data-chaos-flow-screen-hints-minimize]');
+    const flowScreenHintsMeta = document.querySelector('[data-chaos-flow-screen-hints-meta]');
+    const flowScreenHintsPreview = document.querySelector('[data-chaos-flow-screen-hints-preview]');
+    const flowScreenHintsKnownData = document.querySelector('[data-chaos-flow-screen-known-data]');
+    const flowScreenHintsKnownKeys = document.querySelector('[data-chaos-flow-screen-known-keys]');
+    const flowScreenHintsBlockedKeys = document.querySelector('[data-chaos-flow-screen-blocked-keys]');
+    const flowScreenHintsKeyAssignments = document.querySelector('[data-chaos-flow-screen-key-assignments]');
+    const flowScreenHintsStatus = document.querySelector('[data-chaos-flow-screen-hints-status]');
+    const flowScreenHintsSaveBtn = document.querySelector('[data-chaos-flow-screen-hints-save]');
     const reportModal = document.querySelector('[data-chaos-report-modal]');
     const reportModalClose = document.querySelectorAll('[data-chaos-report-close]');
     const reportMaximizeBtn = document.querySelector('[data-chaos-report-maximize]');
@@ -1722,6 +1742,7 @@
     let hintsModalMaximized = false;
     let mapModalMaximized = false;
     let flowModalMaximized = false;
+    let flowScreenHintsModalMaximized = false;
     let reportModalMaximized = false;
     let reportRawMarkdownMode = false;
     let hintRowSequence = 0;
@@ -1735,6 +1756,10 @@
     const chaosModalParentStack = [];
     const chaosModalReturnFocusStack = [];
     let pendingStartLogConfirmResolve = null;
+    let pendingChaosConfirmResolve = null;
+    let currentRuns = [];
+    let selectedChaosRunIDs = new Set();
+    let activeFlowScreenHintsTarget = null;
 
     const chaosFocusableSelector = [
         'button:not([disabled])',
@@ -1790,6 +1815,11 @@
     const closeChaosModal = (modal, options = {}) => {
         if (!modal) {
             return;
+        }
+        if (modal === confirmModal && pendingChaosConfirmResolve) {
+            const resolve = pendingChaosConfirmResolve;
+            pendingChaosConfirmResolve = null;
+            resolve(false);
         }
         if (modal === startLogConfirmModal && pendingStartLogConfirmResolve) {
             const resolve = pendingStartLogConfirmResolve;
@@ -2009,6 +2039,69 @@
         flowStatus.style.color = isError ? '#ff9a5a' : '';
     };
 
+    const setFlowScreenHintsStatus = (message, isError = false) => {
+        if (!flowScreenHintsStatus) {
+            return;
+        }
+        flowScreenHintsStatus.textContent = message || '';
+        flowScreenHintsStatus.style.color = isError ? '#ff9a5a' : '';
+    };
+
+    const openFlowScreenHintsEditor = (nodeInfo) => {
+        if (!flowScreenHintsModal || !nodeInfo) {
+            return;
+        }
+        const memberHashes = Array.isArray(nodeInfo.memberHashes)
+            ? nodeInfo.memberHashes.map((h) => String(h || '').trim()).filter(Boolean)
+            : [];
+        const normalizedInfo = {
+            nodeID: String(nodeInfo.nodeID || '').trim(),
+            label: String(nodeInfo.label || 'Screen').trim() || 'Screen',
+            sampleHash: String(nodeInfo.sampleHash || '').trim(),
+            memberHashes,
+        };
+        const hint = mergeScreenHintsForHashes(memberHashes);
+        activeFlowScreenHintsTarget = normalizedInfo;
+        if (flowScreenHintsMeta) {
+            const parts = [
+                normalizedInfo.label,
+                normalizedInfo.sampleHash ? `sample ${normalizedInfo.sampleHash}` : '',
+                memberHashes.length > 1 ? `${memberHashes.length} merged variants` : (memberHashes[0] ? `hash ${memberHashes[0]}` : ''),
+            ].filter(Boolean);
+            flowScreenHintsMeta.textContent = parts.join(' | ');
+        }
+        if (flowScreenHintsPreview) {
+            const areas = getChaosMapCardAreas();
+            const sampleArea = areas.find((area) => String(area && area.hash || '').trim() === normalizedInfo.sampleHash)
+                || areas.find((area) => memberHashes.includes(String(area && area.hash || '').trim()))
+                || null;
+            flowScreenHintsPreview.innerHTML = sampleArea
+                ? chaosMapCardScreenPreviewMarkup(sampleArea)
+                : '<div class="chaos-map-card-screen-preview is-empty"><div class="chaos-map-card-screen-preview-meta">No captured screen preview</div></div>';
+        }
+        if (flowScreenHintsKnownData) {
+            flowScreenHintsKnownData.value = formatListLines(hint.knownData || []);
+        }
+        if (flowScreenHintsKnownKeys) {
+            flowScreenHintsKnownKeys.value = formatListLines(hint.knownKeys || []);
+        }
+        if (flowScreenHintsBlockedKeys) {
+            flowScreenHintsBlockedKeys.value = formatListLines(hint.blockedKeys || []);
+        }
+        if (flowScreenHintsKeyAssignments) {
+            flowScreenHintsKeyAssignments.value = formatKeyAssignments(hint.keyAssignments || {});
+        }
+        setFlowScreenHintsStatus('');
+        openChaosModal(flowScreenHintsModal, '[data-chaos-flow-screen-known-data]', { keepPrevious: true });
+    };
+
+    const collectFlowScreenHintsDraft = () => normalizeScreenHint({
+        knownData: flowScreenHintsKnownData ? flowScreenHintsKnownData.value : '',
+        knownKeys: flowScreenHintsKnownKeys ? flowScreenHintsKnownKeys.value : '',
+        blockedKeys: flowScreenHintsBlockedKeys ? flowScreenHintsBlockedKeys.value : '',
+        keyAssignments: parseKeyAssignments(flowScreenHintsKeyAssignments ? flowScreenHintsKeyAssignments.value : ''),
+    });
+
     const setReportStatus = (message, isError = false) => {
         if (!reportStatus) {
             return;
@@ -2045,14 +2138,25 @@
     const promptForLoggingActiveChaosStart = (options = {}) => {
         if (!startLogConfirmModal) {
             const canDisable = options.canDisable !== false;
-            if (canDisable) {
-                const disable = window.confirm('Verbose logging is enabled. Press OK to disable logging and start Chaos mode.');
-                if (disable) {
-                    return Promise.resolve('disable');
+            return (async () => {
+                if (canDisable) {
+                    const disable = await promptChaosConfirm({
+                        title: 'Verbose Logging Enabled',
+                        message: 'Verbose logging is enabled. Disable logging and start Chaos mode?',
+                        confirmLabel: 'Disable & Start',
+                    });
+                    if (disable) {
+                        return 'disable';
+                    }
                 }
-            }
-            const proceed = window.confirm('Verbose logging is enabled. Start Chaos mode with logging still enabled?');
-            return Promise.resolve(proceed ? 'continue' : 'cancel');
+                const proceed = await promptChaosConfirm({
+                    title: 'Verbose Logging Enabled',
+                    message: 'Start Chaos mode with verbose logging still enabled?',
+                    confirmLabel: 'Start Chaos',
+                    danger: false,
+                });
+                return proceed ? 'continue' : 'cancel';
+            })();
         }
 
         const canDisable = options.canDisable !== false;
@@ -2615,9 +2719,10 @@
     };
 
     const mergeScreenHintsForHashes = (hashes) => {
-        const out = { knownData: [], knownKeys: [], keyAssignments: {} };
+        const out = { knownData: [], knownKeys: [], blockedKeys: [], keyAssignments: {} };
         const dataSeen = new Set();
         const keySeen = new Set();
+        const blockedKeySeen = new Set();
         (Array.isArray(hashes) ? hashes : []).forEach((hash) => {
             const hint = effectiveScreenHintForHash(hash);
             (hint.knownData || []).forEach((value) => {
@@ -2635,6 +2740,14 @@
                 }
                 keySeen.add(v);
                 out.knownKeys.push(v);
+            });
+            (hint.blockedKeys || []).forEach((value) => {
+                const v = String(value || '').trim();
+                if (!v || blockedKeySeen.has(v)) {
+                    return;
+                }
+                blockedKeySeen.add(v);
+                out.blockedKeys.push(v);
             });
             Object.entries(normalizeKeyAssignments(hint.keyAssignments || {})).forEach(([label, key]) => {
                 if (!out.keyAssignments[label]) {
@@ -2659,6 +2772,7 @@
             screenHash,
             knownData: draft.knownData || [],
             knownKeys: draft.knownKeys || [],
+            blockedKeys: draft.blockedKeys || [],
             keyAssignments: draft.keyAssignments || {},
         };
         try {
@@ -2885,6 +2999,96 @@
         ].join('|');
     };
 
+    const settleChaosConfirm = (confirmed) => {
+        const resolve = pendingChaosConfirmResolve;
+        pendingChaosConfirmResolve = null;
+        closeChaosModal(confirmModal);
+        if (resolve) {
+            resolve(!!confirmed);
+        }
+    };
+
+    const setFlowScreenHintsModalMaximized = (maximized) => {
+        flowScreenHintsModalMaximized = !!maximized;
+        if (flowScreenHintsModal) {
+            flowScreenHintsModal.classList.toggle('is-maximized', flowScreenHintsModalMaximized);
+        }
+        if (flowScreenHintsMaximizeBtn) {
+            flowScreenHintsMaximizeBtn.hidden = flowScreenHintsModalMaximized;
+            flowScreenHintsMaximizeBtn.setAttribute('aria-expanded', flowScreenHintsModalMaximized ? 'true' : 'false');
+        }
+        if (flowScreenHintsMinimizeBtn) {
+            flowScreenHintsMinimizeBtn.hidden = !flowScreenHintsModalMaximized;
+            flowScreenHintsMinimizeBtn.setAttribute('aria-expanded', flowScreenHintsModalMaximized ? 'true' : 'false');
+        }
+        try {
+            window.localStorage.setItem('h3270ChaosFlowScreenHintsModalMaximized', flowScreenHintsModalMaximized ? '1' : '0');
+        } catch (_err) {
+            // ignore persistence failures
+        }
+    };
+
+    const promptChaosConfirm = ({ title, message, confirmLabel = 'Confirm', danger = true } = {}) => {
+        if (!confirmModal || !confirmOkButton) {
+            return Promise.resolve(false);
+        }
+        if (pendingChaosConfirmResolve) {
+            const resolve = pendingChaosConfirmResolve;
+            pendingChaosConfirmResolve = null;
+            resolve(false);
+        }
+        if (confirmTitle) {
+            confirmTitle.textContent = title || 'Confirm action';
+        }
+        if (confirmMessage) {
+            confirmMessage.textContent = message || 'Are you sure?';
+        }
+        confirmOkButton.textContent = confirmLabel || 'Confirm';
+        confirmOkButton.classList.toggle('danger', !!danger);
+        return new Promise((resolve) => {
+            pendingChaosConfirmResolve = resolve;
+            openChaosModal(confirmModal, '[data-chaos-confirm-ok]', { keepPrevious: true });
+        });
+    };
+
+    const syncRunsSelectionUI = () => {
+        const selectedCount = selectedChaosRunIDs.size;
+        if (runsDeleteSelectedBtn) {
+            runsDeleteSelectedBtn.disabled = selectedCount === 0;
+            runsDeleteSelectedBtn.textContent = selectedCount > 0 ? `Delete selected (${selectedCount})` : 'Delete selected';
+        }
+        if (runsClearSelectionBtn) {
+            runsClearSelectionBtn.disabled = selectedCount === 0;
+        }
+        if (runsSelectAllBtn) {
+            const selectableCount = Array.isArray(currentRuns) ? currentRuns.length : 0;
+            runsSelectAllBtn.disabled = selectableCount === 0 || selectedCount === selectableCount;
+        }
+        if (runsList) {
+            runsList.querySelectorAll('[data-chaos-run-select]').forEach((cb) => {
+                const rid = String(cb.getAttribute('data-chaos-run-select') || '');
+                cb.checked = selectedChaosRunIDs.has(rid);
+                const row = cb.closest('.chaos-run-item');
+                if (row) {
+                    row.classList.toggle('is-selected', cb.checked);
+                }
+            });
+        }
+    };
+
+    const setRunSelected = (rid, selected) => {
+        const id = String(rid || '').trim();
+        if (!id) {
+            return;
+        }
+        if (selected) {
+            selectedChaosRunIDs.add(id);
+        } else {
+            selectedChaosRunIDs.delete(id);
+        }
+        syncRunsSelectionUI();
+    };
+
     const chaosMapCardScreenPreviewMarkup = (area) => {
         if (!area || typeof area !== 'object') {
             return `
@@ -3092,10 +3296,12 @@
                     sampleVisits: areaVisits,
                     sampleLastSeenMs: areaLastSeenMs,
                     firstSeenMs: areaFirstSeenMs,
+                    memberHashes: [],
                 };
                 groupedByTemplate.set(templateId, group);
             }
             group.visits += areaVisits;
+            group.memberHashes.push(rawHash);
             group.inputs = Math.max(group.inputs, Number(area.inputFieldCount) || 0);
             group.variants += 1;
             if (areaFirstSeenMs > 0 && (!group.firstSeenMs || areaFirstSeenMs < group.firstSeenMs)) {
@@ -3134,6 +3340,7 @@
                     variants: group.variants,
                     sampleHash: group.sampleHash,
                     firstSeenMs: Number(group.firstSeenMs) || 0,
+                    memberHashes: Array.isArray(group.memberHashes) ? group.memberHashes.slice() : [],
                     previewText: typeof sampleArea.previewText === 'string' ? sampleArea.previewText : '',
                     previewWidth: Number(sampleArea.previewWidth) || 0,
                     previewHeight: Number(sampleArea.previewHeight) || 0,
@@ -3843,19 +4050,19 @@
             const discoveryOrder = Number(node && node.discoveryOrder);
             const discoveryIndex = Number.isFinite(discoveryOrder) && discoveryOrder >= 0 ? (discoveryOrder + 1) : 0;
             const discoveryText = discoveryIndex > 0 ? `Discovered #${discoveryIndex}` : '';
-            const nodeTitle = [
-                discoveryText,
-                String(node.label || ''),
-                `${node.visits} visit${node.visits === 1 ? '' : 's'}`,
-                `${node.inputs} input${node.inputs === 1 ? '' : 's'}`,
-                node.variants > 1 ? `${node.variants} variants merged` : '',
-            ].filter(Boolean).join(' | ');
             return `
                 <g
                     class="chaos-map-flow-node"
                     transform="translate(${node.x},${node.y})"
                     data-chaos-flow-node
+                    role="button"
+                    tabindex="0"
+                    aria-label="${escapeHtml(`Open screen hints for ${node.label || 'Screen'}`)}"
+                    data-tippy-content="Drag to move or click to edit hints"
                     data-chaos-node-id="${escapeHtml(node.hash)}"
+                    data-chaos-node-sample-hash="${escapeHtml(node.sampleHash || '')}"
+                    data-chaos-node-label="${escapeHtml(node.label || 'Screen')}"
+                    data-chaos-node-member-hashes="${escapeHtml((Array.isArray(node.memberHashes) ? node.memberHashes : []).join(','))}"
                     data-chaos-node-x="${node.x}"
                     data-chaos-node-y="${node.y}"
                     data-chaos-node-w="${node.w}"
@@ -3863,7 +4070,6 @@
                 >
                     <rect width="${node.w}" height="${node.h}" rx="10" ry="10"></rect>
                     ${chaosFlowNodeBodyMarkup(node, isModal)}
-                    <title>${escapeHtml(nodeTitle)}</title>
                 </g>
             `;
         }).join('');
@@ -4488,6 +4694,16 @@
                 if (!id) {
                     return;
                 }
+                if (window.tippy && !el._tippy) {
+                    if (el.hasAttribute('title')) {
+                        el.removeAttribute('title');
+                    }
+                    window.tippy(el, {
+                        delay: [150, 0],
+                        placement: 'top',
+                        trigger: 'mouseenter',
+                    });
+                }
                 const state = {
                     id,
                     el,
@@ -4755,9 +4971,13 @@
             }, { passive: false });
 
             let dragState = null;
+            let lastNodeDragAt = 0;
             const stopDrag = () => {
                 if (!dragState) {
                     return;
+                }
+                if (dragState.moved) {
+                    lastNodeDragAt = Date.now();
                 }
                 try {
                     if (dragState.node && dragState.node.el && dragState.node.el.hasPointerCapture && dragState.node.el.hasPointerCapture(dragState.pointerId)) {
@@ -4792,6 +5012,7 @@
                     startClientY: event.clientY,
                     startX: node.x,
                     startY: node.y,
+                    moved: false,
                 };
                 node.el.classList.add('is-dragging');
                 panel.classList.add('is-dragging-node');
@@ -4813,6 +5034,9 @@
                 const scale = svgScale();
                 const dx = (event.clientX - dragState.startClientX) * scale.x;
                 const dy = (event.clientY - dragState.startClientY) * scale.y;
+                if (!dragState.moved && ((Math.abs(dx) + Math.abs(dy)) > 3)) {
+                    dragState.moved = true;
+                }
                 const node = dragState.node;
                 node.x = clamp(dragState.startX + dx, pad, Math.max(pad, (viewBox.width || 0) - node.w - pad));
                 node.y = clamp(dragState.startY + dy, pad, Math.max(pad, (viewBox.height || 0) - node.h - pad));
@@ -4827,6 +5051,43 @@
                 if (dragState && event.buttons === 0) {
                     stopDrag();
                 }
+            });
+            const openFlowNodeHintsFromElement = (nodeEl) => {
+                if (!nodeEl) {
+                    return;
+                }
+                const nodeID = String(nodeEl.dataset.chaosNodeId || '').trim();
+                const label = String(nodeEl.dataset.chaosNodeLabel || 'Screen').trim() || 'Screen';
+                const sampleHash = String(nodeEl.dataset.chaosNodeSampleHash || '').trim();
+                const memberHashes = String(nodeEl.dataset.chaosNodeMemberHashes || '')
+                    .split(',')
+                    .map((h) => h.trim())
+                    .filter(Boolean);
+                openFlowScreenHintsEditor({ nodeID, label, sampleHash, memberHashes });
+            };
+            svg.addEventListener('click', (event) => {
+                const nodeEl = event.target && event.target.closest ? event.target.closest('[data-chaos-flow-node]') : null;
+                if (!nodeEl) {
+                    return;
+                }
+                if ((Date.now() - lastNodeDragAt) < 250) {
+                    return;
+                }
+                openFlowNodeHintsFromElement(nodeEl);
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            svg.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+                const nodeEl = event.target && event.target.closest ? event.target.closest('[data-chaos-flow-node]') : null;
+                if (!nodeEl) {
+                    return;
+                }
+                openFlowNodeHintsFromElement(nodeEl);
+                event.preventDefault();
+                event.stopPropagation();
             });
         });
     };
@@ -5645,6 +5906,9 @@
         if (!runsModal || !runsList) {
             return;
         }
+        currentRuns = [];
+        selectedChaosRunIDs = new Set();
+        syncRunsSelectionUI();
         runsList.innerHTML = '<p class="subtle">Loading\u2026</p>';
         openChaosModal(runsModal, '[data-chaos-runs-close]');
         try {
@@ -5655,9 +5919,13 @@
             }
             const runs = await resp.json();
             if (!runs || runs.length === 0) {
+                currentRuns = [];
+                selectedChaosRunIDs = new Set();
+                syncRunsSelectionUI();
                 runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
                 return;
             }
+            currentRuns = Array.isArray(runs) ? runs.slice() : [];
             const items = runs.map((r) => {
                 const date = r.startedAt ? new Date(r.startedAt).toLocaleString() : '';
                 const meta = [
@@ -5666,108 +5934,96 @@
                     r.uniqueScreens > 0 ? `${r.uniqueScreens} screens` : null,
                 ].filter(Boolean).join(', ');
                 return `<div class="chaos-run-item" data-run-id="${r.id}">
-                    <div class="chaos-run-meta">
-                        <strong class="chaos-run-id">${r.id}</strong>
-                        <span class="subtle">${date}</span>
+                    <div class="chaos-run-item-top">
+                        <input type="checkbox" class="chaos-run-select" data-chaos-run-select="${escapeHtml(r.id)}" aria-label="Select chaos run ${escapeHtml(r.id)}">
+                        <div>
+                            <div class="chaos-run-meta">
+                                <strong class="chaos-run-id">${escapeHtml(r.id)}</strong>
+                                <span class="subtle">${escapeHtml(date)}</span>
+                            </div>
+                            <div class="chaos-run-stats subtle">${escapeHtml(meta)}</div>
+                        </div>
                     </div>
-                    <div class="chaos-run-stats subtle">${meta}</div>
                     <div class="chaos-run-actions">
-                        <button type="button" class="chaos-run-load-btn" data-load-run-id="${r.id}">Load</button>
-                        <button type="button" class="chaos-run-delete-btn" data-delete-run-id="${r.id}">Delete</button>
+                        <button type="button" class="chaos-run-load-btn" data-load-run-id="${escapeHtml(r.id)}">Load</button>
+                        <button type="button" class="chaos-run-delete-btn" data-delete-run-id="${escapeHtml(r.id)}">Delete</button>
                     </div>
                 </div>`;
             });
             runsList.innerHTML = items.join('');
-            runsList.querySelectorAll('[data-load-run-id]').forEach((btn) => {
-                btn.addEventListener('click', async () => {
-                    const rid = btn.getAttribute('data-load-run-id');
-                    try {
-                        const r2 = await fetch('/chaos/load', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ runID: rid }),
-                        });
-                        if (r2.ok) {
-                            const data = await r2.json();
-                            loadedRunID = data.runID || rid;
-                            updateUI({
-                                active: false,
-                                stepsRun: data.stepsRun || 0,
-                                transitions: data.transitions || 0,
-                                uniqueScreens: data.uniqueScreens || 0,
-                                uniqueInputs: data.uniqueInputs || 0,
-                                loadedRunID,
-                                mindMap: data.mindMap || null,
-                            });
-                            if (typeof window.refreshWorkflowStatus === 'function') {
-                                await window.refreshWorkflowStatus();
-                            }
-                            const summary = chaosCountsSummary({
-                                steps: data.stepsRun || 0,
-                                screens: data.uniqueScreens || 0,
-                                inputs: data.uniqueInputs || 0,
-                                keys: data.uniqueKeys || 0,
-                            });
-                            notifyUi(
-                                `Loaded chaos run ${loadedRunID}${summary ? ` (${summary})` : ''}.`,
-                                'success'
-                            );
-                        }
-                    } catch (_e) {
-                        // Ignore
-                    }
-                    closeChaosModal(runsModal);
-                });
-            });
-            runsList.querySelectorAll('[data-delete-run-id]').forEach((btn) => {
-                btn.addEventListener('click', async () => {
-                    const rid = btn.getAttribute('data-delete-run-id');
-                    if (!rid) {
-                        return;
-                    }
-                    if (!window.confirm(`Delete saved chaos run ${rid}?`)) {
-                        return;
-                    }
-                    btn.disabled = true;
-                    try {
-                        const respDelete = await fetch('/chaos/runs/delete', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ runID: rid }),
-                        });
-                        if (!respDelete.ok) {
-                            btn.disabled = false;
-                            return;
-                        }
-                        const row = btn.closest('.chaos-run-item');
-                        if (row) {
-                            row.remove();
-                        }
-                        if (loadedRunID === rid) {
-                            loadedRunID = null;
-                            updateUI({
-                                active: false,
-                                stepsRun: 0,
-                                transitions: 0,
-                                uniqueScreens: 0,
-                                uniqueInputs: 0,
-                            });
-                            if (typeof window.refreshWorkflowStatus === 'function') {
-                                await window.refreshWorkflowStatus();
-                            }
-                        }
-                        if (!runsList.querySelector('.chaos-run-item')) {
-                            runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
-                        }
-                    } catch (_e) {
-                        btn.disabled = false;
-                    }
-                });
-            });
+            selectedChaosRunIDs = new Set();
+            syncRunsSelectionUI();
             focusModalElement(runsModal, '[data-load-run-id], [data-chaos-runs-close]');
         } catch (_err) {
+            currentRuns = [];
+            selectedChaosRunIDs = new Set();
+            syncRunsSelectionUI();
             runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
         }
+    };
+
+    const clearLoadedChaosIfDeletedRun = async (rid) => {
+        if (loadedRunID !== rid) {
+            return;
+        }
+        loadedRunID = null;
+        updateUI({
+            active: false,
+            stepsRun: 0,
+            transitions: 0,
+            uniqueScreens: 0,
+            uniqueInputs: 0,
+        });
+        if (typeof window.refreshWorkflowStatus === 'function') {
+            await window.refreshWorkflowStatus();
+        }
+    };
+
+    const removeRunRowsFromModal = (runIDs) => {
+        const ids = new Set((runIDs || []).map((id) => String(id || '').trim()).filter(Boolean));
+        if (!ids.size || !runsList) {
+            return;
+        }
+        runsList.querySelectorAll('.chaos-run-item').forEach((row) => {
+            const rid = String(row.getAttribute('data-run-id') || '').trim();
+            if (ids.has(rid)) {
+                row.remove();
+            }
+        });
+        currentRuns = currentRuns.filter((r) => !ids.has(String(r && r.id || '').trim()));
+        ids.forEach((id) => selectedChaosRunIDs.delete(id));
+        syncRunsSelectionUI();
+        if (!runsList.querySelector('.chaos-run-item')) {
+            runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
+        }
+    };
+
+    const deleteChaosRunsByID = async (runIDs) => {
+        const ids = Array.from(new Set((runIDs || []).map((id) => String(id || '').trim()).filter(Boolean)));
+        if (!ids.length) {
+            return { deleted: [], failed: [] };
+        }
+        const deleted = [];
+        const failed = [];
+        for (const rid of ids) {
+            try {
+                const respDelete = await fetch('/chaos/runs/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ runID: rid }),
+                });
+                if (!respDelete.ok) {
+                    failed.push(rid);
+                    continue;
+                }
+                deleted.push(rid);
+                await clearLoadedChaosIfDeletedRun(rid);
+            } catch (_e) {
+                failed.push(rid);
+            }
+        }
+        removeRunRowsFromModal(deleted);
+        return { deleted, failed };
     };
 
     if (runsModal) {
@@ -5780,6 +6036,133 @@
             if (e.target === runsModal) {
                 closeChaosModal(runsModal);
             }
+        });
+    }
+    if (runsList) {
+        runsList.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement)) {
+                return;
+            }
+            const rid = target.getAttribute('data-chaos-run-select');
+            if (!rid) {
+                return;
+            }
+            setRunSelected(rid, target.checked);
+        });
+        runsList.addEventListener('click', async (event) => {
+            const target = event.target instanceof Element ? event.target.closest('button') : null;
+            if (!target) {
+                return;
+            }
+            const loadID = target.getAttribute('data-load-run-id');
+            if (loadID) {
+                try {
+                    const r2 = await fetch('/chaos/load', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ runID: loadID }),
+                    });
+                    if (r2.ok) {
+                        const data = await r2.json();
+                        loadedRunID = data.runID || loadID;
+                        updateUI({
+                            active: false,
+                            stepsRun: data.stepsRun || 0,
+                            transitions: data.transitions || 0,
+                            uniqueScreens: data.uniqueScreens || 0,
+                            uniqueInputs: data.uniqueInputs || 0,
+                            loadedRunID,
+                            mindMap: data.mindMap || null,
+                        });
+                        if (typeof window.refreshWorkflowStatus === 'function') {
+                            await window.refreshWorkflowStatus();
+                        }
+                        const summary = chaosCountsSummary({
+                            steps: data.stepsRun || 0,
+                            screens: data.uniqueScreens || 0,
+                            inputs: data.uniqueInputs || 0,
+                            keys: data.uniqueKeys || 0,
+                        });
+                        notifyUi(
+                            `Loaded chaos run ${loadedRunID}${summary ? ` (${summary})` : ''}.`,
+                            'success'
+                        );
+                    }
+                } catch (_e) {
+                    // ignore
+                }
+                closeChaosModal(runsModal);
+                return;
+            }
+            const deleteID = target.getAttribute('data-delete-run-id');
+            if (!deleteID) {
+                return;
+            }
+            const confirmed = await promptChaosConfirm({
+                title: 'Delete Chaos Run',
+                message: `Delete saved chaos run ${deleteID}?`,
+                confirmLabel: 'Delete',
+            });
+            if (!confirmed) {
+                return;
+            }
+            target.disabled = true;
+            const result = await deleteChaosRunsByID([deleteID]);
+            if (result.deleted.length) {
+                notifyUi(`Deleted chaos run ${deleteID}.`, 'success');
+            } else {
+                target.disabled = false;
+                notifyUi(`Failed to delete chaos run ${deleteID}.`, 'error');
+            }
+        });
+    }
+    if (runsSelectAllBtn) {
+        runsSelectAllBtn.addEventListener('click', () => {
+            currentRuns.forEach((r) => {
+                const rid = String(r && r.id || '').trim();
+                if (rid) {
+                    selectedChaosRunIDs.add(rid);
+                }
+            });
+            syncRunsSelectionUI();
+        });
+    }
+    if (runsClearSelectionBtn) {
+        runsClearSelectionBtn.addEventListener('click', () => {
+            selectedChaosRunIDs.clear();
+            syncRunsSelectionUI();
+        });
+    }
+    if (runsDeleteSelectedBtn) {
+        runsDeleteSelectedBtn.addEventListener('click', async () => {
+            const ids = Array.from(selectedChaosRunIDs);
+            if (!ids.length) {
+                return;
+            }
+            const confirmed = await promptChaosConfirm({
+                title: 'Delete Selected Chaos Runs',
+                message: `Delete ${ids.length} selected saved chaos run${ids.length === 1 ? '' : 's'}?`,
+                confirmLabel: `Delete ${ids.length}`,
+            });
+            if (!confirmed) {
+                return;
+            }
+            runsDeleteSelectedBtn.disabled = true;
+            const result = await deleteChaosRunsByID(ids);
+            if (result.deleted.length) {
+                notifyUi(
+                    `Deleted ${result.deleted.length} chaos run${result.deleted.length === 1 ? '' : 's'}.`,
+                    'success'
+                );
+            }
+            if (result.failed.length) {
+                notifyUi(
+                    `Failed to delete ${result.failed.length} chaos run${result.failed.length === 1 ? '' : 's'}.`,
+                    'error'
+                );
+            }
+            syncRunsSelectionUI();
         });
     }
 
@@ -6037,6 +6420,63 @@
             }
         });
     }
+    if (confirmModal) {
+        confirmCancelButtons.forEach((btn) => {
+            btn.addEventListener('click', () => settleChaosConfirm(false));
+        });
+        if (confirmOkButton) {
+            confirmOkButton.addEventListener('click', () => settleChaosConfirm(true));
+        }
+        confirmModal.addEventListener('click', (e) => {
+            if (e.target === confirmModal) {
+                settleChaosConfirm(false);
+            }
+        });
+    }
+    if (flowScreenHintsModal) {
+        flowScreenHintsCloseButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(flowScreenHintsModal);
+            });
+        });
+        flowScreenHintsModal.addEventListener('click', (e) => {
+            if (e.target === flowScreenHintsModal) {
+                closeChaosModal(flowScreenHintsModal);
+            }
+        });
+    }
+    if (flowScreenHintsMaximizeBtn) {
+        flowScreenHintsMaximizeBtn.addEventListener('click', () => {
+            setFlowScreenHintsModalMaximized(true);
+            focusModalElement(flowScreenHintsModal, '[data-chaos-flow-screen-known-data]');
+        });
+    }
+    if (flowScreenHintsMinimizeBtn) {
+        flowScreenHintsMinimizeBtn.addEventListener('click', () => {
+            setFlowScreenHintsModalMaximized(false);
+            focusModalElement(flowScreenHintsModal, '[data-chaos-flow-screen-known-data]');
+        });
+    }
+    if (flowScreenHintsSaveBtn) {
+        flowScreenHintsSaveBtn.addEventListener('click', async () => {
+            const target = activeFlowScreenHintsTarget;
+            const memberHashes = target && Array.isArray(target.memberHashes) ? target.memberHashes : [];
+            if (!memberHashes.length) {
+                setFlowScreenHintsStatus('No screen selected.', true);
+                return;
+            }
+            const draft = collectFlowScreenHintsDraft();
+            setFlowScreenHintsStatus('Saving...');
+            markScreenHintDraftDirtyForHashes(memberHashes, draft);
+            flowScreenHintsSaveBtn.disabled = true;
+            try {
+                const saved = await saveScreenHintsForHashes(memberHashes, draft);
+                setFlowScreenHintsStatus(saved ? 'Saved' : 'Save failed', !saved);
+            } finally {
+                flowScreenHintsSaveBtn.disabled = false;
+            }
+        });
+    }
     if (reportMaximizeBtn) {
         reportMaximizeBtn.addEventListener('click', () => {
             setReportModalMaximized(true);
@@ -6245,6 +6685,11 @@
         setFlowModalMaximized(window.localStorage.getItem('h3270ChaosFlowModalMaximized') === '1');
     } catch (_err) {
         setFlowModalMaximized(false);
+    }
+    try {
+        setFlowScreenHintsModalMaximized(window.localStorage.getItem('h3270ChaosFlowScreenHintsModalMaximized') === '1');
+    } catch (_err) {
+        setFlowScreenHintsModalMaximized(false);
     }
     try {
         setReportModalMaximized(window.localStorage.getItem('h3270ChaosReportModalMaximized') === '1');

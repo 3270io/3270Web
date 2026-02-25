@@ -855,6 +855,22 @@ body.terminal-fit-active .card {
   background: var(--panel-bg, #1e1e1e);
 }
 
+.chaos-run-item.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.chaos-run-item-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chaos-run-select {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .chaos-run-meta {
   display: flex;
   gap: 8px;
@@ -891,6 +907,7 @@ body.terminal-fit-active .card {
   gap: 6px;
   justify-content: flex-end;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .chaos-run-delete-btn {
@@ -904,6 +921,49 @@ body.terminal-fit-active .card {
 }
 
 .chaos-run-delete-btn:hover {
+  background: #cc5b5b;
+  color: #fff;
+}
+
+.chaos-map-flow-node {
+  cursor: pointer;
+}
+
+.chaos-map-flow-node:hover rect:first-child {
+  stroke: color-mix(in srgb, var(--accent) 55%, var(--border));
+  stroke-width: 2px;
+}
+
+.chaos-map-flow-node:focus-visible rect:first-child {
+  stroke: color-mix(in srgb, var(--accent) 75%, var(--border));
+  stroke-width: 2px;
+}
+
+.modal-chaos-flow-screen-hints {
+  width: min(1180px, 100%);
+  min-width: 640px;
+  max-width: calc(100vw - 32px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.modal-chaos-flow-screen-hints .stack {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.modal-backdrop[data-chaos-flow-screen-hints-modal].is-maximized .modal-chaos-flow-screen-hints {
+  width: min(1200px, 98vw);
+  max-height: min(96vh, 1400px);
+}
+
+button.danger {
+  border-color: #cc5b5b;
+  color: #cc5b5b;
+}
+
+button.danger:hover:not(:disabled) {
   background: #cc5b5b;
   color: #fff;
 }

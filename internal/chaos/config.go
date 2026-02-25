@@ -109,7 +109,7 @@ func DefaultConfig() Config {
 		LearnedInputReuseBias:       1.0,
 		LearnedKeyReuseBias:         1.0,
 		ExcludeNoProgressEvents:     true,
-		ScreenDedupSimilarity:       0.985,
+		ScreenDedupSimilarity:       0.95,
 		AIDKeyWeights: map[string]int{
 			"Enter":  70,
 			"PF(1)":  5,
