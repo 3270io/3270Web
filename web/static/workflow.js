@@ -1050,6 +1050,11 @@
   let playbackPollTimer = null;
   const playbackFastMs = 700;
   const playbackSlowMs = 2000;
+  let lastScreenHtml = null;
+  const initialScreenContainer = document.querySelector('.screen-container');
+  if (initialScreenContainer) {
+    lastScreenHtml = initialScreenContainer.innerHTML;
+  }
 
   const shouldSkipScreenUpdate = (container, force) => {
     if (force) {
@@ -1078,6 +1083,10 @@
         if (!payload || typeof payload.html !== 'string') {
           return;
         }
+        if (payload.html === lastScreenHtml) {
+          return;
+        }
+        lastScreenHtml = payload.html;
         container.innerHTML = payload.html;
         if (typeof window.installKeyHandler === 'function') {
           const form = container.querySelector('form.renderer-form');
@@ -1102,9 +1111,10 @@
       .then((payload) => {
         const isActive = payload && payload.playbackActive;
         const isPaused = payload && payload.playbackPaused;
+        const isDebugMode = payload && String(payload.playbackMode || '').toLowerCase() === 'debug';
         const chaosActive = payload && payload.chaosActive;
         const container = document.querySelector('.screen-container');
-        if ((isActive && !isPaused) || chaosActive) {
+        if ((isActive && (!isPaused || isDebugMode)) || chaosActive) {
           return updateScreenContent(container, { force: true }).then(() => true);
         }
         return false;
@@ -1131,5 +1141,94 @@
     form.addEventListener('submit', () => {
       hideActiveRunRow();
     });
+  });
+
+  const restoreSubmitterState = (submitter) => {
+    if (submitter && typeof submitter._restoreState === 'function') {
+      submitter._restoreState();
+    }
+  };
+
+  const postFormAsync = (form) => {
+    const method = (form.getAttribute('method') || 'post').toUpperCase();
+    const body = new URLSearchParams(new FormData(form));
+    return fetch(form.action, {
+      method,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'Cache-Control': 'no-cache',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    });
+  };
+
+  const wait = (ms) =>
+    new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+
+  const workflowAsyncActions = new Set([
+    '/workflow/play',
+    '/workflow/debug',
+    '/workflow/pause',
+    '/workflow/step',
+    '/workflow/stop',
+    '/workflow/remove',
+  ]);
+
+  document.addEventListener('submit', (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+    const actionUrl = new URL(form.action, window.location.origin);
+    if (!workflowAsyncActions.has(actionUrl.pathname)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const submitter = event.submitter;
+    const container = document.querySelector('.screen-container');
+    const actionPath = actionUrl.pathname;
+    if (
+      actionPath === '/workflow/play' ||
+      actionPath === '/workflow/debug' ||
+      actionPath === '/workflow/remove'
+    ) {
+      hideActiveRunRow();
+    }
+
+    postFormAsync(form)
+      .catch(() => null)
+      .then(() => {
+        // Step/debug start can complete just after the POST returns.
+        if (actionPath === '/workflow/step' || actionPath === '/workflow/debug') {
+          return wait(120);
+        }
+        return null;
+      })
+      .then(() => refreshWorkflowStatus())
+      .then((payload) => {
+        const shouldRefreshScreen =
+          !!payload &&
+          (!!payload.chaosActive ||
+            !!payload.playbackActive ||
+            actionPath === '/workflow/step' ||
+            actionPath === '/workflow/stop' ||
+            actionPath === '/workflow/remove');
+        if (!shouldRefreshScreen) {
+          return null;
+        }
+        return updateScreenContent(container, { force: true });
+      })
+      .finally(() => {
+        restoreSubmitterState(submitter);
+      });
   });
 })();
