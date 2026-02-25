@@ -86,8 +86,13 @@
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
-                <div class="recording-controls" data-recording-controls>
-                    <button type="button" class="recording-controls-label recording-controls-toggle" data-recording-toggle aria-expanded="true" aria-label="Collapse recording controls" data-tippy-content="Collapse recording controls">RECORDING</button>
+                <div class="recording-controls is-collapsed" data-recording-controls>
+                    <button type="button" class="recording-controls-label recording-controls-toggle" data-recording-toggle aria-expanded="false" aria-label="Expand recording controls" data-tippy-content="Expand recording controls">
+                        <span>RECORDING</span>
+                        <span class="toolbar-section-toggle-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false"><path d="M3 6h18v3H3V6zm0 5h12v3H3v-3zm0 5h8v3H3v-3zm14.7-2.3 3.3 3.3-3.3 3.3-1.4-1.4 1-1H11v-2h6.3l-1-1 1.4-1.2z"/></svg>
+                        </span>
+                    </button>
                     <div class="recording-controls-panel">
                     <div class="recording-controls-section" aria-label="Recording actions">
                         <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
@@ -182,8 +187,13 @@
                 </a>
                 {{ end }}
                 <!-- Chaos exploration controls -->
-                <div class="chaos-controls" data-chaos-controls>
-                    <button type="button" class="chaos-controls-label chaos-controls-toggle" data-chaos-toggle aria-expanded="true" aria-label="Collapse chaos controls" data-tippy-content="Collapse chaos controls">CHAOS</button>
+                <div class="chaos-controls is-collapsed" data-chaos-controls>
+                    <button type="button" class="chaos-controls-label chaos-controls-toggle" data-chaos-toggle aria-expanded="false" aria-label="Expand chaos controls" data-tippy-content="Expand chaos controls">
+                        <span>CHAOS</span>
+                        <span class="toolbar-section-toggle-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false"><path d="M3 6h18v3H3V6zm0 5h12v3H3v-3zm0 5h8v3H3v-3zm14.7-2.3 3.3 3.3-3.3 3.3-1.4-1.4 1-1H11v-2h6.3l-1-1 1.4-1.2z"/></svg>
+                        </span>
+                    </button>
                     <div class="chaos-controls-panel">
                     <div class="chaos-controls-section" data-chaos-section="run" aria-label="Chaos run actions">
                         <button type="button" class="icon-button" data-chaos-start data-tippy-content="Start chaos exploration" aria-label="Start chaos exploration">
@@ -591,7 +601,9 @@
             </div>
         </div>
         <button type="button" class="icon-button terminal-tools-toggle" data-terminal-tools-toggle aria-expanded="false" aria-label="Open terminal tools" data-tippy-content="Open terminal tools">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18v3H3V6zm0 5h12v3H3v-3zm0 5h8v3H3v-3zm14.7-2.3 3.3 3.3-3.3 3.3-1.4-1.4 1-1H11v-2h6.3l-1-1 1.4-1.2z"/></svg>
+            <span class="toolbar-section-toggle-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M3 6h18v3H3V6zm0 5h12v3H3v-3zm0 5h8v3H3v-3zm14.7-2.3 3.3 3.3-3.3 3.3-1.4-1.4 1-1H11v-2h6.3l-1-1 1.4-1.2z"/></svg>
+            </span>
         </button>
     </div>
     <div class="logs-modal" data-logs-modal hidden>

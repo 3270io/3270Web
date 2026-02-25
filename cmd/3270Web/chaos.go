@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -450,111 +449,6 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	}
 
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
-}
-
-// ChaosReportHandler handles POST /chaos/report – returns a markdown discovery report.
-func (app *App) ChaosReportHandler(c *gin.Context) {
-	s := app.getSession(c)
-	if s == nil {
-		c.String(http.StatusUnauthorized, "session not found")
-		return
-	}
-
-	var st *chaos.Status
-	if eng, ok := app.chaosEngines.get(s.ID); ok {
-		snap := eng.Status()
-		st = &snap
-	} else if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
-		st = &chaos.Status{
-			StepsRun:      run.StepsRun,
-			StartedAt:     run.StartedAt,
-			StoppedAt:     run.StoppedAt,
-			Transitions:   run.Transitions,
-			UniqueScreens: run.UniqueScreens,
-			UniqueInputs:  run.UniqueInputs,
-			LoadedRunID:   run.ID,
-			MindMap:       run.MindMap,
-			AIDKeyCounts:  run.AIDKeyCounts,
-		}
-	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
-		app.chaosEngines.setLoadedRun(s.ID, run)
-		st = &chaos.Status{
-			StepsRun:      run.StepsRun,
-			StartedAt:     run.StartedAt,
-			StoppedAt:     run.StoppedAt,
-			Transitions:   run.Transitions,
-			UniqueScreens: run.UniqueScreens,
-			UniqueInputs:  run.UniqueInputs,
-			LoadedRunID:   run.ID,
-			MindMap:       run.MindMap,
-			AIDKeyCounts:  run.AIDKeyCounts,
-		}
-	}
-
-	if st == nil {
-		c.String(http.StatusNotFound, "no chaos run data for this session")
-		return
-	}
-
-	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(buildChaosReportMarkdown(st)))
-}
-
-// buildChaosReportMarkdown generates a markdown-formatted chaos discovery report.
-func buildChaosReportMarkdown(st *chaos.Status) string {
-	var b strings.Builder
-	b.WriteString("# Chaos Discovery Report\n\n")
-	b.WriteString("## Summary\n\n")
-	fmt.Fprintf(&b, "- **Steps run:** %d\n", st.StepsRun)
-	fmt.Fprintf(&b, "- **Transitions:** %d\n", st.Transitions)
-	fmt.Fprintf(&b, "- **Unique screens:** %d\n", st.UniqueScreens)
-	fmt.Fprintf(&b, "- **Unique inputs:** %d\n", st.UniqueInputs)
-	if !st.StartedAt.IsZero() {
-		fmt.Fprintf(&b, "- **Started:** %s\n", st.StartedAt.UTC().Format(time.RFC3339))
-	}
-	if !st.StoppedAt.IsZero() {
-		fmt.Fprintf(&b, "- **Stopped:** %s\n", st.StoppedAt.UTC().Format(time.RFC3339))
-	}
-	if st.LoadedRunID != "" {
-		fmt.Fprintf(&b, "- **Run ID:** %s\n", st.LoadedRunID)
-	}
-	if len(st.AIDKeyCounts) > 0 {
-		b.WriteString("\n## Key Usage\n\n")
-		keys := make([]string, 0, len(st.AIDKeyCounts))
-		for k := range st.AIDKeyCounts {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			fmt.Fprintf(&b, "- **%s:** %d\n", k, st.AIDKeyCounts[k])
-		}
-	}
-	if st.MindMap != nil && len(st.MindMap.Areas) > 0 {
-		b.WriteString("\n## Discovered Areas\n\n")
-		hashes := make([]string, 0, len(st.MindMap.Areas))
-		for h := range st.MindMap.Areas {
-			hashes = append(hashes, h)
-		}
-		sort.Strings(hashes)
-		for _, h := range hashes {
-			area := st.MindMap.Areas[h]
-			label := area.Label
-			if label == "" {
-				label = h
-			}
-			fmt.Fprintf(&b, "### %s\n\n", label)
-			fmt.Fprintf(&b, "- **Hash:** `%s`\n", h)
-			fmt.Fprintf(&b, "- **Visits:** %d\n", area.Visits)
-			fmt.Fprintf(&b, "- **Fields:** %d total, %d input\n", area.FieldCount, area.InputFieldCount)
-			if !area.FirstSeen.IsZero() {
-				fmt.Fprintf(&b, "- **First seen:** %s\n", area.FirstSeen.UTC().Format(time.RFC3339))
-			}
-			b.WriteString("\n")
-		}
-	}
-	if st.Error != "" {
-		fmt.Fprintf(&b, "\n## Error\n\n%s\n", st.Error)
-	}
-	return b.String()
 }
 
 

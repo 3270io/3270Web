@@ -12,7 +12,6 @@
     toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
     var label = collapsed ? openLabel : collapseLabel;
     toggle.setAttribute("aria-label", label);
-    toggle.setAttribute("title", label);
     toggle.setAttribute("data-tippy-content", label);
     if (toggle._tippy && typeof toggle._tippy.setContent === "function") {
       toggle._tippy.setContent(label);
@@ -26,11 +25,16 @@
       return;
     }
 
-    var collapsed = false;
+    var collapsed = true;
     try {
-      collapsed = localStorage.getItem(storageKey) === "1";
+      var stored = localStorage.getItem(storageKey);
+      if (stored === "1") {
+        collapsed = true;
+      } else if (stored === "0") {
+        collapsed = false;
+      }
     } catch (err) {
-      collapsed = false;
+      collapsed = true;
     }
     setSectionState(container, toggle, collapsed, openLabel, collapseLabel);
 

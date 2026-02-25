@@ -241,6 +241,11 @@
   };
 
   if (window.tippy && tooltipTargets.length > 0) {
+    tooltipTargets.forEach((target) => {
+      if (target.hasAttribute('title')) {
+        target.removeAttribute('title');
+      }
+    });
     window.tippy(tooltipTargets, {
       delay: [150, 0],
       placement: 'bottom',

@@ -883,6 +883,9 @@
         const tooltipTargets = modal.querySelectorAll('[data-tippy-content]');
         for (let i = 0; i < tooltipTargets.length; i += 1) {
             const target = tooltipTargets[i];
+            if (target.hasAttribute('title')) {
+                target.removeAttribute('title');
+            }
             if (target._tippy) {
                 continue;
             }
@@ -1958,6 +1961,15 @@
         hintsStatus.style.color = isError ? '#ff9a5a' : '';
     };
 
+    const notifyUi = (message, type = 'info') => {
+        if (!message) {
+            return;
+        }
+        if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === 'function') {
+            window.ThreeSeventyWeb.notify(message, type);
+        }
+    };
+
     const setFlowStatus = (message, isError = false) => {
         if (!flowStatus) {
             return;
@@ -2641,7 +2653,9 @@
                 };
             }
             if (!options.quiet) {
-                setChaosMapStatus(options.successMessage || `Saved screen hints for ${screenHash}.`);
+                const msg = options.successMessage || `Saved screen hints for ${screenHash}.`;
+                setChaosMapStatus(msg);
+                notifyUi(msg, 'success');
             }
             if (!options.skipRender && mapModal && !mapModal.hidden) {
                 renderChaosMap();
@@ -2649,7 +2663,9 @@
             return true;
         } catch (err) {
             if (!options.quiet) {
-                setChaosMapStatus((err && err.message) ? err.message : 'Failed to save screen hints.', true);
+                const msg = (err && err.message) ? err.message : 'Failed to save screen hints.';
+                setChaosMapStatus(msg, true);
+                notifyUi(msg, 'error');
             }
             return false;
         }
@@ -2667,7 +2683,9 @@
             const hash = targets[i];
             const ok = await saveScreenHint(hash, draft, { quiet: true, skipRender: true });
             if (!ok) {
-                setChaosMapStatus(`Failed to save screen hints for ${hash}.`, true);
+                const msg = `Failed to save screen hints for ${hash}.`;
+                setChaosMapStatus(msg, true);
+                notifyUi(msg, 'error');
                 if (mapModal && !mapModal.hidden) {
                     renderChaosMap();
                 }
@@ -2675,9 +2693,13 @@
             }
             okCount += 1;
         }
-        setChaosMapStatus(okCount > 1
-            ? `Saved screen hints to ${okCount} merged screen variants.`
-            : `Saved screen hints for ${targets[0]}.`);
+        {
+            const msg = okCount > 1
+                ? `Saved screen hints to ${okCount} merged screen variants.`
+                : `Saved screen hints for ${targets[0]}.`;
+            setChaosMapStatus(msg);
+            notifyUi(msg, 'success');
+        }
         if (mapModal && !mapModal.hidden) {
             renderChaosMap();
         }
@@ -3795,11 +3817,11 @@
                         <strong>${isModal ? 'Discovery Flow (Expanded)' : 'Discovery Flow'}</strong>
                         <div class="chaos-map-flow-header-actions">
                             <div class="chaos-map-flow-zoom-controls" role="group" aria-label="Discovery flow zoom controls">
-                                <button type="button" data-chaos-flow-zoom-out title="Zoom out">-</button>
-                                <button type="button" data-chaos-flow-zoom-in title="Zoom in">+</button>
-                                <button type="button" data-chaos-flow-zoom-fit title="Fit graph to viewport">Fit</button>
-                                <button type="button" data-chaos-flow-layout-reset title="Reset moved screen positions">Layout</button>
-                                <button type="button" data-chaos-flow-zoom-reset title="Reset zoom to 100%">100%</button>
+                                <button type="button" data-chaos-flow-zoom-out aria-label="Zoom out" data-tippy-content="Zoom out">-</button>
+                                <button type="button" data-chaos-flow-zoom-in aria-label="Zoom in" data-tippy-content="Zoom in">+</button>
+                                <button type="button" data-chaos-flow-zoom-fit aria-label="Fit graph to viewport" data-tippy-content="Fit graph to viewport">Fit</button>
+                                <button type="button" data-chaos-flow-layout-reset aria-label="Reset moved screen positions" data-tippy-content="Reset moved screen positions">Layout</button>
+                                <button type="button" data-chaos-flow-zoom-reset aria-label="Reset zoom to 100%" data-tippy-content="Reset zoom to 100%">100%</button>
                                 <span class="chaos-map-flow-zoom-value subtle" data-chaos-flow-zoom-value>100%</span>
                             </div>
                             ${showOpenButton ? '<button type="button" data-chaos-flow-open>View Map</button>' : ''}
@@ -4811,11 +4833,17 @@
             latestChaosReportMarkdown = String(markdown || '');
             setChaosReportContent(latestChaosReportMarkdown);
             setReportStatus('Chaos discovery report loaded.');
+            if (options.notify !== false) {
+                notifyUi('Chaos discovery report loaded.', 'success');
+            }
             return latestChaosReportMarkdown;
         } catch (err) {
             const message = (err && err.message) ? err.message : 'Failed to load chaos report.';
             setReportStatus(message, true);
             reportContent.innerHTML = `<p class="subtle">${escapeHtml(message)}</p>`;
+            if (options.notify !== false) {
+                notifyUi(message, 'error');
+            }
             throw err;
         }
     };
@@ -5165,10 +5193,15 @@
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
             renderFirstScreenHint(chaosFirstScreenHint);
-            setHintsStatus(chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.');
+            {
+                const msg = chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.';
+                setHintsStatus(msg);
+                notifyUi(msg, 'info');
+            }
             return chaosHints;
         } catch (_err) {
             setHintsStatus('Failed to load hints.', true);
+            notifyUi('Failed to load hints.', 'error');
             return chaosHints;
         }
     };
@@ -5197,10 +5230,15 @@
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
             renderFirstScreenHint(chaosFirstScreenHint);
-            setHintsStatus(`Saved ${chaosHints.length} hint(s).`);
+            {
+                const msg = `Saved ${chaosHints.length} hint(s).`;
+                setHintsStatus(msg);
+                notifyUi(msg, 'success');
+            }
             hintsDirty = false;
         } catch (_err) {
             setHintsStatus('Failed to save hints.', true);
+            notifyUi('Failed to save hints.', 'error');
         }
     };
 
@@ -5229,13 +5267,18 @@
             renderHints(chaosHints);
             const source = payload.source === 'loaded' ? 'loaded recording' : 'recording';
             if (extracted.length > 0) {
-                setHintsStatus(`Extracted ${extracted.length} hint(s) from ${source}. Save hints to persist.`);
+                const msg = `Extracted ${extracted.length} hint(s) from ${source}. Save hints to persist.`;
+                setHintsStatus(msg);
+                notifyUi(msg, 'info');
             } else {
-                setHintsStatus(`No hint candidates found in ${source}.`);
+                const msg = `No hint candidates found in ${source}.`;
+                setHintsStatus(msg);
+                notifyUi(msg, 'info');
             }
         } catch (err) {
             const msg = (err && err.message) ? err.message : 'Failed to extract hints from recording.';
             setHintsStatus(msg, true);
+            notifyUi(msg, 'error');
         }
     };
 
@@ -5271,7 +5314,11 @@
                 flowContent.scrollTop = 0;
             }
             const areaCount = getChaosMapUniqueScreenCount();
-            setFlowStatus(areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            {
+                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                setFlowStatus(msg);
+                notifyUi(msg, areaCount ? 'info' : 'info');
+            }
             focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
         });
     };
@@ -5800,7 +5847,11 @@
                 flowContent.scrollTop = 0;
             }
             const areaCount = getChaosMapUniqueScreenCount();
-            setFlowStatus(areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            {
+                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                setFlowStatus(msg);
+                notifyUi(msg, 'info');
+            }
             focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
         });
     });
@@ -5845,8 +5896,11 @@
             try {
                 await downloadChaosReportMarkdown();
                 setReportStatus('Report downloaded.');
+                notifyUi('Chaos report downloaded.', 'success');
             } catch (err) {
-                setReportStatus((err && err.message) ? err.message : 'Failed to download report.', true);
+                const msg = (err && err.message) ? err.message : 'Failed to download report.';
+                setReportStatus(msg, true);
+                notifyUi(msg, 'error');
             } finally {
                 setButtonBusy(reportDownloadBtn, false);
             }
@@ -6224,9 +6278,21 @@
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
+                    notifyUi('Chaos workflow JSON downloaded.', 'success');
+                } else {
+                    let message = 'Failed to export chaos workflow JSON.';
+                    try {
+                        const bodyText = await resp.text();
+                        if (bodyText) {
+                            message = bodyText;
+                        }
+                    } catch (_err) {
+                        // ignore response parse failures
+                    }
+                    notifyUi(message, 'error');
                 }
-            } catch (_err) {
-                // Ignore
+            } catch (err) {
+                notifyUi((err && err.message) ? err.message : 'Failed to export chaos workflow JSON.', 'error');
             } finally {
                 setButtonBusy(exportBtn, false);
                 applyChaosInterlocks();
@@ -6239,8 +6305,8 @@
             setButtonBusy(reportBtn, true);
             try {
                 await openChaosReportModal();
-            } catch (_err) {
-                // Ignore
+            } catch (err) {
+                notifyUi((err && err.message) ? err.message : 'Failed to open chaos report.', 'error');
             } finally {
                 setButtonBusy(reportBtn, false);
                 applyChaosInterlocks();
