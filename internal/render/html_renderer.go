@@ -73,7 +73,9 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 			if needSpan {
 				sb.WriteString(`<span class="`)
 				r.writeProtectedFieldClass(sb, f)
-				sb.WriteString(`">`)
+				sb.WriteString(`"`)
+				r.writeFieldDebugDataAttrs(sb, f)
+				sb.WriteString(`>`)
 			}
 
 			r.writeEscaped(sb, f.GetValue())
@@ -206,7 +208,9 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 	r.writeInt(sb, dataY)
 	sb.WriteString(`" data-w="`)
 	r.writeInt(sb, width)
-	sb.WriteString(`" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
+	sb.WriteString(`"`)
+	r.writeFieldDebugDataAttrs(sb, f)
+	sb.WriteString(` autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
 }
 
 func (r *HtmlRenderer) writeEscaped(sb *strings.Builder, s string) {
@@ -245,16 +249,15 @@ func (r *HtmlRenderer) writeEscaped(sb *strings.Builder, s string) {
 }
 
 func (r *HtmlRenderer) needSpan(f *host.Field) bool {
-	return f.IsIntensified() || f.IsHidden() || f.Color != host.AttrColDefault || f.ExtendedHighlight != host.AttrEhDefault
+	// Hidden styling is only applied to input fields; protected text remains visible even if
+	// a host screen advertises a hidden FA, which avoids hiding labels when FA decoding is off.
+	return f.IsIntensified() || f.Color != host.AttrColDefault || f.ExtendedHighlight != host.AttrEhDefault
 }
 
 func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Field) {
 	first := true
 	if f.IsIntensified() {
 		sb.WriteString("color-intensified")
-		first = false
-	} else if f.IsHidden() {
-		sb.WriteString("color-hidden")
 		first = false
 	}
 
@@ -301,6 +304,51 @@ func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Fie
 			}
 			sb.WriteString(h)
 		}
+	}
+}
+
+func (r *HtmlRenderer) writeFieldDebugDataAttrs(sb *strings.Builder, f *host.Field) {
+	if f == nil {
+		return
+	}
+	sb.WriteString(` data-fa="0x`)
+	r.writeHexByte(sb, f.FieldCode)
+	sb.WriteString(`" data-display="`)
+	sb.WriteString(r.displayModeName(f))
+	sb.WriteString(`" data-hidden="`)
+	if f.IsHidden() {
+		sb.WriteString("1")
+	} else {
+		sb.WriteString("0")
+	}
+	sb.WriteString(`" data-protected="`)
+	if f.IsProtected() {
+		sb.WriteString("1")
+	} else {
+		sb.WriteString("0")
+	}
+	sb.WriteString(`"`)
+}
+
+func (r *HtmlRenderer) writeHexByte(sb *strings.Builder, b byte) {
+	const hex = "0123456789abcdef"
+	sb.WriteByte(hex[(b>>4)&0x0f])
+	sb.WriteByte(hex[b&0x0f])
+}
+
+func (r *HtmlRenderer) displayModeName(f *host.Field) string {
+	if f == nil {
+		return "unknown"
+	}
+	switch f.DisplayMode() {
+	case host.DisplayNormal:
+		return "normal"
+	case host.DisplayIntensified:
+		return "intensified"
+	case host.DisplayHidden:
+		return "hidden"
+	default:
+		return "unknown"
 	}
 }
 

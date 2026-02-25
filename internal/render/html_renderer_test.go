@@ -95,7 +95,7 @@ func TestRenderCorrectness(t *testing.T) {
 
 	expectedSubstrings := []string{
 		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form" data-rows="24" data-cols="80" autocomplete="off" data-form-type="other">`,
-		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" data-x="10" data-y="5" data-w="11" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" data-x="10" data-y="5" data-w="11" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 		`installKeyHandler('screen-test_id');`,
 	}
 
@@ -154,9 +154,9 @@ func TestRenderMultilineInputWidths(t *testing.T) {
 	output := r.Render(screen, "/submit", "")
 
 	expectedSubstrings := []string{
-		`<input type="text" name="field_3_0_0" class="color-input" value="ABC" maxlength="7" size="7" data-x="3" data-y="0" data-w="7" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="10" size="10" data-x="3" data-y="1" data-w="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`<input type="text" name="field_3_0_2" class="color-input" value="G" maxlength="5" size="5" data-x="3" data-y="2" data-w="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_0" class="color-input" value="ABC" maxlength="7" size="7" data-x="3" data-y="0" data-w="7" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="10" size="10" data-x="3" data-y="1" data-w="10" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_2" class="color-input" value="G" maxlength="5" size="5" data-x="3" data-y="2" data-w="5" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 	}
 
 	for _, expected := range expectedSubstrings {
@@ -203,13 +203,13 @@ func TestRenderProtectedFieldClasses(t *testing.T) {
 
 	expectedSubstrings := []string{
 		// Case 1
-		`<span class="color-red">AAAAA</span>`,
+		`<span class="color-red" data-fa="0x20" data-display="normal" data-hidden="0" data-protected="1">AAAAA</span>`,
 		// Case 2
-		`<span class="color-blue highlight-underscore">BBBBB</span>`,
+		`<span class="color-blue highlight-underscore" data-fa="0x20" data-display="normal" data-hidden="0" data-protected="1">BBBBB</span>`,
 		// Case 3
-		`<span class="color-intensified color-green">CCCCC</span>`,
+		`<span class="color-intensified color-green" data-fa="0x28" data-display="intensified" data-hidden="0" data-protected="1">CCCCC</span>`,
 		// Case 4
-		`<span class="color-hidden color-pink highlight-blink">DDDDD</span>`,
+		`<span class="color-pink highlight-blink" data-fa="0x2c" data-display="hidden" data-hidden="1" data-protected="1">DDDDD</span>`,
 	}
 
 	for _, expected := range expectedSubstrings {
