@@ -93,10 +93,11 @@ type WorkflowEvent struct {
 }
 
 type LoadedWorkflow struct {
-	Name     string
-	Payload  []byte
-	Preview  string
-	LoadedAt time.Time
+	Name      string
+	Payload   []byte
+	Preview   string
+	StepTotal int
+	LoadedAt  time.Time
 }
 
 // ChaosState holds the persisted status snapshot for a chaos exploration

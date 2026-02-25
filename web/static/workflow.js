@@ -142,6 +142,7 @@
   const workflowLoadTrigger = document.querySelector('[data-workflow-trigger]');
   const workflowPlayButton = document.querySelector('form[action="/workflow/play"] .icon-button');
   const workflowDebugButton = document.querySelector('form[action="/workflow/debug"] .icon-button');
+  const workflowStatusFileIcon = document.querySelector('.workflow-status-file-icon');
   const playbackIndicator = document.querySelector('[data-playback-indicator]');
   const playbackComplete = document.querySelector('[data-playback-complete]');
   const activeRunContainer = document.querySelector('[data-active-run-container]');
@@ -195,6 +196,7 @@
   let lastPayload = null;
   let lastRecordingActive = false;
   let lastPlaybackCompleted = body.dataset.playbackCompleted === 'true';
+  let lastLoadedWorkflowStepTotal = 0;
   let dismissedActiveRunKey = '';
   const trackingEnabledKey = 'workflowStatusTrackingEnabled';
   let trackingEnabled = true;
@@ -236,6 +238,42 @@
       button.setAttribute('data-tippy-content', tooltip);
       if (button._tippy) {
         button._tippy.setContent(tooltip);
+      }
+    }
+  };
+
+  const setTooltipContent = (el, content) => {
+    if (!el || !content) {
+      return;
+    }
+    el.setAttribute('data-tippy-content', content);
+    if (el._tippy) {
+      el._tippy.setContent(content);
+    }
+  };
+
+  const updateLoadedWorkflowTooltips = (payload) => {
+    const stepTotal = Number((payload && (payload.loadedWorkflowStepTotal || payload.playbackStepTotal)) || 0);
+    const stepSuffix = stepTotal > 0 ? ` (Steps ${stepTotal})` : '';
+    if (workflowStatusFileIcon) {
+      if (!Object.prototype.hasOwnProperty.call(workflowStatusFileIcon.dataset, 'baseTooltip')) {
+        workflowStatusFileIcon.dataset.baseTooltip = workflowStatusFileIcon.getAttribute('data-tippy-content') || '';
+      }
+      const base = workflowStatusFileIcon.dataset.baseTooltip || '';
+      if (base) {
+        setTooltipContent(workflowStatusFileIcon, `${base}${stepSuffix}`);
+      }
+    }
+    if (workflowPlayButton && !workflowPlayButton.disabled) {
+      const base = defaultButtonTooltip(workflowPlayButton);
+      if (base) {
+        setTooltipContent(workflowPlayButton, `${base}${stepSuffix}`);
+      }
+    }
+    if (workflowDebugButton && !workflowDebugButton.disabled) {
+      const base = defaultButtonTooltip(workflowDebugButton);
+      if (base) {
+        setTooltipContent(workflowDebugButton, `${base}${stepSuffix}`);
       }
     }
   };
@@ -535,12 +573,14 @@
     const prevActive = lastActive;
     const prevRecording = lastRecordingActive;
     const prevPlaybackCompleted = lastPlaybackCompleted;
+    const prevLoadedWorkflowStepTotal = lastLoadedWorkflowStepTotal;
     lastPayload = payload;
     lastActive = !!payload.playbackActive;
     lastChaosActive = !!payload.chaosActive;
     lastPaused = !!payload.playbackPaused;
     lastRecordingActive = !!payload.recordingActive;
     lastPlaybackCompleted = !!payload.playbackCompleted && !lastActive;
+    lastLoadedWorkflowStepTotal = Number(payload.loadedWorkflowStepTotal || payload.playbackStepTotal || 0);
     body.dataset.playbackActive = lastActive ? 'true' : 'false';
     body.dataset.playbackPaused = lastPaused ? 'true' : 'false';
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
@@ -567,9 +607,21 @@
       } else if (!prevPlaybackCompleted && lastPlaybackCompleted) {
         notify('Playback completed.', 'success');
       }
+      if (
+        lastLoadedWorkflowStepTotal > 0 &&
+        lastLoadedWorkflowStepTotal !== prevLoadedWorkflowStepTotal &&
+        !lastActive &&
+        !lastRecordingActive
+      ) {
+        notify(
+          `Recording loaded: Steps ${lastLoadedWorkflowStepTotal}.`,
+          'success'
+        );
+      }
     }
 
     updatePlaybackControls(payload);
+    updateLoadedWorkflowTooltips(payload);
     updateActiveRunRow(payload);
     if (!trackingEnabled) {
       return;

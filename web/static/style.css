@@ -382,6 +382,20 @@ body.terminal-fit-active .card {
   align-items: center;
 }
 
+[data-main-toolbar] {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+[data-main-toolbar]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .header-chrome-actions {
   margin-left: auto;
   justify-content: flex-end;
@@ -560,7 +574,11 @@ body.terminal-fit-active .card {
 
 .recording-controls {
   display: inline-flex;
+  position: relative;
   align-items: center;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 48px;
   gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -573,6 +591,7 @@ body.terminal-fit-active .card {
   letter-spacing: 0.08em;
   font-weight: 700;
   color: var(--fg-muted);
+  white-space: nowrap;
 }
 
 .recording-controls-toggle {
@@ -602,10 +621,15 @@ body.terminal-fit-active .card {
 }
 
 .recording-controls.is-collapsed .recording-controls-panel {
+  position: absolute;
+  top: 0;
+  left: 100%;
   max-width: 0;
+  width: 0;
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;
+  visibility: hidden;
 }
 
 .recording-controls-section {
@@ -631,7 +655,11 @@ body.terminal-fit-active .card {
 
 .chaos-controls {
   display: inline-flex;
+  position: relative;
   align-items: center;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 48px;
   gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -644,6 +672,7 @@ body.terminal-fit-active .card {
   letter-spacing: 0.08em;
   font-weight: 700;
   color: var(--fg-muted);
+  white-space: nowrap;
 }
 
 .chaos-controls-toggle {
@@ -701,10 +730,15 @@ body.terminal-fit-active .card {
 }
 
 .chaos-controls.is-collapsed .chaos-controls-panel {
+  position: absolute;
+  top: 0;
+  left: 100%;
   max-width: 0;
+  width: 0;
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;
+  visibility: hidden;
 }
 
 .chaos-controls-section {
@@ -1640,6 +1674,23 @@ pre, pre input, textarea {
   overflow: visible;
   min-width: 0;
   min-height: 0;
+}
+
+.terminal-width-column {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.terminal-width-column > .card-header,
+.terminal-width-column > [data-main-toolbar],
+.terminal-width-column > .active-run-toolbar-row,
+.terminal-width-column > .sample-status {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .terminal-controls {

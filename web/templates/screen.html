@@ -55,6 +55,8 @@
     </div>
     <div class="page-wrap">
         <div class="card">
+            <div class="stack">
+                <div class="terminal-width-column">
             <div class="card-header">
                 <div data-chrome-title>
                     <h2>3270Web</h2>
@@ -125,7 +127,7 @@
                             {{ if .LoadedWorkflow }}
                             <span class="workflow-status">
                                 <span class="subtle">Loaded:</span>
-                                <span class="workflow-status-file-icon" role="img" aria-label="Loaded recording file: {{ .LoadedWorkflowName }}" data-tippy-content="{{ .LoadedWorkflowName }} ({{ .LoadedWorkflowSize }} bytes)">
+                                <span class="workflow-status-file-icon" role="img" aria-label="Loaded recording file: {{ .LoadedWorkflowName }}" data-tippy-content="{{ .LoadedWorkflowName }} ({{ .LoadedWorkflowSize }} bytes{{ if gt .LoadedWorkflowStepTotal 0 }}, Steps {{ .LoadedWorkflowStepTotal }}{{ end }})">
                                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L17.5 8H14zM8 12h8v1.75H8zm0 3.5h8v1.75H8zm0-7h4v1.75H8z"/></svg>
                                 </span>
                             </span>
@@ -261,7 +263,6 @@
             </div>
             {{ end }}
 
-            <div class="stack">
                 <div class="terminal-shell">
                     <div class="screen-container">
                         {{ .ScreenContent }}
@@ -272,6 +273,7 @@
                         <span class="screen-status-field">SIZE {{ .StatusDimensions }}</span>
                         <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
                     </div>
+                </div>
                 </div>
                 <div id="keypad" class="controls" {{ if not .UseKeypad }}hidden{{ end }}></div>
             </div>

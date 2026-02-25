@@ -1970,6 +1970,37 @@
         }
     };
 
+    const setTooltipContent = (el, content) => {
+        if (!el || !content) {
+            return;
+        }
+        el.setAttribute('data-tippy-content', content);
+        if (el._tippy && typeof el._tippy.setContent === 'function') {
+            el._tippy.setContent(content);
+        }
+    };
+
+    const chaosCountsSummary = (counts = {}) => {
+        const steps = Number(counts.steps || 0);
+        const screens = Number(counts.screens || 0);
+        const inputs = Number(counts.inputs || 0);
+        const keys = Number(counts.keys || 0);
+        const parts = [];
+        if (steps > 0) {
+            parts.push(`Steps ${steps}`);
+        }
+        if (screens > 0) {
+            parts.push(`${screens} screen${screens === 1 ? '' : 's'}`);
+        }
+        if (inputs > 0) {
+            parts.push(`${inputs} input${inputs === 1 ? '' : 's'}`);
+        }
+        if (keys > 0) {
+            parts.push(`${keys} key${keys === 1 ? '' : 's'}`);
+        }
+        return parts.join(', ');
+    };
+
     const setFlowStatus = (message, isError = false) => {
         if (!flowStatus) {
             return;
@@ -5414,6 +5445,37 @@
         }
     };
 
+    const updateLoadedChaosActionTooltips = (status, visibleLoadedRunID, visibleHasData, visibleCompleted) => {
+        const steps = Number((status && status.stepsRun) || 0);
+        const screens = Number((status && status.uniqueScreens) || 0);
+        const inputs = Number((status && status.uniqueInputs) || 0);
+        const keys = Number((status && (status.uniqueKeys || (status.aidKeyCounts ? Object.keys(status.aidKeyCounts).length : 0))) || 0);
+        const runID = String(visibleLoadedRunID || '').trim();
+        const suffixParts = [];
+        if (runID) {
+            suffixParts.push(`run ${runID}`);
+        }
+        const summary = chaosCountsSummary({ steps, screens, inputs, keys });
+        if (summary) {
+            suffixParts.push(summary);
+        }
+        const suffix = suffixParts.length ? ` (${suffixParts.join(', ')})` : '';
+        const applyBaseWithSuffix = (btn, enabled) => {
+            if (!btn || btn.disabled || enabled === false) {
+                return;
+            }
+            const base = defaultTooltip(btn);
+            if (base) {
+                setTooltipContent(btn, `${base}${suffix}`);
+            }
+        };
+        applyBaseWithSuffix(resumeBtn, !!runID && !visibleCompleted);
+        applyBaseWithSuffix(extendBtn, !!runID && !!visibleCompleted);
+        applyBaseWithSuffix(reportBtn, !!visibleHasData);
+        applyBaseWithSuffix(exportBtn, !!visibleHasData);
+        applyBaseWithSuffix(removeBtn, !!visibleHasData);
+    };
+
     const updateUI = (status) => {
         const wasRunning = lastChaosRunning;
         lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
@@ -5489,6 +5551,7 @@
         }
         syncChaosSectionLayout();
         applyChaosInterlocks();
+        updateLoadedChaosActionTooltips(status, visibleLoadedRunID, visibleHasData, visibleCompleted);
         // Fire completion notification when chaos transitions running → completed
         if (wasRunning && !running && hasData && window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
             const steps = status && status.stepsRun ? status.stepsRun : 0;
@@ -5581,6 +5644,16 @@
                             if (typeof window.refreshWorkflowStatus === 'function') {
                                 await window.refreshWorkflowStatus();
                             }
+                            const summary = chaosCountsSummary({
+                                steps: data.stepsRun || 0,
+                                screens: data.uniqueScreens || 0,
+                                inputs: data.uniqueInputs || 0,
+                                keys: data.uniqueKeys || 0,
+                            });
+                            notifyUi(
+                                `Loaded chaos run ${loadedRunID}${summary ? ` (${summary})` : ''}.`,
+                                'success'
+                            );
                         }
                     } catch (_e) {
                         // Ignore
@@ -6183,6 +6256,16 @@
                     if (typeof window.refreshWorkflowStatus === 'function') {
                         await window.refreshWorkflowStatus();
                     }
+                    const summary = chaosCountsSummary({
+                        steps: data.stepsRun || data.stepsSeeded || 0,
+                        screens: data.uniqueScreens || 0,
+                        inputs: data.uniqueInputs || 0,
+                        keys: data.uniqueKeys || 0,
+                    });
+                    notifyUi(
+                        `Loaded recording into chaos${summary ? ` (${summary})` : ''}.`,
+                        'success'
+                    );
                 }
             } catch (_err) {
                 // Ignore

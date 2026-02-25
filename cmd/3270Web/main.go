@@ -403,25 +403,26 @@ func recordingStatusSnapshot(s *session.Session) recordingStatus {
 }
 
 type sessionSnapshot struct {
-	Prefs                 session.Preferences
-	RecordingActive       bool
-	RecordingFile         string
-	PlaybackActive        bool
-	PlaybackPaused        bool
-	PlaybackCompleted     bool
-	PlaybackMode          string
-	PlaybackStep          int
-	PlaybackStepType      string
-	PlaybackStepTotal     int
-	PlaybackDelayRange    string
-	PlaybackDelayApplied  string
-	PlaybackEvents        []session.WorkflowEvent
-	LoadedWorkflow        bool
-	LoadedWorkflowName    string
-	LoadedWorkflowPreview string
-	LoadedWorkflowSize    int
-	TargetHost            string
-	TargetPort            int
+	Prefs                   session.Preferences
+	RecordingActive         bool
+	RecordingFile           string
+	PlaybackActive          bool
+	PlaybackPaused          bool
+	PlaybackCompleted       bool
+	PlaybackMode            string
+	PlaybackStep            int
+	PlaybackStepType        string
+	PlaybackStepTotal       int
+	PlaybackDelayRange      string
+	PlaybackDelayApplied    string
+	PlaybackEvents          []session.WorkflowEvent
+	LoadedWorkflow          bool
+	LoadedWorkflowName      string
+	LoadedWorkflowPreview   string
+	LoadedWorkflowSize      int
+	LoadedWorkflowStepTotal int
+	TargetHost              string
+	TargetPort              int
 }
 
 func (app *App) snapshotSession(s *session.Session) sessionSnapshot {
@@ -467,6 +468,7 @@ func (app *App) snapshotSession(s *session.Session) sessionSnapshot {
 		snap.LoadedWorkflowName = s.LoadedWorkflow.Name
 		snap.LoadedWorkflowPreview = s.LoadedWorkflow.Preview
 		snap.LoadedWorkflowSize = len(s.LoadedWorkflow.Payload)
+		snap.LoadedWorkflowStepTotal = s.LoadedWorkflow.StepTotal
 	}
 	return snap
 }
@@ -610,37 +612,38 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		}
 	}
 	c.HTML(http.StatusOK, "screen.html", gin.H{
-		"ScreenContent":         template.HTML(rendered),
-		"SessionID":             s.ID,
-		"ColorSchemes":          app.Config.ColorSchemes.Schemes,
-		"Fonts":                 app.Config.Fonts.Fonts,
-		"SelectedColorScheme":   snap.Prefs.ColorScheme,
-		"SelectedFont":          snap.Prefs.FontName,
-		"UseKeypad":             snap.Prefs.UseKeypad,
-		"ThemeCSS":              template.CSS(themeCSS),
-		"RecordingActive":       snap.RecordingActive,
-		"RecordingFile":         snap.RecordingFile,
-		"PlaybackActive":        snap.PlaybackActive,
-		"PlaybackPaused":        snap.PlaybackPaused,
-		"PlaybackCompleted":     snap.PlaybackCompleted,
-		"PlaybackMode":          snap.PlaybackMode,
-		"PlaybackStep":          snap.PlaybackStep,
-		"PlaybackStepType":      snap.PlaybackStepType,
-		"PlaybackStepTotal":     snap.PlaybackStepTotal,
-		"PlaybackDelayRange":    snap.PlaybackDelayRange,
-		"PlaybackDelayApplied":  snap.PlaybackDelayApplied,
-		"PlaybackEvents":        snap.PlaybackEvents,
-		"LoadedWorkflow":        snap.LoadedWorkflow,
-		"LoadedWorkflowName":    snap.LoadedWorkflowName,
-		"LoadedWorkflowPreview": snap.LoadedWorkflowPreview,
-		"LoadedWorkflowSize":    snap.LoadedWorkflowSize,
-		"StatusKeyboard":        keyboardLabel,
-		"StatusModel":           modelLabel,
-		"StatusDimensions":      dimensionLabel,
-		"StatusCursor":          cursorLabel,
-		"SampleAppName":         sampleAppName,
-		"SampleAppPort":         sampleAppPort,
-		"Version":               appVersion,
+		"ScreenContent":           template.HTML(rendered),
+		"SessionID":               s.ID,
+		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
+		"Fonts":                   app.Config.Fonts.Fonts,
+		"SelectedColorScheme":     snap.Prefs.ColorScheme,
+		"SelectedFont":            snap.Prefs.FontName,
+		"UseKeypad":               snap.Prefs.UseKeypad,
+		"ThemeCSS":                template.CSS(themeCSS),
+		"RecordingActive":         snap.RecordingActive,
+		"RecordingFile":           snap.RecordingFile,
+		"PlaybackActive":          snap.PlaybackActive,
+		"PlaybackPaused":          snap.PlaybackPaused,
+		"PlaybackCompleted":       snap.PlaybackCompleted,
+		"PlaybackMode":            snap.PlaybackMode,
+		"PlaybackStep":            snap.PlaybackStep,
+		"PlaybackStepType":        snap.PlaybackStepType,
+		"PlaybackStepTotal":       snap.PlaybackStepTotal,
+		"PlaybackDelayRange":      snap.PlaybackDelayRange,
+		"PlaybackDelayApplied":    snap.PlaybackDelayApplied,
+		"PlaybackEvents":          snap.PlaybackEvents,
+		"LoadedWorkflow":          snap.LoadedWorkflow,
+		"LoadedWorkflowName":      snap.LoadedWorkflowName,
+		"LoadedWorkflowPreview":   snap.LoadedWorkflowPreview,
+		"LoadedWorkflowSize":      snap.LoadedWorkflowSize,
+		"LoadedWorkflowStepTotal": snap.LoadedWorkflowStepTotal,
+		"StatusKeyboard":          keyboardLabel,
+		"StatusModel":             modelLabel,
+		"StatusDimensions":        dimensionLabel,
+		"StatusCursor":            cursorLabel,
+		"SampleAppName":           sampleAppName,
+		"SampleAppPort":           sampleAppPort,
+		"Version":                 appVersion,
 	})
 }
 
@@ -939,10 +942,11 @@ func (app *App) LoadWorkflowHandler(c *gin.Context) {
 	preview := prettyWorkflowPayload(upload.Payload)
 	withSessionLock(s, func() {
 		s.LoadedWorkflow = &session.LoadedWorkflow{
-			Name:     upload.Name,
-			Payload:  upload.Payload,
-			Preview:  preview,
-			LoadedAt: time.Now(),
+			Name:      upload.Name,
+			Payload:   upload.Payload,
+			Preview:   preview,
+			StepTotal: len(upload.Config.Steps),
+			LoadedAt:  time.Now(),
 		}
 	})
 	// Loading a recording should reset active-run playback summary metadata.
@@ -1180,37 +1184,39 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"recordingActive":      recStatus.Active,
-		"recordingStartedAt":   recStatus.StartedAt,
-		"recordingSteps":       recStatus.Steps,
-		"recordingFile":        recStatus.File,
-		"playbackActive":       playbackActive(s),
-		"playbackPaused":       playbackPaused(s),
-		"playbackCompleted":    playbackCompleted(s),
-		"playbackStartedAt":    playbackStartedAt(s),
-		"playbackMode":         playbackMode(s),
-		"playbackStep":         playbackStepIndex(s),
-		"playbackStepTotal":    playbackStepTotal(s),
-		"playbackStepType":     playbackStepType(s),
-		"playbackStepLabel":    playbackStepLabel(s),
-		"playbackDelayRange":   playbackDelayRangeLabel(s),
-		"playbackDelayApplied": playbackDelayAppliedLabel(s),
-		"playbackEvents":       events,
-		"chaosActive":          chaosState != nil && chaosState.Active,
-		"chaosStepsRun":        chaosStateStepsRun(chaosState),
-		"chaosTransitions":     chaosStateTransitions(chaosState),
-		"chaosUniqueScreens":   chaosStateUniqueScreens(chaosState),
-		"chaosUniqueInputs":    chaosStateUniqueInputs(chaosState),
-		"chaosLoadedRunID":     chaosStateLoadedRunID(chaosState),
-		"chaosError":           chaosStateError(chaosState),
-		"chaosStartedAt":       chaosStateStartedAt(chaosState),
-		"chaosStepLabel":       chaosStepLabel,
-		"chaosLastAttempt":     chaosLastAttempt,
-		"chaosAttempts":        chaosAttempts,
-		"chaosEvents":          chaosEvents,
-		"chaosMindMap":         chaosStateMindMap(chaosState),
-		"chaosCompleted":       chaosCompleted,
-		"chaosStoppedAt":       chaosStoppedAt,
+		"recordingActive":         recStatus.Active,
+		"recordingStartedAt":      recStatus.StartedAt,
+		"recordingSteps":          recStatus.Steps,
+		"recordingFile":           recStatus.File,
+		"loadedWorkflowStepTotal": loadedWorkflowStepTotal(s),
+		"playbackActive":          playbackActive(s),
+		"playbackPaused":          playbackPaused(s),
+		"playbackCompleted":       playbackCompleted(s),
+		"playbackStartedAt":       playbackStartedAt(s),
+		"playbackMode":            playbackMode(s),
+		"playbackStep":            playbackStepIndex(s),
+		"playbackStepTotal":       playbackStepTotal(s),
+		"playbackStepType":        playbackStepType(s),
+		"playbackStepLabel":       playbackStepLabel(s),
+		"playbackDelayRange":      playbackDelayRangeLabel(s),
+		"playbackDelayApplied":    playbackDelayAppliedLabel(s),
+		"playbackEvents":          events,
+		"chaosActive":             chaosState != nil && chaosState.Active,
+		"chaosStepsRun":           chaosStateStepsRun(chaosState),
+		"chaosTransitions":        chaosStateTransitions(chaosState),
+		"chaosUniqueScreens":      chaosStateUniqueScreens(chaosState),
+		"chaosUniqueInputs":       chaosStateUniqueInputs(chaosState),
+		"chaosUniqueKeys":         chaosStateUniqueKeys(chaosState),
+		"chaosLoadedRunID":        chaosStateLoadedRunID(chaosState),
+		"chaosError":              chaosStateError(chaosState),
+		"chaosStartedAt":          chaosStateStartedAt(chaosState),
+		"chaosStepLabel":          chaosStepLabel,
+		"chaosLastAttempt":        chaosLastAttempt,
+		"chaosAttempts":           chaosAttempts,
+		"chaosEvents":             chaosEvents,
+		"chaosMindMap":            chaosStateMindMap(chaosState),
+		"chaosCompleted":          chaosCompleted,
+		"chaosStoppedAt":          chaosStoppedAt,
 	})
 }
 
@@ -1265,6 +1271,13 @@ func chaosStateUniqueInputs(state *session.ChaosState) int {
 		return 0
 	}
 	return state.UniqueInputs
+}
+
+func chaosStateUniqueKeys(state *session.ChaosState) int {
+	if state == nil {
+		return 0
+	}
+	return len(state.AIDKeyCounts)
 }
 
 func chaosStateLoadedRunID(state *session.ChaosState) string {
@@ -2347,10 +2360,11 @@ func workflowFromSessionOrUpload(s *session.Session, c *gin.Context) (*WorkflowC
 	if s != nil {
 		withSessionLock(s, func() {
 			s.LoadedWorkflow = &session.LoadedWorkflow{
-				Name:     upload.Name,
-				Payload:  upload.Payload,
-				Preview:  preview,
-				LoadedAt: time.Now(),
+				Name:      upload.Name,
+				Payload:   upload.Payload,
+				Preview:   preview,
+				StepTotal: len(upload.Config.Steps),
+				LoadedAt:  time.Now(),
 			}
 		})
 	}
@@ -2391,6 +2405,18 @@ func loadedWorkflowSize(s *session.Session) int {
 		return 0
 	}
 	return len(s.LoadedWorkflow.Payload)
+}
+
+func loadedWorkflowStepTotal(s *session.Session) int {
+	if s == nil {
+		return 0
+	}
+	s.Lock()
+	defer s.Unlock()
+	if s.LoadedWorkflow == nil {
+		return 0
+	}
+	return s.LoadedWorkflow.StepTotal
 }
 
 func playbackMode(s *session.Session) string {

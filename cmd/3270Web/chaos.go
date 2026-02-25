@@ -451,7 +451,6 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
-
 // overriding only fields whose corresponding setting is non-empty. Request body
 // overrides applied later in ChaosStartHandler will always take final precedence.
 func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
@@ -679,6 +678,7 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 		"transitions":   run.Transitions,
 		"uniqueScreens": run.UniqueScreens,
 		"uniqueInputs":  run.UniqueInputs,
+		"uniqueKeys":    len(run.AIDKeyCounts),
 		"mindMap":       chaosMindMapToJSON(run.MindMap),
 	})
 }
@@ -762,6 +762,7 @@ func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
 		"transitions":   run.Transitions,
 		"uniqueScreens": run.UniqueScreens,
 		"uniqueInputs":  run.UniqueInputs,
+		"uniqueKeys":    len(run.AIDKeyCounts),
 		"mindMap":       chaosMindMapToJSON(run.MindMap),
 	})
 }
