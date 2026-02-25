@@ -953,6 +953,21 @@ body.terminal-fit-active .card {
   padding-right: 4px;
 }
 
+.modal-chaos-flow-screen-hints .chaos-hint-field input,
+.modal-chaos-flow-screen-hints .chaos-hint-field textarea {
+  width: 100%;
+  margin: 0;
+}
+
+.modal-chaos-flow-screen-hints .chaos-hint-field textarea {
+  min-height: 72px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  padding: 10px 12px;
+}
+
 .modal-backdrop[data-chaos-flow-screen-hints-modal].is-maximized .modal-chaos-flow-screen-hints {
   width: min(1200px, 98vw);
   max-height: min(96vh, 1400px);

@@ -2047,6 +2047,22 @@
         flowScreenHintsStatus.style.color = isError ? '#ff9a5a' : '';
     };
 
+    const renderFlowScreenHintsDraft = (hint) => {
+        const normalized = normalizeScreenHint(hint || {});
+        if (flowScreenHintsKnownData) {
+            flowScreenHintsKnownData.value = formatListLines(normalized.knownData || []);
+        }
+        if (flowScreenHintsKnownKeys) {
+            flowScreenHintsKnownKeys.value = formatListLines(normalized.knownKeys || []);
+        }
+        if (flowScreenHintsBlockedKeys) {
+            flowScreenHintsBlockedKeys.value = formatListLines(normalized.blockedKeys || []);
+        }
+        if (flowScreenHintsKeyAssignments) {
+            flowScreenHintsKeyAssignments.value = formatKeyAssignments(normalized.keyAssignments || {});
+        }
+    };
+
     const openFlowScreenHintsEditor = (nodeInfo) => {
         if (!flowScreenHintsModal || !nodeInfo) {
             return;
@@ -2071,7 +2087,9 @@
             flowScreenHintsMeta.textContent = parts.join(' | ');
         }
         if (flowScreenHintsPreview) {
-            const areas = getChaosMapCardAreas();
+            // Use flow areas (includes the first screen) so the first discovered
+            // screen can still show its captured preview in the hints editor.
+            const areas = getChaosFlowAreas();
             const sampleArea = areas.find((area) => String(area && area.hash || '').trim() === normalizedInfo.sampleHash)
                 || areas.find((area) => memberHashes.includes(String(area && area.hash || '').trim()))
                 || null;
@@ -2079,18 +2097,7 @@
                 ? chaosMapCardScreenPreviewMarkup(sampleArea)
                 : '<div class="chaos-map-card-screen-preview is-empty"><div class="chaos-map-card-screen-preview-meta">No captured screen preview</div></div>';
         }
-        if (flowScreenHintsKnownData) {
-            flowScreenHintsKnownData.value = formatListLines(hint.knownData || []);
-        }
-        if (flowScreenHintsKnownKeys) {
-            flowScreenHintsKnownKeys.value = formatListLines(hint.knownKeys || []);
-        }
-        if (flowScreenHintsBlockedKeys) {
-            flowScreenHintsBlockedKeys.value = formatListLines(hint.blockedKeys || []);
-        }
-        if (flowScreenHintsKeyAssignments) {
-            flowScreenHintsKeyAssignments.value = formatKeyAssignments(hint.keyAssignments || {});
-        }
+        renderFlowScreenHintsDraft(hint);
         setFlowScreenHintsStatus('');
         openChaosModal(flowScreenHintsModal, '[data-chaos-flow-screen-known-data]', { keepPrevious: true });
     };
@@ -6472,6 +6479,9 @@
             try {
                 const saved = await saveScreenHintsForHashes(memberHashes, draft);
                 setFlowScreenHintsStatus(saved ? 'Saved' : 'Save failed', !saved);
+                if (saved) {
+                    renderFlowScreenHintsDraft(mergeScreenHintsForHashes(memberHashes));
+                }
             } finally {
                 flowScreenHintsSaveBtn.disabled = false;
             }
