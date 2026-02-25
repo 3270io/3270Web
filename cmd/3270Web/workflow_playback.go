@@ -83,8 +83,8 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 				addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped unsupported step: %s", i+1, len(workflow.Steps), unsupportedErr.StepType))
 				continue
 			}
-			addPlaybackEvent(s, fmt.Sprintf("Step %d failed (%s): %v", i+1, step.Type, err))
-			return
+			addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped failed step (%s): %v", i+1, len(workflow.Steps), step.Type, err))
+			continue
 		}
 
 		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: %s", i+1, len(workflow.Steps), step.Type))

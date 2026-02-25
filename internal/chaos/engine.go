@@ -472,6 +472,18 @@ func buildExportWorkflowSteps(transitions []Transition, attempts []Attempt, mind
 		return flattenTransitionSteps(transitions)
 	}
 
+	// Build a set of screen hashes that appear in the normal workflow transitions
+	// so that check steps are only generated for screens reachable during clean playback.
+	transitionScreens := make(map[string]bool, len(transitions)*2)
+	for _, tr := range transitions {
+		if tr.FromHash != "" {
+			transitionScreens[tr.FromHash] = true
+		}
+		if tr.ToHash != "" {
+			transitionScreens[tr.ToHash] = true
+		}
+	}
+
 	steps := make([]session.WorkflowStep, 0, len(transitions)*2)
 	transIdx := 0
 	includedUnsuccessful := 0
@@ -484,6 +496,11 @@ func buildExportWorkflowSteps(transitions []Transition, attempts []Attempt, mind
 			continue
 		}
 		if includedUnsuccessful >= maxUnsuccessful {
+			continue
+		}
+		// Only include check steps for screens that appear in the normal transition
+		// path; this avoids checks for unreachable error-only screens during playback.
+		if !transitionScreens[strings.TrimSpace(attempt.FromHash)] {
 			continue
 		}
 		check, ok := exportCheckStepForAttempt(attempt, mindMap)
