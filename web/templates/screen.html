@@ -304,30 +304,54 @@
             </div>
         </div>
     </div>
-    {{ if .LoadedWorkflow }}
     <div class="workflow-modal" data-modal hidden>
         <div class="workflow-modal-backdrop" data-modal-close></div>
         <div class="workflow-modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
             <div class="workflow-modal-header">
-                <h3 id="workflow-modal-title">Loaded Recording</h3>
+                <h3 id="workflow-modal-title" data-modal-title>Workflow JSON</h3>
                 <div class="workflow-modal-actions">
                     <button type="button" class="icon-button" data-modal-copy data-tippy-content="Copy content" aria-label="Copy content">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
                     </button>
+                    <button type="button" data-modal-save hidden>Save</button>
+                    <button type="button" data-modal-load hidden>Load as recording</button>
+                    <button type="button" data-modal-download hidden>Download</button>
                     <button type="button" data-modal-close>Close</button>
                 </div>
             </div>
             <div class="workflow-modal-body">
                 <div class="workflow-modal-meta">
                     <span class="subtle">File</span>
-                    <strong>{{ .LoadedWorkflowName }}</strong>
-                    <span class="subtle">({{ .LoadedWorkflowSize }} bytes)</span>
+                    <strong data-modal-name>{{ .LoadedWorkflowName }}</strong>
+                    <span class="subtle" data-modal-size>{{ if .LoadedWorkflow }}({{ .LoadedWorkflowSize }} bytes){{ end }}</span>
                 </div>
-                <pre class="workflow-preview">{{ .LoadedWorkflowPreview }}</pre>
+                <div class="subtle" data-modal-status aria-live="polite"></div>
+                <div class="workflow-field-grid" data-modal-timing-controls>
+                    <label class="workflow-field">
+                        <span>EveryStepDelay Min</span>
+                        <input type="number" step="0.5" min="0" data-modal-every-min>
+                    </label>
+                    <label class="workflow-field">
+                        <span>EveryStepDelay Max</span>
+                        <input type="number" step="0.5" min="0" data-modal-every-max>
+                    </label>
+                    <label class="workflow-field">
+                        <span>RampUpDelay</span>
+                        <input type="number" step="0.5" min="0" data-modal-rampup-delay>
+                    </label>
+                    <label class="workflow-field">
+                        <span>EndOfTaskDelay Min</span>
+                        <input type="number" step="0.5" min="0" data-modal-end-min>
+                    </label>
+                    <label class="workflow-field">
+                        <span>EndOfTaskDelay Max</span>
+                        <input type="number" step="0.5" min="0" data-modal-end-max>
+                    </label>
+                </div>
+                <pre class="workflow-preview" data-modal-preview>{{ .LoadedWorkflowPreview }}</pre>
             </div>
         </div>
     </div>
-    {{ end }}
     <div class="modal-backdrop" data-disconnect-modal hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="disconnect-modal-title" aria-describedby="disconnect-modal-desc">
             <div class="modal-header">

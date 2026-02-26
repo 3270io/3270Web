@@ -51,6 +51,40 @@ type Screen struct {
 	Status      string
 }
 
+// Clone returns a deep copy of the screen and its fields.
+func (s *Screen) Clone() *Screen {
+	if s == nil {
+		return nil
+	}
+	out := &Screen{
+		Width:       s.Width,
+		Height:      s.Height,
+		CursorX:     s.CursorX,
+		CursorY:     s.CursorY,
+		IsFormatted: s.IsFormatted,
+		Status:      s.Status,
+	}
+	if len(s.Buffer) > 0 {
+		out.Buffer = make([][]rune, len(s.Buffer))
+		for i := range s.Buffer {
+			out.Buffer[i] = append([]rune(nil), s.Buffer[i]...)
+		}
+	}
+	if len(s.Fields) > 0 {
+		out.Fields = make([]*Field, 0, len(s.Fields))
+		for _, f := range s.Fields {
+			if f == nil {
+				out.Fields = append(out.Fields, nil)
+				continue
+			}
+			nf := *f
+			nf.Screen = out
+			out.Fields = append(out.Fields, &nf)
+		}
+	}
+	return out
+}
+
 // Field represents a region on the screen with specific attributes.
 // It combines both Field and InputField concepts from the Java code.
 type Field struct {
@@ -231,6 +265,8 @@ func (s *Screen) Text() string {
 
 // UpdateFromText replaces the buffer using plain text (unformatted screens).
 func (s *Screen) UpdateFromText(text string) {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
 	lines := strings.Split(text, "\n")
 	s.Height = len(lines)
 	if s.Height == 0 {

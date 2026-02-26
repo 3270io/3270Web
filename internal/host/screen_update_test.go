@@ -289,3 +289,21 @@ func TestOversizeScreenTruncation(t *testing.T) {
 		t.Errorf("expected height to be 24 (model 2 viewport), got %d", screen.Height)
 	}
 }
+
+func TestUpdateFromTextNormalizesCRLF(t *testing.T) {
+	screen := &Screen{}
+	screen.UpdateFromText("AB\r\nCD\r\n")
+
+	if screen.Height != 3 {
+		t.Fatalf("expected 3 lines (including trailing blank line), got %d", screen.Height)
+	}
+	if got := string(screen.Buffer[0][:2]); got != "AB" {
+		t.Fatalf("row 0 = %q, want %q", got, "AB")
+	}
+	if got := string(screen.Buffer[1][:2]); got != "CD" {
+		t.Fatalf("row 1 = %q, want %q", got, "CD")
+	}
+	if len(screen.Buffer[2]) > 0 && screen.Buffer[2][0] == '\r' {
+		t.Fatalf("trailing row contains raw carriage return")
+	}
+}

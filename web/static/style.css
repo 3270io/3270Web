@@ -994,7 +994,7 @@ button.danger:hover:not(:disabled) {
 
 .chaos-hint-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr) minmax(240px, 2fr) auto;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr) minmax(0, 2fr) auto;
   gap: 12px;
   align-items: start;
   padding: 12px;
@@ -1075,8 +1075,24 @@ button.danger:hover:not(:disabled) {
 
 .chaos-hint-remove {
   align-self: end;
+  justify-self: end;
   white-space: nowrap;
   padding: 8px 12px;
+}
+
+@media (max-width: 1120px) {
+  .chaos-hint-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .chaos-hint-row .chaos-hint-remove {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .chaos-hint-row-static {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 780px) {
@@ -1216,6 +1232,54 @@ button.danger:hover:not(:disabled) {
   font-size: 0.9rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.workflow-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.workflow-modal .workflow-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workflow-modal .workflow-field > span {
+  font-size: 0.76rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.workflow-modal .workflow-field > input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .workflow-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .workflow-field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .error-title {

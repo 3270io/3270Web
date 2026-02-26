@@ -81,6 +81,13 @@ func (m *MockHost) GetScreen() *Screen {
 	return m.Screen
 }
 
+func (m *MockHost) GetScreenSnapshot() *Screen {
+	if m.Screen == nil {
+		return nil
+	}
+	return m.Screen.Clone()
+}
+
 func (m *MockHost) SendKey(key string) error {
 	m.Commands = append(m.Commands, "key:"+key)
 	return nil

@@ -333,39 +333,6 @@
                 { key: 'S3270_USER', label: 'User', type: 'text', helper: 'User name for TELNET NEW-ENVIRON.' },
             ],
         },
-        {
-            id: 'automation',
-            title: 'Automation/Startup',
-            description: 'Startup commands and automation hooks.',
-            sections: [
-                { id: 'auto_start', title: 'Startup Actions', fieldKeys: ['S3270_EXEC_COMMAND', 'S3270_LOGIN_MACRO'] },
-                { id: 'auto_server', title: 'Built-in Server', fieldKeys: ['S3270_HTTPD'] },
-                { id: 'auto_require', title: 'Requirements', fieldKeys: ['S3270_MIN_VERSION'] },
-            ],
-            fields: [
-                { key: 'S3270_EXEC_COMMAND', label: 'Exec command', type: 'text', helper: 'Command to run instead of connecting to a host.' },
-                { key: 'S3270_LOGIN_MACRO', label: 'Login macro', type: 'text', helper: 'Actions to run when the host connection is established.' },
-                { key: 'S3270_HTTPD', label: 'HTTPD', type: 'text', helper: 'Start HTTP server at the given address.' },
-                { key: 'S3270_MIN_VERSION', label: 'Min version', type: 'text', helper: 'Minimum required s3270 version.' },
-            ],
-        },
-        {
-            id: 'diagnostics',
-            title: 'Diagnostics',
-            description: 'Tracing, version checks, and help toggles.',
-            sections: [
-                { id: 'diag_trace', title: 'Tracing', fieldKeys: ['S3270_TRACE', 'S3270_TRACE_FILE', 'S3270_TRACE_FILE_SIZE'] },
-                { id: 'diag_info', title: 'Info & Debug Flags', fieldKeys: ['S3270_HELP', 'S3270_VERSION', 'S3270_UTENV'] },
-            ],
-            fields: [
-                { key: 'S3270_TRACE', label: 'Trace', type: 'checkbox', helper: 'Turn on data stream and action tracing.' },
-                { key: 'S3270_TRACE_FILE', label: 'Trace file', type: 'text', helper: 'File for data stream and action tracing.' },
-                { key: 'S3270_TRACE_FILE_SIZE', label: 'Trace file size', type: 'text', helper: 'Limit trace file size in bytes.' },
-                { key: 'S3270_HELP', label: 'Show help', type: 'checkbox', helper: 'Display command-line help and exit.' },
-                { key: 'S3270_VERSION', label: 'Show version', type: 'checkbox', helper: 'Display version information and exit.' },
-                { key: 'S3270_UTENV', label: 'UT env', type: 'checkbox', helper: 'Allow unit-test-specific env vars.' },
-            ],
-        },
     ];
 
     const fieldMap = new Map();
@@ -6865,16 +6832,30 @@
                 const resp = await fetch('/chaos/export', { method: 'POST' });
                 if (resp.ok) {
                     const data = await resp.text();
-                    const blob = new Blob([data], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    notifyUi('Chaos workflow JSON downloaded.', 'success');
+                    if (typeof window.openWorkflowJsonEditor === 'function') {
+                        window.openWorkflowJsonEditor({
+                            title: 'Chaos Workflow JSON',
+                            name: loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json',
+                            downloadName: loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json',
+                            content: data,
+                            editable: true,
+                            saveMode: 'chaos-workflow',
+                            showSave: false,
+                            showLoad: true,
+                            showDownload: true,
+                        });
+                    } else {
+                        const blob = new Blob([data], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        notifyUi('Chaos workflow JSON downloaded.', 'success');
+                    }
                 } else {
                     let message = 'Failed to export chaos workflow JSON.';
                     try {

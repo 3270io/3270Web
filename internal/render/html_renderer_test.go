@@ -95,7 +95,7 @@ func TestRenderCorrectness(t *testing.T) {
 
 	expectedSubstrings := []string{
 		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form" data-rows="24" data-cols="80" autocomplete="off" data-form-type="other">`,
-		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" data-x="10" data-y="5" data-w="11" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" style="width: 11ch; max-width: 11ch;" data-x="10" data-y="5" data-w="11" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 		`installKeyHandler('screen-test_id');`,
 	}
 
@@ -154,9 +154,9 @@ func TestRenderMultilineInputWidths(t *testing.T) {
 	output := r.Render(screen, "/submit", "")
 
 	expectedSubstrings := []string{
-		`<input type="text" name="field_3_0_0" class="color-input" value="ABC" maxlength="7" size="7" data-x="3" data-y="0" data-w="7" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="10" size="10" data-x="3" data-y="1" data-w="10" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`<input type="text" name="field_3_0_2" class="color-input" value="G" maxlength="5" size="5" data-x="3" data-y="2" data-w="5" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_0" class="color-input" value="ABC" maxlength="7" size="7" style="width: 7ch; max-width: 7ch;" data-x="3" data-y="0" data-w="7" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_1" class="color-input" value="DEF" maxlength="10" size="10" style="width: 10ch; max-width: 10ch;" data-x="3" data-y="1" data-w="10" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
+		`<input type="text" name="field_3_0_2" class="color-input" value="G" maxlength="5" size="5" style="width: 5ch; max-width: 5ch;" data-x="3" data-y="2" data-w="5" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
 	}
 
 	for _, expected := range expectedSubstrings {

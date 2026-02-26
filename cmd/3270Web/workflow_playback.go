@@ -188,7 +188,7 @@ func (app *App) applyWorkflowCheckValue(s *session.Session, step session.Workflo
 	if step.Coordinates.Row <= 0 || step.Coordinates.Column <= 0 {
 		return errors.New("check value coordinates must be 1-based positive values")
 	}
-	screen := s.Host.GetScreen()
+	screen := hostScreenSnapshot(s.Host)
 	if screen == nil {
 		return errors.New("screen is unavailable")
 	}

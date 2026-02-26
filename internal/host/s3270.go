@@ -53,6 +53,9 @@ func (h *S3270) Start() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	// Clean up any stale process state before starting a new subprocess.
+	h.stopLocked()
+
 	h.cmd = exec.Command(h.ExecPath, h.Args...)
 	configureCmd(h.cmd)
 
@@ -99,21 +102,26 @@ func (h *S3270) Start() error {
 func (h *S3270) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.stopLocked()
+}
 
+func (h *S3270) stopLocked() error {
 	if h.stdin != nil {
 		// Send quit just in case
-		fmt.Fprintln(h.stdin, "quit")
-		h.stdin.Close()
+		_, _ = fmt.Fprintln(h.stdin, "quit")
+		_ = h.stdin.Close()
 		h.stdin = nil
 	}
 	if h.cmd != nil {
 		// Kill if still running
-		if h.cmd.ProcessState == nil {
-			h.cmd.Process.Kill()
+		if h.cmd.ProcessState == nil && h.cmd.Process != nil {
+			_ = h.cmd.Process.Kill()
 		}
-		h.cmd.Wait()
+		_ = h.cmd.Wait()
 		h.cmd = nil
 	}
+	h.stdout = nil
+	h.stderr = nil
 	return nil
 }
 
@@ -157,6 +165,12 @@ func (h *S3270) GetScreen() *Screen {
 	return h.screen
 }
 
+func (h *S3270) GetScreenSnapshot() *Screen {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.screen.Clone()
+}
+
 func (h *S3270) SendKey(key string) error {
 	return h.withRetry(func() error {
 		return h.sendKeyOnce(key)
@@ -172,6 +186,7 @@ func (h *S3270) WriteStringAt(row, col int, text string) error {
 func (h *S3270) withRetry(op func() error) error {
 	if err := op(); err != nil {
 		if !h.IsConnected() || isConnectionError(err) {
+			_ = h.Stop()
 			if restartErr := h.Start(); restartErr == nil {
 				return op()
 			}
@@ -363,6 +378,9 @@ func (h *S3270) SubmitUnformatted(data string) error {
 		return fmt.Errorf("screen not initialized")
 	}
 
+	data = strings.ReplaceAll(data, "\r\n", "\n")
+	data = strings.ReplaceAll(data, "\r", "\n")
+
 	index := 0
 	runes := []rune(data)
 	for y := 0; y < h.screen.Height && index < len(runes); y++ {
@@ -419,8 +437,11 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 	}
 
 	resultCh := make(chan commandResult, 1)
+	stdout := h.stdout
+	proc := h.cmd
+	stdin := h.stdin
 	go func() {
-		data, status, err := h.readResponse()
+		data, status, err := h.readResponse(stdout)
 		resultCh <- commandResult{data: data, status: status, err: err}
 	}()
 
@@ -437,13 +458,23 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 		}
 		return result.data, result.status, result.err
 	case <-time.After(commandTimeout):
-		if h.cmd != nil && h.cmd.Process != nil {
-			_ = h.cmd.Process.Kill()
+		if proc != nil && proc.Process != nil {
+			_ = proc.Process.Kill()
 		}
 		// Clean up stdin to prevent "broken pipe" on subsequent calls
-		if h.stdin != nil {
-			h.stdin.Close()
-			h.stdin = nil
+		if stdin != nil {
+			_ = stdin.Close()
+			if h.stdin == stdin {
+				h.stdin = nil
+			}
+		}
+		if proc != nil {
+			_ = proc.Wait()
+			if h.cmd == proc {
+				h.cmd = nil
+				h.stdout = nil
+				h.stderr = nil
+			}
 		}
 		if h.verboseLogging {
 			log.Printf("[VERBOSE] s3270 command timed out")
@@ -452,16 +483,19 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 	}
 }
 
-func (h *S3270) readResponse() ([]string, string, error) {
+func (h *S3270) readResponse(stdout *bufio.Scanner) ([]string, string, error) {
+	if stdout == nil {
+		return nil, "", h.terminalError("s3270 stdout not initialized")
+	}
 	var lines []string
 	for {
-		if !h.stdout.Scan() {
-			if err := h.stdout.Err(); err != nil {
+		if !stdout.Scan() {
+			if err := stdout.Err(); err != nil {
 				return nil, "", err
 			}
 			return nil, "", h.terminalError("s3270 terminated")
 		}
-		line := h.stdout.Text()
+		line := stdout.Text()
 		if line == "ok" {
 			break
 		}

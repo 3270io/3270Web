@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -199,7 +200,10 @@ func (m *Manager) RemoveSession(id string) {
 
 func generateID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fail closed rather than silently generating a weak predictable ID.
+		log.Panicf("failed to generate session ID: %v", err)
+	}
 	return hex.EncodeToString(b)
 }
 

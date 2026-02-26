@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const uploadForm = document.querySelector('[data-workflow-upload]');
   if (uploadForm) {
     const fileInput = uploadForm.querySelector('input[type="file"]');
@@ -34,6 +34,153 @@
   }
 
   let lastFocusedElement = null;
+  let modalMode = 'view';
+  let modalDownloadName = 'workflow.json';
+
+  const modalTitle = modal.querySelector('[data-modal-title]');
+  const modalName = modal.querySelector('[data-modal-name]');
+  const modalSize = modal.querySelector('[data-modal-size]');
+  const modalStatus = modal.querySelector('[data-modal-status]');
+  const modalPreview = modal.querySelector('[data-modal-preview]');
+  const everyMinInput = modal.querySelector('[data-modal-every-min]');
+  const everyMaxInput = modal.querySelector('[data-modal-every-max]');
+  const rampUpDelayInput = modal.querySelector('[data-modal-rampup-delay]');
+  const endMinInput = modal.querySelector('[data-modal-end-min]');
+  const endMaxInput = modal.querySelector('[data-modal-end-max]');
+  const saveButton = modal.querySelector('[data-modal-save]');
+  const loadButton = modal.querySelector('[data-modal-load]');
+  const downloadButton = modal.querySelector('[data-modal-download]');
+  const openButtons = document.querySelectorAll('[data-modal-open]');
+  const closeButtons = modal.querySelectorAll('[data-modal-close]');
+  let modalWorkflowObject = null;
+  let modalWorkflowRawText = '';
+
+  const setStatus = (message, isError = false) => {
+    if (!modalStatus) {
+      return;
+    }
+    modalStatus.textContent = message || '';
+    modalStatus.style.color = isError ? 'var(--danger, #cc5b5b)' : '';
+  };
+
+  const setMeta = (name, content) => {
+    if (modalName) {
+      modalName.textContent = name || '';
+    }
+    if (modalSize) {
+      modalSize.textContent =
+        typeof content === 'string' && content.length > 0 ? `(${content.length} bytes)` : '';
+    }
+  };
+
+  const setNumericInputValue = (input, value) => {
+    if (!input) {
+      return;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      input.value = String(value);
+    } else {
+      input.value = '';
+    }
+  };
+
+  const parseJsonObject = (text) => {
+    if (typeof text !== 'string' || !text.trim()) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_err) {
+      return null;
+    }
+  };
+
+  const readNumberInput = (input) => {
+    if (!input) {
+      return null;
+    }
+    const raw = String(input.value || '').trim();
+    if (!raw) {
+      return null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const buildWorkflowJsonFromControls = () => {
+    if (!modalWorkflowObject || typeof modalWorkflowObject !== 'object') {
+      return modalWorkflowRawText || '';
+    }
+    const obj = JSON.parse(JSON.stringify(modalWorkflowObject));
+    if (!obj.EveryStepDelay || typeof obj.EveryStepDelay !== 'object') {
+      obj.EveryStepDelay = {};
+    }
+    if (!obj.EndOfTaskDelay || typeof obj.EndOfTaskDelay !== 'object') {
+      obj.EndOfTaskDelay = {};
+    }
+
+    const everyMin = readNumberInput(everyMinInput);
+    const everyMax = readNumberInput(everyMaxInput);
+    const rampUp = readNumberInput(rampUpDelayInput);
+    const endMin = readNumberInput(endMinInput);
+    const endMax = readNumberInput(endMaxInput);
+
+    if (everyMin !== null) obj.EveryStepDelay.Min = everyMin;
+    if (everyMax !== null) obj.EveryStepDelay.Max = everyMax;
+    if (everyMin === null) delete obj.EveryStepDelay.Min;
+    if (everyMax === null) delete obj.EveryStepDelay.Max;
+    if (Object.keys(obj.EveryStepDelay).length === 0) delete obj.EveryStepDelay;
+
+    if (rampUp !== null) obj.RampUpDelay = rampUp;
+    if (rampUp === null) delete obj.RampUpDelay;
+
+    if (endMin !== null) obj.EndOfTaskDelay.Min = endMin;
+    if (endMax !== null) obj.EndOfTaskDelay.Max = endMax;
+    if (endMin === null) delete obj.EndOfTaskDelay.Min;
+    if (endMax === null) delete obj.EndOfTaskDelay.Max;
+    if (Object.keys(obj.EndOfTaskDelay).length === 0) delete obj.EndOfTaskDelay;
+
+    return JSON.stringify(obj, null, 2);
+  };
+
+  const refreshPreview = () => {
+    if (!modalPreview) {
+      return '';
+    }
+    const text = buildWorkflowJsonFromControls();
+    modalPreview.textContent = text;
+    setMeta(modalName ? modalName.textContent.trim() : '', text);
+    return text;
+  };
+
+  const populateControlsFromWorkflow = (text) => {
+    modalWorkflowRawText = typeof text === 'string' ? text : '';
+    modalWorkflowObject = parseJsonObject(modalWorkflowRawText);
+    const wf = modalWorkflowObject || {};
+    const every = wf.EveryStepDelay && typeof wf.EveryStepDelay === 'object' ? wf.EveryStepDelay : {};
+    const end = wf.EndOfTaskDelay && typeof wf.EndOfTaskDelay === 'object' ? wf.EndOfTaskDelay : {};
+    setNumericInputValue(everyMinInput, every.Min);
+    setNumericInputValue(everyMaxInput, every.Max);
+    setNumericInputValue(rampUpDelayInput, wf.RampUpDelay);
+    setNumericInputValue(endMinInput, end.Min);
+    setNumericInputValue(endMaxInput, end.Max);
+    if (!modalWorkflowObject) {
+      if (modalPreview) {
+        modalPreview.textContent = modalWorkflowRawText || '';
+      }
+      setStatus('Invalid workflow JSON preview (read-only view only).', true);
+      return;
+    }
+    setStatus('');
+    refreshPreview();
+  };
+
+  const setButtonVisible = (button, visible) => {
+    if (button) {
+      button.hidden = !visible;
+    }
+  };
 
   const keepInBounds = () => {
     const rect = modal.getBoundingClientRect();
@@ -50,8 +197,6 @@
     modal.style.left = `${nextLeft}px`;
     modal.style.top = `${nextTop}px`;
   };
-  const openButtons = document.querySelectorAll('[data-modal-open]');
-  const closeButtons = modal.querySelectorAll('[data-modal-close]');
 
   const openModal = () => {
     lastFocusedElement = document.activeElement;
@@ -68,24 +213,128 @@
   const closeModal = () => {
     modal.hidden = true;
     document.body.style.overflow = '';
+    setStatus('');
     if (lastFocusedElement) {
       lastFocusedElement.focus();
       lastFocusedElement = null;
     }
   };
 
+  const downloadCurrentEditor = () => {
+    if (!modalPreview) {
+      return;
+    }
+    const data = refreshPreview();
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = modalDownloadName || 'workflow.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const saveEditorToLoadedWorkflow = () => {
+    if (!modalPreview) {
+      return Promise.resolve(false);
+    }
+    if (!modalWorkflowObject) {
+      setStatus('Cannot save: workflow JSON is invalid.', true);
+      return Promise.resolve(false);
+    }
+    const content = refreshPreview();
+    const name = modalName ? modalName.textContent.trim() : 'edited-workflow.json';
+    setStatus(modalMode === 'chaos-workflow' ? 'Loading edited chaos workflow...' : 'Saving...');
+    return fetch('/workflow/load-json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ name, content }),
+    })
+      .then(async (resp) => {
+        if (!resp.ok) {
+          let message = 'Failed to save workflow.';
+          try {
+            const payload = await resp.json();
+            if (payload && payload.error) {
+              message = payload.error;
+            }
+          } catch (_err) {
+            // ignore
+          }
+          throw new Error(message);
+        }
+        return resp.json();
+      })
+      .then((payload) => {
+        const nextName = (payload && payload.name) || name;
+        const nextPreview = (payload && payload.preview) || content;
+        populateControlsFromWorkflow(nextPreview);
+        setMeta(nextName, nextPreview);
+        modalDownloadName = nextName || 'workflow.json';
+        setStatus('Saved. Reloading workflow...');
+        window.setTimeout(() => {
+          window.location.assign('/screen');
+        }, 120);
+        return true;
+      })
+      .catch((err) => {
+        setStatus((err && err.message) || 'Failed to save workflow.', true);
+        return false;
+      });
+  };
+
+  window.openWorkflowJsonEditor = (options = {}) => {
+    if (!modalPreview) {
+      return;
+    }
+    modalMode = options.saveMode || 'view';
+    modalDownloadName = options.downloadName || options.name || 'workflow.json';
+    if (modalTitle) {
+      modalTitle.textContent = options.title || 'Workflow JSON';
+    }
+    const content = typeof options.content === 'string' ? options.content : '';
+    populateControlsFromWorkflow(content);
+    const editable = options.editable !== false;
+    [everyMinInput, everyMaxInput, rampUpDelayInput, endMinInput, endMaxInput].forEach((input) => {
+      if (input) {
+        input.disabled = !editable;
+      }
+    });
+    setMeta(options.name || '', content);
+    if (modalWorkflowObject) {
+      setStatus('');
+    }
+    setButtonVisible(saveButton, !!options.showSave);
+    setButtonVisible(loadButton, !!options.showLoad);
+    setButtonVisible(downloadButton, !!options.showDownload);
+    openModal();
+  };
+
   openButtons.forEach((button) => {
-    button.addEventListener('click', openModal);
+    button.addEventListener('click', () => {
+      window.openWorkflowJsonEditor({
+        title: 'Loaded Recording',
+        name: (modalName && modalName.textContent.trim()) || 'loaded-workflow.json',
+        content: modalPreview ? modalPreview.textContent : '',
+        editable: true,
+        saveMode: 'loaded-workflow',
+        showSave: true,
+        showLoad: false,
+        showDownload: true,
+      });
+    });
   });
 
   const copyButton = modal.querySelector('[data-modal-copy]');
   if (copyButton) {
     copyButton.addEventListener('click', () => {
-      const preview = modal.querySelector('.workflow-preview');
-      if (!preview) {
+      if (!modalPreview) {
         return;
       }
-      const text = preview.textContent;
+      const text = refreshPreview();
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard
           .writeText(text)
@@ -104,6 +353,37 @@
       }
     });
   }
+
+  if (saveButton) {
+    saveButton.addEventListener('click', () => {
+      if (modalMode === 'loaded-workflow') {
+        saveEditorToLoadedWorkflow();
+      }
+    });
+  }
+
+  if (loadButton) {
+    loadButton.addEventListener('click', () => {
+      if (modalMode === 'chaos-workflow') {
+        saveEditorToLoadedWorkflow();
+      }
+    });
+  }
+
+  if (downloadButton) {
+    downloadButton.addEventListener('click', downloadCurrentEditor);
+  }
+
+  [everyMinInput, everyMaxInput, rampUpDelayInput, endMinInput, endMaxInput].forEach((input) => {
+    if (!input) {
+      return;
+    }
+    input.addEventListener('input', () => {
+      if (modalWorkflowObject) {
+        refreshPreview();
+      }
+    });
+  });
 
   closeButtons.forEach((button) => {
     button.addEventListener('click', closeModal);
@@ -424,7 +704,7 @@
     if (!raw || raw.length <= maxChars) {
       return raw;
     }
-    return `${raw.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+    return `${raw.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
   };
 
   const joinParts = (parts) => parts.filter(Boolean).join(' · ');

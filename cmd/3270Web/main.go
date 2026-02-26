@@ -60,6 +60,11 @@ type WorkflowConfig struct {
 	Steps           []session.WorkflowStep      `json:"Steps"`
 }
 
+type workflowJSONPayload struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
 type SampleAppConfig struct {
 	ID   string
 	Name string
@@ -83,7 +88,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.2.3.1"
+var appVersion = "0.2.3.2"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -180,6 +185,7 @@ func main() {
 	r.POST("/record/stop", app.RecordStopHandler)
 	r.GET("/record/download", app.RecordDownloadHandler)
 	r.POST("/workflow/load", app.LoadWorkflowHandler)
+	r.POST("/workflow/load-json", app.LoadWorkflowJSONHandler)
 	r.POST("/workflow/play", app.PlayWorkflowHandler)
 	r.POST("/workflow/debug", app.DebugWorkflowHandler)
 	r.POST("/workflow/pause", app.PauseWorkflowHandler)
@@ -240,10 +246,9 @@ func main() {
 		requestShutdown()
 	}()
 
-	addr := ":8080"
-	if runtime.GOOS == "windows" {
-		addr = "127.0.0.1:8080"
-	}
+	// Bind to loopback by default on all platforms to avoid exposing the admin UI
+	// and host-connection features on the local network unintentionally.
+	addr := "127.0.0.1:8080"
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -566,7 +571,11 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		return
 	}
 
-	screen := s.Host.GetScreen()
+	screen := hostScreenSnapshot(s.Host)
+	if screen == nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": "Screen unavailable"})
+		return
+	}
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
@@ -657,7 +666,11 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
 	}
-	screen := s.Host.GetScreen()
+	screen := hostScreenSnapshot(s.Host)
+	if screen == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
+		return
+	}
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
@@ -672,6 +685,20 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"html": rendered})
+}
+
+func hostScreenSnapshot(h host.Host) *host.Screen {
+	if h == nil {
+		return nil
+	}
+	if provider, ok := h.(interface{ GetScreenSnapshot() *host.Screen }); ok {
+		return provider.GetScreenSnapshot()
+	}
+	screen := h.GetScreen()
+	if screen == nil {
+		return nil
+	}
+	return screen.Clone()
 }
 
 func (app *App) modelDimensions() (int, int, bool) {
@@ -940,18 +967,70 @@ func (app *App) LoadWorkflowHandler(c *gin.Context) {
 		return
 	}
 	preview := prettyWorkflowPayload(upload.Payload)
+	storeLoadedWorkflow(s, upload.Name, upload.Payload, len(upload.Config.Steps), preview)
+	c.Redirect(http.StatusFound, "/screen")
+}
+
+func (app *App) LoadWorkflowJSONHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	playing := false
+	withSessionLock(s, func() {
+		playing = s.Playback != nil && s.Playback.Active
+	})
+	if playing {
+		c.JSON(http.StatusConflict, gin.H{"error": "cannot edit workflow during playback"})
+		return
+	}
+
+	var payload workflowJSONPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	content := strings.TrimSpace(payload.Content)
+	if content == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workflow content is required"})
+		return
+	}
+	raw := []byte(content)
+	workflow, err := parseWorkflowPayload(raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid workflow JSON: %v", err)})
+		return
+	}
+	name := strings.TrimSpace(payload.Name)
+	if name == "" {
+		name = "edited-workflow.json"
+	}
+	preview := prettyWorkflowPayload(raw)
+	storeLoadedWorkflow(s, name, raw, len(workflow.Steps), preview)
+	c.JSON(http.StatusOK, gin.H{
+		"ok":        true,
+		"name":      name,
+		"size":      len(raw),
+		"stepTotal": len(workflow.Steps),
+		"preview":   preview,
+	})
+}
+
+func storeLoadedWorkflow(s *session.Session, name string, raw []byte, stepTotal int, preview string) {
+	if s == nil {
+		return
+	}
 	withSessionLock(s, func() {
 		s.LoadedWorkflow = &session.LoadedWorkflow{
-			Name:      upload.Name,
-			Payload:   upload.Payload,
+			Name:      name,
+			Payload:   append([]byte(nil), raw...),
 			Preview:   preview,
-			StepTotal: len(upload.Config.Steps),
+			StepTotal: stepTotal,
 			LoadedAt:  time.Now(),
 		}
 	})
-	// Loading a recording should reset active-run playback summary metadata.
 	clearWorkflowStatus(s)
-	c.Redirect(http.StatusFound, "/screen")
 }
 
 func (app *App) PlayWorkflowHandler(c *gin.Context) {
@@ -1350,7 +1429,12 @@ type themeListItem struct {
 }
 
 func (app *App) SettingsHandler(c *gin.Context) {
-	includeSensitive := c.Query("includeSensitive") == "true"
+	if !app.hasSessionOrLoopback(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	// Only allow sensitive values to be returned to local loopback clients.
+	includeSensitive := c.Query("includeSensitive") == "true" && isLoopbackClient(c)
 	switch c.Request.Method {
 	case http.MethodGet:
 		app.writeSettingsResponse(c, includeSensitive)
@@ -1359,6 +1443,18 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	default:
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
 	}
+}
+
+func (app *App) hasSessionOrLoopback(c *gin.Context) bool {
+	return app.getSession(c) != nil || isLoopbackClient(c)
+}
+
+func isLoopbackClient(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	ip := net.ParseIP(strings.TrimSpace(c.ClientIP()))
+	return ip != nil && ip.IsLoopback()
 }
 
 func (app *App) writeSettingsResponse(c *gin.Context, includeSensitive bool) {
@@ -1482,6 +1578,10 @@ func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
 }
 
 func (app *App) RestartHandler(c *gin.Context) {
+	if !app.hasSessionOrLoopback(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
 	if err := scheduleSelfRestart(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to restart: %v", err)})
 		return
@@ -1499,6 +1599,10 @@ func (app *App) RestartHandler(c *gin.Context) {
 }
 
 func (app *App) ThemeSaveHandler(c *gin.Context) {
+	if !app.hasSessionOrLoopback(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
 	var payload themeSavePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
@@ -1559,6 +1663,10 @@ func (app *App) ThemeSaveHandler(c *gin.Context) {
 }
 
 func (app *App) ThemeListHandler(c *gin.Context) {
+	if !app.hasSessionOrLoopback(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
 	dir := app.themesDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {

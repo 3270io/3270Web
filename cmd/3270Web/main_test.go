@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -166,6 +167,62 @@ func TestLoadWorkflowHandler_ClearsWorkflowStatusSummary(t *testing.T) {
 		}
 		if len(sess.PlaybackEvents) != 0 {
 			t.Fatalf("playback events should be cleared after workflow load")
+		}
+	})
+}
+
+func TestLoadWorkflowJSONHandler_UpdatesLoadedWorkflow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("mock host: %v", err)
+	}
+	mockHost.Connected = true
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		chaosEngines:   newChaosEngineStore(),
+	}
+	sess := app.SessionManager.CreateSession(mockHost)
+	withSessionLock(sess, func() {
+		sess.LastPlaybackStep = 3
+		sess.PlaybackCompletedAt = time.Now()
+	})
+
+	r := gin.New()
+	r.POST("/workflow/load-json", app.LoadWorkflowJSONHandler)
+
+	body := map[string]string{
+		"name":    "edited.json",
+		"content": `{"Host":"127.0.0.1","Port":3270,"Steps":[{"Type":"Connect"},{"Type":"PressEnter"}]}`,
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/workflow/load-json", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /workflow/load-json: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	withSessionLock(sess, func() {
+		if sess.LoadedWorkflow == nil {
+			t.Fatalf("loaded workflow should be set")
+		}
+		if sess.LoadedWorkflow.Name != "edited.json" {
+			t.Fatalf("loaded workflow name = %q, want edited.json", sess.LoadedWorkflow.Name)
+		}
+		if sess.LoadedWorkflow.StepTotal != 2 {
+			t.Fatalf("loaded workflow step total = %d, want 2", sess.LoadedWorkflow.StepTotal)
+		}
+		if sess.LastPlaybackStep != 0 {
+			t.Fatalf("last playback summary should be cleared")
+		}
+		if !sess.PlaybackCompletedAt.IsZero() {
+			t.Fatalf("playback completed timestamp should be cleared")
 		}
 	})
 }
