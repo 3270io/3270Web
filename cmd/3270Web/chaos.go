@@ -451,6 +451,52 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
+// ChaosReportHandler handles POST /chaos/report – returns a summary report of
+// the current or most recently loaded chaos run for the session.
+func (app *App) ChaosReportHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	if app.chaosEngines.isRemoved(s.ID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+		return
+	}
+
+	if eng, ok := app.chaosEngines.get(s.ID); ok {
+		st := eng.Status()
+		c.JSON(http.StatusOK, chaosStatusToJSON(st))
+		return
+	}
+	if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
+		c.JSON(http.StatusOK, gin.H{
+			"active":        false,
+			"runID":         run.ID,
+			"stepsRun":      run.StepsRun,
+			"transitions":   run.Transitions,
+			"uniqueScreens": run.UniqueScreens,
+			"uniqueInputs":  run.UniqueInputs,
+			"mindMap":       chaosMindMapToJSON(run.MindMap),
+		})
+		return
+	}
+	if run := app.loadSessionChaosRunFromDisk(s); run != nil {
+		app.chaosEngines.setLoadedRun(s.ID, run)
+		c.JSON(http.StatusOK, gin.H{
+			"active":        false,
+			"runID":         run.ID,
+			"stepsRun":      run.StepsRun,
+			"transitions":   run.Transitions,
+			"uniqueScreens": run.UniqueScreens,
+			"uniqueInputs":  run.UniqueInputs,
+			"mindMap":       chaosMindMapToJSON(run.MindMap),
+		})
+		return
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+}
+
 // overriding only fields whose corresponding setting is non-empty. Request body
 // overrides applied later in ChaosStartHandler will always take final precedence.
 func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
