@@ -24,6 +24,14 @@
   var customThemeStorageKey = "3270Web.customThemeV1";
   var themeStorageKey = "3270Web.theme";
   var defaultThemeStorageKey = "3270Web.defaultTheme";
+  var fontStorageKey = "3270Web.selectedFont";
+
+  var availableFonts = [
+    { id: "default", name: "Default", family: "" },
+    { id: "ibm-3270", name: "IBM 3270", family: '"IBM 3270"' },
+    { id: "ibm-3270-semi", name: "IBM 3270 Semi-Condensed", family: '"IBM 3270 Semi-Condensed"' },
+    { id: "ibm-3270-condensed", name: "IBM 3270 Condensed", family: '"IBM 3270 Condensed"' }
+  ];
 
   var customFields = [
     { key: "bg", label: "Background", cssVar: "--bg" },
@@ -398,6 +406,49 @@
     legend.textContent = title;
     fieldset.appendChild(legend);
     return fieldset;
+  }
+
+  /* ── Font selection helpers ── */
+
+  function getStoredFont() {
+    try { return localStorage.getItem(fontStorageKey) || "default"; }
+    catch (e) { return "default"; }
+  }
+
+  function findFont(id) {
+    for (var i = 0; i < availableFonts.length; i++) {
+      if (availableFonts[i].id === id) { return availableFonts[i]; }
+    }
+    return availableFonts[0];
+  }
+
+  function applyFont(fontId) {
+    var font = findFont(fontId);
+    var styleEl = document.getElementById("h3270-font-override");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "h3270-font-override";
+      document.head.appendChild(styleEl);
+    }
+    if (font.family) {
+      styleEl.textContent =
+        "pre, pre input, textarea, .renderer-form, .unformatted, .h3270-form " +
+        "{ font-family: " + font.family + ", monospace !important; }";
+    } else {
+      styleEl.textContent = "";
+    }
+    try { localStorage.setItem(fontStorageKey, fontId); }
+    catch (e) { /* storage unavailable */ }
+  }
+
+  function renderFontSelectOptions(select) {
+    select.innerHTML = "";
+    for (var i = 0; i < availableFonts.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = availableFonts[i].id;
+      opt.textContent = availableFonts[i].name;
+      select.appendChild(opt);
+    }
   }
 
   function initCustomThemeEditor(select, refreshThemes) {
@@ -882,6 +933,7 @@
 
   async function initThemeSelector() {
     var select = document.getElementById("theme-select");
+    var fontSelect = document.getElementById("font-select");
     if (!select) {
       var slot = document.querySelector("[data-settings-theme-slot]");
       if (slot) {
@@ -897,6 +949,20 @@
         row.appendChild(label);
         row.appendChild(select);
         selectionGroup.appendChild(row);
+
+        /* ── Font selector row ── */
+        var fontRow = document.createElement("div");
+        fontRow.className = "settings-theme-row";
+        var fontLabel = document.createElement("label");
+        fontLabel.setAttribute("for", "font-select");
+        fontLabel.textContent = "Terminal Font";
+        fontSelect = document.createElement("select");
+        fontSelect.id = "font-select";
+        renderFontSelectOptions(fontSelect);
+        fontRow.appendChild(fontLabel);
+        fontRow.appendChild(fontSelect);
+        selectionGroup.appendChild(fontRow);
+
         slot.appendChild(selectionGroup);
       }
     }
@@ -916,6 +982,7 @@
 
     if (!select) {
       applyTheme(normalizeThemeId(getStoredTheme()));
+      applyFont(getStoredFont());
       return;
     }
 
@@ -930,6 +997,18 @@
     select.addEventListener("change", function () {
       applyTheme(select.value);
     });
+
+    /* ── Font selector init ── */
+    if (fontSelect) {
+      var currentFont = getStoredFont();
+      fontSelect.value = currentFont;
+      applyFont(currentFont);
+      fontSelect.addEventListener("change", function () {
+        applyFont(fontSelect.value);
+      });
+    } else {
+      applyFont(getStoredFont());
+    }
 
   }
 
