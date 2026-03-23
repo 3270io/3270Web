@@ -1,3 +1,31 @@
+/* IBM 3270 font family – SIL Open Font License / BSD */
+@font-face {
+  font-family: "IBM 3270";
+  src: url("fonts/3270-Regular.woff2") format("woff2"),
+       url("fonts/3270-Regular.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM 3270 Semi-Condensed";
+  src: url("fonts/3270SemiCondensed-Regular.woff2") format("woff2"),
+       url("fonts/3270SemiCondensed-Regular.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM 3270 Condensed";
+  src: url("fonts/3270Condensed-Regular.woff2") format("woff2"),
+       url("fonts/3270Condensed-Regular.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
