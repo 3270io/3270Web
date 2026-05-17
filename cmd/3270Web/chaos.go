@@ -51,6 +51,36 @@ func (s *chaosEngineStore) set(sessionID string, e *chaos.Engine) {
 	s.engines[sessionID] = e
 }
 
+// startIfAbsent ensures only one chaos engine exists per session at a time.
+// It holds the store mutex across the active-engine check, the build callback,
+// and the resulting Start() call so two concurrent /chaos/start requests for
+// the same session cannot both pass the "already running" guard.
+//
+// Returns (engine, nil, true) on a fresh start, (existing, nil, false) when
+// an active engine is already present, or (nil, err, false) if build or
+// Start fails. Callers must not invoke Start on the returned engine when
+// started is true; it has already been started under the lock.
+func (s *chaosEngineStore) startIfAbsent(sessionID string, build func() (*chaos.Engine, error)) (eng *chaos.Engine, err error, started bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+		return existing, nil, false
+	}
+	built, buildErr := build()
+	if buildErr != nil {
+		return nil, buildErr, false
+	}
+	if built == nil {
+		return nil, fmt.Errorf("chaos engine build returned nil"), false
+	}
+	if startErr := built.Start(); startErr != nil {
+		return nil, startErr, false
+	}
+	delete(s.removed, sessionID)
+	s.engines[sessionID] = built
+	return built, nil, true
+}
+
 func (s *chaosEngineStore) delete(sessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -367,14 +397,6 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		cfg.ExportPort = s.TargetPort
 	})
 
-	// Reject if an engine is already running for this session.
-	if existing, ok := app.chaosEngines.get(s.ID); ok {
-		if existing.Status().Active {
-			c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
-			return
-		}
-	}
-
 	var h interface{ IsConnected() bool }
 	withSessionLock(s, func() { h = s.Host })
 	if h == nil || !h.IsConnected() {
@@ -382,18 +404,21 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		return
 	}
 
-	// Build engine with session host.
-	var eng *chaos.Engine
-	withSessionLock(s, func() {
-		eng = chaos.New(s.Host, cfg)
+	eng, err, started := app.chaosEngines.startIfAbsent(s.ID, func() (*chaos.Engine, error) {
+		var built *chaos.Engine
+		withSessionLock(s, func() {
+			built = chaos.New(s.Host, cfg)
+		})
+		return built, nil
 	})
-
-	if err := eng.Start(); err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to start: %v", err)})
 		return
 	}
-
-	app.chaosEngines.set(s.ID, eng)
+	if !started {
+		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
+		return
+	}
 
 	// Kick off a background goroutine that syncs Status back to the session.
 	go app.syncChaosStatus(s, eng)
