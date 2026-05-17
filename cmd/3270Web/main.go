@@ -228,6 +228,9 @@ func main() {
 	r.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
 	r.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
 
+	// GitHub Copilot side panel + screen JSON tool endpoint
+	app.initCopilot(r)
+
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {
 		select {

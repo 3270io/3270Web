@@ -85,6 +85,55 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.S3270Options.Model != "3" {
 		t.Errorf("Default Model: got %q, want %q", cfg.S3270Options.Model, "3")
 	}
+	// When no fonts are configured, built-in defaults should be populated
+	if len(cfg.Fonts.Fonts) == 0 {
+		t.Error("Expected default fonts to be populated when none configured")
+	}
+	if cfg.Fonts.Default != "IBM 3270" {
+		t.Errorf("Default font: got %q, want %q", cfg.Fonts.Default, "IBM 3270")
+	}
+}
+
+func TestDefaultFonts(t *testing.T) {
+	fonts := DefaultFonts()
+	if len(fonts) == 0 {
+		t.Fatal("DefaultFonts returned empty list")
+	}
+	// Verify first font is IBM 3270
+	if fonts[0].Name != "IBM 3270" {
+		t.Errorf("First default font: got %q, want %q", fonts[0].Name, "IBM 3270")
+	}
+	// All entries should have a name
+	for i, f := range fonts {
+		if f.Name == "" {
+			t.Errorf("DefaultFonts[%d] has empty name", i)
+		}
+	}
+}
+
+func TestLoad_DefaultFontsNotOverriddenByXML(t *testing.T) {
+	content := `<config>
+	<fonts default="CustomFont">
+		<font name="CustomFont" description="My Font" />
+	</fonts>
+</config>`
+
+	path := createConfigFile(t, content)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// When fonts are explicitly configured, defaults should NOT be injected
+	if len(cfg.Fonts.Fonts) != 1 {
+		t.Errorf("Expected 1 font from XML, got %d", len(cfg.Fonts.Fonts))
+	}
+	if cfg.Fonts.Fonts[0].Name != "CustomFont" {
+		t.Errorf("Expected CustomFont, got %q", cfg.Fonts.Fonts[0].Name)
+	}
+	if cfg.Fonts.Default != "CustomFont" {
+		t.Errorf("Default font: got %q, want %q", cfg.Fonts.Default, "CustomFont")
+	}
 }
 
 func TestLoad_ImplicitDefaultsFromList(t *testing.T) {

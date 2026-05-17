@@ -88,6 +88,9 @@ func Load(path string) (*Config, error) {
 		cfg.S3270Options.Model = "3"
 	}
 	cfg.TargetHost.Value = strings.TrimSpace(cfg.TargetHost.Value)
+	if len(cfg.Fonts.Fonts) == 0 {
+		cfg.Fonts.Fonts = DefaultFonts()
+	}
 	if cfg.Fonts.Default == "" && len(cfg.Fonts.Fonts) > 0 {
 		cfg.Fonts.Default = cfg.Fonts.Fonts[0].Name
 	}
@@ -96,4 +99,14 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// DefaultFonts returns the built-in font choices available when no fonts are
+// specified in the XML configuration file.
+func DefaultFonts() []Font {
+	return []Font{
+		{Name: "IBM 3270", Description: "IBM 3270 Terminal"},
+		{Name: "IBM 3270 Semi-Condensed", Description: "IBM 3270 Semi-Condensed"},
+		{Name: "IBM 3270 Condensed", Description: "IBM 3270 Condensed"},
+	}
 }

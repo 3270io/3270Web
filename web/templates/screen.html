@@ -48,6 +48,9 @@
     <script src="/static/toolbar-section-toggle.js" defer></script>
     <script src="/static/ui.js?v=18" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
+    <script src="/static/copilot-auth.js" defer></script>
+    <script src="/static/copilot-tools.js" defer></script>
+    <script src="/static/copilot-panel.js" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}">
     <script>
@@ -103,6 +106,9 @@
                         </span>
                     </button>
                     <button type="button" data-about-open>About</button>
+                    <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v2h-2V7zm0 4h2v6h-2v-6z"/><path d="M6 14a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3H6v-3z" opacity=".35"/></svg>
+                    </button>
                     <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
                     </button>
@@ -799,6 +805,26 @@
             </div>
         </div>
     </div>
+    <aside id="copilot-panel" class="copilot-panel" hidden aria-label="Copilot chat panel">
+        <header class="copilot-panel-header">
+            <span class="copilot-panel-title">Copilot</span>
+            <div class="copilot-panel-header-actions">
+                <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
+                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of Copilot" aria-label="Sign out of Copilot">Sign out</button>
+                <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close Copilot panel">&times;</button>
+            </div>
+        </header>
+        <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="polite"></div>
+        <form class="copilot-panel-form" data-copilot-form>
+            <textarea
+                rows="2"
+                placeholder="Ask Copilot about the screen, or tell it what to do…"
+                data-copilot-input
+                aria-label="Message Copilot"></textarea>
+            <button type="submit" class="copilot-send" aria-label="Send message">Send</button>
+        </form>
+        <p class="copilot-panel-hint">Each tool call waits for you to click <strong>Run</strong>.</p>
+    </aside>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/logs.js" defer></script>
     <script src="/static/notifications.js" defer></script>
