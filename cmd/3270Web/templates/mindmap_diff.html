@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chaos Mind-Map Diff</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #222; }
+  h1 { margin: 0 0 0.5rem; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+  .summary div { background: #f4f4f8; padding: 0.75rem 1rem; border-radius: 4px; }
+  .summary div b { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .summary div span { color: #666; font-size: 0.85rem; }
+  h2 { border-bottom: 1px solid #ddd; padding-bottom: 0.25rem; margin-top: 2rem; }
+  ul.area-list { list-style: none; padding: 0; }
+  ul.area-list li { padding: 0.5rem; border-left: 3px solid #ccc; margin: 0.25rem 0; background: #fafafa; }
+  ul.area-list li.baseline { border-left-color: #e36; }
+  ul.area-list li.candidate { border-left-color: #2a8; }
+  ul.area-list code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; color: #555; }
+  details { border: 1px solid #ddd; border-radius: 4px; margin: 0.5rem 0; padding: 0.5rem 0.75rem; }
+  details[open] { background: #fafafa; }
+  summary { cursor: pointer; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; font-size: 0.9rem; }
+  th, td { border-bottom: 1px solid #eee; padding: 0.35rem 0.5rem; text-align: left; }
+  th { background: #f4f4f8; }
+  .change-added { color: #2a8; font-weight: 600; }
+  .change-removed { color: #e36; font-weight: 600; }
+  .change-modified { color: #c80; font-weight: 600; }
+  .change-redirected { color: #c80; font-weight: 600; }
+  .empty { color: #888; font-style: italic; }
+</style>
+</head>
+<body>
+  <h1>Chaos Mind-Map Diff</h1>
+  <div class="meta">
+    Schema version {{ .SchemaVersion }} · Generated at {{ .GeneratedAt.Format "2006-01-02 15:04:05 UTC" }}
+  </div>
+
+  <section>
+    <h2>Summary</h2>
+    <div class="summary">
+      <div><b>{{ .Summary.BaselineAreas }}</b><span>Baseline areas</span></div>
+      <div><b>{{ .Summary.CandidateAreas }}</b><span>Candidate areas</span></div>
+      <div><b>{{ .Summary.CommonAreas }}</b><span>Common areas</span></div>
+      <div><b>{{ .Summary.AreasOnlyInBaseline }}</b><span>Only in baseline</span></div>
+      <div><b>{{ .Summary.AreasOnlyInCand }}</b><span>Only in candidate</span></div>
+      <div><b>{{ .Summary.FieldChanges }}</b><span>Field changes</span></div>
+      <div><b>{{ .Summary.TransitionChanges }}</b><span>Transition changes</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Only in baseline ({{ len .OnlyInBaseline }})</h2>
+    {{ if .OnlyInBaseline }}
+    <ul class="area-list">
+      {{ range .OnlyInBaseline }}
+      <li class="baseline">
+        <div><strong>{{ if .Label }}{{ .Label }}{{ else }}(unlabelled){{ end }}</strong></div>
+        <div><code>hash:{{ truncate 16 .Hash }} sig:{{ truncate 60 .Signature }}</code></div>
+        {{ if .Preview }}<div><code>{{ truncate 160 .Preview }}</code></div>{{ end }}
+      </li>
+      {{ end }}
+    </ul>
+    {{ else }}
+    <p class="empty">No baseline-only areas.</p>
+    {{ end }}
+  </section>
+
+  <section>
+    <h2>Only in candidate ({{ len .OnlyInCandidate }})</h2>
+    {{ if .OnlyInCandidate }}
+    <ul class="area-list">
+      {{ range .OnlyInCandidate }}
+      <li class="candidate">
+        <div><strong>{{ if .Label }}{{ .Label }}{{ else }}(unlabelled){{ end }}</strong></div>
+        <div><code>hash:{{ truncate 16 .Hash }} sig:{{ truncate 60 .Signature }}</code></div>
+        {{ if .Preview }}<div><code>{{ truncate 160 .Preview }}</code></div>{{ end }}
+      </li>
+      {{ end }}
+    </ul>
+    {{ else }}
+    <p class="empty">No candidate-only areas.</p>
+    {{ end }}
+  </section>
+
+  <section>
+    <h2>Common areas with changes ({{ len .Common }})</h2>
+    {{ if .Common }}
+    {{ range .Common }}
+    <details>
+      <summary>{{ if .Label }}{{ .Label }}{{ else }}{{ truncate 60 .Signature }}{{ end }} — {{ len .FieldDeltas }} field changes, {{ len .TransitionDeltas }} transition changes</summary>
+      <p><code>baseline hash {{ truncate 16 .BaselineHash }} · candidate hash {{ truncate 16 .CandidateHash }}</code></p>
+      {{ if .FieldDeltas }}
+      <h3>Field deltas</h3>
+      <table>
+        <thead><tr><th>Row</th><th>Col</th><th>Length</th><th>Change</th><th>Before</th><th>After</th></tr></thead>
+        <tbody>
+          {{ range .FieldDeltas }}
+          <tr>
+            <td>{{ .Row }}</td>
+            <td>{{ .Col }}</td>
+            <td>{{ .Length }}</td>
+            <td class="change-{{ .Change }}">{{ .Change }}</td>
+            <td>{{ if .Before }}len={{ .Before.Length }} num={{ .Before.Numeric }} hidden={{ .Before.Hidden }} multi={{ .Before.MultiLine }}{{ end }}</td>
+            <td>{{ if .After }}len={{ .After.Length }} num={{ .After.Numeric }} hidden={{ .After.Hidden }} multi={{ .After.MultiLine }}{{ end }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+      {{ end }}
+      {{ if .TransitionDeltas }}
+      <h3>Transition deltas</h3>
+      <table>
+        <thead><tr><th>Key</th><th>Change</th><th>Baseline target</th><th>Candidate target</th></tr></thead>
+        <tbody>
+          {{ range .TransitionDeltas }}
+          <tr>
+            <td><code>{{ .Key }}</code></td>
+            <td class="change-{{ .Change }}">{{ .Change }}</td>
+            <td><code>{{ truncate 60 .BaselineTarget }}</code></td>
+            <td><code>{{ truncate 60 .CandidateTarget }}</code></td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+      {{ end }}
+    </details>
+    {{ end }}
+    {{ else }}
+    <p class="empty">No common areas with changes.</p>
+    {{ end }}
+  </section>
+</body>
+</html>

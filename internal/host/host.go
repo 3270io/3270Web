@@ -20,6 +20,10 @@ type Host interface {
 	// action. Supported formats are "html", "rtf", and "string"; the
 	// implementation rejects anything else.
 	PrintText(format string) (string, error)
+	// Query sends an s3270 Query(arg) action and returns the joined response
+	// lines with the "data: " prefix stripped. Returns an empty string and a
+	// nil error if the host does not answer the query.
+	Query(arg string) (string, error)
 }
 
 // MockHost is a mock implementation of Host for testing.
@@ -28,6 +32,12 @@ type MockHost struct {
 	DumpFile  string
 	Connected bool
 	Commands  []string
+	// QueryResponses lets tests stub Query() responses by argument. A missing
+	// entry yields an empty string and a nil error, matching the
+	// "host does not answer" contract.
+	QueryResponses map[string]string
+	// QueryErr, if set, is returned from Query() for every argument.
+	QueryErr error
 }
 
 func NewMockHost(dumpFile string) (*MockHost, error) {
@@ -172,4 +182,15 @@ func (m *MockHost) PrintText(format string) (string, error) {
 		return "", nil
 	}
 	return m.Screen.Text(), nil
+}
+
+func (m *MockHost) Query(arg string) (string, error) {
+	m.Commands = append(m.Commands, "query:"+arg)
+	if m.QueryErr != nil {
+		return "", m.QueryErr
+	}
+	if m.QueryResponses == nil {
+		return "", nil
+	}
+	return m.QueryResponses[arg], nil
 }

@@ -144,6 +144,13 @@ func (h *GoSampleAppHost) PrintText(format string) (string, error) {
 	return h.client.PrintText(format)
 }
 
+// Query satisfies the Host interface. The in-process sample app does not
+// implement s3270 Query actions, so it returns an empty string. The profiler
+// treats empty responses as "unknown" capabilities and degrades gracefully.
+func (h *GoSampleAppHost) Query(arg string) (string, error) {
+	return "", nil
+}
+
 // SetVerboseLogging enables or disables verbose logging for the underlying client.
 func (h *GoSampleAppHost) SetVerboseLogging(enabled bool) {
 	h.verboseLogging = enabled
