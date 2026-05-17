@@ -1004,6 +1004,7 @@ body.terminal-fit-active .card {
 button.danger {
   border-color: #cc5b5b;
   color: #cc5b5b;
+  background: rgba(204, 91, 91, 0.08);
 }
 
 button.danger:hover:not(:disabled) {
