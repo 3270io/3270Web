@@ -669,38 +669,6 @@ func (app *App) ChaosMindMapImportHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "areasImported": len(mm.Areas)})
 }
 
-// ChaosReportHandler handles POST /chaos/report – returns a Markdown
-// summary of the current or most recently loaded chaos run for the session.
-// The body is plain text/markdown so it can be dropped into the in-browser
-// report modal and the chaos_report Copilot tool without further parsing.
-func (app *App) ChaosReportHandler(c *gin.Context) {
-	s := app.getSession(c)
-	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
-		return
-	}
-	const ctype = "text/markdown; charset=utf-8"
-	if app.chaosEngines.isRemoved(s.ID) {
-		c.Data(http.StatusOK, ctype, []byte("# Chaos Exploration Report\n\n_The chaos run was removed for this session._\n"))
-		return
-	}
-
-	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
-		c.Data(http.StatusOK, ctype, []byte(eng.Report()))
-		return
-	}
-	if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
-		c.Data(http.StatusOK, ctype, []byte(chaos.ReportFromSavedRun(run)))
-		return
-	}
-	if run := app.loadSessionChaosRunFromDisk(s); run != nil {
-		app.chaosEngines.setLoadedRun(s.ID, run)
-		c.Data(http.StatusOK, ctype, []byte(chaos.ReportFromSavedRun(run)))
-		return
-	}
-	c.Data(http.StatusOK, ctype, []byte("# Chaos Exploration Report\n\n_No chaos run has been started yet._\n"))
-}
-
 // overriding only fields whose corresponding setting is non-empty. Request body
 // overrides applied later in ChaosStartHandler will always take final precedence.
 func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
