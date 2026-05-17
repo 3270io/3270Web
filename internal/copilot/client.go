@@ -50,7 +50,7 @@ func NewClient(auth *AuthManager) *Client {
 // failures or non-2xx responses; once the stream starts copying, partial
 // writes to out are surfaced to the caller too.
 //
-// The model field defaults to "claude-opus-4.6" if the caller did not set
+// The model field defaults to "claude-opus-4.7" if the caller did not set
 // one. `stream` is forced to true. Other fields (messages, tools,
 // tool_choice, temperature, max_tokens, ...) are passed through.
 func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer) error {

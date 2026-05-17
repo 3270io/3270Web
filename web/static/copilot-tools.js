@@ -74,6 +74,7 @@
             const res = await postJSON("/screen/key", { key });
             if (!res.ok) return { error: res.error };
             await settle();
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
             const screen = await getJSON("/screen.json");
             return {
                 key: res.data && res.data.key,
@@ -88,12 +89,14 @@
             };
             const res = await postJSON("/screen/write", body);
             if (!res.ok) return { error: res.error };
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
             return { ok: true };
         },
         async submit_screen(_args) {
             const res = await postJSON("/screen/submit", {});
             if (!res.ok) return { error: res.error };
             await settle();
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
             const screen = await getJSON("/screen.json");
             return {
                 ok: true,

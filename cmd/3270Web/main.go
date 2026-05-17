@@ -88,7 +88,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.2.3.2"
+var appVersion = "0.3.0"
 
 func main() {
 	baseDir := resolveBaseDir()
@@ -251,7 +251,23 @@ func main() {
 
 	// Bind to loopback by default on all platforms to avoid exposing the admin UI
 	// and host-connection features on the local network unintentionally.
-	addr := "127.0.0.1:8080"
+	// If the default port is already in use, fall back to an OS-assigned free port.
+	preferredAddr := "127.0.0.1:8080"
+	if p := strings.TrimSpace(os.Getenv("WEBUI_PORT")); p != "" {
+		preferredAddr = "127.0.0.1:" + p
+	}
+	ln, err := net.Listen("tcp", preferredAddr)
+	if err != nil {
+		log.Printf("Port %s unavailable (%v), falling back to OS-assigned port", preferredAddr, err)
+		ln, err = net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			msg := fmt.Sprintf("3270Web failed to start: could not bind to any port: %v", err)
+			log.Print(msg)
+			showFatalError(msg)
+			return
+		}
+	}
+	addr := ln.Addr().String()
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -269,7 +285,7 @@ func main() {
 
 	startServer := func(errCh chan<- error) {
 		log.Printf("Starting server on %s", addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}
