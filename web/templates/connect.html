@@ -95,7 +95,7 @@
                 <div class="modal-actions saved-host-actions">
                     <button type="button" data-hosts-apply>Use Host</button>
                     <button type="button" data-hosts-connect>Use &amp; Connect</button>
-                    <button type="button" data-hosts-delete>Delete</button>
+                    <button type="button" class="danger" data-hosts-delete>Delete</button>
                 </div>
                 <div class="modal-actions saved-host-actions">
                     <button type="button" data-hosts-export>Export Hosts</button>
@@ -103,6 +103,17 @@
                     <input type="file" accept="application/json,.json" data-hosts-import-file hidden>
                 </div>
                 <div class="subtle" data-hosts-status aria-live="polite"></div>
+            </div>
+            <div class="settings-confirm-modal" data-hosts-delete-confirm hidden>
+                <div class="settings-confirm-backdrop" data-hosts-delete-cancel></div>
+                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="hosts-delete-title" aria-describedby="hosts-delete-desc">
+                    <h4 id="hosts-delete-title">Delete host profile?</h4>
+                    <p id="hosts-delete-desc">This removes the saved profile from this browser. It cannot be undone.</p>
+                    <div class="settings-confirm-actions">
+                        <button type="button" data-hosts-delete-cancel>Cancel</button>
+                        <button type="button" class="danger" data-hosts-delete-accept>Delete profile</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -201,6 +212,9 @@
             const hostsApplyButton = document.querySelector("[data-hosts-apply]");
             const hostsConnectButton = document.querySelector("[data-hosts-connect]");
             const hostsDeleteButton = document.querySelector("[data-hosts-delete]");
+            const hostsDeleteConfirm = document.querySelector("[data-hosts-delete-confirm]");
+            const hostsDeleteConfirmCancelEls = document.querySelectorAll("[data-hosts-delete-cancel]");
+            const hostsDeleteConfirmAccept = document.querySelector("[data-hosts-delete-accept]");
             const hostsExportButton = document.querySelector("[data-hosts-export]");
             const hostsImportButton = document.querySelector("[data-hosts-import]");
             const hostsImportFileInput = document.querySelector("[data-hosts-import-file]");
@@ -493,9 +507,51 @@
                 });
             }
 
+            const openHostsDeleteConfirm = () => {
+                if (!hostsDeleteConfirm) {
+                    return;
+                }
+                hostsDeleteConfirm.hidden = false;
+                if (hostsDeleteConfirmAccept) {
+                    hostsDeleteConfirmAccept.focus();
+                }
+            };
+
+            const closeHostsDeleteConfirm = () => {
+                if (!hostsDeleteConfirm) {
+                    return;
+                }
+                hostsDeleteConfirm.hidden = true;
+                if (hostsDeleteButton) {
+                    hostsDeleteButton.focus();
+                }
+            };
+
             if (hostsDeleteButton) {
                 hostsDeleteButton.addEventListener("click", () => {
                     const host = normalizeHost(savedHostValueInput ? savedHostValueInput.value : "");
+                    if (!host) {
+                        setHostsStatus("Select a host first.");
+                        return;
+                    }
+                    if (!hostsDeleteConfirm) {
+                        removeSavedHost(host);
+                        populateSavedHostInputs();
+                        setHostsStatus("Host removed.");
+                        return;
+                    }
+                    openHostsDeleteConfirm();
+                });
+            }
+
+            hostsDeleteConfirmCancelEls.forEach((el) => {
+                el.addEventListener("click", closeHostsDeleteConfirm);
+            });
+
+            if (hostsDeleteConfirmAccept) {
+                hostsDeleteConfirmAccept.addEventListener("click", () => {
+                    const host = normalizeHost(savedHostValueInput ? savedHostValueInput.value : "");
+                    closeHostsDeleteConfirm();
                     if (!host) {
                         setHostsStatus("Select a host first.");
                         return;
@@ -602,10 +658,17 @@
             }
 
             document.addEventListener("keydown", (event) => {
-                if (event.key === "Escape" && sampleModal && !sampleModal.hidden) {
+                if (event.key !== "Escape") {
+                    return;
+                }
+                if (hostsDeleteConfirm && !hostsDeleteConfirm.hidden) {
+                    closeHostsDeleteConfirm();
+                    return;
+                }
+                if (sampleModal && !sampleModal.hidden) {
                     hideSampleModal();
                 }
-                if (event.key === "Escape" && hostsModal && !hostsModal.hidden) {
+                if (hostsModal && !hostsModal.hidden) {
                     closeHostsModal();
                 }
             });
