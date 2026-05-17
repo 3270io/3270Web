@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1466,8 +1467,14 @@ func TestChaosReport_WithoutRun(t *testing.T) {
 	r.POST("/chaos/report", app.ChaosReportHandler)
 
 	w := chaosRequest(r, http.MethodPost, "/chaos/report", nil, sess.ID)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("report without run: want 404, got %d – body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("report without run: want 200, got %d – body: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "No chaos run") {
+		t.Errorf("report without run: body missing 'No chaos run' marker, got %q", w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/markdown") {
+		t.Errorf("report without run: Content-Type = %q, want text/markdown", ct)
 	}
 }
 

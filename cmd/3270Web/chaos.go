@@ -134,24 +134,199 @@ func (s *chaosEngineStore) clearRemoved(sessionID string) {
 }
 
 // chaosStartRequest is the JSON body accepted by POST /chaos/start.
+// Both snake_case (the public MCP/HTTP tool descriptor form) and camelCase
+// (the existing in-browser UI form) are accepted via a custom UnmarshalJSON.
 type chaosStartRequest struct {
-	MaxSteps                    int               `json:"maxSteps"`
-	TimeBudgetSec               float64           `json:"timeBudgetSec"`
-	StepDelaySec                float64           `json:"stepDelaySec"`
+	MaxSteps                    int               `json:"max_steps"`
+	TimeBudgetSec               float64           `json:"time_budget_sec"`
+	StepDelaySec                float64           `json:"step_delay_sec"`
 	Seed                        int64             `json:"seed"`
-	AIDKeyWeights               map[string]int    `json:"aidKeyWeights"`
-	KeyBlacklist                []string          `json:"keyBlacklist"`
-	OutputFile                  string            `json:"outputFile"`
-	MaxFieldLength              int               `json:"maxFieldLength"`
-	ScreenDedupSimilarity       float64           `json:"screenDedupSimilarity"`
-	LearnedInputReuseBias       *float64          `json:"learnedInputReuseBias"`
-	LearnedKeyReuseBias         *float64          `json:"learnedKeyReuseBias"`
-	LearnedReuseBias            *float64          `json:"learnedReuseBias"` // legacy alias: applies to both if specific values not provided
-	ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
+	AIDKeyWeights               map[string]int    `json:"aid_key_weights"`
+	KeyBlacklist                []string          `json:"key_blacklist"`
+	OutputFile                  string            `json:"output_file"`
+	MaxFieldLength              int               `json:"max_field_length"`
+	ScreenDedupSimilarity       float64           `json:"screen_dedup_similarity"`
+	DedupMode                   string            `json:"dedup_mode"` // "structural" (default) or "exact"
+	SaturationSteps             int               `json:"saturation_steps"`
+	AutoBlockExitKeys           *bool             `json:"auto_block_exit_keys"`
+	LearnedInputReuseBias       *float64          `json:"learned_input_reuse_bias"`
+	LearnedKeyReuseBias         *float64          `json:"learned_key_reuse_bias"`
+	LearnedReuseBias            *float64          `json:"learned_reuse_bias"` // legacy alias: applies to both if specific values not provided
+	ForceOverrideExistingInputs *bool             `json:"force_override_existing_inputs"`
 	Hints                       []chaos.Hint      `json:"hints"`
-	FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
-	ExcludeNoProgressEvents     *bool             `json:"excludeNoProgressEvents"`
-	ExtendLimits                bool              `json:"extendLimits"`
+	FirstScreenHint             *chaos.ScreenHint `json:"first_screen_hint,omitempty"`
+	ExcludeNoProgressEvents     *bool             `json:"exclude_no_progress_events"`
+	ExtendLimits                bool              `json:"extend_limits"`
+}
+
+func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
+	var snake struct {
+		MaxSteps                    int               `json:"max_steps"`
+		TimeBudgetSec               float64           `json:"time_budget_sec"`
+		StepDelaySec                float64           `json:"step_delay_sec"`
+		Seed                        int64             `json:"seed"`
+		AIDKeyWeights               map[string]int    `json:"aid_key_weights"`
+		KeyBlacklist                []string          `json:"key_blacklist"`
+		OutputFile                  string            `json:"output_file"`
+		MaxFieldLength              int               `json:"max_field_length"`
+		ScreenDedupSimilarity       float64           `json:"screen_dedup_similarity"`
+		DedupMode                   string            `json:"dedup_mode"`
+		SaturationSteps             int               `json:"saturation_steps"`
+		AutoBlockExitKeys           *bool             `json:"auto_block_exit_keys"`
+		LearnedInputReuseBias       *float64          `json:"learned_input_reuse_bias"`
+		LearnedKeyReuseBias         *float64          `json:"learned_key_reuse_bias"`
+		LearnedReuseBias            *float64          `json:"learned_reuse_bias"`
+		ForceOverrideExistingInputs *bool             `json:"force_override_existing_inputs"`
+		Hints                       []chaos.Hint      `json:"hints"`
+		FirstScreenHint             *chaos.ScreenHint `json:"first_screen_hint,omitempty"`
+		ExcludeNoProgressEvents     *bool             `json:"exclude_no_progress_events"`
+		ExtendLimits                bool              `json:"extend_limits"`
+	}
+	if err := json.Unmarshal(data, &snake); err != nil {
+		return err
+	}
+	var camel struct {
+		MaxSteps                    int               `json:"maxSteps"`
+		TimeBudgetSec               float64           `json:"timeBudgetSec"`
+		StepDelaySec                float64           `json:"stepDelaySec"`
+		AIDKeyWeights               map[string]int    `json:"aidKeyWeights"`
+		KeyBlacklist                []string          `json:"keyBlacklist"`
+		OutputFile                  string            `json:"outputFile"`
+		MaxFieldLength              int               `json:"maxFieldLength"`
+		ScreenDedupSimilarity       float64           `json:"screenDedupSimilarity"`
+		DedupMode                   string            `json:"dedupMode"`
+		SaturationSteps             int               `json:"saturationSteps"`
+		AutoBlockExitKeys           *bool             `json:"autoBlockExitKeys"`
+		LearnedInputReuseBias       *float64          `json:"learnedInputReuseBias"`
+		LearnedKeyReuseBias         *float64          `json:"learnedKeyReuseBias"`
+		LearnedReuseBias            *float64          `json:"learnedReuseBias"`
+		ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
+		FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
+		ExcludeNoProgressEvents     *bool             `json:"excludeNoProgressEvents"`
+		ExtendLimits                bool              `json:"extendLimits"`
+	}
+	_ = json.Unmarshal(data, &camel)
+
+	r.MaxSteps = firstNonZeroInt(snake.MaxSteps, camel.MaxSteps)
+	r.TimeBudgetSec = firstNonZeroFloat(snake.TimeBudgetSec, camel.TimeBudgetSec)
+	r.StepDelaySec = firstNonZeroFloat(snake.StepDelaySec, camel.StepDelaySec)
+	r.Seed = snake.Seed
+	if len(snake.AIDKeyWeights) > 0 {
+		r.AIDKeyWeights = snake.AIDKeyWeights
+	} else {
+		r.AIDKeyWeights = camel.AIDKeyWeights
+	}
+	r.KeyBlacklist = firstNonNilStrings(snake.KeyBlacklist, camel.KeyBlacklist)
+	r.OutputFile = firstNonEmptyString(snake.OutputFile, camel.OutputFile)
+	r.MaxFieldLength = firstNonZeroInt(snake.MaxFieldLength, camel.MaxFieldLength)
+	r.ScreenDedupSimilarity = firstNonZeroFloat(snake.ScreenDedupSimilarity, camel.ScreenDedupSimilarity)
+	r.DedupMode = firstNonEmptyString(snake.DedupMode, camel.DedupMode)
+	r.SaturationSteps = firstNonZeroInt(snake.SaturationSteps, camel.SaturationSteps)
+	r.AutoBlockExitKeys = firstNonNilBool(snake.AutoBlockExitKeys, camel.AutoBlockExitKeys)
+	r.LearnedInputReuseBias = firstNonNilFloat(snake.LearnedInputReuseBias, camel.LearnedInputReuseBias)
+	r.LearnedKeyReuseBias = firstNonNilFloat(snake.LearnedKeyReuseBias, camel.LearnedKeyReuseBias)
+	r.LearnedReuseBias = firstNonNilFloat(snake.LearnedReuseBias, camel.LearnedReuseBias)
+	r.ForceOverrideExistingInputs = firstNonNilBool(snake.ForceOverrideExistingInputs, camel.ForceOverrideExistingInputs)
+	r.Hints = snake.Hints
+	if snake.FirstScreenHint != nil {
+		r.FirstScreenHint = snake.FirstScreenHint
+	} else {
+		r.FirstScreenHint = camel.FirstScreenHint
+	}
+	r.ExcludeNoProgressEvents = firstNonNilBool(snake.ExcludeNoProgressEvents, camel.ExcludeNoProgressEvents)
+	r.ExtendLimits = snake.ExtendLimits || camel.ExtendLimits
+	return nil
+}
+
+func firstNonZeroInt(a, b int) int {
+	if a != 0 {
+		return a
+	}
+	return b
+}
+
+func firstNonZeroFloat(a, b float64) float64 {
+	if a != 0 {
+		return a
+	}
+	return b
+}
+
+func firstNonNilFloat(a, b *float64) *float64 {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+func firstNonNilBool(a, b *bool) *bool {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+// applyChaosStartRequestToConfig merges JSON-bound request overrides into cfg.
+// Used by both ChaosStartHandler and ChaosResumeHandler.
+func applyChaosStartRequestToConfig(cfg *chaos.Config, req chaosStartRequest) {
+	if req.MaxSteps > 0 {
+		cfg.MaxSteps = req.MaxSteps
+	}
+	if req.TimeBudgetSec > 0 {
+		cfg.TimeBudget = time.Duration(req.TimeBudgetSec * float64(time.Second))
+	}
+	if req.StepDelaySec > 0 {
+		cfg.StepDelay = time.Duration(req.StepDelaySec * float64(time.Second))
+	}
+	if req.Seed != 0 {
+		cfg.Seed = req.Seed
+	}
+	if len(req.AIDKeyWeights) > 0 {
+		cfg.AIDKeyWeights = req.AIDKeyWeights
+	}
+	if len(req.KeyBlacklist) > 0 {
+		cfg.KeyBlacklist = append([]string(nil), req.KeyBlacklist...)
+	}
+	if req.OutputFile != "" {
+		cfg.OutputFile = req.OutputFile
+	}
+	if req.MaxFieldLength > 0 {
+		cfg.MaxFieldLength = req.MaxFieldLength
+	}
+	if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
+		cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
+	}
+	switch strings.ToLower(strings.TrimSpace(req.DedupMode)) {
+	case chaos.DedupModeStructural:
+		cfg.DedupMode = chaos.DedupModeStructural
+	case chaos.DedupModeExact:
+		cfg.DedupMode = chaos.DedupModeExact
+	}
+	if req.SaturationSteps > 0 {
+		cfg.SaturationSteps = req.SaturationSteps
+	}
+	if req.AutoBlockExitKeys != nil {
+		cfg.AutoBlockExitKeys = *req.AutoBlockExitKeys
+	}
+	if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
+		cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
+	} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+		cfg.LearnedInputReuseBias = *req.LearnedReuseBias
+	}
+	if req.LearnedKeyReuseBias != nil && *req.LearnedKeyReuseBias >= 0 && *req.LearnedKeyReuseBias <= 1 {
+		cfg.LearnedKeyReuseBias = *req.LearnedKeyReuseBias
+	} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
+		cfg.LearnedKeyReuseBias = *req.LearnedReuseBias
+	}
+	if req.ForceOverrideExistingInputs != nil {
+		cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
+	}
+	if len(req.Hints) > 0 {
+		cfg.Hints = sanitizeChaosHints(req.Hints)
+	}
+	if req.ExcludeNoProgressEvents != nil {
+		cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
+	}
 }
 
 // ChaosStartHandler handles POST /chaos/start.
@@ -168,52 +343,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 	app.applyChaosEnvSettings(&cfg)
 	var req chaosStartRequest
 	if err := c.ShouldBindJSON(&req); err == nil {
-		if req.MaxSteps > 0 {
-			cfg.MaxSteps = req.MaxSteps
-		}
-		if req.TimeBudgetSec > 0 {
-			cfg.TimeBudget = time.Duration(req.TimeBudgetSec * float64(time.Second))
-		}
-		if req.StepDelaySec > 0 {
-			cfg.StepDelay = time.Duration(req.StepDelaySec * float64(time.Second))
-		}
-		if req.Seed != 0 {
-			cfg.Seed = req.Seed
-		}
-		if len(req.AIDKeyWeights) > 0 {
-			cfg.AIDKeyWeights = req.AIDKeyWeights
-		}
-		if len(req.KeyBlacklist) > 0 {
-			cfg.KeyBlacklist = append([]string(nil), req.KeyBlacklist...)
-		}
-		if req.OutputFile != "" {
-			cfg.OutputFile = req.OutputFile
-		}
-		if req.MaxFieldLength > 0 {
-			cfg.MaxFieldLength = req.MaxFieldLength
-		}
-		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
-			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
-		}
-		if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
-			cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
-		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
-			cfg.LearnedInputReuseBias = *req.LearnedReuseBias
-		}
-		if req.LearnedKeyReuseBias != nil && *req.LearnedKeyReuseBias >= 0 && *req.LearnedKeyReuseBias <= 1 {
-			cfg.LearnedKeyReuseBias = *req.LearnedKeyReuseBias
-		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
-			cfg.LearnedKeyReuseBias = *req.LearnedReuseBias
-		}
-		if req.ForceOverrideExistingInputs != nil {
-			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
-		}
-		if len(req.Hints) > 0 {
-			cfg.Hints = sanitizeChaosHints(req.Hints)
-		}
-		if req.ExcludeNoProgressEvents != nil {
-			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
-		}
+		applyChaosStartRequestToConfig(&cfg, req)
 	}
 	var savedHints chaosHintsPayload
 	if saved, err := app.loadChaosHintsPayload(); err == nil {
@@ -332,6 +462,8 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 		return
 	}
 
+	verbose := parseBoolFormValue(c.DefaultQuery("verbose", ""))
+
 	eng, ok := app.chaosEngines.get(s.ID)
 	if !ok {
 		snapshot := chaosStateSnapshot(s)
@@ -370,7 +502,11 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 			}
 			// Prefer the finalized saved-run mind map over any stale session snapshot.
 			if mindMapJSON := chaosMindMapToJSON(loaded.MindMap); mindMapJSON != nil {
-				resp["mindMap"] = mindMapJSON
+				if verbose {
+					resp["mindMap"] = mindMapJSON
+				} else {
+					resp["mindMap"] = slimMindMapForStatus(loaded.MindMap)
+				}
 			}
 			if _, hasFirst := resp["firstScreenHash"]; !hasFirst {
 				if firstHash := chaosFirstScreenHashFromAttempts(loaded.Attempts); firstHash != "" {
@@ -387,10 +523,45 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 
 	st := eng.Status()
 	resp := chaosStatusToJSON(st)
+	if !verbose {
+		// Replace the full mind map with a slim summary so /chaos/status
+		// stays cheap when polled. Pass ?verbose=true to get the full graph.
+		if st.MindMap != nil {
+			resp["mindMap"] = slimMindMapForStatus(st.MindMap)
+		}
+		// Also drop RecentAttempts (only keep LastAttempt) when not verbose.
+		delete(resp, "recentAttempts")
+	}
 	if hints := app.chaosEngines.getScreenHints(s.ID); len(hints) > 0 {
 		resp["screenHints"] = hints
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// slimMindMapForStatus returns a compact mind-map summary suitable for the
+// default chaos_status payload: hash + label + visit counts only, no
+// preview text or per-field discovery details. Verbose callers
+// (?verbose=true) bypass this and get the full structure.
+func slimMindMapForStatus(m *chaos.MindMap) gin.H {
+	if m == nil {
+		return nil
+	}
+	areas := make([]gin.H, 0, len(m.Areas))
+	for hash, area := range m.Areas {
+		if area == nil {
+			continue
+		}
+		areas = append(areas, gin.H{
+			"hash":            hash,
+			"label":           area.Label,
+			"visits":          area.Visits,
+			"inputFieldCount": area.InputFieldCount,
+		})
+	}
+	return gin.H{
+		"areaCount": len(areas),
+		"areas":     areas,
+	}
 }
 
 // ChaosExportHandler handles POST /chaos/export – returns the learned workflow.
@@ -451,50 +622,83 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
-// ChaosReportHandler handles POST /chaos/report – returns a summary report of
-// the current or most recently loaded chaos run for the session.
+// ChaosMindMapExportHandler handles GET /chaos/mindmap/export – returns the
+// engine's mind map as JSON so it can be imported into a future session.
+func (app *App) ChaosMindMapExportHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	eng, ok := app.chaosEngines.get(s.ID)
+	if !ok || eng == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos engine for this session"})
+		return
+	}
+	data, err := eng.ExportMindMap()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
+}
+
+// ChaosMindMapImportHandler handles POST /chaos/mindmap/import – merges a
+// previously exported mind map into the current engine. Rejected while a run
+// is active.
+func (app *App) ChaosMindMapImportHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var mm chaos.MindMap
+	if err := c.ShouldBindJSON(&mm); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body: " + err.Error()})
+		return
+	}
+	eng, ok := app.chaosEngines.get(s.ID)
+	if !ok || eng == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos engine for this session; start or load a run first"})
+		return
+	}
+	if !eng.ImportMindMap(&mm) {
+		c.JSON(http.StatusConflict, gin.H{"error": "cannot import while chaos exploration is running"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "areasImported": len(mm.Areas)})
+}
+
+// ChaosReportHandler handles POST /chaos/report – returns a Markdown
+// summary of the current or most recently loaded chaos run for the session.
+// The body is plain text/markdown so it can be dropped into the in-browser
+// report modal and the chaos_report Copilot tool without further parsing.
 func (app *App) ChaosReportHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
+	const ctype = "text/markdown; charset=utf-8"
 	if app.chaosEngines.isRemoved(s.ID) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+		c.Data(http.StatusOK, ctype, []byte("# Chaos Exploration Report\n\n_The chaos run was removed for this session._\n"))
 		return
 	}
 
-	if eng, ok := app.chaosEngines.get(s.ID); ok {
-		st := eng.Status()
-		c.JSON(http.StatusOK, chaosStatusToJSON(st))
+	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
+		c.Data(http.StatusOK, ctype, []byte(eng.Report()))
 		return
 	}
 	if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
-		c.JSON(http.StatusOK, gin.H{
-			"active":        false,
-			"runID":         run.ID,
-			"stepsRun":      run.StepsRun,
-			"transitions":   run.Transitions,
-			"uniqueScreens": run.UniqueScreens,
-			"uniqueInputs":  run.UniqueInputs,
-			"mindMap":       chaosMindMapToJSON(run.MindMap),
-		})
+		c.Data(http.StatusOK, ctype, []byte(chaos.ReportFromSavedRun(run)))
 		return
 	}
 	if run := app.loadSessionChaosRunFromDisk(s); run != nil {
 		app.chaosEngines.setLoadedRun(s.ID, run)
-		c.JSON(http.StatusOK, gin.H{
-			"active":        false,
-			"runID":         run.ID,
-			"stepsRun":      run.StepsRun,
-			"transitions":   run.Transitions,
-			"uniqueScreens": run.UniqueScreens,
-			"uniqueInputs":  run.UniqueInputs,
-			"mindMap":       chaosMindMapToJSON(run.MindMap),
-		})
+		c.Data(http.StatusOK, ctype, []byte(chaos.ReportFromSavedRun(run)))
 		return
 	}
-	c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+	c.Data(http.StatusOK, ctype, []byte("# Chaos Exploration Report\n\n_No chaos run has been started yet._\n"))
 }
 
 // overriding only fields whose corresponding setting is non-empty. Request body
@@ -850,52 +1054,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 	cfg := chaos.DefaultConfig()
 	var req chaosStartRequest
 	if err := c.ShouldBindJSON(&req); err == nil {
-		if req.MaxSteps > 0 {
-			cfg.MaxSteps = req.MaxSteps
-		}
-		if req.TimeBudgetSec > 0 {
-			cfg.TimeBudget = time.Duration(req.TimeBudgetSec * float64(time.Second))
-		}
-		if req.StepDelaySec > 0 {
-			cfg.StepDelay = time.Duration(req.StepDelaySec * float64(time.Second))
-		}
-		if req.Seed != 0 {
-			cfg.Seed = req.Seed
-		}
-		if len(req.AIDKeyWeights) > 0 {
-			cfg.AIDKeyWeights = req.AIDKeyWeights
-		}
-		if len(req.KeyBlacklist) > 0 {
-			cfg.KeyBlacklist = append([]string(nil), req.KeyBlacklist...)
-		}
-		if req.OutputFile != "" {
-			cfg.OutputFile = req.OutputFile
-		}
-		if req.MaxFieldLength > 0 {
-			cfg.MaxFieldLength = req.MaxFieldLength
-		}
-		if req.ScreenDedupSimilarity > 0 && req.ScreenDedupSimilarity <= 1 {
-			cfg.ScreenDedupSimilarity = req.ScreenDedupSimilarity
-		}
-		if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
-			cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
-		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
-			cfg.LearnedInputReuseBias = *req.LearnedReuseBias
-		}
-		if req.LearnedKeyReuseBias != nil && *req.LearnedKeyReuseBias >= 0 && *req.LearnedKeyReuseBias <= 1 {
-			cfg.LearnedKeyReuseBias = *req.LearnedKeyReuseBias
-		} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
-			cfg.LearnedKeyReuseBias = *req.LearnedReuseBias
-		}
-		if req.ForceOverrideExistingInputs != nil {
-			cfg.ForceOverrideExistingInputs = *req.ForceOverrideExistingInputs
-		}
-		if len(req.Hints) > 0 {
-			cfg.Hints = sanitizeChaosHints(req.Hints)
-		}
-		if req.ExcludeNoProgressEvents != nil {
-			cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
-		}
+		applyChaosStartRequestToConfig(&cfg, req)
 	}
 	var savedHints chaosHintsPayload
 	if saved, err := app.loadChaosHintsPayload(); err == nil {
@@ -960,12 +1119,61 @@ type chaosScreenHintsResponse struct {
 	ScreenHints map[string]chaos.ScreenHint `json:"screenHints"`
 }
 
+// chaosScreenHintUpsertRequest accepts both snake_case (the public MCP/HTTP
+// tool descriptor) and camelCase (the existing in-browser UI) forms. The
+// custom UnmarshalJSON decodes both shapes; snake_case wins when both keys
+// are present on the same field.
 type chaosScreenHintUpsertRequest struct {
-	ScreenHash     string            `json:"screenHash"`
-	KnownData      []string          `json:"knownData"`
-	KnownKeys      []string          `json:"knownKeys"`
-	BlockedKeys    []string          `json:"blockedKeys"`
-	KeyAssignments map[string]string `json:"keyAssignments"`
+	ScreenHash     string            `json:"screen_hash"`
+	KnownData      []string          `json:"known_data"`
+	KnownKeys      []string          `json:"known_keys"`
+	BlockedKeys    []string          `json:"blocked_keys"`
+	KeyAssignments map[string]string `json:"key_assignments"`
+}
+
+func (r *chaosScreenHintUpsertRequest) UnmarshalJSON(data []byte) error {
+	var snake struct {
+		ScreenHash     string            `json:"screen_hash"`
+		KnownData      []string          `json:"known_data"`
+		KnownKeys      []string          `json:"known_keys"`
+		BlockedKeys    []string          `json:"blocked_keys"`
+		KeyAssignments map[string]string `json:"key_assignments"`
+	}
+	if err := json.Unmarshal(data, &snake); err != nil {
+		return err
+	}
+	var camel struct {
+		ScreenHash     string            `json:"screenHash"`
+		KnownData      []string          `json:"knownData"`
+		KnownKeys      []string          `json:"knownKeys"`
+		BlockedKeys    []string          `json:"blockedKeys"`
+		KeyAssignments map[string]string `json:"keyAssignments"`
+	}
+	_ = json.Unmarshal(data, &camel)
+	r.ScreenHash = firstNonEmptyString(snake.ScreenHash, camel.ScreenHash)
+	r.KnownData = firstNonNilStrings(snake.KnownData, camel.KnownData)
+	r.KnownKeys = firstNonNilStrings(snake.KnownKeys, camel.KnownKeys)
+	r.BlockedKeys = firstNonNilStrings(snake.BlockedKeys, camel.BlockedKeys)
+	if len(snake.KeyAssignments) > 0 {
+		r.KeyAssignments = snake.KeyAssignments
+	} else {
+		r.KeyAssignments = camel.KeyAssignments
+	}
+	return nil
+}
+
+func firstNonEmptyString(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
+}
+
+func firstNonNilStrings(a, b []string) []string {
+	if a != nil {
+		return a
+	}
+	return b
 }
 
 // ChaosHintsGetHandler handles GET /chaos/hints – returns saved chaos hints.
@@ -1062,7 +1270,7 @@ func (app *App) ChaosScreenHintsSaveHandler(c *gin.Context) {
 	}
 	screenHash := strings.TrimSpace(req.ScreenHash)
 	if screenHash == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "screenHash is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "screen_hash is required"})
 		return
 	}
 	updated := app.chaosEngines.upsertScreenHint(s.ID, screenHash, chaos.ScreenHint{

@@ -100,8 +100,10 @@
                 screen: screen.ok ? summariseScreen(screen.data) : null,
             };
         },
-        async chaos_status(_args) {
-            const res = await getJSON("/chaos/status");
+        async chaos_status(args) {
+            const verbose = !!(args && args.verbose);
+            const url = verbose ? "/chaos/status?verbose=true" : "/chaos/status";
+            const res = await getJSON(url);
             if (!res.ok) return { error: res.error };
             return res.data;
         },
@@ -127,15 +129,24 @@
             if (!res.ok) return { error: res.error };
             return res.data;
         },
+        async chaos_report(_args) {
+            const resp = await fetch("/chaos/report", { method: "POST" });
+            if (!resp.ok) {
+                let detail = "";
+                try { detail = await resp.text(); } catch (_) { /* ignore */ }
+                return { error: "HTTP " + resp.status + (detail ? ": " + detail : "") };
+            }
+            const markdown = await resp.text();
+            return { markdown };
+        },
         async chaos_save_screen_hint(args) {
             const hash = (args && args.screen_hash) || "";
             if (!hash) return { error: "screen_hash required" };
-            const hint = {};
-            if (args.known_data) hint.knownData = args.known_data;
-            if (args.known_keys) hint.knownKeys = args.known_keys;
-            if (args.blocked_keys) hint.blockedKeys = args.blocked_keys;
-            const body = { hints: {} };
-            body.hints[hash] = hint;
+            const body = { screen_hash: hash };
+            if (args.known_data) body.known_data = args.known_data;
+            if (args.known_keys) body.known_keys = args.known_keys;
+            if (args.blocked_keys) body.blocked_keys = args.blocked_keys;
+            if (args.key_assignments) body.key_assignments = args.key_assignments;
             const res = await postJSON("/chaos/screen-hints", body);
             if (!res.ok) return { error: res.error };
             return res.data;

@@ -47,6 +47,7 @@
     <script src="/static/terminal-tools-widget.js" defer></script>
     <script src="/static/toolbar-section-toggle.js" defer></script>
     <script src="/static/ui.js?v=18" defer></script>
+    <script src="/static/print-screen.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js" defer></script>
@@ -118,6 +119,9 @@
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                </button>
+                <button type="button" class="icon-button" data-print-screen data-tippy-content="Print screen" aria-label="Print screen">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
                 </button>
                 <div class="recording-controls is-collapsed" data-recording-controls>
                     <button type="button" class="recording-controls-label recording-controls-toggle" data-recording-toggle aria-expanded="false" aria-label="Expand recording controls" data-tippy-content="Expand recording controls">
