@@ -118,6 +118,41 @@ Imported areas overwrite any existing areas with the same hash. Use this to seed
 
 Set `CHAOS_TRANSITION_LOG_PATH` (or `transition_log_path` in the JSON config body) to a file path and chaos will append one JSON object per attempt to that file (newline-delimited / JSONL). Each line includes the full `Attempt` record: from/to hash, AID key sent, field writes, whether the screen transitioned, and any error. This is intended for offline analysis or feeding into another pipeline.
 
+## Running Chaos via AI Chat
+
+You can drive chaos exploration entirely through the [AI Chat side panel](ai-chat.md) instead of the toolbar. The two approaches share the same underlying engine; the difference is in how you control it.
+
+### Manual toolbar flow vs. AI Chat
+
+| | Manual (toolbar) | AI Chat panel |
+|---|---|---|
+| Start / stop | Toolbar buttons | Chat message or tool call |
+| Monitor progress | Toolbar stats + Workflow Status widget | `chaos_status` tool, streamed to chat |
+| Adjust hints mid-run | Edit chaos hints modal | `chaos_save_screen_hint` / `chaos_update_hints` tools |
+| Generate report | **View chaos discovery report** button | `chaos_report` tool, rendered in chat |
+| Export workflow | **Download chaos workflow JSON** button | `chaos_export_workflow` tool |
+| Human decisions | N/A | `ask_user` tool — AI pauses and presents clickable options |
+
+### Typical AI-assisted workflow
+
+1. Open the AI Chat panel and sign in.
+2. Say: *"Start a chaos exploration, let me know when it saturates, then give me a discovery report and export the workflow."*
+3. The AI uses a five-phase approach:
+   - Reads the current screen with `get_screen`.
+   - Reviews any existing hints with `chaos_get_hints`.
+   - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
+   - Starts and monitors the run with `chaos_start` / `chaos_status`.
+   - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
+4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing.
+
+### Combining both approaches
+
+Manual and AI-driven chaos use the same run state, so you can mix the two freely:
+
+- Start a run from the toolbar, then ask the AI: *"What screens have been found so far?"* — the AI calls `chaos_status` against the active run.
+- Let the AI start a run in Auto Mode overnight, then use the toolbar to review and export results the next morning.
+- Add hints through the modal, then tell the AI to resume and push further.
+
 ## API Field Naming
 
 Chaos HTTP/MCP tools accept **both** snake_case (the documented public form) and camelCase (the legacy in-browser UI form) for every request body. For example, `chaos_save_screen_hint` accepts `{"screen_hash": "..."}` and `{"screenHash": "..."}` equivalently. Snake_case wins when both are present. New integrations should use snake_case.

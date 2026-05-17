@@ -1,4 +1,17 @@
 ﻿/* Shared 3270 suite docs refinements */
+
+/* Home page hero intro */
+.md-typeset .home-hero p:first-of-type {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Feature cards — tighten icon spacing */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid.cards > ol > li {
+  border-top: 3px solid var(--md-accent-fg-color);
+}
 :root {
   --md-primary-fg-color: #0f766e;
   --md-accent-fg-color: #06b6d4;

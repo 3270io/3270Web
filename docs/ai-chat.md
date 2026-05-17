@@ -58,20 +58,20 @@ The AI can perform the following actions on your 3270 session:
 
 ## Chaos Integration
 
-The AI can run and monitor chaos exploration directly from the chat panel:
+The AI can run and monitor chaos exploration directly from the chat panel. This gives you the same capability as the toolbar controls, but driven by conversation.
 
-| Command | What it does |
-|---------|-------------|
-| Start chaos | Begins automated exploration with configurable step/time limits |
-| Stop / Resume chaos | Stops a running run or resumes a loaded one |
-| Chaos status | Returns current progress (steps, transitions, unique screens) |
-| Chaos report | Generates a Markdown discovery report with an ASCII screen graph, per-screen stats, and suggested next experiments |
-| Save screen hints | Saves known transaction codes, data values, and key assignments for a specific screen |
-| Export workflow | Exports the learned paths as 3270Connect-compatible JSON |
+| Chat command | Tool used | What it does |
+|---|---|---|
+| Start exploration | `chaos_start` | Begins automated exploration with configurable step/time limits |
+| Stop / Resume | `chaos_stop` / `chaos_resume` | Stops a running run or resumes a loaded one |
+| Check progress | `chaos_status` | Returns current steps, transitions, and unique screens |
+| Discovery report | `chaos_report` | Markdown report with ASCII screen graph, per-screen stats, and suggested next experiments |
+| Save hints | `chaos_save_screen_hint` / `chaos_update_hints` | Adds known transaction codes, data values, or key assignments to guide exploration |
+| Export workflow | `chaos_export_workflow` | Downloads learned paths as 3270Connect-compatible JSON |
 
 The default system prompt uses a five-phase workflow: read the screen → review existing hints → ask you to choose run mode → start exploration → export results. You can override this by writing your own instructions.
 
-See [Chaos Mode](chaos-mode.md) for how chaos exploration works independently of the AI panel.
+Manual toolbar controls and the AI panel share the same run state — you can freely mix both. See [Chaos Mode](chaos-mode.md) for full details on toolbar controls, settings, and the discovery report format, and see [Running Chaos via AI Chat](chaos-mode.md#running-chaos-via-ai-chat) for a side-by-side comparison.
 
 ## Model Selection
 
