@@ -48,6 +48,7 @@ func (h *Handlers) Register(r gin.IRouter) {
 	g := r.Group("/api/copilot")
 	g.GET("/status", h.Status)
 	g.GET("/tools", h.Tools)
+	g.GET("/models", h.Models)
 	g.POST("/login/start", h.LoginStart)
 	g.POST("/login/poll", h.LoginPoll)
 	g.POST("/logout", h.Logout)
@@ -90,6 +91,20 @@ func (h *Handlers) SetEnterprise(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"enterprise": h.auth.EnterpriseURL()})
+}
+
+// Models returns the list of model IDs available through the Copilot API.
+func (h *Handlers) Models(c *gin.Context) {
+	if !h.auth.LoggedIn() {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in to copilot"})
+		return
+	}
+	ids, err := h.client.ListModels(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": ids})
 }
 
 // LoginStart kicks off a GitHub OAuth device flow.

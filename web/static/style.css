@@ -4642,6 +4642,40 @@ body.copilot-open .page-wrap {
 }
 .copilot-btn-run:disabled, .copilot-btn-skip:disabled { opacity: 0.45; cursor: default; }
 
+.copilot-model-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  flex-shrink: 0;
+}
+
+.copilot-model-label {
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.copilot-model-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  background: var(--panel-1, var(--panel-2));
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.copilot-model-select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
 .copilot-panel-form {
   display: flex;
   gap: 6px;

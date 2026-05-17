@@ -14,11 +14,13 @@
     const HISTORY_KEY = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
+    const MODEL_KEY = "copilot.panel.model";
     const MAX_TOOL_ROUNDS = 8;
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
     let model = "claude-opus-4.7";
+    try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
@@ -82,6 +84,37 @@
     function scrollToBottom() {
         const list = messageList();
         if (list) list.scrollTop = list.scrollHeight;
+    }
+
+    function modelSelect() {
+        const panel = ensurePanel();
+        return panel ? panel.querySelector("[data-copilot-model]") : null;
+    }
+
+    async function populateModelSelect() {
+        const sel = modelSelect();
+        if (!sel || sel.dataset.populated) return;
+        sel.dataset.populated = "1";
+        try {
+            const resp = await fetch("/api/copilot/models", { credentials: "same-origin" });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const models = data.models || [];
+            if (!models.length) return;
+            sel.innerHTML = "";
+            for (const id of models) {
+                const opt = document.createElement("option");
+                opt.value = id;
+                opt.textContent = id;
+                if (id === model) opt.selected = true;
+                sel.appendChild(opt);
+            }
+            // If saved model isn't in the list, default to first entry.
+            if (!models.includes(model)) {
+                model = models[0];
+                sel.value = model;
+            }
+        } catch (_) {}
     }
 
     function appendMessage(role, content, extra) {
@@ -380,6 +413,7 @@
                 appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
                 return;
             }
+            await populateModelSelect();
         }
         history.push({ role: "user", content: text });
         saveHistory();
@@ -404,6 +438,15 @@
         const signOutBtn = panel.querySelector("[data-copilot-signout]");
         const autoModeBtn = panel.querySelector("[data-copilot-automode]");
         const hintEl = panel.querySelector("[data-copilot-hint]");
+        const modelSel = panel.querySelector("[data-copilot-model]");
+
+        if (modelSel) {
+            modelSel.value = model;
+            modelSel.addEventListener("change", function () {
+                model = modelSel.value;
+                try { localStorage.setItem(MODEL_KEY, model); } catch (_) {}
+            });
+        }
 
         function syncAutoModeUI() {
             if (!autoModeBtn) return;

@@ -107,6 +107,49 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 	return nil
 }
 
+// ListModels fetches the available model IDs from the Copilot /models endpoint.
+func (c *Client) ListModels(ctx context.Context) ([]string, error) {
+	token, apiEndpoint, err := c.auth.CopilotToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", apiEndpoint+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Editor-Version", c.editorVersion)
+	req.Header.Set("Editor-Plugin-Version", c.editorPluginVersion)
+	req.Header.Set("Copilot-Integration-Id", c.integrationID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("copilot models request: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return nil, &APIError{Status: resp.StatusCode, Body: string(bodyBytes)}
+	}
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return nil, fmt.Errorf("decode models response: %w", err)
+	}
+	ids := make([]string, 0, len(payload.Data))
+	for _, m := range payload.Data {
+		if m.ID != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids, nil
+}
+
 // APIError is returned when Copilot answers with a non-2xx status.
 type APIError struct {
 	Status int
