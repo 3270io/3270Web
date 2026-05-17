@@ -15,11 +15,11 @@
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
     const MODEL_KEY = "copilot.panel.model";
-    const MAX_TOOL_ROUNDS = 8;
+    const MAX_TOOL_ROUNDS = 30;
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
-    let model = "claude-opus-4.7";
+    let model = "claude-sonnet-4-5";
     try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
 
     let history = loadHistory();
@@ -94,13 +94,13 @@
     async function populateModelSelect() {
         const sel = modelSelect();
         if (!sel || sel.dataset.populated) return;
-        sel.dataset.populated = "1";
         try {
             const resp = await fetch("/api/copilot/models", { credentials: "same-origin" });
             if (!resp.ok) return;
             const data = await resp.json();
             const models = data.models || [];
             if (!models.length) return;
+            sel.dataset.populated = "1"; // only lock after a successful fetch
             sel.innerHTML = "";
             for (const id of models) {
                 const opt = document.createElement("option");
@@ -153,6 +153,42 @@
             </div>
             <pre class="copilot-tool-call-result" data-result hidden></pre>
         `;
+        list.appendChild(card);
+        scrollToBottom();
+        return card;
+    }
+
+    function appendAskUserCard(tc, args) {
+        const list = messageList();
+        if (!list) return null;
+        const question = (args && args.question) || "Make a choice:";
+        const options = (args && Array.isArray(args.options) && args.options.length) ? args.options : ["OK"];
+
+        const card = document.createElement("div");
+        card.className = "copilot-tool-call copilot-ask-user";
+        card.dataset.toolCallId = tc.id;
+
+        const qEl = document.createElement("div");
+        qEl.className = "copilot-ask-user-question";
+        qEl.textContent = question;
+        card.appendChild(qEl);
+
+        const optWrap = document.createElement("div");
+        optWrap.className = "copilot-ask-user-options";
+        options.forEach(function (opt) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "copilot-btn-option";
+            btn.textContent = opt;
+            optWrap.appendChild(btn);
+        });
+        card.appendChild(optWrap);
+
+        const chosenEl = document.createElement("div");
+        chosenEl.className = "copilot-ask-user-chosen";
+        chosenEl.hidden = true;
+        card.appendChild(chosenEl);
+
         list.appendChild(card);
         scrollToBottom();
         return card;
@@ -320,8 +356,35 @@
 
     function collectToolResults(toolCalls) {
         // Render a card per tool call and return a promise that resolves once
-        // every card has been Run or Skipped.
+        // every card has been Run or Skipped (or answered, for ask_user).
         const promises = toolCalls.map((tc) => new Promise((resolve) => {
+            const name = tc.function && tc.function.name;
+
+            // ask_user: render a question + option buttons; always requires
+            // user interaction (never auto-runs) regardless of autoMode.
+            if (name === "ask_user") {
+                let args = {};
+                try { args = JSON.parse(tc.function.arguments || "{}"); } catch (_) {}
+                const card = appendAskUserCard(tc, args);
+                if (!card) {
+                    resolve({ id: tc.id, contentJSON: JSON.stringify({ error: "panel not ready" }) });
+                    return;
+                }
+                const optWrap = card.querySelector(".copilot-ask-user-options");
+                const chosenEl = card.querySelector(".copilot-ask-user-chosen");
+                optWrap.querySelectorAll(".copilot-btn-option").forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        const choice = btn.textContent;
+                        optWrap.querySelectorAll(".copilot-btn-option").forEach(function (b) { b.disabled = true; });
+                        chosenEl.textContent = "You chose: " + choice;
+                        chosenEl.hidden = false;
+                        scrollToBottom();
+                        resolve({ id: tc.id, contentJSON: JSON.stringify({ choice }) });
+                    });
+                });
+                return;
+            }
+
             const card = appendToolCallCard(tc);
             if (!card) {
                 resolve({ id: tc.id, contentJSON: JSON.stringify({ error: "panel not ready" }) });
@@ -375,6 +438,7 @@
             const ta = panel.querySelector("[data-copilot-input]");
             if (ta) ta.focus();
             scrollToBottom();
+            populateModelSelect();
         }
     }
 
@@ -413,7 +477,6 @@
                 appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
                 return;
             }
-            await populateModelSelect();
         }
         history.push({ role: "user", content: text });
         saveHistory();
@@ -425,6 +488,7 @@
             appendMessage("error", "Sign-in cancelled.");
             return;
         }
+        await populateModelSelect();
         await chatRound();
     }
 

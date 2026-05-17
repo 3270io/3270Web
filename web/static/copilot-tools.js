@@ -154,6 +154,37 @@
             if (!res.ok) return { error: res.error };
             return res.data;
         },
+        async chaos_get_hints(_args) {
+            const global = await getJSON("/chaos/hints");
+            if (!global.ok) return { error: global.error };
+            const screen = await getJSON("/chaos/screen-hints");
+            return {
+                hints: (global.data && global.data.hints) || [],
+                keyBlacklist: (global.data && global.data.keyBlacklist) || [],
+                firstScreenHint: (global.data && global.data.firstScreenHint) || null,
+                screenHints: (screen.ok && screen.data && screen.data.screenHints) || {},
+            };
+        },
+        async chaos_update_hints(args) {
+            const body = {};
+            if (args && Array.isArray(args.hints)) {
+                body.hints = args.hints.map(function (h) {
+                    return {
+                        transaction: (h && h.transaction) || "",
+                        knownData: (h && h.known_data) || [],
+                    };
+                });
+            }
+            if (args && Array.isArray(args.key_blacklist)) body.keyBlacklist = args.key_blacklist;
+            const res = await postJSON("/chaos/hints", body);
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async chaos_export_workflow(_args) {
+            const res = await postJSON("/chaos/export", {});
+            if (!res.ok) return { error: res.error };
+            return { workflow: res.data };
+        },
     };
 
     async function runTool(name, args) {

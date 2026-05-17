@@ -11,6 +11,7 @@ Repo-specific instructions so installed Codex skills are used consistently in `h
 - `gh-fix-ci`: Use when the user asks to inspect or fix failing GitHub Actions checks in `.github/workflows/`. Requires `gh` CLI and authentication.
 - `security-best-practices`: Use only for explicit security reviews/reports or secure-by-default changes. This repo is primarily Go backend + browser JS frontend, so check guidance for both stacks.
 - `doc`: Use only when the task involves `.docx` files (rare in this repo). Do not trigger for MkDocs docs under `docs/`.
+- `chaos-monkey`: Use when the user asks to run automated discovery, chaos mode, or full application exploration via the embedded Copilot chat. See `.github/prompts/chaos-monkey.prompt.md` for the 5-phase workflow (read → setup → run → adapt → export).
 
 ## Repo-Specific Trigger Notes
 
