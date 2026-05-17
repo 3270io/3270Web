@@ -64,8 +64,8 @@
             {{ end }}
             <form action="/connect" method="post" id="connect-form">
                 <fieldset class="connect-row">
-                    <label for="hostname-input">Hostname / IP</label>
-                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required autofocus placeholder="hostname:port">
+                    <label for="hostname-input">Hostname / IP<span class="required-mark" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span></label>
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required aria-required="true" autofocus placeholder="hostname:port">
                     <button type="button" data-host-save>Save Host</button>
                     <button type="button" data-host-load>Load Host</button>
                     <button type="submit" id="connect-btn">Connect</button>
