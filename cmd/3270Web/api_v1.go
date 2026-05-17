@@ -25,6 +25,8 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/sessions/:id/key", app.APISendKey)
 	g.POST("/sessions/:id/field", app.APIWriteField)
 	g.POST("/sessions/:id/submit", app.APISubmit)
+	g.POST("/sessions/:id/profile", app.APIProfileHandler)
+	g.GET("/sessions/:id/profile", app.APIProfileGetHandler)
 }
 
 // RequireAPIToken enforces Bearer-token auth against the API_TOKEN env var.

@@ -32,6 +32,7 @@ func (h *scriptedChaosHost) PrintText(format string) (string, error) {
 	}
 	return "", nil
 }
+func (h *scriptedChaosHost) Query(string) (string, error) { return "", nil }
 func (h *scriptedChaosHost) GetScreen() *host.Screen {
 	if len(h.screens) == 0 {
 		return nil

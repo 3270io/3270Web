@@ -47,6 +47,7 @@ type App struct {
 	chaosRunsDir   string
 	chaosHintsPath string
 	chaosHintsMu   sync.Mutex
+	profiles       *profileCache
 }
 
 type WorkflowConfig struct {
@@ -139,6 +140,7 @@ func main() {
 		chaosEngines:   newChaosEngineStore(),
 		chaosRunsDir:   filepath.Join(baseDir, "chaos-runs"),
 		chaosHintsPath: filepath.Join(baseDir, "chaos-hints.json"),
+		profiles:       newProfileCache(),
 	}
 
 	r := gin.Default()
@@ -211,6 +213,10 @@ func main() {
 	// Disconnect handler
 	r.POST("/disconnect", app.DisconnectHandler)
 
+	// Host compatibility profile (cookie-auth, current session)
+	r.POST("/profile", app.ProfileHandler)
+	r.GET("/profile", app.ProfileGetHandler)
+
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
@@ -220,6 +226,7 @@ func main() {
 	r.POST("/chaos/report", app.ChaosReportHandler)
 	r.GET("/chaos/mindmap/export", app.ChaosMindMapExportHandler)
 	r.POST("/chaos/mindmap/import", app.ChaosMindMapImportHandler)
+	r.POST("/chaos/mindmap/compare", app.ChaosMindMapCompareHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
 	r.POST("/chaos/runs/delete", app.ChaosDeleteRunHandler)
@@ -868,6 +875,9 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 		app.chaosEngines.delete(s.ID)
 		app.chaosEngines.deleteLoadedRun(s.ID)
 		app.chaosEngines.clearRemoved(s.ID)
+		if app.profiles != nil {
+			app.profiles.delete(s.ID)
+		}
 		app.SessionManager.RemoveSession(s.ID)
 	}
 	setSessionCookie(c, "3270Web_session", "")

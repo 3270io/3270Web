@@ -206,6 +206,7 @@ func (h *loopingChaosHost) PrintText(string) (string, error) {
 	}
 	return "", nil
 }
+func (h *loopingChaosHost) Query(string) (string, error) { return "", nil }
 func (h *loopingChaosHost) GetScreen() *host.Screen {
 	if len(h.screens) == 0 {
 		return nil

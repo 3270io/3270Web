@@ -29,6 +29,9 @@ type S3270 struct {
 	screen         *Screen
 	mu             sync.Mutex // Protects command execution
 	verboseLogging bool
+
+	connectStart    time.Time
+	connectDuration time.Duration
 }
 
 const (
@@ -56,6 +59,8 @@ func (h *S3270) Start() error {
 
 	// Clean up any stale process state before starting a new subprocess.
 	h.stopLocked()
+	h.connectStart = time.Now()
+	h.connectDuration = 0
 
 	h.cmd = exec.Command(h.ExecPath, h.Args...)
 	configureCmd(h.cmd)
@@ -97,7 +102,13 @@ func (h *S3270) Start() error {
 	}
 
 	// Wait for formatted screen like Java, but keep it bounded.
-	return h.waitFormattedLocked()
+	if err := h.waitFormattedLocked(); err != nil {
+		return err
+	}
+	if !h.connectStart.IsZero() {
+		h.connectDuration = time.Since(h.connectStart)
+	}
+	return nil
 }
 
 func (h *S3270) Stop() error {
@@ -586,10 +597,15 @@ func (h *S3270) reconnectLocked() error {
 	if h.TargetHost == "" {
 		return fmt.Errorf("target host not set")
 	}
+	connectStart := time.Now()
 	if _, _, err := h.doCommandLocked(fmt.Sprintf("Connect(%s)", h.TargetHost)); err != nil {
 		return err
 	}
-	return h.waitFormattedLocked()
+	if err := h.waitFormattedLocked(); err != nil {
+		return err
+	}
+	h.connectDuration = time.Since(connectStart)
+	return nil
 }
 
 // PrintText renders the current screen via the s3270 PrintText action and
@@ -635,4 +651,49 @@ func (h *S3270) GetVerboseLogging() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.verboseLogging
+}
+
+// LastConnectDuration returns the elapsed time of the most recent successful
+// connect (Start or reconnect). Zero if no connect has completed.
+func (h *S3270) LastConnectDuration() time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.connectDuration
+}
+
+// Query sends an s3270 Query(arg) action and returns the response with the
+// "data: " prefix stripped from each line and lines joined by '\n'. Returns
+// ("", nil) if the host responds with no data lines (i.e. it does not answer
+// the query), so callers can treat unknown capabilities as soft-degraded.
+func (h *S3270) Query(arg string) (string, error) {
+	arg = strings.TrimSpace(arg)
+	// Sentinel: prevent command injection via the s3270 pipe.
+	if strings.ContainsAny(arg, "\n\r\t;()") {
+		return "", fmt.Errorf("security error: invalid characters in query argument")
+	}
+	cmd := "Query"
+	if arg != "" {
+		cmd = fmt.Sprintf("Query(%s)", arg)
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	data, status, err := h.doCommandLocked(cmd)
+	if err != nil {
+		return "", err
+	}
+	if isS3270Error(status, data) {
+		// Treat as "unknown query" rather than fatal — newer/older s3270
+		// versions may simply not implement the requested query.
+		return "", nil
+	}
+	if len(data) == 0 {
+		return "", nil
+	}
+	lines := make([]string, 0, len(data))
+	for _, line := range data {
+		lines = append(lines, strings.TrimPrefix(line, "data: "))
+	}
+	return strings.Join(lines, "\n"), nil
 }
