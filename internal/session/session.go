@@ -200,13 +200,20 @@ func (m *Manager) ListSessions() []*Session {
 	return out
 }
 
-// RemoveSession removes a session.
+// RemoveSession removes a session. Host.Stop performs I/O (sending Quit,
+// killing the s3270 subprocess, closing pipes) and can take seconds when
+// the subprocess is unresponsive, so it runs after the manager lock is
+// released — otherwise a single slow disconnect would block every other
+// session operation.
 func (m *Manager) RemoveSession(id string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if s, ok := m.sessions[id]; ok {
-		s.Host.Stop()
+	s, ok := m.sessions[id]
+	if ok {
 		delete(m.sessions, id)
+	}
+	m.mu.Unlock()
+	if ok {
+		s.Host.Stop()
 	}
 }
 
