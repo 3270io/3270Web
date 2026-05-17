@@ -56,6 +56,7 @@ nav:
   - Connect and Use 3270Web: configuration.md
   - Recordings and Playback: workflow.md
   - Chaos Mode: chaos-mode.md
+  - AI Chat Mode: ai-chat.md
   - Keyboard and Controls: keyboard-and-controls.md
   - Screen Size and Model Guide: terminal-model-limits.md
   - REST API: rest-api.md

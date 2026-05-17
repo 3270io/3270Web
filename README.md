@@ -10,7 +10,7 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 - Record sessions to workflow.json, compatible with 3270Connect (Connect/FillString/Press keys/Disconnect)
 - Load workflow.json and play it back
 - Chaos mode for automated exploration, run persistence, and workflow JSON export
-- GitHub Copilot side panel that can drive the session via tool calls
+- AI Chat side panel — type instructions in plain language to read screens, fill fields, send keys, and run automated exploration (GitHub Copilot / Claude)
 - Docker image and GHCR workflow
 - Windows build script
 
@@ -114,6 +114,31 @@ Chaos behavior can be tuned in **Settings -> Chaos** or via environment values:
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
 See [Chaos Mode](docs/chaos-mode.md) for full details.
+
+## AI Chat mode
+
+AI Chat mode is a side panel that lets you drive a 3270 session through conversation with an AI assistant. Type instructions in plain language; the AI reads the current screen, fills fields, presses keys, and runs chaos exploration — pausing before each action for your approval.
+
+### Getting started
+
+1. Connect to a host.
+2. Click the **Open Copilot chat** toolbar button.
+3. Sign in with GitHub (one-time OAuth device flow — copy a code, visit the verification URL, approve).
+4. Type a message, for example: *"Read the current screen and tell me what options are available."*
+5. Click **Run** to approve each proposed tool call, or enable **Auto Mode** to let the AI proceed automatically.
+
+### What the AI can do
+
+- Read the current screen (ASCII text + full field map)
+- Write text into unprotected fields
+- Send any AID key (`Enter`, `PF1`–`PF24`, `PA1`–`PA3`, `Tab`, arrow keys, and more)
+- Start, stop, resume, and report on chaos exploration runs
+- Export learned navigation paths as 3270Connect-compatible workflow JSON
+- Ask you questions with clickable answer buttons (`ask_user` tool)
+
+The model selector dropdown lets you switch between available Copilot models (default: Claude Opus 4).
+
+See [AI Chat Mode](docs/ai-chat.md) for full details.
 
 ## Sample applications
 Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.

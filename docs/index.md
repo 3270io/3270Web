@@ -14,6 +14,7 @@ This guide focuses on daily use:
 - Use terminal controls and keyboard shortcuts
 - Record, load, play, and debug workflows
 - Run chaos exploration and export generated workflow JSON
+- Drive sessions with the AI Chat side panel
 - Configure settings from the UI
 
 ## First Session
@@ -28,5 +29,6 @@ This guide focuses on daily use:
 - [Connect and Use 3270Web](configuration.md)
 - [Recordings and Playback](workflow.md)
 - [Chaos Mode](chaos-mode.md)
+- [AI Chat Mode](ai-chat.md)
 - [Keyboard and Controls](keyboard-and-controls.md)
 - [Screen Size and Model Guide](terminal-model-limits.md)
