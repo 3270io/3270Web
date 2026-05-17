@@ -37,11 +37,13 @@
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
     <div class="error-page">
-        <h1 class="error-title">Error</h1>
-        <p>{{ .Error }}</p>
-        <form action="/disconnect" method="post">
-            <button type="submit">Back to Connect</button>
-        </form>
+        <div class="error-card" role="alert" aria-live="assertive">
+            <h1 class="error-title">Something went wrong</h1>
+            <p class="error-message">{{ .Error }}</p>
+            <form action="/disconnect" method="post" class="error-actions">
+                <button type="submit">Back to connect</button>
+            </form>
+        </div>
     </div>
     <script src="/static/background.js" defer></script>
 </body>
