@@ -396,7 +396,8 @@
       "[data-chaos-report-modal]",
       "[data-chaos-start-log-confirm-modal]",
       "[data-chaos-confirm-modal]",
-      "[data-modal]"
+      "[data-modal]",
+      "[data-copilot-clear-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
@@ -433,6 +434,9 @@
       return false;
     }
     if (target.closest("[data-terminal-size-slider]")) {
+      return false;
+    }
+    if (target.closest("#copilot-panel")) {
       return false;
     }
     if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
@@ -506,6 +510,9 @@
           return;
         }
         if (event.target.matches && event.target.matches('input[type="range"]')) {
+          return;
+        }
+        if (event.target.closest("#copilot-panel")) {
           return;
         }
         window.requestAnimationFrame(function () {
@@ -909,6 +916,12 @@
 
     // Never route keyboard events to the terminal while any modal is open.
     if (isModalOpen()) {
+      return;
+    }
+
+    // Never intercept keystrokes when focus is inside a non-terminal editable
+    // element (e.g. the Copilot chat textarea, settings inputs).
+    if (isEditableTarget(event.target) && !isScreenInput(event.target)) {
       return;
     }
 
@@ -1590,6 +1603,31 @@
 
   window.renderKeypad = function (containerId) {
     renderKeypad(containerId);
+  };
+
+  // Refresh the 3270 screen HTML from the server without a form submit.
+  // Called by Copilot tools after state-changing actions so the terminal
+  // display stays in sync.
+  window.refreshScreenContent = function () {
+    return fetch("/screen/content", {
+      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+      credentials: "same-origin"
+    })
+      .then(function (response) {
+        if (!response.ok) return;
+        return response.json();
+      })
+      .then(function (payload) {
+        if (!payload || typeof payload.html !== "string") return;
+        var container = document.querySelector(".screen-container");
+        if (!container) return;
+        container.innerHTML = payload.html;
+        var updatedForm = container.querySelector("form.renderer-form");
+        var updatedFormId = updatedForm ? (updatedForm.id || updatedForm.getAttribute("name")) : null;
+        if (typeof window.installKeyHandler === "function") window.installKeyHandler(updatedFormId);
+        if (typeof window.sizeScreenContainer === "function") window.sizeScreenContainer();
+      })
+      .catch(function () {});
   };
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -13,15 +13,19 @@
 
     const HISTORY_KEY = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
+    const AUTO_MODE_KEY = "copilot.panel.automode";
     const MAX_TOOL_ROUNDS = 8;
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
-    let model = "claude-opus-4.6";
+    let model = "claude-opus-4.7";
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
     let toolRound = 0;
+    let autoMode = false;
+
+    try { autoMode = localStorage.getItem(AUTO_MODE_KEY) === "1"; } catch (_) {}
 
     function loadHistory() {
         try {
@@ -304,7 +308,7 @@
                 resolve({ id: tc.id, contentJSON: JSON.stringify(resultObj) });
             };
 
-            runBtn.addEventListener("click", async function () {
+            async function runTool() {
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
                 statusEl.textContent = "Running...";
@@ -312,10 +316,16 @@
                 try { args = JSON.parse(tc.function.arguments || "{}"); } catch (_) {}
                 const r = await CopilotTools.runTool(tc.function.name, args);
                 finish(r, r && r.error ? "Failed" : "Done");
-            });
+            }
+
+            runBtn.addEventListener("click", runTool);
             skipBtn.addEventListener("click", function () {
                 finish({ skipped: true }, "Skipped");
             });
+
+            if (autoMode) {
+                runTool();
+            }
         }));
         return Promise.all(promises);
     }
@@ -392,8 +402,31 @@
         const closeBtn = panel.querySelector("[data-copilot-close]");
         const clearBtn = panel.querySelector("[data-copilot-clear]");
         const signOutBtn = panel.querySelector("[data-copilot-signout]");
+        const autoModeBtn = panel.querySelector("[data-copilot-automode]");
+        const hintEl = panel.querySelector("[data-copilot-hint]");
+
+        function syncAutoModeUI() {
+            if (!autoModeBtn) return;
+            autoModeBtn.setAttribute("aria-pressed", autoMode ? "true" : "false");
+            autoModeBtn.classList.toggle("active", autoMode);
+            if (hintEl) {
+                hintEl.innerHTML = autoMode
+                    ? "Auto Mode is <strong>on</strong> — tools run without approval."
+                    : "Each tool call waits for you to click <strong>Run</strong>.";
+            }
+        }
+
+        if (autoModeBtn) {
+            autoModeBtn.addEventListener("click", function () {
+                autoMode = !autoMode;
+                try { localStorage.setItem(AUTO_MODE_KEY, autoMode ? "1" : "0"); } catch (_) {}
+                syncAutoModeUI();
+            });
+        }
+        syncAutoModeUI();
+
         if (closeBtn) closeBtn.addEventListener("click", () => setOpen(false));
-        if (clearBtn) clearBtn.addEventListener("click", () => { if (confirm("Clear chat history?")) clearHistory(); });
+        if (clearBtn) clearBtn.addEventListener("click", () => openClearModal());
         if (signOutBtn) signOutBtn.addEventListener("click", async () => {
             try { await CopilotAuth.logout(); appendMessage("error", "Signed out."); } catch (e) { appendMessage("error", "Logout failed: " + e); }
         });
@@ -414,6 +447,19 @@
                 }
             });
         }
+    }
+
+    function openClearModal() {
+        const modal = document.querySelector("[data-copilot-clear-modal]");
+        if (!modal) { clearHistory(); return; }
+        modal.hidden = false;
+        const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
+        const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
+        function close() { modal.hidden = true; }
+        function onConfirm() { close(); clearHistory(); }
+        if (confirmBtn) confirmBtn.onclick = onConfirm;
+        cancelBtns.forEach(function (b) { b.onclick = close; });
+        modal.onclick = function (ev) { if (ev.target === modal) close(); };
     }
 
     function attachToolbarToggle() {
