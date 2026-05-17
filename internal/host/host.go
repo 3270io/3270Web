@@ -16,6 +16,10 @@ type Host interface {
 	WriteStringAt(row, col int, text string) error
 	SubmitScreen() error
 	SubmitUnformatted(data string) error
+	// PrintText returns the current screen rendered by s3270's PrintText
+	// action. Supported formats are "html", "rtf", and "string"; the
+	// implementation rejects anything else.
+	PrintText(format string) (string, error)
 }
 
 // MockHost is a mock implementation of Host for testing.
@@ -160,4 +164,12 @@ func (m *MockHost) SubmitUnformatted(data string) error {
 		m.Screen.UpdateFromText(data)
 	}
 	return nil
+}
+
+func (m *MockHost) PrintText(format string) (string, error) {
+	m.Commands = append(m.Commands, "printtext:"+format)
+	if m.Screen == nil {
+		return "", nil
+	}
+	return m.Screen.Text(), nil
 }

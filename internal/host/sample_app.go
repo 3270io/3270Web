@@ -137,6 +137,13 @@ func (h *GoSampleAppHost) SubmitUnformatted(data string) error {
 	return h.client.SubmitUnformatted(data)
 }
 
+func (h *GoSampleAppHost) PrintText(format string) (string, error) {
+	if h.client == nil {
+		return "", fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.PrintText(format)
+}
+
 // SetVerboseLogging enables or disables verbose logging for the underlying client.
 func (h *GoSampleAppHost) SetVerboseLogging(enabled bool) {
 	h.verboseLogging = enabled

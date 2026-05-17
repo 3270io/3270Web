@@ -43,6 +43,8 @@ type MindMapArea struct {
 	MultiFieldProgressions  int                              `json:"multiFieldProgressions,omitempty"`
 	KeyPresses              map[string]*MindMapKeyPress      `json:"keyPresses,omitempty"`
 	DedupSignature          string                           `json:"dedupSignature,omitempty"`
+	AutoBlockedKeys         []string                         `json:"autoBlockedKeys,omitempty"`
+	AutoKnownKeys           []string                         `json:"autoKnownKeys,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.

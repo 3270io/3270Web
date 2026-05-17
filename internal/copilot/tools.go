@@ -103,8 +103,17 @@ func DefaultTools() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "chaos_status",
-				Description: "Get the current chaos exploration status: whether a run is active, steps completed, transitions, unique screens discovered, and the latest attempt.",
-				Parameters:  objNoProps,
+				Description: "Get the current chaos exploration status: whether a run is active, steps completed, transitions, unique screens discovered, and the latest attempt. Pass verbose=true to also include the full mind map and recent-attempt history (heavier payload).",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"verbose": map[string]any{
+							"type":        "boolean",
+							"description": "Include the full mind map and recent attempts in the response. Defaults to false to keep the payload small.",
+						},
+					},
+					"additionalProperties": false,
+				},
 			},
 		},
 		{
@@ -139,6 +148,14 @@ func DefaultTools() []Tool {
 			Function: ToolFunction{
 				Name:        "chaos_resume",
 				Description: "Resume a previously loaded chaos run (the user must have already loaded one via the UI).",
+				Parameters:  objNoProps,
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "chaos_report",
+				Description: "Generate a Markdown discovery report for the current (or most recent) chaos run: screen graph, per-screen field/key statistics, saturation reason, and suggested next experiments.",
 				Parameters:  objNoProps,
 			},
 		},

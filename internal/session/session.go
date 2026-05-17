@@ -188,6 +188,18 @@ func (m *Manager) CreateSession(h host.Host) *Session {
 	return s
 }
 
+// ListSessions returns a snapshot of all active sessions. The slice is safe
+// to range over; the underlying sessions still share state with the manager.
+func (m *Manager) ListSessions() []*Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		out = append(out, s)
+	}
+	return out
+}
+
 // RemoveSession removes a session.
 func (m *Manager) RemoveSession(id string) {
 	m.mu.Lock()

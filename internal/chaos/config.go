@@ -92,11 +92,41 @@ type Config struct {
 	// "new screens" caused by echoed values. Higher values are stricter.
 	ScreenDedupSimilarity float64 `json:"screenDedupSimilarity,omitempty"`
 
+	// DedupMode controls how screen hashes are canonicalised for mind-map
+	// area keying. "structural" (the default) treats screens with the same
+	// layout signature as the same area regardless of echoed values;
+	// "exact" disables structural merging and only the raw hash is used.
+	DedupMode string `json:"dedupMode,omitempty"`
+
+	// SaturationSteps stops chaos when this many consecutive steps yield no
+	// new (fromHash, toHash, aidKey) tuple and no new field value caused a
+	// transition. 0 disables the heuristic. Default 15.
+	SaturationSteps int `json:"saturationSteps,omitempty"`
+
+	// AutoBlockExitKeys auto-blocks PF keys whose on-screen labels match
+	// Exit/Quit/Cancel/Logoff/Logout/End/Return patterns on first visit to
+	// a new area. Default true.
+	AutoBlockExitKeys bool `json:"autoBlockExitKeys,omitempty"`
+
+	// AutoPreferNavigationKeys auto-boosts PF keys whose on-screen labels
+	// match Help/Menu/Next/Prev/Forward/Back patterns. Default true.
+	AutoPreferNavigationKeys bool `json:"autoPreferNavigationKeys,omitempty"`
+
+	// TransitionLogPath, when set, makes the engine append one JSON object
+	// per step to the given file (newline-delimited / JSONL). 0 disables.
+	TransitionLogPath string `json:"transitionLogPath,omitempty"`
+
 	// ExportHost and ExportPort are optional metadata used when writing
 	// workflow-compatible chaos output files.
 	ExportHost string `json:"-"`
 	ExportPort int    `json:"-"`
 }
+
+// Dedup modes for Config.DedupMode.
+const (
+	DedupModeStructural = "structural"
+	DedupModeExact      = "exact"
+)
 
 // DefaultConfig returns sensible defaults for a chaos exploration run.
 func DefaultConfig() Config {
@@ -110,6 +140,10 @@ func DefaultConfig() Config {
 		LearnedKeyReuseBias:         1.0,
 		ExcludeNoProgressEvents:     true,
 		ScreenDedupSimilarity:       0.95,
+		DedupMode:                   DedupModeStructural,
+		SaturationSteps:             15,
+		AutoBlockExitKeys:           true,
+		AutoPreferNavigationKeys:    true,
 		AIDKeyWeights: map[string]int{
 			"Enter":  70,
 			"PF(1)":  5,

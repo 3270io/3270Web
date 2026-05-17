@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // S3270 implements the Host interface using the s3270 subprocess.
@@ -273,18 +274,7 @@ func (h *S3270) writeStringAtOnce(row, col int, text string) error {
 	if err != nil {
 		return err
 	}
-	for _, r := range []rune(text) {
-		keyCmd := fmt.Sprintf("key(0x%x)", r)
-		_, status, err = h.doCommandLocked(keyCmd)
-		log.Printf("s3270: cmd=%q status=%q", keyCmd, status)
-		if err != nil {
-			return err
-		}
-		if isDisconnectedStatus(status) {
-			return fmt.Errorf("not connected")
-		}
-	}
-	return nil
+	return h.writeMultilineLocked(text, false)
 }
 
 func (h *S3270) MoveCursor(row, col int) error {
@@ -321,48 +311,94 @@ func (h *S3270) SubmitScreen() error {
 
 	for _, f := range h.screen.Fields {
 		if !f.IsProtected() && f.Changed {
-			// Move cursor to field start
-			cmd := fmt.Sprintf("movecursor(%d, %d)", f.StartY, f.StartX)
-			if _, _, err := h.doCommandLocked(cmd); err != nil {
+			if err := h.writeFieldValueLocked(f); err != nil {
 				return err
 			}
-
-			// Erase to End of Field
-			if _, _, err := h.doCommandLocked("eraseeof"); err != nil {
-				return err
-			}
-
-			// Send characters
-			// TODO: Optimize by sending strings instead of individual keys if possible?
-			// s3270 "string" command exists.
-			// But Java used "key(0x..)". Let's try to be safer with "string" or keys.
-			// Using "string" command handles escaping.
-			// For now, let's mimic Java logic (char by char) for fidelity.
-			for _, r := range f.Value {
-				if r == '\n' {
-					if _, _, err := h.doCommandLocked("newline"); err != nil {
-						return err
-					}
-				} else {
-					// Encode as hex key to avoid escaping issues
-					cmd := fmt.Sprintf("key(0x%x)", r)
-					if f.IsHidden() {
-						if _, _, err := h.doCommandLockedRedacted(cmd, "key(***)"); err != nil {
-							return err
-						}
-					} else {
-						if _, _, err := h.doCommandLocked(cmd); err != nil {
-							return err
-						}
-					}
-				}
-			}
-
-			// Reset changed flag
 			f.Changed = false
 		}
 	}
 	return nil
+}
+
+// writeFieldValueLocked positions the cursor at the start of f, erases to the
+// end of the field, and writes f.Value via the s3270 String() action. Embedded
+// newlines split the value into multiple String() segments separated by the
+// s3270 newline action. Hidden fields are logged as String("***"). Caller must
+// hold h.mu.
+func (h *S3270) writeFieldValueLocked(f *Field) error {
+	cmd := fmt.Sprintf("movecursor(%d, %d)", f.StartY, f.StartX)
+	if _, _, err := h.doCommandLocked(cmd); err != nil {
+		return err
+	}
+	if _, _, err := h.doCommandLocked("eraseeof"); err != nil {
+		return err
+	}
+	return h.writeMultilineLocked(f.Value, f.IsHidden())
+}
+
+// writeMultilineLocked splits s on '\n' and emits one s3270 String() per
+// segment, separated by newline actions. Caller must hold h.mu.
+func (h *S3270) writeMultilineLocked(s string, redact bool) error {
+	segments := strings.Split(s, "\n")
+	for i, seg := range segments {
+		if i > 0 {
+			if _, _, err := h.doCommandLocked("newline"); err != nil {
+				return err
+			}
+		}
+		if seg == "" {
+			continue
+		}
+		if err := h.writeStringLocked(seg, redact); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeStringLocked emits a single s3270 String("...") command. s must not
+// contain newlines (callers use writeMultilineLocked to handle those). When
+// redact is true, the command is logged as String("***") instead of the
+// quoted value. Caller must hold h.mu.
+func (h *S3270) writeStringLocked(s string, redact bool) error {
+	if s == "" {
+		return nil
+	}
+	cmd := fmt.Sprintf(`String("%s")`, escapeForS3270String(s))
+	if redact {
+		_, _, err := h.doCommandLockedRedacted(cmd, `String("***")`)
+		return err
+	}
+	_, _, err := h.doCommandLocked(cmd)
+	return err
+}
+
+// escapeForS3270String escapes s for use as the quoted argument to the s3270
+// String() action. Printable ASCII (other than backslash and double-quote) is
+// emitted literally; backslash and double-quote are backslash-escaped; all
+// other runes (control characters and anything above 0x7E) are emitted as
+// \xNN for each UTF-8 byte, matching what the previous per-rune
+// key(0x..) loop sent over the wire. s must not contain newlines.
+func escapeForS3270String(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 8)
+	buf := make([]byte, utf8.UTFMax)
+	for _, r := range s {
+		switch {
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r == '"':
+			b.WriteString(`\"`)
+		case r >= 0x20 && r <= 0x7E:
+			b.WriteRune(r)
+		default:
+			n := utf8.EncodeRune(buf, r)
+			for i := 0; i < n; i++ {
+				fmt.Fprintf(&b, `\x%02x`, buf[i])
+			}
+		}
+	}
+	return b.String()
 }
 
 func (h *S3270) SubmitFieldUpdates(updates map[string]string) error {
@@ -393,7 +429,7 @@ func (h *S3270) SubmitUnformatted(data string) error {
 					return err
 				}
 				if newCh != 0 {
-					if _, _, err := h.doCommandLocked(fmt.Sprintf("key(0x%x)", newCh)); err != nil {
+					if err := h.writeStringLocked(string(newCh), false); err != nil {
 						return err
 					}
 				}
@@ -554,6 +590,37 @@ func (h *S3270) reconnectLocked() error {
 		return err
 	}
 	return h.waitFormattedLocked()
+}
+
+// PrintText renders the current screen via the s3270 PrintText action and
+// returns the rendered text. Supported formats: "html", "rtf", "string".
+// The action's "string" modifier is used so output is returned inline in the
+// response (data: lines) rather than written to a file on the s3270 host.
+func (h *S3270) PrintText(format string) (string, error) {
+	switch format {
+	case "html", "rtf", "string":
+	default:
+		return "", fmt.Errorf("unsupported PrintText format %q (allowed: html, rtf, string)", format)
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	cmd := fmt.Sprintf("PrintText(%s,string)", format)
+	data, status, err := h.doCommandLocked(cmd)
+	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	if err != nil {
+		return "", err
+	}
+	if isS3270Error(status, data) {
+		return "", fmt.Errorf("s3270 PrintText error: %s", status)
+	}
+	// s3270 prefixes each output line with "data: ". Strip it.
+	lines := make([]string, 0, len(data))
+	for _, line := range data {
+		lines = append(lines, strings.TrimPrefix(line, "data: "))
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // SetVerboseLogging enables or disables verbose logging of S3270 commands and responses.
