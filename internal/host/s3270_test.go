@@ -130,6 +130,38 @@ func TestIsAidKey(t *testing.T) {
 	}
 }
 
+func TestEscapeForS3270String(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty", "", ""},
+		{"plain ascii", "HELLO", "HELLO"},
+		{"with space", "A B C", "A B C"},
+		{"all printable", "!@#$%^&*()_+-={}[]:;'<>,.?/", "!@#$%^&*()_+-={}[]:;'<>,.?/"},
+		{"double quote", `say "hi"`, `say \"hi\"`},
+		{"backslash", `C:\path`, `C:\\path`},
+		{"both metachars", `\"x"`, `\\\"x\"`},
+		{"tab is non-printable", "a\tb", `a\x09b`},
+		{"cr is non-printable", "a\rb", `a\x0db`},
+		{"del is non-printable", "a\x7fb", `a\x7fb`},
+		{"high ascii latin1 rune", "é", `\xc3\xa9`},
+		{"multibyte cjk rune", "中", `\xe4\xb8\xad`},
+		{"emoji 4-byte", "\U0001f600", `\xf0\x9f\x98\x80`},
+		{"mixed", `A\"B` + "é", `A\\\"B\xc3\xa9`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeForS3270String(tt.input)
+			if got != tt.want {
+				t.Errorf("escapeForS3270String(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsConnectionError(t *testing.T) {
 	tests := []struct {
 		name     string

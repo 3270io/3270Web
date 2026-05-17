@@ -5,9 +5,12 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 ## Features
 - Web UI for 3270 sessions
 - Embedded s3270 binary support (Windows)
+- Print screen (renders the current screen via s3270 `PrintText` and opens a printable view in a new tab)
+- Public REST/JSON API at `/api/v1/*` for RPA bots and CI jobs (opt-in via `API_TOKEN`; see [docs/rest-api.md](docs/rest-api.md))
 - Record sessions to workflow.json, compatible with 3270Connect (Connect/FillString/Press keys/Disconnect)
 - Load workflow.json and play it back
 - Chaos mode for automated exploration, run persistence, and workflow JSON export
+- GitHub Copilot side panel that can drive the session via tool calls
 - Docker image and GHCR workflow
 - Windows build script
 
@@ -60,6 +63,18 @@ The output matches the 3270Connect workflow format. See [Workflow Configuration]
 ## Chaos mode
 
 Chaos mode explores screens by writing generated values into input fields and submitting AID keys (`Enter`, `Tab`, `PF*`, and others). It is useful for discovering navigation paths and generating reusable workflow JSON.
+
+The chaos JSON output remains a **3270Connect-compatible workflow** (`Connect` / `FillString` / `PressEnter` / `PressPF<n>` / `Disconnect` steps) — drop a chaos run's JSON straight into `3270Connect run -config workflow.json` to use it as a volume test. The output file is written automatically on any termination reason (max steps, time budget, saturation, error, stop).
+
+Recent additions:
+- **Saturation detection** — runs stop early with `terminationReason: "saturated"` once `saturation_steps` (default 15) consecutive attempts produce no new screen, transition, or productive value.
+- **Auto-block exit keys** — chaos parses the bottom-row PF legend and blocks Exit/Quit/Cancel/Logoff keys for the rest of the run.
+- **Structural mind-map dedup** — screens that differ only by echoed protected text collapse into one area. Set `dedup_mode: "exact"` for the previous raw-hash behaviour.
+- **chaos_report tool** — `POST /chaos/report` returns a Markdown discovery report (ASCII screen graph, per-screen stats, suggested experiments).
+- **Mind-map export/import** — `GET /chaos/mindmap/export` and `POST /chaos/mindmap/import` let learning carry across sessions.
+- **Verbose flag on chaos_status** — pass `?verbose=true` (or `{verbose: true}` to the Copilot tool) for the full mind map; default is a slim summary.
+- **JSONL transition log** — set `transition_log_path` (or `CHAOS_TRANSITION_LOG_PATH` env var) and chaos appends one JSON object per attempt to the file.
+- **Snake_case + camelCase** — every chaos tool body now binds both forms, so the documented snake_case keys (`screen_hash`, `max_steps`, etc.) work directly without manual translation.
 
 ### Toolbar flow
 1. Connect to a host.

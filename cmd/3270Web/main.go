@@ -177,6 +177,7 @@ func main() {
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
+	r.GET("/screen/print", app.PrintScreenHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/submit/async", app.SubmitAsyncHandler)
 	r.POST("/prefs", app.PrefsHandler)
@@ -217,6 +218,8 @@ func main() {
 	r.GET("/chaos/status", app.ChaosStatusHandler)
 	r.POST("/chaos/export", app.ChaosExportHandler)
 	r.POST("/chaos/report", app.ChaosReportHandler)
+	r.GET("/chaos/mindmap/export", app.ChaosMindMapExportHandler)
+	r.POST("/chaos/mindmap/import", app.ChaosMindMapImportHandler)
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
 	r.POST("/chaos/runs/delete", app.ChaosDeleteRunHandler)
@@ -230,6 +233,9 @@ func main() {
 
 	// GitHub Copilot side panel + screen JSON tool endpoint
 	app.initCopilot(r)
+
+	// Public REST/JSON API (gated by API_TOKEN env var)
+	app.registerAPIv1(r)
 
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {
@@ -2807,8 +2813,22 @@ func (app *App) getSession(c *gin.Context) *session.Session {
 }
 
 func (app *App) connectToHost(c *gin.Context, hostname string) error {
+	sess, err := app.startHostSession(hostname)
+	if err != nil {
+		return err
+	}
+	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
+	return nil
+}
+
+// startHostSession creates and starts a host connection and registers a
+// session for it, but does not associate the session with any browser cookie.
+// Used by both the cookie-based UI (via connectToHost) and the cookie-free
+// REST API.
+func (app *App) startHostSession(hostname string) (*session.Session, error) {
 	if !isValidHostname(hostname) {
-		return fmt.Errorf("invalid hostname format: %q", hostname)
+		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
 	}
 
 	var h host.Host
@@ -2816,7 +2836,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 
 	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
 		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
-			return fmt.Errorf("invalid sample app port %d", samplePort)
+			return nil, fmt.Errorf("invalid sample app port %d", samplePort)
 		}
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
@@ -2830,18 +2850,16 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to create host: %w", err)
+		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
 	if err := h.Start(); err != nil {
-		return fmt.Errorf("failed to start host connection: %w", err)
+		return nil, fmt.Errorf("failed to start host connection: %w", err)
 	}
 
 	sess := app.SessionManager.CreateSession(h)
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	app.applyDefaultPrefs(sess)
-	setSessionCookie(c, "3270Web_session", sess.ID)
-	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
-	return nil
+	return sess, nil
 }
 
 func fileExists(path string) bool {

@@ -35,8 +35,9 @@ This gives immediate confirmation that the run finished and data is ready for ex
 
 After a run has data, click **Download chaos workflow JSON** in the toolbar.
 
-- The exported file is a workflow JSON compatible with workflow load/playback.
+- The exported file is a workflow JSON compatible with workflow load/playback **and with [3270Connect](https://github.com/3270io/3270Connect) for volume testing** — drop the file into `3270Connect run -config workflow.json` to replay it as a load test against any host. The schema (`Host`, `Port`, `Steps[]` with `Connect`/`FillString`/`PressEnter`/`PressPF<n>`/`Disconnect`) has not changed; only the discovery metadata embedded under `ChaosDiscovery` has new fields (which 3270Connect ignores).
 - If a run ID is available, the filename includes it for easier future reference.
+- The file is also written automatically to `cfg.OutputFile` when the chaos run terminates for **any** reason (max steps, time budget, saturation, error, or user stop). This is the path most volume-testing setups use.
 
 ## Load and Resume Saved Runs
 
@@ -86,5 +87,37 @@ Chaos behavior is configurable in **Settings -> Chaos**:
 - Max field length
 - Optional output file path
 - Exclude no-progress events (default on)
+- Saturation steps (default 15) — chaos stops early once this many consecutive steps yield no new screen, transition tuple, or value that caused a transition. Set to 0 to disable.
+- Dedup mode (default `structural`) — `structural` merges screens that share the same layout signature regardless of echoed values in protected text; `exact` only merges by raw hash.
+- Auto-block exit keys (default on) — chaos scans the bottom legend rows for PF labels like *Exit / Quit / Cancel / Logoff / Logout* and refuses to press those keys for the rest of the run.
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.
+
+## Discovery Report
+
+Click **View chaos discovery report** in the toolbar, or call `POST /chaos/report`, for a Markdown summary of the current run:
+
+- Summary line: steps, transitions, unique screens/inputs, termination reason (`max_steps`, `time_budget`, `saturated`, `stopped`, or `error`)
+- Coverage stats: new screens and transitions in the last 10 steps, current saturation streak
+- ASCII screen graph: nodes are screens (labelled by hash), edges are transitions with the AID key and how often that key produced the move
+- Per-screen detail: input fields with success/progression counts, auto-blocked and auto-known keys, list of "working" vs "tried but no progress" AID keys
+- Suggested next experiments: per-screen list of untried (and non-auto-blocked) AID keys to try next
+
+The report is also exposed to the Copilot side panel via the `chaos_report` tool.
+
+## Mind Map Export / Import
+
+Chaos learning can carry across sessions:
+
+- `GET /chaos/mindmap/export` returns the engine's current mind map as JSON.
+- `POST /chaos/mindmap/import` merges a previously exported mind map into the current engine (rejected while a run is active).
+
+Imported areas overwrite any existing areas with the same hash. Use this to seed a new chaos run with everything a previous run learned about a host's screen layouts and working keys.
+
+## JSONL Transition Log
+
+Set `CHAOS_TRANSITION_LOG_PATH` (or `transition_log_path` in the JSON config body) to a file path and chaos will append one JSON object per attempt to that file (newline-delimited / JSONL). Each line includes the full `Attempt` record: from/to hash, AID key sent, field writes, whether the screen transitioned, and any error. This is intended for offline analysis or feeding into another pipeline.
+
+## API Field Naming
+
+Chaos HTTP/MCP tools accept **both** snake_case (the documented public form) and camelCase (the legacy in-browser UI form) for every request body. For example, `chaos_save_screen_hint` accepts `{"screen_hash": "..."}` and `{"screenHash": "..."}` equivalently. Snake_case wins when both are present. New integrations should use snake_case.

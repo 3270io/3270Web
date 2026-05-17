@@ -46,4 +46,11 @@ h3270-web.exe
 
 !cmd/3270Web/workflow_playback.go
 !cmd/3270Web/workflow_playback_test.go
-chaos*
+
+# Chaos runtime artifacts (not source). The broader chaos* pattern that
+# previously lived here also blocked new source files like chaos_binding_test.go.
+chaos-runs/
+chaos-hints.json
+chaos-workflow*.json
+chaos-output*.json
+/chaos*.log

@@ -18,6 +18,15 @@ func OriginRefererCheckMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// The public REST API uses Bearer-token auth and is intended for
+		// non-browser clients (curl, RPA bots), which do not send Origin
+		// headers. CSRF defense for the API surface is provided by the
+		// Authorization header check in api_v1.go.
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
+			c.Next()
+			return
+		}
+
 		// Check Origin header first (preferred)
 		origin := c.Request.Header.Get("Origin")
 		if origin != "" {

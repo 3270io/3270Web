@@ -26,6 +26,12 @@ func (h *scriptedChaosHost) UpdateScreen() error                 { return nil }
 func (h *scriptedChaosHost) MoveCursor(row, col int) error       { return nil }
 func (h *scriptedChaosHost) SubmitScreen() error                 { return nil }
 func (h *scriptedChaosHost) SubmitUnformatted(data string) error { return nil }
+func (h *scriptedChaosHost) PrintText(format string) (string, error) {
+	if s := h.GetScreen(); s != nil {
+		return s.Text(), nil
+	}
+	return "", nil
+}
 func (h *scriptedChaosHost) GetScreen() *host.Screen {
 	if len(h.screens) == 0 {
 		return nil
@@ -1113,6 +1119,8 @@ func TestEngineFirstScreenHintKey_ReusedWhenFirstScreenHashReappears(t *testing.
 func TestEngineFirstScreenHintKey_BlockedKeysApplyOnlyToFirstScreen(t *testing.T) {
 	screenA := buildScriptedChaosScreen("FIRST SCREEN A", true)
 	screenB := buildScriptedChaosScreen("SECOND SCREEN B", true)
+	// Use exact dedup so the test's per-screen hint keyed by hashScreen
+	// matches the runtime canonical hash unchanged.
 	screenBHash := hashScreen(screenB)
 	h := &scriptedChaosHost{
 		screens:   []*host.Screen{screenA, screenB},
@@ -1125,6 +1133,7 @@ func TestEngineFirstScreenHintKey_BlockedKeysApplyOnlyToFirstScreen(t *testing.T
 	cfg.Seed = 424242
 	cfg.ExcludeNoProgressEvents = false
 	cfg.ScreenDedupSimilarity = 1
+	cfg.DedupMode = DedupModeExact
 	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
 	cfg.KeyBlacklist = []string{"Enter"}
 	cfg.ScreenHints = map[string]ScreenHint{
@@ -1198,13 +1207,16 @@ func TestCanonicalizeObservedScreenHashLocked_MergesEchoValueVariants(t *testing
 	e := New(nil, DefaultConfig())
 	e.mindMap = newMindMap()
 	now := time.Now()
-	e.mindMap.observeScreen(hashA, screenA, now)
+	e.mu.Lock()
+	canonicalA := e.canonicalizeObservedScreenHashLocked(hashA, screenA)
+	e.mu.Unlock()
+	e.mindMap.observeScreen(canonicalA, screenA, now)
 
 	e.mu.Lock()
 	got := e.canonicalizeObservedScreenHashLocked(hashB, screenB)
 	e.mu.Unlock()
-	if got != hashA {
-		t.Fatalf("canonicalized hash = %q, want existing hash %q for echoed-value variant", got, hashA)
+	if got != canonicalA {
+		t.Fatalf("canonicalized hash = %q, want existing canonical %q for echoed-value variant", got, canonicalA)
 	}
 }
 
@@ -1245,13 +1257,16 @@ func TestCanonicalizeObservedScreenHashLocked_DoesNotMergeDifferentTitlesSameLay
 	e := New(nil, DefaultConfig())
 	e.mindMap = newMindMap()
 	now := time.Now()
-	e.mindMap.observeScreen(hashA, screenA, now)
+	e.mu.Lock()
+	canonicalA := e.canonicalizeObservedScreenHashLocked(hashA, screenA)
+	e.mu.Unlock()
+	e.mindMap.observeScreen(canonicalA, screenA, now)
 
 	e.mu.Lock()
 	got := e.canonicalizeObservedScreenHashLocked(hashB, screenB)
 	e.mu.Unlock()
-	if got != hashB {
-		t.Fatalf("canonicalized hash = %q, want raw hash %q for different-title screen", got, hashB)
+	if got == canonicalA {
+		t.Fatalf("canonicalized hash = %q matched %q; different-title screens must stay distinct", got, canonicalA)
 	}
 }
 
