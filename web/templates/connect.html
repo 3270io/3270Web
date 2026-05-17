@@ -50,7 +50,7 @@
                 </div>
                 <div class="toolbar">
                     {{ if .SampleApps }}
-                    <button type="button" data-open-sample-modal>Start Sample App</button>
+                    <button type="button" data-open-sample-modal>Start sample app</button>
                     {{ end }}
                     <button type="button" data-about-open>About</button>
                     <button type="button" data-settings-open>Settings</button>
@@ -66,8 +66,8 @@
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP<span class="required-mark" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span></label>
                     <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required aria-required="true" autofocus placeholder="hostname:port">
-                    <button type="button" data-host-save>Save Host</button>
-                    <button type="button" data-host-load>Load Host</button>
+                    <button type="button" data-host-save>Save host</button>
+                    <button type="button" data-host-load>Load host</button>
                     <button type="submit" id="connect-btn">Connect</button>
                 </fieldset>
             </form>
@@ -76,7 +76,7 @@
     <div class="modal-backdrop" data-hosts-modal hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hosts-modal-title">
             <div class="modal-header">
-                <h3 id="hosts-modal-title">Saved Hosts</h3>
+                <h3 id="hosts-modal-title">Saved hosts</h3>
                 <button type="button" class="modal-close" data-hosts-close>Close</button>
             </div>
             <div class="stack">
@@ -93,13 +93,13 @@
                     <input id="saved-host-value" type="text" data-saved-host-value placeholder="hostname:port">
                 </div>
                 <div class="modal-actions saved-host-actions">
-                    <button type="button" data-hosts-apply>Use Host</button>
-                    <button type="button" data-hosts-connect>Use &amp; Connect</button>
+                    <button type="button" data-hosts-apply>Use host</button>
+                    <button type="button" data-hosts-connect>Use &amp; connect</button>
                     <button type="button" class="danger" data-hosts-delete>Delete</button>
                 </div>
                 <div class="modal-actions saved-host-actions">
-                    <button type="button" data-hosts-export>Export Hosts</button>
-                    <button type="button" data-hosts-import>Import Hosts</button>
+                    <button type="button" data-hosts-export>Export hosts</button>
+                    <button type="button" data-hosts-import>Import hosts</button>
                     <input type="file" accept="application/json,.json" data-hosts-import-file hidden>
                 </div>
                 <div class="subtle" data-hosts-status aria-live="polite"></div>
@@ -161,7 +161,7 @@
     <div class="modal-backdrop" data-sample-modal hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sample-app-title">
             <div class="modal-header">
-                <h3 id="sample-app-title">Start Sample App</h3>
+                <h3 id="sample-app-title">Start sample app</h3>
                 <button type="button" class="modal-close" data-sample-close>Close</button>
             </div>
             <div class="stack">
@@ -177,7 +177,7 @@
                     <option value="{{ . }}">{{ . }}</option>
                     {{ end }}
                 </select>
-                <button type="button" data-sample-start>Start Sample App</button>
+                <button type="button" data-sample-start>Start sample app</button>
             </div>
         </div>
     </div>
