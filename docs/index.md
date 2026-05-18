@@ -42,6 +42,30 @@ No emulator install. No thick client. Open a browser tab, connect to any TN3270 
 
     [:octicons-arrow-right-24: REST API](rest-api.md)
 
+-   :material-fingerprint: **Host Compatibility Profiler**
+
+    ---
+
+    Probe any TN3270 host and capture its negotiated terminal model, protocol options, capabilities, and timing as a JSON document. Same schema as `3270Connect -profile`, so profiles diff cleanly across tools and environments.
+
+    [:octicons-arrow-right-24: Host Compatibility Profiler](host-profiler.md)
+
+-   :material-compare-horizontal: **Chaos Mind-Map Compare**
+
+    ---
+
+    Diff two previously-exported chaos mind maps to surface field and transition divergence between hosts — ideal for migration-readiness checks against Rocket Enterprise Server stand-ins.
+
+    [:octicons-arrow-right-24: Chaos Mind-Map Compare](chaos-compare.md)
+
+-   :material-format-font: **IBM 3270 Terminal Fonts**
+
+    ---
+
+    Three bundled 3270-style web fonts (Regular, Semi-Condensed, Condensed) make the browser session look like a real 3279 display on any platform — no install, no CDN fetch.
+
+    [:octicons-arrow-right-24: Terminal Fonts](terminal-fonts.md)
+
 </div>
 
 ---
@@ -77,4 +101,8 @@ No emulator install. No thick client. Open a browser tab, connect to any TN3270 
 | [Keyboard and Controls](keyboard-and-controls.md) | Full keyboard shortcut reference |
 | [Screen Size and Model Guide](terminal-model-limits.md) | 3270 model limits and field size rules |
 | [REST API](rest-api.md) | Endpoint reference for scripting and CI |
+| [Host Compatibility Profiler](host-profiler.md) | Probe a host once and capture its `CompatibilityProfile` JSON for cross-environment comparison |
+| [Chaos Mind-Map Compare](chaos-compare.md) | Diff two exported mind maps to surface divergence between hosts |
+| [Terminal Fonts](terminal-fonts.md) | Bundled IBM 3270-style web fonts and how to switch between them |
+| [Compatibility Profile Schema](compatibility-profile-schema.md) | Field-by-field reference for the shared profile JSON (v1.0.0) |
 | [Feature Roadmap](feature-roadmap.md) | Planned and in-progress features |

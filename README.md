@@ -10,7 +10,10 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 - Record sessions to workflow.json, compatible with 3270Connect (Connect/FillString/Press keys/Disconnect)
 - Load workflow.json and play it back
 - Chaos mode for automated exploration, run persistence, and workflow JSON export
-- AI Chat side panel — type instructions in plain language to read screens, fill fields, send keys, and run automated exploration (GitHub Copilot / Claude)
+- AI Chat side panel — type instructions in plain language to read screens, fill fields, send keys, and run automated exploration (GitHub Copilot / Claude), with a model selector dropdown in the panel header
+- Host Compatibility Profiler at `POST /profile` and `POST /api/v1/sessions/:id/profile` — produces a `CompatibilityProfile` JSON document with the same schema as `3270Connect -profile` ([docs/host-profiler.md](docs/host-profiler.md))
+- Chaos Mind-Map Compare at `POST /chaos/mindmap/compare` — diffs two exported mind maps for migration-readiness checks across hosts ([docs/chaos-compare.md](docs/chaos-compare.md))
+- Three bundled IBM 3270-style terminal fonts (Regular, Semi-Condensed, Condensed) selectable from Settings ([docs/terminal-fonts.md](docs/terminal-fonts.md))
 - Docker image and GHCR workflow
 - Windows build script
 
@@ -110,10 +113,15 @@ Chaos behavior can be tuned in **Settings -> Chaos** or via environment values:
 - `CHAOS_STEP_DELAY_SEC`
 - `CHAOS_SEED`
 - `CHAOS_MAX_FIELD_LENGTH`
+- `CHAOS_LEARNED_INPUT_REUSE_BIAS` (default `1.0`) — weight applied to known-good input values when generating new field writes.
+- `CHAOS_LEARNED_KEY_REUSE_BIAS` (default `1.0`) — how often the engine retries AID keys that have previously caused a transition versus exploring untried keys.
+- `CHAOS_EXPORT_SUCCESS_BALANCE` (default `1.0`) — balances successful-transition steps against exploratory steps when exporting chaos workflow JSON.
 - `CHAOS_OUTPUT_FILE`
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
-See [Chaos Mode](docs/chaos-mode.md) for full details.
+See [Chaos Mode](docs/chaos-mode.md) for full details, including the
+[Mind-Map Compare](docs/chaos-compare.md) workflow for diffing two
+exported maps across hosts.
 
 ## AI Chat mode
 
@@ -136,9 +144,35 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 - Export learned navigation paths as 3270Connect-compatible workflow JSON
 - Ask you questions with clickable answer buttons (`ask_user` tool)
 
-The model selector dropdown lets you switch between available Copilot models (default: Claude Opus 4).
+The model selector dropdown lets you switch between available Copilot models (default: Claude Opus 4). The choice persists across page reloads.
 
 See [AI Chat Mode](docs/ai-chat.md) for full details.
+
+## Host Compatibility Profiler
+
+Probe the active session and capture a `CompatibilityProfile` JSON document with the negotiated terminal model, protocol options, discovered capabilities, and timing:
+
+```bash
+# Cookie auth — from the browser session
+curl -X POST -b "$SESSION_COOKIE" http://127.0.0.1:8080/profile
+
+# Bearer auth — from external automation
+curl -X POST \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"collect_raw": true}' \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+```
+
+The schema is shared byte-for-byte with `3270Connect -profile`, so profiles produced by either tool diff cleanly against each other — see [docs/host-profiler.md](docs/host-profiler.md) and [docs/compatibility-profile-schema.md](docs/compatibility-profile-schema.md).
+
+## Chaos Mind-Map Compare
+
+`POST /chaos/mindmap/compare` diffs two previously-exported chaos mind maps and returns per-area field and transition deltas plus rolled-up summary counters. JSON by default; pass `Accept: text/html` (or `?format=html`) for the rendered HTML report. See [docs/chaos-compare.md](docs/chaos-compare.md) for the migration-readiness recipe.
+
+## Terminal Fonts
+
+Three bundled IBM 3270-style web fonts ship with the binary — **3270 Regular** (default), **3270 Semi-Condensed**, and **3270 Condensed**. Switch from **Settings -> App -> Terminal Font**. See [docs/terminal-fonts.md](docs/terminal-fonts.md).
 
 ## Sample applications
 Sample apps now spin up local Go-based 3270 servers (from the 3270Connect examples) and connect via s3270, instead of loading dump files. Use the **Start Example App** button to launch one on the selected port.

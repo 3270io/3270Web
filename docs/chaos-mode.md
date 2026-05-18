@@ -91,6 +91,18 @@ Chaos behavior is configurable in **Settings -> Chaos**:
 - Dedup mode (default `structural`) — `structural` merges screens that share the same layout signature regardless of echoed values in protected text; `exact` only merges by raw hash.
 - Auto-block exit keys (default on) — chaos scans the bottom legend rows for PF labels like *Exit / Quit / Cancel / Logoff / Logout* and refuses to press those keys for the rest of the run.
 
+### Learned-value reuse bias
+
+The engine remembers values and AID keys that have produced screen
+transitions, then preferentially reuses them on later attempts. Three
+env vars (also exposed in **Settings -> Chaos**) tune that bias:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `CHAOS_LEARNED_INPUT_REUSE_BIAS` | `1.0` | Weight applied to known-good input values when generating new field writes. `0` disables reuse and forces fresh values; `>1` makes reuse more aggressive. |
+| `CHAOS_LEARNED_KEY_REUSE_BIAS` | `1.0` | Same idea for AID keys — how often the engine retries a key that has previously caused a transition versus exploring untried keys. |
+| `CHAOS_EXPORT_SUCCESS_BALANCE` | `1.0` | When exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps. `1.0` is the neutral default; higher values favour reliability, lower values keep more discovery noise in the export. |
+
 Use small limits first when testing new host flows, then increase limits for broader exploration.
 
 ## Discovery Report
@@ -113,6 +125,18 @@ Chaos learning can carry across sessions:
 - `POST /chaos/mindmap/import` merges a previously exported mind map into the current engine (rejected while a run is active).
 
 Imported areas overwrite any existing areas with the same hash. Use this to seed a new chaos run with everything a previous run learned about a host's screen layouts and working keys.
+
+## Mind Map Compare
+
+Two exported mind maps can be diffed against each other to surface
+divergence between hosts (e.g. IBM z/OS vs Rocket Enterprise Server) or
+to confirm a fix did not regress an existing transaction. Send both
+documents to `POST /chaos/mindmap/compare` and the endpoint returns
+per-area field and transition deltas, plus rolled-up summary counters.
+The response is JSON by default; pass `Accept: text/html` (or
+`?format=html`) for the HTML report. See
+[Chaos Mind-Map Compare](chaos-compare.md) for the full request/response
+walkthrough and a migration-readiness recipe.
 
 ## JSONL Transition Log
 

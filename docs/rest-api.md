@@ -44,6 +44,8 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 | `POST` | `/api/v1/sessions/:id/key` | Send an AID or navigation key |
 | `POST` | `/api/v1/sessions/:id/field` | Write text into a field |
 | `POST` | `/api/v1/sessions/:id/submit` | Submit modified fields + send Enter (or another AID) |
+| `POST` | `/api/v1/sessions/:id/profile` | Run a host compatibility probe and return the `CompatibilityProfile` JSON |
+| `GET` | `/api/v1/sessions/:id/profile` | Return the cached `CompatibilityProfile` from the last probe |
 
 ### `POST /api/v1/sessions`
 
@@ -151,6 +153,51 @@ curl -X DELETE \
   -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:8080/api/v1/sessions/$ID
 ```
+
+### `POST /api/v1/sessions/:id/profile`
+
+Probe the session's connected host and return a `CompatibilityProfile`
+JSON document. The schema is shared byte-for-byte with `3270Connect
+-profile` output, so profiles from either tool can be diffed against
+each other. Body is optional.
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"collect_raw": true}' \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+```
+
+Supported body fields: `ind_file_probe`, `collect_raw`,
+`per_action_timeout_ms`. See the
+[Host Compatibility Profiler](host-profiler.md) page for the full
+walkthrough and the
+[Compatibility Profile Schema](compatibility-profile-schema.md) for the
+response shape.
+
+### `GET /api/v1/sessions/:id/profile`
+
+Return the cached `CompatibilityProfile` from the last probe in this
+session. `404 Not Found` if no probe has run.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+```
+
+## Browser-session endpoints
+
+These endpoints reuse the session cookie set by the connect flow rather
+than `API_TOKEN`. They are useful for in-browser callers and for tools
+that already drive 3270Web through the cookie.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/profile` | Probe the current session and return the `CompatibilityProfile` JSON. |
+| `GET` | `/profile` | Return the cached profile for the current session. |
+| `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
+| `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
 
 ## Errors
 

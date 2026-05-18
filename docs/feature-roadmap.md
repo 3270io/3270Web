@@ -7,6 +7,34 @@ Viewer+, z/Scope, Mocha, Flynet, Virtel, Glink, ZOC, x3270). It is a
 menu, not a schedule — items in **Future candidates** are deliberately
 unprioritized.
 
+## Recently shipped
+
+- **Host Compatibility Profiler** — `POST /profile` and
+  `POST /api/v1/sessions/:id/profile` produce a shared
+  `CompatibilityProfile` JSON document. Same schema as
+  `3270Connect -profile`, so the same JSON drops into either tool's
+  comparison workflow. See [Host Compatibility Profiler](host-profiler.md).
+- **Chaos Mind-Map Compare** — `POST /chaos/mindmap/compare` diffs two
+  exported mind maps and surfaces field and transition divergence
+  between hosts. JSON by default, HTML report on `Accept: text/html`.
+  See [Chaos Mind-Map Compare](chaos-compare.md).
+- **IBM 3270 terminal fonts** — three bundled web fonts (Regular,
+  Semi-Condensed, Condensed) selectable from the Settings modal.
+  See [Terminal Fonts](terminal-fonts.md).
+- **AI Chat model selector** — dropdown in the side-panel header to
+  switch between Copilot models (default Claude Opus 4); choice
+  persists across page reloads.
+- **Chaos learned-value reuse bias controls** —
+  `CHAOS_LEARNED_INPUT_REUSE_BIAS`, `CHAOS_LEARNED_KEY_REUSE_BIAS`, and
+  `CHAOS_EXPORT_SUCCESS_BALANCE` let operators tune how aggressively
+  the engine reuses values, keys, and successful transitions in
+  exports.
+- **Accessibility & UX hardening** — destructive-action confirmation
+  modal for saved-host deletion, visual destructive tagging on
+  Disconnect, hostname input marked required with AT-announced
+  errors, collapsible toolbar sections, theme-aware toast
+  notifications.
+
 ## Where 3270Web stands today
 
 | Bucket | Current state |
