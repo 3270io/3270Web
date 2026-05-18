@@ -15,17 +15,28 @@
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
     const MODEL_KEY = "copilot.panel.model";
-    const MAX_TOOL_ROUNDS = 30;
+    // Effectively unbounded — chaos monkey can issue hundreds of tool calls
+    // in auto mode. The user can interrupt via the Stop button at any time,
+    // so the only purpose of this ceiling is to catch a true infinite loop.
+    const MAX_TOOL_ROUNDS = 10000;
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
-    let model = "claude-sonnet-4-6";
+    let model = "claude-sonnet-4.6";
     try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
+    // Migrate the old dash-format ID that briefly shipped as the default but
+    // doesn't match any real Copilot model.
+    if (model === "claude-sonnet-4-6") {
+        model = "claude-sonnet-4.6";
+        try { localStorage.setItem(MODEL_KEY, model); } catch (_) {}
+    }
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
     let toolRound = 0;
     let autoMode = false;
+    let activeAbort = null;       // AbortController for the in-flight fetch
+    let stopRequested = false;    // set by Stop button; breaks tool-round loop
 
     try { autoMode = localStorage.getItem(AUTO_MODE_KEY) === "1"; } catch (_) {}
 
@@ -234,18 +245,36 @@
         };
     }
 
+    function setRunning(running) {
+        const panel = ensurePanel();
+        if (!panel) return;
+        const sendBtn = panel.querySelector("[data-copilot-send]");
+        const stopBtn = panel.querySelector("[data-copilot-stop]");
+        if (sendBtn) sendBtn.hidden = !!running;
+        if (stopBtn) stopBtn.hidden = !running;
+    }
+
+    function requestStop() {
+        stopRequested = true;
+        if (activeAbort) {
+            try { activeAbort.abort(); } catch (_) {}
+        }
+    }
+
     async function chatRound() {
+        if (stopRequested) return;
         toolRound++;
         if (toolRound > MAX_TOOL_ROUNDS) {
-            appendMessage("error", "Tool call budget exhausted; stopping.");
+            appendMessage("error", "Safety ceiling of " + MAX_TOOL_ROUNDS + " tool rounds reached; stopping.");
             return;
         }
 
         const stream = await fetchChatStream();
         if (!stream) return;
         const result = await consumeStream(stream);
+        if (stopRequested) return;
         if (result.error) {
-            appendMessage("error", "Chat error: " + result.error);
+            appendMessage("error", "Chat error: " + friendlyChatError(result.error));
             return;
         }
         // Persist the assistant turn into history.
@@ -274,8 +303,36 @@
         }
     }
 
+    // friendlyChatError converts upstream Copilot error bodies into a
+    // human-readable explanation. Copilot returns OpenAI-shaped errors like
+    //   {"error":{"message":"...","code":"model_not_supported",...}}
+    // sometimes nested inside our own "copilot chat: status NNN: <body>".
+    function friendlyChatError(raw) {
+        const text = String(raw || "");
+        // Try to extract a JSON error object even when wrapped in prose.
+        let parsed = null;
+        const braceAt = text.indexOf("{");
+        if (braceAt >= 0) {
+            try { parsed = JSON.parse(text.slice(braceAt)); } catch (_) {}
+        }
+        const errObj = parsed && parsed.error;
+        const code = errObj && errObj.code;
+        const message = (errObj && errObj.message) || text;
+        if (code === "model_not_supported") {
+            return "The selected model (" + model + ") is not available on your Copilot plan. Pick a different model from the dropdown above.";
+        }
+        if (code === "rate_limit_exceeded" || /rate.?limit/i.test(message)) {
+            return "Copilot rate limit hit. Wait a moment and try again, or switch to a cheaper model (e.g. claude-haiku-4.5).";
+        }
+        if (/premium request|monthly.*limit|quota|exhaust/i.test(message)) {
+            return "Your Copilot premium request quota is exhausted. Switch to a non-premium model (e.g. claude-haiku-4.5) or wait for the quota to reset.";
+        }
+        return message;
+    }
+
     async function fetchChatStream() {
         const payload = buildPayload();
+        activeAbort = new AbortController();
         let resp;
         try {
             resp = await fetch("/api/copilot/chat", {
@@ -283,9 +340,14 @@
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
+                signal: activeAbort.signal,
             });
         } catch (err) {
-            appendMessage("error", "Network error: " + (err && err.message || err));
+            if (err && err.name === "AbortError") {
+                appendMessage("error", "Stopped.");
+            } else {
+                appendMessage("error", "Network error: " + (err && err.message || err));
+            }
             return null;
         }
         if (!resp.ok) {
@@ -298,7 +360,7 @@
                 CopilotAuth.openLoginModal();
                 return null;
             }
-            appendMessage("error", "HTTP " + resp.status + ": " + msg);
+            appendMessage("error", friendlyChatError(msg));
             return null;
         }
         return resp.body;
@@ -517,7 +579,15 @@
         }
         setConnectedState(true);
         await populateModelSelect();
-        await chatRound();
+        stopRequested = false;
+        setRunning(true);
+        try {
+            await chatRound();
+        } finally {
+            activeAbort = null;
+            stopRequested = false;
+            setRunning(false);
+        }
     }
 
     function attachInputHandlers() {
@@ -532,6 +602,9 @@
         const autoModeBtn = panel.querySelector("[data-copilot-automode]");
         const hintEl = panel.querySelector("[data-copilot-hint]");
         const modelSel = panel.querySelector("[data-copilot-model]");
+        const stopBtn = panel.querySelector("[data-copilot-stop]");
+
+        if (stopBtn) stopBtn.addEventListener("click", requestStop);
 
         if (modelSel) {
             modelSel.value = model;
