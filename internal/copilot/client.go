@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // ChatRequest is a thin wrapper around the OpenAI-compatible request body
@@ -143,7 +144,9 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	}
 	ids := make([]string, 0, len(payload.Data))
 	for _, m := range payload.Data {
-		if m.ID != "" {
+		// Only expose Claude models; non-Claude models (GPT, o-series, etc.)
+		// don't support the Anthropic tool_call_id format and return 400 errors.
+		if m.ID != "" && strings.HasPrefix(m.ID, "claude-") {
 			ids = append(ids, m.ID)
 		}
 	}

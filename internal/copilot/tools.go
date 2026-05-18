@@ -1,9 +1,8 @@
 package copilot
 
 // DefaultModel is the Copilot model name used when the frontend does not
-// supply one. claude-opus-4.7 is the strongest model exposed by the
-// GitHub Copilot Chat API at time of writing.
-const DefaultModel = "claude-opus-4.7"
+// supply one.
+const DefaultModel = "claude-sonnet-4-6"
 
 // DefaultSystemPrompt is sent at the head of every chat unless the user
 // has customized it. It explains the tool surface and the per-call
