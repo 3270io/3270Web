@@ -108,6 +108,9 @@
             const url = verbose ? "/chaos/status?verbose=true" : "/chaos/status";
             const res = await getJSON(url);
             if (!res.ok) return { error: res.error };
+            if (verbose && res.data && typeof window.ChaosUI === "object") {
+                window.ChaosUI.updateFromStatus(res.data);
+            }
             return res.data;
         },
         async chaos_start(args) {
@@ -140,6 +143,9 @@
                 return { error: "HTTP " + resp.status + (detail ? ": " + detail : "") };
             }
             const markdown = await resp.text();
+            if (typeof window.ChaosUI === "object") {
+                window.ChaosUI.setChaosReport(markdown);
+            }
             return { markdown };
         },
         async chaos_save_screen_hint(args) {

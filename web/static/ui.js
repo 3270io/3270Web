@@ -6928,4 +6928,69 @@
             obs.observe(recordingIndicator, { attributes: true, attributeFilter: ['hidden'] });
         }
     }
+
+    // Expose integration surface for the AI chat panel so tool results can
+    // drive UI updates without duplicating state or bypassing existing logic.
+    window.ChaosUI = {
+        updateFromStatus: function (status) {
+            if (!status || typeof status !== 'object') return;
+            updateChaosMapFromStatus(status);
+            if (status.stepsRun != null) {
+                lastStatus = status;
+                hasData = !!(status.stepsRun > 0 || status.loadedRunID);
+                if (status.loadedRunID) loadedRunID = status.loadedRunID;
+            }
+        },
+        setChaosReport: function (markdown) {
+            setChaosReportContent(String(markdown || ''));
+        },
+        openChaosMap: function () {
+            if (!mapModal) return false;
+            openChaosModal(mapModal, chaosMapTopFocusSelector);
+            renderChaosMap();
+            const areaCount = getChaosMapUniqueScreenCount();
+            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            return true;
+        },
+        openChaosFlow: function () {
+            if (!flowModal) return false;
+            openChaosFlowFromMap();
+            return true;
+        },
+        openChaosReport: function () {
+            if (!reportModal) return false;
+            openChaosModal(reportModal, chaosReportTopFocusSelector);
+            return true;
+        },
+        isMapVisible: function () { return !!(mapModal && !mapModal.hidden); },
+        isFlowVisible: function () { return !!(flowModal && !flowModal.hidden); },
+        isReportVisible: function () { return !!(reportModal && !reportModal.hidden); },
+        downloadWorkflow: function (jsonText, runID) {
+            const name = runID ? `chaos-workflow-${runID}.json` : 'chaos-workflow.json';
+            if (typeof window.openWorkflowJsonEditor === 'function') {
+                window.openWorkflowJsonEditor({
+                    title: 'Chaos Workflow JSON',
+                    name,
+                    downloadName: name,
+                    content: jsonText,
+                    editable: true,
+                    saveMode: 'chaos-workflow',
+                    showSave: false,
+                    showLoad: true,
+                    showDownload: true,
+                });
+            } else {
+                const blob = new Blob([jsonText], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                notifyUi('Chaos workflow JSON downloaded.', 'success');
+            }
+        },
+    };
 })();
