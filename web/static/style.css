@@ -4685,6 +4685,46 @@ body.copilot-open .page-wrap {
 }
 .copilot-btn-run:disabled, .copilot-btn-skip:disabled { opacity: 0.45; cursor: default; }
 
+/* Tool result extras: download / open-panel action buttons */
+.copilot-tool-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.copilot-tool-extra-btn {
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  transition: background 0.1s;
+}
+.copilot-tool-extra-btn:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/* Inline Mermaid flowchart diagram */
+.copilot-mermaid-wrap {
+  margin: 8px 0 4px;
+  overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+.copilot-mermaid-svg {
+  display: block;
+  max-width: 100%;
+}
+.copilot-mermaid-elabel {
+  font-family: var(--mono, monospace);
+}
+
 /* ask_user decision card */
 .copilot-ask-user {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
