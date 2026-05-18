@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 )
 
 // ChatRequest is a thin wrapper around the OpenAI-compatible request body
@@ -51,7 +50,7 @@ func NewClient(auth *AuthManager) *Client {
 // failures or non-2xx responses; once the stream starts copying, partial
 // writes to out are surfaced to the caller too.
 //
-// The model field defaults to "claude-opus-4.7" if the caller did not set
+// The model field defaults to DefaultModel if the caller did not set
 // one. `stream` is forced to true. Other fields (messages, tools,
 // tool_choice, temperature, max_tokens, ...) are passed through.
 func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer) error {
@@ -142,13 +141,27 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
 		return nil, fmt.Errorf("decode models response: %w", err)
 	}
-	ids := make([]string, 0, len(payload.Data))
+	// Intersect the upstream list with SupportedModels (the curated allowlist).
+	// Copilot's /models endpoint sometimes advertises preview Claude models
+	// that 400 on /chat/completions with model_not_supported, and non-Claude
+	// models don't speak the OpenAI tool_call_id format we use.
+	advertised := make(map[string]bool, len(payload.Data))
 	for _, m := range payload.Data {
-		// Only expose Claude models; non-Claude models (GPT, o-series, etc.)
-		// don't support the Anthropic tool_call_id format and return 400 errors.
-		if m.ID != "" && strings.HasPrefix(m.ID, "claude-") {
-			ids = append(ids, m.ID)
+		if m.ID != "" {
+			advertised[m.ID] = true
 		}
+	}
+	ids := make([]string, 0, len(SupportedModels))
+	for _, id := range SupportedModels {
+		if advertised[id] {
+			ids = append(ids, id)
+		}
+	}
+	// If nothing in the allowlist is currently advertised (e.g. the user is
+	// on an enterprise plan with a different catalog), fall back to the
+	// allowlist itself so the dropdown still populates.
+	if len(ids) == 0 {
+		ids = append(ids, SupportedModels...)
 	}
 	return ids, nil
 }

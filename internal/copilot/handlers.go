@@ -94,14 +94,17 @@ func (h *Handlers) SetEnterprise(c *gin.Context) {
 }
 
 // Models returns the list of model IDs available through the Copilot API.
+// If the user is not logged in, or the upstream /models call fails, we
+// fall back to the static SupportedModels allowlist so the dropdown still
+// populates and the user can pick a model before/independent of sign-in.
 func (h *Handlers) Models(c *gin.Context) {
 	if !h.auth.LoggedIn() {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in to copilot"})
+		c.JSON(http.StatusOK, gin.H{"models": SupportedModels})
 		return
 	}
 	ids, err := h.client.ListModels(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusOK, gin.H{"models": SupportedModels})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"models": ids})
