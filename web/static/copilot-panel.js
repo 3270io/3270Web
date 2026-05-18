@@ -19,7 +19,7 @@
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
-    let model = "claude-sonnet-4-5";
+    let model = "claude-sonnet-4-6";
     try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
 
     let history = loadHistory();
@@ -49,6 +49,31 @@
         // The panel is rendered server-side from screen.html. If we land here
         // it means screen.html was not updated; bail out gracefully.
         return null;
+    }
+
+    function setConnectedState(loggedIn) {
+        const panel = ensurePanel();
+        if (!panel) return;
+        panel.classList.toggle("copilot-disconnected", !loggedIn);
+        const connectPrompt = panel.querySelector("[data-copilot-connect-prompt]");
+        const modelBar = panel.querySelector(".copilot-model-bar");
+        const form = panel.querySelector("[data-copilot-form]");
+        const hint = panel.querySelector("[data-copilot-hint]");
+        const signout = panel.querySelector("[data-copilot-signout]");
+        if (connectPrompt) connectPrompt.hidden = !!loggedIn;
+        if (modelBar) modelBar.hidden = !loggedIn;
+        if (form) form.hidden = !loggedIn;
+        if (hint) hint.hidden = !loggedIn;
+        if (signout) signout.hidden = !loggedIn;
+    }
+
+    async function refreshConnectionState() {
+        try {
+            const s = await CopilotAuth.status();
+            setConnectedState(s && s.logged_in);
+        } catch (_) {
+            setConnectedState(false);
+        }
     }
 
     // -- Rendering ---------------------------------------------------------
@@ -438,7 +463,9 @@
             const ta = panel.querySelector("[data-copilot-input]");
             if (ta) ta.focus();
             scrollToBottom();
-            populateModelSelect();
+            refreshConnectionState().then(function () {
+                populateModelSelect();
+            });
         }
     }
 
@@ -488,6 +515,7 @@
             appendMessage("error", "Sign-in cancelled.");
             return;
         }
+        setConnectedState(true);
         await populateModelSelect();
         await chatRound();
     }
@@ -500,6 +528,7 @@
         const closeBtn = panel.querySelector("[data-copilot-close]");
         const clearBtn = panel.querySelector("[data-copilot-clear]");
         const signOutBtn = panel.querySelector("[data-copilot-signout]");
+        const connectBtn = panel.querySelector("[data-copilot-connect]");
         const autoModeBtn = panel.querySelector("[data-copilot-automode]");
         const hintEl = panel.querySelector("[data-copilot-hint]");
         const modelSel = panel.querySelector("[data-copilot-model]");
@@ -535,7 +564,18 @@
         if (closeBtn) closeBtn.addEventListener("click", () => setOpen(false));
         if (clearBtn) clearBtn.addEventListener("click", () => openClearModal());
         if (signOutBtn) signOutBtn.addEventListener("click", async () => {
-            try { await CopilotAuth.logout(); appendMessage("error", "Signed out."); } catch (e) { appendMessage("error", "Logout failed: " + e); }
+            try {
+                await CopilotAuth.logout();
+                appendMessage("error", "Signed out.");
+                setConnectedState(false);
+            } catch (e) { appendMessage("error", "Logout failed: " + e); }
+        });
+        if (connectBtn) connectBtn.addEventListener("click", async function () {
+            const ok = await CopilotAuth.openLoginModal();
+            if (ok) {
+                setConnectedState(true);
+                await populateModelSelect();
+            }
         });
 
         if (form && textarea) {

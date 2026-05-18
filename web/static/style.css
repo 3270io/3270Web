@@ -4805,6 +4805,40 @@ body.copilot-open .page-wrap {
   border-top: 1px solid var(--border);
 }
 
+/* Connect prompt — shown when not signed in to Copilot */
+.copilot-connect-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex: 1 1 auto;
+  padding: 24px 20px;
+  text-align: center;
+}
+.copilot-connect-prompt[hidden] { display: none; }
+/* When disconnected, shrink messages so the connect prompt fills remaining space */
+.copilot-panel.copilot-disconnected .copilot-panel-messages {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+.copilot-connect-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.copilot-connect-btn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.copilot-connect-btn:hover { filter: brightness(1.12); }
+
 /* Login modal (dynamically injected by copilot-auth.js) */
 .copilot-modal-backdrop {
   position: fixed;

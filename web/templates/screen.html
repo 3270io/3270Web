@@ -815,15 +815,19 @@
             <div class="copilot-panel-header-actions">
                 <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Toggle auto-run mode" title="Auto Mode: run tools without approval">Auto</button>
                 <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
-                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of Copilot" aria-label="Sign out of Copilot">Sign out</button>
+                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of Copilot" aria-label="Sign out of Copilot" hidden>Sign out</button>
                 <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close Copilot panel">&times;</button>
             </div>
         </header>
         <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="polite"></div>
+        <div class="copilot-connect-prompt" data-copilot-connect-prompt hidden>
+            <p class="copilot-connect-text">Sign in to GitHub Copilot to start chatting.</p>
+            <button type="button" class="copilot-connect-btn" data-copilot-connect>Connect to Copilot</button>
+        </div>
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
             <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model">
-                <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
+                <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
             </select>
         </div>
         <form class="copilot-panel-form" data-copilot-form>
