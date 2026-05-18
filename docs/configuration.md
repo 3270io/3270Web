@@ -126,6 +126,7 @@ Includes:
 
 - `Allow log access`
 - `Use keypad` (show virtual keypad by default)
+- **Terminal Font** dropdown — pick from the three bundled IBM 3270-style fonts (Regular, Semi-Condensed, Condensed). See [Terminal Fonts](terminal-fonts.md) for usage notes.
 
 Use this section to control log visibility and default keyboard UI behavior.
 
@@ -140,13 +141,33 @@ Includes:
 - `CHAOS_STEP_DELAY_SEC`
 - `CHAOS_SEED`
 - `CHAOS_MAX_FIELD_LENGTH`
-- `CHAOS_LEARNED_INPUT_REUSE_BIAS`
-- `CHAOS_LEARNED_KEY_REUSE_BIAS`
-- `CHAOS_EXPORT_SUCCESS_BALANCE`
+- `CHAOS_LEARNED_INPUT_REUSE_BIAS` (default `1.0`) — weight applied to known-good input values when generating new field writes.
+- `CHAOS_LEARNED_KEY_REUSE_BIAS` (default `1.0`) — how often the engine retries AID keys that have previously caused a transition versus exploring untried keys.
+- `CHAOS_EXPORT_SUCCESS_BALANCE` (default `1.0`) — when exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps.
 - `CHAOS_OUTPUT_FILE`
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
-Use this section to tune how aggressively chaos mode explores screens and where optional output should be written.
+Use this section to tune how aggressively chaos mode explores screens and where optional output should be written. See [Chaos Mode](chaos-mode.md) for a deeper walkthrough of the bias settings.
+
+## UI Conveniences
+
+A few quality-of-life behaviours worth knowing about:
+
+- **Collapsible toolbar sections** — the Recording and Chaos toolbar
+  groups collapse with a chevron and remember their state, so a busy
+  toolbar can be trimmed to just the controls you care about.
+- **Required hostname input** — the connect form marks the hostname
+  field as required and announces missing-value errors to assistive
+  tech, so it is harder to accidentally submit an empty form.
+- **Saved host deletion confirmation** — removing a saved host profile
+  pops a confirmation modal; the destructive action cannot fire on a
+  single mis-click.
+- **Destructive disconnect styling** — the Disconnect toolbar button is
+  visually tagged as destructive (warning tint at rest) so it is
+  distinct from the safer navigation buttons next to it.
+- **Toast notifications** — short-lived theme-aware toasts surface the
+  result of background actions (save, export, error) without taking
+  focus.
 
 ## Log Access
 

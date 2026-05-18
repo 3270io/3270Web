@@ -45,6 +45,16 @@ Each AI action requires explicit approval:
 
 To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
 
+## Choose a Model
+
+The panel header includes a **model selector** dropdown that lists the
+Copilot models your GitHub account has access to. The default is
+**Claude Opus 4**; switch at any time and the next message uses the
+new model. The choice persists across page reloads.
+
+Pick a heavier model (Opus / Sonnet) for screen-reasoning-heavy
+sessions and a lighter one for quick reads or repetitive automation.
+
 ## Available Actions
 
 The AI can perform the following actions on your 3270 session:

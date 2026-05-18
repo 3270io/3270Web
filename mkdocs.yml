@@ -56,6 +56,10 @@ nav:
   - Connect and Use 3270Web: configuration.md
   - Recordings and Playback: workflow.md
   - Chaos Mode: chaos-mode.md
+  - Chaos Mind-Map Compare: chaos-compare.md
+  - Host Compatibility Profiler: host-profiler.md
+  - Compatibility Profile Schema: compatibility-profile-schema.md
+  - Terminal Fonts: terminal-fonts.md
   - AI Chat Mode: ai-chat.md
   - Keyboard and Controls: keyboard-and-controls.md
   - Screen Size and Model Guide: terminal-model-limits.md
@@ -101,7 +105,7 @@ extra_css:
   - stylesheets/extra.css
 
 extra:
-  version: 1.6
+  version: 1.8.6
   CNAME: 3270.io
   generator: false
   social:
