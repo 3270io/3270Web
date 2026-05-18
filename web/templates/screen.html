@@ -827,7 +827,7 @@
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
             <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model">
-                <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+                <option value="claude-sonnet-4.6">claude-sonnet-4.6</option>
             </select>
         </div>
         <form class="copilot-panel-form" data-copilot-form>
@@ -836,7 +836,8 @@
                 placeholder="Ask Copilot about the screen, or tell it what to do…"
                 data-copilot-input
                 aria-label="Message Copilot"></textarea>
-            <button type="submit" class="copilot-send" aria-label="Send message">Send</button>
+            <button type="submit" class="copilot-send" aria-label="Send message" data-copilot-send>Send</button>
+            <button type="button" class="copilot-stop" aria-label="Stop Copilot" data-copilot-stop hidden>Stop</button>
         </form>
         <p class="copilot-panel-hint" data-copilot-hint>Each tool call waits for you to click <strong>Run</strong>.</p>
     </aside>

@@ -1,8 +1,23 @@
 package copilot
 
 // DefaultModel is the Copilot model name used when the frontend does not
-// supply one.
-const DefaultModel = "claude-sonnet-4-6"
+// supply one. The dot-separated format matches what the GitHub Copilot
+// /models endpoint returns and what /chat/completions accepts.
+const DefaultModel = "claude-sonnet-4.6"
+
+// SupportedModels is the curated allowlist of Copilot models exposed in
+// the chat panel dropdown. We intersect this with whatever /models
+// returns at runtime, so unsupported entries Copilot might advertise
+// (e.g. preview IDs that 400 on /chat/completions) never reach the UI.
+// This mirrors REA's COPILOT_MODELS approach in
+// proper-mainframe-agent/webui-server.cjs.
+var SupportedModels = []string{
+	"claude-opus-4.7",
+	"claude-sonnet-4.6",
+	"claude-sonnet-4.5",
+	"claude-opus-4.5",
+	"claude-haiku-4.5",
+}
 
 // DefaultSystemPrompt is sent at the head of every chat unless the user
 // has customized it. It explains the tool surface and the per-call
