@@ -51,11 +51,11 @@ type Status struct {
 // has been. Used by saturation detection and surfaced via chaos_status so
 // callers (UI, Copilot) can see progress trends without parsing the mind map.
 type CoverageStats struct {
-	WindowSteps               int `json:"windowSteps"`
-	NewScreensInWindow        int `json:"newScreensLast10Steps"`
-	NewTransitionsInWindow    int `json:"newTransitionsLast10Steps"`
-	SaturationStreak          int `json:"saturationStreak"`
-	SaturationThresholdSteps  int `json:"saturationThresholdSteps,omitempty"`
+	WindowSteps              int `json:"windowSteps"`
+	NewScreensInWindow       int `json:"newScreensLast10Steps"`
+	NewTransitionsInWindow   int `json:"newTransitionsLast10Steps"`
+	SaturationStreak         int `json:"saturationStreak"`
+	SaturationThresholdSteps int `json:"saturationThresholdSteps,omitempty"`
 }
 
 // Termination reasons reported via Status.TerminationReason.
@@ -917,9 +917,6 @@ func (e *Engine) Resume(saved *SavedRun) error {
 func (e *Engine) run() {
 	defer func() {
 		e.mu.Lock()
-		e.active = false
-		e.stoppedAt = time.Now()
-		outputFile := e.cfg.OutputFile
 		if e.terminationReason == "" {
 			if e.lastErr != "" {
 				e.terminationReason = TerminationReasonError
@@ -931,6 +928,7 @@ func (e *Engine) run() {
 			_ = e.transitionLog.Close()
 			e.transitionLog = nil
 		}
+		outputFile := e.cfg.OutputFile
 		e.mu.Unlock()
 
 		if outputFile != "" {
@@ -941,6 +939,11 @@ func (e *Engine) run() {
 				_ = os.WriteFile(outputFile, data, 0600)
 			}
 		}
+
+		e.mu.Lock()
+		e.active = false
+		e.stoppedAt = time.Now()
+		e.mu.Unlock()
 	}()
 
 	var deadline time.Time

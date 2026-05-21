@@ -70,7 +70,7 @@ type FieldDelta struct {
 // and candidate.
 type TransitionDelta struct {
 	Key             string `json:"key"`
-	BaselineTarget  string `json:"baseline_target,omitempty"`  // signature of dest, or hash if not in common map
+	BaselineTarget  string `json:"baseline_target,omitempty"` // signature of dest, or hash if not in common map
 	CandidateTarget string `json:"candidate_target,omitempty"`
 	Change          string `json:"change"` // "added" | "removed" | "redirected"
 }

@@ -58,8 +58,8 @@ func TestCompareMindMaps_AreaOnlyInBaseline(t *testing.T) {
 
 func TestCompareMindMaps_FieldDeltas(t *testing.T) {
 	baseFields := map[string]MindMapFieldMetadata{
-		"R1C1L8":  {Row: 1, Column: 1, Length: 8},  // unchanged
-		"R2C1L20": {Row: 2, Column: 1, Length: 20}, // will be removed in candidate
+		"R1C1L8":  {Row: 1, Column: 1, Length: 8},                 // unchanged
+		"R2C1L20": {Row: 2, Column: 1, Length: 20},                // will be removed in candidate
 		"R3C1L10": {Row: 3, Column: 1, Length: 10, Hidden: false}, // will be modified
 	}
 	candFields := map[string]MindMapFieldMetadata{

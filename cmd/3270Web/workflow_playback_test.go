@@ -164,9 +164,9 @@ func TestPlayWorkflow_ContinuesAfterFailedStep(t *testing.T) {
 		Steps: []session.WorkflowStep{
 			// This CheckValue will fail (wrong text).
 			{
-				Type: "CheckValue",
+				Type:        "CheckValue",
 				Coordinates: &session.WorkflowCoordinates{Row: 1, Column: 1, Length: 6},
-				Text: "NOSUCH",
+				Text:        "NOSUCH",
 			},
 			// This step should still execute after the failed check.
 			{Type: "PressEnter"},
