@@ -32,7 +32,7 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 200,
 		},
 		{
-			name: "Valid Origin matches Host",
+			name:   "Valid Origin matches Host",
 			method: "POST",
 			headers: map[string]string{
 				"Origin": "https://example.com",
@@ -41,7 +41,7 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 200,
 		},
 		{
-			name: "Valid Origin matches Host with port",
+			name:   "Valid Origin matches Host with port",
 			method: "POST",
 			headers: map[string]string{
 				"Origin": "http://localhost:8080",
@@ -50,7 +50,7 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 200,
 		},
 		{
-			name: "Invalid Origin mismatch",
+			name:   "Invalid Origin mismatch",
 			method: "POST",
 			headers: map[string]string{
 				"Origin": "https://evil.com",
@@ -59,7 +59,7 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 403,
 		},
 		{
-			name: "Missing Origin, Valid Referer matches Host",
+			name:   "Missing Origin, Valid Referer matches Host",
 			method: "POST",
 			headers: map[string]string{
 				"Referer": "https://example.com/page",
@@ -68,7 +68,7 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 200,
 		},
 		{
-			name: "Missing Origin, Invalid Referer mismatch",
+			name:   "Missing Origin, Invalid Referer mismatch",
 			method: "POST",
 			headers: map[string]string{
 				"Referer": "https://evil.com/page",
@@ -77,14 +77,14 @@ func TestOriginRefererCheckMiddleware(t *testing.T) {
 			expectedStatus: 403,
 		},
 		{
-			name: "Missing Origin and Referer",
-			method: "POST",
-			headers: map[string]string{},
+			name:           "Missing Origin and Referer",
+			method:         "POST",
+			headers:        map[string]string{},
 			host:           "example.com",
 			expectedStatus: 403,
 		},
 		{
-			name: "Case insensitive Host matching",
+			name:   "Case insensitive Host matching",
 			method: "POST",
 			headers: map[string]string{
 				"Origin": "https://EXAMPLE.COM",

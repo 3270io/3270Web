@@ -1477,4 +1477,3 @@ func TestChaosReport_WithoutRun(t *testing.T) {
 		t.Errorf("report without run: Content-Type = %q, want text/markdown", ct)
 	}
 }
-

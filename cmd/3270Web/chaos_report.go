@@ -22,10 +22,6 @@ func (app *App) ChaosReportHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if app.chaosEngines.isRemoved(s.ID) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
-		return
-	}
 
 	var targetHost string
 	var targetPort int
@@ -36,17 +32,16 @@ func (app *App) ChaosReportHandler(c *gin.Context) {
 
 	screenHints := app.chaosEngines.getScreenHints(s.ID)
 	var run *chaos.SavedRun
-	if eng, ok := app.chaosEngines.get(s.ID); ok {
-		st := eng.Status()
-		run = eng.Snapshot(strings.TrimSpace(st.LoadedRunID))
-	} else if loaded, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
-		run = loaded
-	} else if loaded := app.loadSessionChaosRunFromDisk(s); loaded != nil {
-		app.chaosEngines.setLoadedRun(s.ID, loaded)
-		run = loaded
-	} else {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
-		return
+	if !app.chaosEngines.isRemoved(s.ID) {
+		if eng, ok := app.chaosEngines.get(s.ID); ok {
+			st := eng.Status()
+			run = eng.Snapshot(strings.TrimSpace(st.LoadedRunID))
+		} else if loaded, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
+			run = loaded
+		} else if loaded := app.loadSessionChaosRunFromDisk(s); loaded != nil {
+			app.chaosEngines.setLoadedRun(s.ID, loaded)
+			run = loaded
+		}
 	}
 
 	data, filename := buildChaosDiscoveryReportMarkdown(targetHost, targetPort, run, screenHints, time.Now())
