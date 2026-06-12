@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// chatStreamTimeout is the server-side cap on one proxied /chat/completions
+// stream, including all streamed tokens.
+const chatStreamTimeout = 10 * time.Minute
 
 // Handlers groups the routes the package exposes.
 type Handlers struct {
@@ -206,7 +211,13 @@ func (h *Handlers) Chat(c *gin.Context) {
 
 	pw := &flushingWriter{w: c.Writer, f: flusher}
 
-	if err := h.client.StreamChat(c.Request.Context(), ChatRequest{Raw: payload}, pw); err != nil {
+	// Cap the overall proxied stream so a hung upstream cannot pin the
+	// connection (and its goroutine) forever. Generous enough for long
+	// tool-heavy completions.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), chatStreamTimeout)
+	defer cancel()
+
+	if err := h.client.StreamChat(ctx, ChatRequest{Raw: payload}, pw); err != nil {
 		// If nothing has been written yet, we can still emit a clean JSON
 		// error. Otherwise, send an `event: error` SSE frame the frontend
 		// understands.

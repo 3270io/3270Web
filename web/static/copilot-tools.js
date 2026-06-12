@@ -191,6 +191,45 @@
             if (!res.ok) return { error: res.error };
             return { workflow: res.data };
         },
+        async chaos_list_screens(args) {
+            const includePreviews = !(args && args.include_previews === false);
+            const url = includePreviews ? "/chaos/screens" : "/chaos/screens?include_previews=false";
+            const res = await getJSON(url);
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async chaos_annotate_screen(args) {
+            const hash = (args && args.screen_hash) || "";
+            if (!hash) return { error: "screen_hash required" };
+            const body = { screen_hash: hash };
+            if (args.business_purpose) body.business_purpose = args.business_purpose;
+            if (args.notes) body.notes = args.notes;
+            if (args.field_semantics) body.field_semantics = args.field_semantics;
+            const res = await postJSON("/chaos/screens/annotate", body);
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async business_list_functions(_args) {
+            const res = await getJSON("/chaos/business/functions");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async business_save_function(args) {
+            if (!args || !args.name) return { error: "name required" };
+            const res = await postJSON("/chaos/business/functions", args);
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async business_generate_workflow(args) {
+            if (!args || !args.name) return { error: "name required" };
+            const body = { name: args.name };
+            if (args.parameters) body.parameters = args.parameters;
+            if (args.host) body.host = args.host;
+            if (typeof args.port === "number") body.port = args.port;
+            const res = await postJSON("/chaos/business/generate-workflow", body);
+            if (!res.ok) return { error: res.error };
+            return { workflow: res.data, downloadable: true };
+        },
     };
 
     async function runTool(name, args) {

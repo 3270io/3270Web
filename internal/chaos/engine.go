@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -232,6 +233,15 @@ func (e *Engine) ImportMindMap(imported *MindMap) bool {
 		}
 		e.mindMap.Areas[hash] = area
 	}
+	for key, fn := range imported.BusinessFunctions {
+		if fn == nil || strings.TrimSpace(key) == "" {
+			continue
+		}
+		if e.mindMap.BusinessFunctions == nil {
+			e.mindMap.BusinessFunctions = make(map[string]*BusinessFunction)
+		}
+		e.mindMap.BusinessFunctions[key] = fn
+	}
 	return true
 }
 
@@ -457,15 +467,19 @@ func (e *Engine) coverageStatsSnapshotLocked() *CoverageStats {
 
 // exportedWorkflow is the JSON shape expected by the existing workflow loader.
 type exportedWorkflow struct {
-	Host            string                      `json:"Host"`
-	Port            int                         `json:"Port"`
-	EveryStepDelay  *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
-	OutputFilePath  string                      `json:"OutputFilePath,omitempty"`
-	RampUpBatchSize int                         `json:"RampUpBatchSize,omitempty"`
-	RampUpDelay     float64                     `json:"RampUpDelay,omitempty"`
-	EndOfTaskDelay  *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
-	Steps           []session.WorkflowStep      `json:"Steps"`
-	ChaosDiscovery  *WorkflowDiscoveryMetadata  `json:"ChaosDiscovery,omitempty"`
+	Host             string                      `json:"Host"`
+	Port             int                         `json:"Port"`
+	Name             string                      `json:"Name,omitempty"`
+	Description      string                      `json:"Description,omitempty"`
+	BusinessFunction string                      `json:"BusinessFunction,omitempty"`
+	Parameters       []session.WorkflowParameter `json:"Parameters,omitempty"`
+	EveryStepDelay   *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
+	OutputFilePath   string                      `json:"OutputFilePath,omitempty"`
+	RampUpBatchSize  int                         `json:"RampUpBatchSize,omitempty"`
+	RampUpDelay      float64                     `json:"RampUpDelay,omitempty"`
+	EndOfTaskDelay   *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
+	Steps            []session.WorkflowStep      `json:"Steps"`
+	ChaosDiscovery   *WorkflowDiscoveryMetadata  `json:"ChaosDiscovery,omitempty"`
 }
 
 // WorkflowDiscoveryMetadata captures chaos learning/discovery metadata that is
@@ -702,7 +716,13 @@ func exportCheckStepForAttempt(attempt Attempt, mindMap *MindMap) (session.Workf
 	if hash == "" || mindMap == nil || len(mindMap.Areas) == 0 {
 		return session.WorkflowStep{}, false
 	}
-	area := mindMap.Areas[hash]
+	return checkStepForArea(mindMap.Areas[hash])
+}
+
+// checkStepForArea builds a CheckValue step asserting the first non-blank
+// text run in the area's preview, so playback can verify it reached the
+// expected screen.
+func checkStepForArea(area *MindMapArea) (session.WorkflowStep, bool) {
 	if area == nil || strings.TrimSpace(area.PreviewText) == "" {
 		return session.WorkflowStep{}, false
 	}
@@ -1228,7 +1248,13 @@ func (e *Engine) run() {
 		if e.transitionLog != nil {
 			if entry, err := json.Marshal(attempt); err == nil {
 				entry = append(entry, '\n')
-				_, _ = e.transitionLog.Write(entry)
+				if _, writeErr := e.transitionLog.Write(entry); writeErr != nil {
+					// Disable the log on the first failure (disk full, closed
+					// file, ...) instead of silently dropping every attempt.
+					log.Printf("[chaos] transition log write failed, disabling: %v", writeErr)
+					_ = e.transitionLog.Close()
+					e.transitionLog = nil
+				}
 			}
 		}
 		e.mu.Unlock()

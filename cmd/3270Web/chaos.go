@@ -385,12 +385,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 			cfg.KeyBlacklist = append([]string(nil), saved.KeyBlacklist...)
 		}
 	}
-	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
-	if req.FirstScreenHint != nil {
-		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *req.FirstScreenHint)
-	} else if savedHints.FirstScreenHint != nil {
-		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *savedHints.FirstScreenHint)
-	}
+	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -576,12 +571,16 @@ func slimMindMapForStatus(m *chaos.MindMap) gin.H {
 		if area == nil {
 			continue
 		}
-		areas = append(areas, gin.H{
+		entry := gin.H{
 			"hash":            hash,
 			"label":           area.Label,
 			"visits":          area.Visits,
 			"inputFieldCount": area.InputFieldCount,
-		})
+		}
+		if area.BusinessPurpose != "" {
+			entry["businessPurpose"] = area.BusinessPurpose
+		}
+		areas = append(areas, entry)
 	}
 	return gin.H{
 		"areaCount": len(areas),
@@ -1065,12 +1064,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		// stopping at the same cap.
 		cfg.MaxSteps = loaded.StepsRun + cfg.MaxSteps
 	}
-	cfg.ScreenHints = app.chaosEngines.getScreenHints(s.ID)
-	if req.FirstScreenHint != nil {
-		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *req.FirstScreenHint)
-	} else if savedHints.FirstScreenHint != nil {
-		cfg.ScreenHints = mergeFirstScreenHintIntoChaosScreenHints(cfg.ScreenHints, *savedHints.FirstScreenHint)
-	}
+	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
 	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
@@ -1413,6 +1407,26 @@ func sanitizeChaosScreenHintPtr(h *chaos.ScreenHint) *chaos.ScreenHint {
 		return nil
 	}
 	return &clean
+}
+
+// resolveChaosScreenHints combines the session's screen-scoped hints with the
+// first-screen hint sources in explicit precedence order: a first_screen_hint
+// in the request body wins, then a session-scoped __FIRST_SCREEN__ hint saved
+// via /chaos/screen-hints, and only when neither exists does the hint from the
+// saved hints file apply. Previously the saved-file hint unconditionally
+// overwrote a session-scoped first-screen hint.
+func (app *App) resolveChaosScreenHints(sessionID string, req chaosStartRequest, savedHints chaosHintsPayload) map[string]chaos.ScreenHint {
+	hints := app.chaosEngines.getScreenHints(sessionID)
+	if req.FirstScreenHint != nil {
+		return mergeFirstScreenHintIntoChaosScreenHints(hints, *req.FirstScreenHint)
+	}
+	if _, ok := hints[chaos.FirstScreenHintKey]; ok {
+		return hints
+	}
+	if savedHints.FirstScreenHint != nil {
+		return mergeFirstScreenHintIntoChaosScreenHints(hints, *savedHints.FirstScreenHint)
+	}
+	return hints
 }
 
 func mergeFirstScreenHintIntoChaosScreenHints(in map[string]chaos.ScreenHint, hint chaos.ScreenHint) map[string]chaos.ScreenHint {

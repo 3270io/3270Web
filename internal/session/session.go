@@ -58,6 +58,18 @@ type WorkflowStep struct {
 	StepDelay   *WorkflowDelayRange  `json:"StepDelay,omitempty"`
 }
 
+// WorkflowParameter documents a business input that was resolved into one or
+// more FillString steps of a generated workflow (which value went into which
+// field). It is metadata only: playback ignores it.
+type WorkflowParameter struct {
+	Name        string `json:"Name"`
+	Description string `json:"Description,omitempty"`
+	Value       string `json:"Value,omitempty"`
+	Row         int    `json:"Row,omitempty"`
+	Column      int    `json:"Column,omitempty"`
+	Length      int    `json:"Length,omitempty"`
+}
+
 type WorkflowRecording struct {
 	Active         bool
 	Host           string

@@ -126,6 +126,19 @@ Chaos learning can carry across sessions:
 
 Imported areas overwrite any existing areas with the same hash. Use this to seed a new chaos run with everything a previous run learned about a host's screen layouts and working keys.
 
+## Business Understanding
+
+The mind map can carry business knowledge on top of the mechanical discovery data. Each area supports a `businessPurpose`, free-form `businessNotes`, and per-field `fieldSemantics` (a business name, description, example, and a sensitive flag per input field, keyed `R<row>C<col>L<len>`). The mind map also holds a catalog of **business functions** — named, parameterized multi-screen operations such as *"Account inquiry"*.
+
+This layer is normally populated by the [AI Chat panel](ai-chat.md#business-understanding) after a run, but the endpoints are plain HTTP and can be driven by any client:
+
+- `GET /chaos/screens` — review every discovered screen (fields, learned values, key destinations, annotations, preview).
+- `POST /chaos/screens/annotate` — record a screen's business purpose and field semantics.
+- `GET` / `POST /chaos/business/functions` — list or upsert cataloged business functions.
+- `POST /chaos/business/generate-workflow` — resolve a function plus parameter values into a playback-compatible workflow JSON.
+
+Because annotations live inside the mind map, they persist with saved runs, survive resume, and travel through mind-map export/import. The catalog is **scoped to a run**: to reuse it in another session, load the annotated run or import its mind map.
+
 ## Mind Map Compare
 
 Two exported mind maps can be diffed against each other to surface

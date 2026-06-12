@@ -30,6 +30,7 @@ The user already has a live session against a real or sample 3270 host. You can:
 - Read the current screen with get_screen. The result includes the screen as plain text plus a list of fields with row/column, value, and protection flags. Always look at the screen before suggesting actions.
 - Drive the session with send_key (Enter, PF1..PF24, PA1..PA3, Tab, Clear, Reset, ...), write_field (writes text into a single field by row/column), and submit_screen.
 - Manage chaos exploration with chaos_status, chaos_start, chaos_stop, chaos_resume, chaos_report, chaos_save_screen_hint, chaos_get_hints, chaos_update_hints, and chaos_export_workflow.
+- Build business understanding with chaos_list_screens (review discovered screens), chaos_annotate_screen (record what a screen does and what each field means), business_save_function / business_list_functions (catalog named business operations), and business_generate_workflow (turn a cataloged function plus user values into a workflow JSON file).
 - Ask the user to make a decision with ask_user — it presents a question and clickable option buttons; use it whenever you need user input before proceeding.
 
 ## Chaos Monkey Skill
@@ -59,6 +60,30 @@ When the user asks you to run "chaos monkey", "explore the app", or "discover sc
 11. Call chaos_report to get the discovery Markdown report.
 12. Call chaos_export_workflow to get the 3270Connect-compatible workflow JSON.
 13. If new knowledge was gained (new transaction codes, dangerous keys), call chaos_update_hints and chaos_save_screen_hint to persist the learnings for future runs.
+14. Run the Business Understanding skill (below) so the discoveries are captured with business meaning, not just coordinates.
+
+## Business Understanding Skill
+
+Chaos discovers *what works* (inputs, keys, screens); your job is to add *what it means*. After a chaos run finishes — or whenever the user asks you to "understand the app", "map the business functions", or similar — build a business model of the application:
+
+**Phase A — Review**
+1. Call chaos_list_screens. For each discovered screen, read previewText, fieldMetadata, knownWorkingValues, and keyPresses destinations.
+2. Infer the business purpose of each screen (e.g. "Customer account inquiry — enter an account number to view balances") from its preview text, and the meaning of each input field from the on-screen labels near the field's row/column.
+
+**Phase B — Annotate**
+3. Call chaos_annotate_screen for each screen you understand: a short business_purpose plus field_semantics keyed by the field key from fieldMetadata (e.g. "R5C20L8": {"name": "account_number", "example": "1234"}). Mark hidden/password fields as sensitive. Annotations persist in the chaos run's mind map.
+
+**Phase C — Catalog business functions**
+4. Identify complete business operations by following keyPresses destinations across screens (e.g. menu → entry form → confirmation) and using knownWorkingValues as evidence of what each step accepts.
+5. Save each operation with business_save_function: concrete steps (screen_hash, inputs, aid_key, expect_hash) and a parameter for every value a user would supply. Known working values become parameter *examples* — only hard-code a value as a literal input when it is a true constant such as a menu choice or transaction code.
+
+## Performing business functions
+
+When the user asks for a business operation in plain language (e.g. "look up account 1234", "create a new customer"):
+1. Call business_list_functions and match the request against the catalog (use chaos_list_screens if you need more context).
+2. To do it now on the live session: follow the function's steps with get_screen / write_field / send_key, substituting the user's values, and verify each screen with get_screen before writing.
+3. To produce a reusable workflow file (the user says "save", "export", "automate", or asks for a workflow): collect any missing required parameters with ask_user, then call business_generate_workflow and offer the resulting JSON for download.
+4. If nothing in the catalog matches, say so and offer to explore with chaos monkey or to navigate manually and record a new function.
 
 ## ask_user guidelines
 - Use ask_user whenever the user needs to make a real decision before you proceed.
@@ -317,6 +342,158 @@ func DefaultTools() []Tool {
 				Name:        "chaos_export_workflow",
 				Description: "Export the current (or most recent) chaos run as a 3270Connect-compatible workflow JSON. Returns the full workflow object including discovered navigation steps, host/port configuration, and timing settings. Call this after a run completes to save the learned paths.",
 				Parameters:  objNoProps,
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "chaos_list_screens",
+				Description: "List every screen discovered by chaos exploration: hash, label, visit count, input fields (fieldMetadata keyed R<row>C<col>L<len>), known working values, AID-key destinations, existing business annotations, and a screen preview. Use this to review the application and infer business meaning. Set include_previews=false to shrink the payload once you have already seen the previews.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"include_previews": map[string]any{
+							"type":        "boolean",
+							"description": "Include truncated screen preview text per screen. Defaults to true.",
+						},
+					},
+					"additionalProperties": false,
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "chaos_annotate_screen",
+				Description: "Record the business meaning of a discovered screen: what the screen is for (business_purpose) and what each input field means (field_semantics keyed by the field key from chaos_list_screens, e.g. \"R5C20L8\"). Annotations persist in the chaos run's mind map and survive save/load/export.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"screen_hash": map[string]any{
+							"type":        "string",
+							"description": "Screen hash from chaos_list_screens or chaos_status.",
+						},
+						"business_purpose": map[string]any{
+							"type":        "string",
+							"description": "Short business description of the screen, e.g. \"Customer account inquiry — enter account number\".",
+						},
+						"notes": map[string]any{
+							"type":        "string",
+							"description": "Optional longer notes: validation rules, quirks, prerequisites.",
+						},
+						"field_semantics": map[string]any{
+							"type":        "object",
+							"description": "Map of field key (R<row>C<col>L<len>) to its business meaning.",
+							"additionalProperties": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"name":        map[string]any{"type": "string", "description": "Business name, e.g. \"account_number\"."},
+									"description": map[string]any{"type": "string"},
+									"example":     map[string]any{"type": "string", "description": "A known-working example value."},
+									"sensitive":   map[string]any{"type": "boolean", "description": "True for passwords/PINs; never echo these in summaries."},
+								},
+								"required":             []string{"name"},
+								"additionalProperties": false,
+							},
+						},
+					},
+					"required":             []string{"screen_hash"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "business_list_functions",
+				Description: "List the cataloged business functions (name, description, steps, parameters). Call this first when the user asks to perform a business operation in plain language, so you can match their request against what is already known.",
+				Parameters:  objNoProps,
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "business_save_function",
+				Description: "Add or replace a named business function in the catalog (e.g. \"Account inquiry\"). Describe the operation as concrete steps over discovered screens, and declare a parameter for every value the user supplies at run time. Use literal input values only for true constants (menu choices, transaction codes).",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name":        map[string]any{"type": "string", "description": "Business function name, e.g. \"Account inquiry\"."},
+						"description": map[string]any{"type": "string", "description": "What the function does, in business terms."},
+						"entry_screen_hash": map[string]any{
+							"type":        "string",
+							"description": "Screen where the function starts. Optional when steps are given.",
+						},
+						"steps": map[string]any{
+							"type":        "array",
+							"description": "Ordered screen interactions. Each fills fields on screen_hash then presses aid_key.",
+							"items": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"screen_hash": map[string]any{"type": "string"},
+									"inputs": map[string]any{
+										"type": "array",
+										"items": map[string]any{
+											"type": "object",
+											"properties": map[string]any{
+												"field_key": map[string]any{"type": "string", "description": "Field key (R<row>C<col>L<len>)."},
+												"value":     map[string]any{"type": "string", "description": "Literal value (constants only)."},
+												"parameter": map[string]any{"type": "string", "description": "Name of a declared parameter resolved at generation time."},
+											},
+											"required":             []string{"field_key"},
+											"additionalProperties": false,
+										},
+									},
+									"aid_key":     map[string]any{"type": "string", "description": "AID key to press, e.g. \"Enter\", \"PF3\". Defaults to Enter."},
+									"expect_hash": map[string]any{"type": "string", "description": "Screen hash the application should land on; used for CheckValue guards."},
+								},
+								"required":             []string{"screen_hash"},
+								"additionalProperties": false,
+							},
+						},
+						"parameters": map[string]any{
+							"type":        "array",
+							"description": "User-supplied inputs to the function.",
+							"items": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"name":        map[string]any{"type": "string", "description": "Parameter name, e.g. \"account_number\"."},
+									"description": map[string]any{"type": "string"},
+									"screen_hash": map[string]any{"type": "string", "description": "Screen the parameter is entered on."},
+									"field_key":   map[string]any{"type": "string", "description": "Field key (R<row>C<col>L<len>) the value goes into."},
+									"example":     map[string]any{"type": "string", "description": "Known-working example value."},
+									"required":    map[string]any{"type": "boolean"},
+								},
+								"required":             []string{"name"},
+								"additionalProperties": false,
+							},
+						},
+					},
+					"required":             []string{"name"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "business_generate_workflow",
+				Description: "Generate a business-focused, playback-compatible workflow JSON file from a cataloged business function plus parameter values (e.g. {\"account_number\": \"1234\"}). The result carries Name/Description/BusinessFunction/Parameters metadata and can be downloaded, loaded, and replayed. Collect missing required parameters with ask_user before calling.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string", "description": "Business function name from business_list_functions."},
+						"parameters": map[string]any{
+							"type":                 "object",
+							"description":          "Parameter values keyed by parameter name.",
+							"additionalProperties": map[string]any{"type": "string"},
+						},
+						"host": map[string]any{"type": "string", "description": "Override target host (defaults to the session's host)."},
+						"port": map[string]any{"type": "integer", "description": "Override target port (defaults to the session's port)."},
+					},
+					"required":             []string{"name"},
+					"additionalProperties": false,
+				},
 			},
 		},
 	}
