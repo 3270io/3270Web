@@ -49,9 +49,24 @@
         } catch (_) { return []; }
     }
 
+    // Cap the persisted history so tool results (which can embed whole screen
+    // dumps) cannot grow past the localStorage quota. The in-memory history is
+    // untouched; only what is persisted across reloads is trimmed.
+    const MAX_PERSISTED_MESSAGES = 200;
+
     function saveHistory() {
-        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
-        catch (_) {}
+        let toPersist = history.length > MAX_PERSISTED_MESSAGES
+            ? history.slice(history.length - MAX_PERSISTED_MESSAGES)
+            : history;
+        try {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
+        } catch (_) {
+            // Quota exceeded: halve and retry once, then give up silently.
+            try {
+                toPersist = toPersist.slice(Math.floor(toPersist.length / 2));
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
+            } catch (_) {}
+        }
     }
 
     function ensurePanel() {
@@ -563,6 +578,29 @@
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                 }
+            });
+            extrasEl.appendChild(btn);
+            extrasEl.hidden = false;
+            scrollToBottom();
+            return;
+        }
+
+        if (toolName === "business_generate_workflow") {
+            const workflow = result && result.workflow;
+            if (!workflow) return;
+            const jsonText = typeof workflow === "string" ? workflow : JSON.stringify(workflow, null, 2);
+            const fnName = (workflow && workflow.Name) || (args && args.name) || "business-workflow";
+            const fileName = String(fnName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "business-workflow";
+            const btn = makeBtn("⬇ Download Workflow JSON", function () {
+                const blob = new Blob([jsonText], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName + ".json";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             });
             extrasEl.appendChild(btn);
             extrasEl.hidden = false;

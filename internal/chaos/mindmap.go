@@ -14,8 +14,12 @@ const maxScreenPreviewCols = 80
 
 // MindMap captures a lightweight graph of discovered application areas.
 // Areas are keyed by screen hash (or a synthetic ID when seeded from a recording).
+// BusinessFunctions is the catalog of named business operations built up by
+// the AI chat (keyed by normalized function name); it persists with saved
+// runs and travels through mind-map export/import.
 type MindMap struct {
-	Areas map[string]*MindMapArea `json:"areas,omitempty"`
+	Areas             map[string]*MindMapArea      `json:"areas,omitempty"`
+	BusinessFunctions map[string]*BusinessFunction `json:"businessFunctions,omitempty"`
 }
 
 // MindMapArea represents one discovered application area.
@@ -45,6 +49,9 @@ type MindMapArea struct {
 	DedupSignature          string                           `json:"dedupSignature,omitempty"`
 	AutoBlockedKeys         []string                         `json:"autoBlockedKeys,omitempty"`
 	AutoKnownKeys           []string                         `json:"autoKnownKeys,omitempty"`
+	BusinessPurpose         string                           `json:"businessPurpose,omitempty"`
+	BusinessNotes           string                           `json:"businessNotes,omitempty"`
+	FieldSemantics          map[string]BusinessFieldSemantic `json:"fieldSemantics,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.
@@ -85,10 +92,20 @@ func newMindMap() *MindMap {
 }
 
 func (m *MindMap) clone() *MindMap {
-	if m == nil || len(m.Areas) == 0 {
+	if m == nil || (len(m.Areas) == 0 && len(m.BusinessFunctions) == 0) {
 		return nil
 	}
 	out := &MindMap{Areas: make(map[string]*MindMapArea, len(m.Areas))}
+	if len(m.BusinessFunctions) > 0 {
+		out.BusinessFunctions = make(map[string]*BusinessFunction, len(m.BusinessFunctions))
+		for key, fn := range m.BusinessFunctions {
+			if fn == nil {
+				continue
+			}
+			fnCopy := cloneBusinessFunction(fn)
+			out.BusinessFunctions[key] = &fnCopy
+		}
+	}
 	for key, area := range m.Areas {
 		if area == nil {
 			continue
@@ -122,6 +139,12 @@ func (m *MindMap) clone() *MindMap {
 			next.FieldCountProgressions = make(map[int]int, len(area.FieldCountProgressions))
 			for count, progressions := range area.FieldCountProgressions {
 				next.FieldCountProgressions[count] = progressions
+			}
+		}
+		if len(area.FieldSemantics) > 0 {
+			next.FieldSemantics = make(map[string]BusinessFieldSemantic, len(area.FieldSemantics))
+			for fKey, sem := range area.FieldSemantics {
+				next.FieldSemantics[fKey] = sem
 			}
 		}
 		if len(area.KeyPresses) > 0 {
@@ -581,7 +604,11 @@ func buildAreaDedupSignature(screen *host.Screen) string {
 		if f == nil {
 			continue
 		}
-		fmt.Fprintf(&b, "|%d,%d,%d,%d,%d,%d,%d", f.StartY, f.StartX, f.EndY, f.EndX, f.FieldCode, f.Color, f.ExtendedHighlight)
+		// Only geometry and field attributes (protection/numeric bits) are
+		// structural. Display attributes such as color and highlighting change
+		// with host state (e.g. error highlighting) and would split screens
+		// that are functionally the same.
+		fmt.Fprintf(&b, "|%d,%d,%d,%d,%d", f.StartY, f.StartX, f.EndY, f.EndX, f.FieldCode)
 	}
 	return b.String()
 }

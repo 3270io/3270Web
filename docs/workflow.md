@@ -95,6 +95,26 @@ Common action types:
 - `PressTab`
 - `PressPF<n>` (for example `PressPF3`)
 
+### Business metadata fields
+
+Workflows generated from a cataloged business function (see [AI Chat — Business Understanding](ai-chat.md#business-understanding)) carry optional top-level metadata. All fields are ignored by playback, so older workflows and older 3270Web versions remain fully compatible:
+
+```json
+{
+  "Host": "sampleapp:app1",
+  "Port": 3270,
+  "Name": "Account inquiry",
+  "Description": "Look up an account balance",
+  "BusinessFunction": "Account inquiry",
+  "Parameters": [
+    { "Name": "account_number", "Value": "1234", "Row": 5, "Column": 21, "Length": 8 }
+  ],
+  "Steps": [ { "Type": "Connect" }, { "Type": "PressEnter" }, { "Type": "Disconnect" } ]
+}
+```
+
+`Parameters` documents which business input produced which `FillString` value and where it was written, making the file self-describing.
+
 ## Troubleshooting Playback
 
 - Confirm host and port are correct.

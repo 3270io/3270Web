@@ -83,6 +83,36 @@ The default system prompt uses a five-phase workflow: read the screen → review
 
 Manual toolbar controls and the AI panel share the same run state — you can freely mix both. See [Chaos Mode](chaos-mode.md) for full details on toolbar controls, settings, and the discovery report format, and see [Running Chaos via AI Chat](chaos-mode.md#running-chaos-via-ai-chat) for a side-by-side comparison.
 
+## Business Understanding
+
+Chaos exploration discovers *what works* — screens, key presses, and input values. The business-understanding tools let the AI add *what it means*: after a run (or whenever you ask it to "understand the app" or "map the business functions"), the AI reviews each discovered screen, infers its business purpose and the meaning of each input field, and records the result in the chaos mind map.
+
+| Chat command | Tool used | What it does |
+|---|---|---|
+| Review discovered screens | `chaos_list_screens` | Lists every screen with previews, fields, learned values, key destinations, and existing annotations |
+| Annotate a screen | `chaos_annotate_screen` | Records a business purpose (e.g. *"Customer account inquiry"*) and per-field semantics (e.g. `R5C20L8` → `account_number`) |
+| Catalog a business function | `business_save_function` | Saves a named multi-screen operation (steps + parameters), e.g. *"Account inquiry"* |
+| List the catalog | `business_list_functions` | Returns all cataloged business functions with their parameters |
+| Generate a workflow | `business_generate_workflow` | Turns a cataloged function plus parameter values into a downloadable, business-focused workflow JSON |
+
+Annotations and the function catalog are stored inside the chaos run's mind map, so they persist with [saved runs](chaos-mode.md) and travel through mind-map export/import. Knowledge is **per run**: load the annotated run (or import its mind map) in a new session to reuse it.
+
+### Performing business functions by prompt
+
+Once functions are cataloged you can drive them in plain language:
+
+- *"Look up account 1234"* — the AI matches the request against the catalog and drives the live session step by step, verifying each screen before writing.
+- *"Create a workflow that looks up an account"* — the AI collects any missing required parameters (via clickable questions), calls `business_generate_workflow`, and offers the resulting JSON for download. The file loads and replays through the standard [workflow](workflow.md) controls.
+
+Generated business workflows carry `Name`, `Description`, `BusinessFunction`, and `Parameters` metadata so they are self-describing; see [Workflow](workflow.md) for the format.
+
+## Known Limitations
+
+- Chat requests and tool endpoints are not rate-limited server-side; very long automated loops are bounded only by the per-message tool budget and your Copilot plan quotas.
+- If the model stream fails mid-response, that exchange is not added to the history — re-send the prompt.
+- Conversation history is persisted in browser localStorage and capped at the most recent 200 messages.
+- Business annotations key on screen hashes, which are specific to the run's mind map. Re-running discovery against a changed application may produce new hashes; re-annotate or re-import the mind map in that case.
+
 ## Model Selection
 
 Use the **Model** dropdown in the panel to switch between available Copilot models at any time. The default is Claude Opus 4.

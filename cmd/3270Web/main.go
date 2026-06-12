@@ -51,14 +51,18 @@ type App struct {
 }
 
 type WorkflowConfig struct {
-	Host            string                      `json:"Host"`
-	Port            int                         `json:"Port"`
-	EveryStepDelay  *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
-	OutputFilePath  string                      `json:"OutputFilePath,omitempty"`
-	RampUpBatchSize int                         `json:"RampUpBatchSize,omitempty"`
-	RampUpDelay     float64                     `json:"RampUpDelay,omitempty"`
-	EndOfTaskDelay  *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
-	Steps           []session.WorkflowStep      `json:"Steps"`
+	Host             string                      `json:"Host"`
+	Port             int                         `json:"Port"`
+	Name             string                      `json:"Name,omitempty"`
+	Description      string                      `json:"Description,omitempty"`
+	BusinessFunction string                      `json:"BusinessFunction,omitempty"`
+	Parameters       []session.WorkflowParameter `json:"Parameters,omitempty"`
+	EveryStepDelay   *session.WorkflowDelayRange `json:"EveryStepDelay,omitempty"`
+	OutputFilePath   string                      `json:"OutputFilePath,omitempty"`
+	RampUpBatchSize  int                         `json:"RampUpBatchSize,omitempty"`
+	RampUpDelay      float64                     `json:"RampUpDelay,omitempty"`
+	EndOfTaskDelay   *session.WorkflowDelayRange `json:"EndOfTaskDelay,omitempty"`
+	Steps            []session.WorkflowStep      `json:"Steps"`
 }
 
 type workflowJSONPayload struct {
@@ -237,6 +241,13 @@ func main() {
 	r.POST("/chaos/hints/extract-recording", app.ChaosHintsExtractHandler)
 	r.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
 	r.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
+
+	// Business-understanding handlers (AI screen annotations + function catalog)
+	r.GET("/chaos/screens", app.ChaosScreensListHandler)
+	r.POST("/chaos/screens/annotate", app.ChaosScreenAnnotateHandler)
+	r.GET("/chaos/business/functions", app.ChaosBusinessFunctionsListHandler)
+	r.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
+	r.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
 
 	// GitHub Copilot side panel + screen JSON tool endpoint
 	app.initCopilot(r)

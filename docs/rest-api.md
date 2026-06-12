@@ -198,6 +198,11 @@ that already drive 3270Web through the cookie.
 | `GET` | `/profile` | Return the cached profile for the current session. |
 | `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
+| `GET` | `/chaos/screens` | Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. `?include_previews=false` omits previews. |
+| `POST` | `/chaos/screens/annotate` | Record a screen's business purpose and field semantics. Body: `{"screen_hash", "business_purpose", "notes", "field_semantics": {"R5C20L8": {"name", "description", "example", "sensitive"}}}`. |
+| `GET` | `/chaos/business/functions` | List cataloged business functions (name, description, steps, parameters). |
+| `POST` | `/chaos/business/functions` | Upsert a business function. Body: `{"name", "description", "entry_screen_hash", "steps": [{"screen_hash", "inputs": [{"field_key", "value", "parameter"}], "aid_key", "expect_hash"}], "parameters": [{"name", "description", "screen_hash", "field_key", "example", "required"}]}`. |
+| `POST` | `/chaos/business/generate-workflow` | Generate a business-focused workflow JSON from a cataloged function. Body: `{"name", "parameters": {"param": "value"}, "host", "port"}`. Returns a playback-compatible workflow document with `Name`/`Description`/`BusinessFunction`/`Parameters` metadata. |
 
 ## Errors
 
