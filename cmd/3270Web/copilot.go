@@ -79,7 +79,7 @@ func (app *App) ScreenWriteHandler(c *gin.Context) {
 		return
 	}
 	// Reject control characters that could be interpreted as s3270 commands.
-	if strings.ContainsAny(body.Text, "\r\n\t") {
+	if host.ContainsForbiddenFieldText(body.Text) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}

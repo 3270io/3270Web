@@ -72,23 +72,43 @@ func validateRunID(runID string) error {
 // SaveRun persists a SavedRun to dir/<runID>.json.
 // The directory is created if it does not exist.
 func SaveRun(dir string, run *SavedRun) error {
+	data, err := EncodeRun(run)
+	if err != nil {
+		return err
+	}
+	return WriteRunFile(dir, run.ID, data)
+}
+
+// EncodeRun serializes a SavedRun into the on-disk JSON format. Callers that
+// guard the run with a lock can encode under the lock and hand the bytes to
+// WriteRunFile outside it, keeping file I/O out of the critical section.
+func EncodeRun(run *SavedRun) ([]byte, error) {
+	if run == nil {
+		return nil, fmt.Errorf("run must not be nil")
+	}
+	if err := validateRunID(run.ID); err != nil {
+		return nil, err
+	}
+	data, err := json.MarshalIndent(run, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal run: %w", err)
+	}
+	return data, nil
+}
+
+// WriteRunFile writes pre-encoded run JSON to dir/<runID>.json, creating the
+// directory if needed.
+func WriteRunFile(dir, runID string, data []byte) error {
 	if dir == "" {
 		return fmt.Errorf("chaos runs directory not configured")
 	}
-	if run == nil {
-		return fmt.Errorf("run must not be nil")
-	}
-	if err := validateRunID(run.ID); err != nil {
+	if err := validateRunID(runID); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create chaos runs dir: %w", err)
 	}
-	data, err := json.MarshalIndent(run, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal run: %w", err)
-	}
-	path := filepath.Join(dir, runFileName(run.ID))
+	path := filepath.Join(dir, runFileName(runID))
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("write run file: %w", err)
 	}
@@ -152,6 +172,9 @@ func LoadRun(dir, runID string) (*SavedRun, error) {
 	if err := json.Unmarshal(data, &run); err != nil {
 		return nil, fmt.Errorf("parse run file: %w", err)
 	}
+	// Upgrade signatures written by older versions so resume/compare keep
+	// matching screens observed with the current signature format.
+	normalizeMindMapSignatures(run.MindMap)
 	return &run, nil
 }
 

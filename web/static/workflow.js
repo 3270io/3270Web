@@ -39,6 +39,7 @@
 
   const modalTitle = modal.querySelector('[data-modal-title]');
   const modalName = modal.querySelector('[data-modal-name]');
+  const modalBusiness = modal.querySelector('[data-modal-business]');
   const modalSize = modal.querySelector('[data-modal-size]');
   const modalStatus = modal.querySelector('[data-modal-status]');
   const modalPreview = modal.querySelector('[data-modal-preview]');
@@ -154,10 +155,58 @@
     return text;
   };
 
+  // Surface the optional business metadata (Name/Description/BusinessFunction/
+  // Parameters) carried by business-generated workflows so the file is
+  // self-describing in the UI, not just on disk.
+  const setBusinessMeta = (wf) => {
+    if (!modalBusiness) {
+      return;
+    }
+    modalBusiness.textContent = '';
+    const name = wf && typeof wf.Name === 'string' ? wf.Name.trim() : '';
+    const description = wf && typeof wf.Description === 'string' ? wf.Description.trim() : '';
+    const params = wf && Array.isArray(wf.Parameters) ? wf.Parameters : [];
+    if (!name && !description && params.length === 0) {
+      modalBusiness.hidden = true;
+      return;
+    }
+    if (name) {
+      const strong = document.createElement('strong');
+      strong.textContent = name;
+      modalBusiness.appendChild(strong);
+    }
+    if (description) {
+      const desc = document.createElement('span');
+      desc.className = 'subtle';
+      desc.textContent = (name ? ' — ' : '') + description;
+      modalBusiness.appendChild(desc);
+    }
+    if (params.length > 0) {
+      const paramText = params
+        .map((p) => {
+          const pName = p && typeof p.Name === 'string' ? p.Name : '';
+          if (!pName) return '';
+          if (p && p.Sensitive) return `${pName}=•••`;
+          const value = p && typeof p.Value === 'string' && p.Value ? `=${p.Value}` : '';
+          return `${pName}${value}`;
+        })
+        .filter(Boolean)
+        .join(', ');
+      if (paramText) {
+        const span = document.createElement('span');
+        span.className = 'subtle';
+        span.textContent = ` (${paramText})`;
+        modalBusiness.appendChild(span);
+      }
+    }
+    modalBusiness.hidden = modalBusiness.childNodes.length === 0;
+  };
+
   const populateControlsFromWorkflow = (text) => {
     modalWorkflowRawText = typeof text === 'string' ? text : '';
     modalWorkflowObject = parseJsonObject(modalWorkflowRawText);
     const wf = modalWorkflowObject || {};
+    setBusinessMeta(modalWorkflowObject);
     const every = wf.EveryStepDelay && typeof wf.EveryStepDelay === 'object' ? wf.EveryStepDelay : {};
     const end = wf.EndOfTaskDelay && typeof wf.EndOfTaskDelay === 'object' ? wf.EndOfTaskDelay : {};
     setNumericInputValue(everyMinInput, every.Min);

@@ -87,6 +87,38 @@ func (s *chaosEngineStore) delete(sessionID string) {
 	delete(s.engines, sessionID)
 }
 
+// withEngine runs fn against the session's engine while holding the store
+// mutex, so the engine cannot be completed (snapshotted and removed) by
+// completeEngine while fn is writing to it.
+func (s *chaosEngineStore) withEngine(sessionID string, fn func(*chaos.Engine) error) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	eng, ok := s.engines[sessionID]
+	if !ok || eng == nil {
+		return false, nil
+	}
+	return true, fn(eng)
+}
+
+// completeEngine atomically snapshots the engine, installs the snapshot as
+// the session's loaded run, and removes the engine from the store. Holding
+// the store mutex across all three steps means writes routed through
+// withEngine/withLoadedRun land either in the engine before the snapshot or
+// in the loaded run after it — never in the gap, where they would be lost.
+// Returns nil if no engine is registered for the session.
+func (s *chaosEngineStore) completeEngine(sessionID, runID string) *chaos.SavedRun {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	eng, ok := s.engines[sessionID]
+	if !ok || eng == nil {
+		return nil
+	}
+	snapshot := eng.Snapshot(runID)
+	s.loadedRuns[sessionID] = snapshot
+	delete(s.engines, sessionID)
+	return snapshot
+}
+
 func (s *chaosEngineStore) getScreenHints(sessionID string) map[string]chaos.ScreenHint {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -608,31 +640,18 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 	})
 
 	var data []byte
+	var err error
 	exportSuccessBalance := app.chaosExportSuccessBalanceSetting()
 	if eng, ok := app.chaosEngines.get(s.ID); ok {
-		var err error
 		data, err = eng.ExportWorkflowWithSuccessBalance(targetHost, targetPort, exportSuccessBalance)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	} else if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok {
-		var err error
+	} else if run, ok := app.sessionChaosRun(s); ok {
 		data, err = chaos.ExportWorkflowFromSavedRun(run, targetHost, targetPort, exportSuccessBalance)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
-		app.chaosEngines.setLoadedRun(s.ID, run)
-		var err error
-		data, err = chaos.ExportWorkflowFromSavedRun(run, targetHost, targetPort, exportSuccessBalance)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
 	} else {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -841,8 +860,13 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 				return
 			}
 			runID := chaos.NewRunID()
-			snapshot := eng.Snapshot(runID)
-			app.chaosEngines.setLoadedRun(s.ID, snapshot)
+			// Snapshot, install as loaded run, and unregister the engine in
+			// one atomic store operation so concurrent business writes are
+			// never lost between the snapshot and the engine removal.
+			snapshot := app.chaosEngines.completeEngine(s.ID, runID)
+			if snapshot == nil {
+				return
+			}
 			withSessionLock(s, func() {
 				if s.Chaos != nil {
 					s.Chaos.LoadedRunID = runID
@@ -855,7 +879,6 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 					_ = saveErr
 				}
 			}
-			app.chaosEngines.delete(s.ID)
 			return
 		}
 		time.Sleep(500 * time.Millisecond)

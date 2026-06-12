@@ -395,6 +395,132 @@ func TestImportMindMapMergesBusinessFunctions(t *testing.T) {
 	}
 }
 
+func TestNormalizeDedupSignature(t *testing.T) {
+	oldFormat := "80x24|AaAa 9\n|fields:2|0,1,0,14,192,4,1|4,10,4,21,0,0,241"
+	want := "80x24|AaAa 9\n|fields:2|0,1,0,14,192|4,10,4,21,0"
+	if got := normalizeDedupSignature(oldFormat); got != want {
+		t.Fatalf("normalizeDedupSignature = %q, want %q", got, want)
+	}
+	// Current-format signatures pass through unchanged.
+	if got := normalizeDedupSignature(want); got != want {
+		t.Fatalf("current-format signature changed: %q", got)
+	}
+	// Signatures with no field section pass through unchanged.
+	if got := normalizeDedupSignature("just a body"); got != "just a body" {
+		t.Fatalf("body-only signature changed: %q", got)
+	}
+}
+
+func TestLoadRunNormalizesOldSignatures(t *testing.T) {
+	mm := newMindMap()
+	area := mm.ensureArea("h1")
+	area.DedupSignature = "80x24|x\n|fields:1|0,1,0,14,192,4,1"
+	run := &SavedRun{SavedRunMeta: SavedRunMeta{ID: NewRunID()}, MindMap: mm}
+
+	dir := t.TempDir()
+	if err := SaveRun(dir, run); err != nil {
+		t.Fatalf("SaveRun: %v", err)
+	}
+	loaded, err := LoadRun(dir, run.ID)
+	if err != nil {
+		t.Fatalf("LoadRun: %v", err)
+	}
+	want := "80x24|x\n|fields:1|0,1,0,14,192"
+	if got := loaded.MindMap.Areas["h1"].DedupSignature; got != want {
+		t.Fatalf("loaded signature = %q, want normalized %q", got, want)
+	}
+}
+
+func TestCompareMindMapsMatchesAcrossSignatureFormats(t *testing.T) {
+	oldRun := newMindMap()
+	a := oldRun.ensureArea("old-hash")
+	a.Label = "MENU"
+	a.DedupSignature = "80x24|x\n|fields:1|0,1,0,14,192,4,1"
+
+	newRun := newMindMap()
+	b := newRun.ensureArea("new-hash")
+	b.Label = "MENU"
+	b.DedupSignature = "80x24|x\n|fields:1|0,1,0,14,192"
+
+	diff := CompareMindMaps(oldRun, newRun)
+	if len(diff.OnlyInBaseline) != 0 || len(diff.OnlyInCandidate) != 0 {
+		t.Fatalf("same screen with old/new signature formats reported as divergent: baseline-only=%d candidate-only=%d",
+			len(diff.OnlyInBaseline), len(diff.OnlyInCandidate))
+	}
+}
+
+func TestGenerateBusinessWorkflowRedactsSensitiveParameterMetadata(t *testing.T) {
+	mm := buildBusinessTestMindMap(t)
+	form := mm.Areas["form"]
+	form.FieldSemantics = map[string]BusinessFieldSemantic{
+		"R3C13L8": {Name: "password", Sensitive: true},
+	}
+	form.FieldMetadata = map[string]MindMapFieldMetadata{
+		"R4C13L8": {Row: 4, Column: 13, Length: 8, Hidden: true},
+	}
+	err := upsertMindMapBusinessFunction(mm, BusinessFunction{
+		Name: "Login",
+		Steps: []BusinessFunctionStep{{
+			ScreenHash: "form",
+			Inputs: []BusinessFunctionInput{
+				{FieldKey: "R2C13L8", Parameter: "user"},
+				{FieldKey: "R3C13L8", Parameter: "password"},
+				{FieldKey: "R4C13L8", Parameter: "pin"},
+			},
+			AIDKey: "Enter",
+		}},
+		Parameters: []BusinessParameter{
+			{Name: "user", Required: true},
+			{Name: "password", Required: true},
+			{Name: "pin", Required: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	data, err := GenerateBusinessWorkflow(mm, "login", map[string]string{
+		"user": "USER1", "password": "HUSH123", "pin": "9876",
+	}, "h", 23, nil)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	text := string(data)
+	// Sensitive values must not appear in the Parameters metadata, but the
+	// FillString steps still need them for playback.
+	if !strings.Contains(text, `"Sensitive": true`) {
+		t.Fatalf("sensitive parameters not flagged:\n%s", text)
+	}
+	if strings.Contains(text, `"Value": "HUSH123"`) || strings.Contains(text, `"Value": "9876"`) {
+		t.Fatalf("sensitive value echoed in Parameters metadata:\n%s", text)
+	}
+	if !strings.Contains(text, `"Value": "USER1"`) {
+		t.Fatalf("non-sensitive parameter metadata missing:\n%s", text)
+	}
+	if !strings.Contains(text, `"Text": "HUSH123"`) || !strings.Contains(text, `"Text": "9876"`) {
+		t.Fatalf("FillString steps lost sensitive values needed for playback:\n%s", text)
+	}
+}
+
+func TestUpsertBusinessFunctionRejectsInvalidParameterFieldKey(t *testing.T) {
+	mm := newMindMap()
+	err := upsertMindMapBusinessFunction(mm, BusinessFunction{
+		Name:            "x",
+		EntryScreenHash: "h",
+		Parameters:      []BusinessParameter{{Name: "acct", FieldKey: "bogus"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "fieldKey") {
+		t.Fatalf("expected invalid parameter fieldKey error, got %v", err)
+	}
+	// Empty FieldKey stays allowed (parameter may be referenced by steps).
+	if err := upsertMindMapBusinessFunction(mm, BusinessFunction{
+		Name:            "x",
+		EntryScreenHash: "h",
+		Parameters:      []BusinessParameter{{Name: "acct"}},
+	}); err != nil {
+		t.Fatalf("empty fieldKey should be allowed: %v", err)
+	}
+}
+
 func TestBuildAreaDedupSignatureIgnoresDisplayAttributes(t *testing.T) {
 	makeScreen := func(color, highlight int) *host.Screen {
 		s := &host.Screen{

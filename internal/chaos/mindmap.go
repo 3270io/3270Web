@@ -542,6 +542,50 @@ func appendUniqueLimited(values []string, candidate string, max int) []string {
 	return append(values, candidate)
 }
 
+// normalizeDedupSignature rewrites a stored dedup signature into the current
+// format. Signatures written before display attributes were dropped from the
+// field fragments carry 7 comma-separated values per field
+// ("y,x,y,x,code,color,highlight"); the current format keeps the first five.
+// The screen-body portion of the signature is left untouched.
+func normalizeDedupSignature(sig string) string {
+	idx := strings.LastIndex(sig, "|fields:")
+	if idx < 0 {
+		return sig
+	}
+	parts := strings.Split(sig[idx+1:], "|")
+	var b strings.Builder
+	b.Grow(len(sig))
+	b.WriteString(sig[:idx])
+	for i, part := range parts {
+		b.WriteByte('|')
+		if i == 0 {
+			b.WriteString(part) // "fields:N"
+			continue
+		}
+		vals := strings.Split(part, ",")
+		if len(vals) > 5 {
+			vals = vals[:5]
+		}
+		b.WriteString(strings.Join(vals, ","))
+	}
+	return b.String()
+}
+
+// normalizeMindMapSignatures upgrades every stored area signature to the
+// current format so runs and mind maps saved before a signature-format
+// change keep matching newly observed screens and compare cleanly.
+func normalizeMindMapSignatures(mm *MindMap) {
+	if mm == nil {
+		return
+	}
+	for _, area := range mm.Areas {
+		if area == nil || area.DedupSignature == "" {
+			continue
+		}
+		area.DedupSignature = normalizeDedupSignature(area.DedupSignature)
+	}
+}
+
 func buildAreaDedupSignature(screen *host.Screen) string {
 	if screen == nil {
 		return ""
