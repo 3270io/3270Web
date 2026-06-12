@@ -208,6 +208,14 @@ func (h *S3270) withRetry(op func() error) error {
 	return nil
 }
 
+// ContainsForbiddenFieldText reports whether value contains CR, LF, or TAB —
+// characters the s3270 String() command would interpret as actions rather
+// than literal field text. This is the canonical rule for every layer that
+// accepts field input (screen write handlers, workflow generation).
+func ContainsForbiddenFieldText(value string) bool {
+	return strings.ContainsAny(value, "\r\n\t")
+}
+
 func (h *S3270) sendKeyOnce(key string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()

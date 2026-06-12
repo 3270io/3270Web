@@ -5258,11 +5258,15 @@
             const hashMeta = group.memberHashes.length > 1
                 ? `${group.memberHashes.length} variants merged`
                 : (hash || 'unknown-hash');
+            const businessPurpose = (group.memberAreas || [])
+                .map((a) => String((a && a.businessPurpose) || '').trim())
+                .find(Boolean) || '';
 
             card.innerHTML = `
                 <div class="chaos-map-card-header">
                     <div class="chaos-map-card-title">
                         <strong>${escapeHtml(titleLabel)}</strong>
+                        ${businessPurpose ? `<span class="chaos-map-card-purpose">${escapeHtml(businessPurpose)}</span>` : ''}
                         <span class="chaos-map-card-hash">${escapeHtml(hashMeta)}</span>
                     </div>
                     <span class="chaos-map-chip">${Number(group.visits) || 0} visits</span>

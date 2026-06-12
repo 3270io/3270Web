@@ -153,7 +153,7 @@ func areaMapBySignature(m *MindMap) map[string]*MindMapArea {
 		if area == nil {
 			continue
 		}
-		sig := strings.TrimSpace(area.DedupSignature)
+		sig := normalizeDedupSignature(strings.TrimSpace(area.DedupSignature))
 		if sig == "" {
 			// Fall back to the hash itself so areas without a signature
 			// still participate in comparison (and only collide with

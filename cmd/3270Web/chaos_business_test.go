@@ -253,6 +253,64 @@ func TestChaosBusinessAnnotateLiveEngine(t *testing.T) {
 	}
 }
 
+func TestCompleteEngineAtomicallyInstallsAnnotatedSnapshot(t *testing.T) {
+	app, _, sessID := setupChaosBusinessTestApp(t)
+
+	eng := chaos.New(nil, chaos.DefaultConfig())
+	app.chaosEngines.set(sessID, eng)
+
+	// A business write routed through withEngine before completion must be
+	// captured by the completion snapshot.
+	if err := app.applyChaosBusinessWrite(sessID, func(e *chaos.Engine) error {
+		return e.AnnotateArea("h1", "Login screen", "", nil)
+	}, func(run *chaos.SavedRun) error {
+		t.Fatal("write went to loaded run while engine registered")
+		return nil
+	}); err != nil {
+		t.Fatalf("annotate via engine: %v", err)
+	}
+
+	runID := chaos.NewRunID()
+	snapshot := app.chaosEngines.completeEngine(sessID, runID)
+	if snapshot == nil {
+		t.Fatal("completeEngine returned nil with a registered engine")
+	}
+	if snapshot.MindMap == nil || snapshot.MindMap.Areas["h1"] == nil ||
+		snapshot.MindMap.Areas["h1"].BusinessPurpose != "Login screen" {
+		t.Fatalf("completion snapshot missing pre-completion annotation: %+v", snapshot.MindMap)
+	}
+	// The engine must be unregistered and the snapshot installed as the
+	// loaded run in the same operation.
+	if _, ok := app.chaosEngines.get(sessID); ok {
+		t.Fatal("engine still registered after completeEngine")
+	}
+	loaded, ok := app.chaosEngines.getLoadedRun(sessID)
+	if !ok || loaded != snapshot {
+		t.Fatal("snapshot not installed as the loaded run")
+	}
+	// Second completion is a no-op.
+	if again := app.chaosEngines.completeEngine(sessID, chaos.NewRunID()); again != nil {
+		t.Fatal("completeEngine on a completed session should return nil")
+	}
+
+	// Post-completion writes land on the loaded run and persist to disk.
+	if err := app.applyChaosBusinessWrite(sessID, func(e *chaos.Engine) error {
+		t.Fatal("write went to an engine after completion")
+		return nil
+	}, func(run *chaos.SavedRun) error {
+		return chaos.AnnotateSavedRun(run, "h1", "", "verified after completion", nil)
+	}); err != nil {
+		t.Fatalf("annotate via loaded run: %v", err)
+	}
+	reloaded, err := chaos.LoadRun(app.chaosRunsDir, runID)
+	if err != nil {
+		t.Fatalf("LoadRun: %v", err)
+	}
+	if reloaded.MindMap.Areas["h1"].BusinessNotes != "verified after completion" {
+		t.Fatal("post-completion annotation not persisted to disk")
+	}
+}
+
 func TestWorkflowConfigBackwardCompatibleWithBusinessFields(t *testing.T) {
 	// Old workflows (no business metadata) keep parsing.
 	legacy := []byte(`{"Host": "h", "Port": 23, "Steps": [{"Type": "PressEnter"}]}`)

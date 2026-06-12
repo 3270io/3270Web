@@ -228,7 +228,7 @@
             if (typeof args.port === "number") body.port = args.port;
             const res = await postJSON("/chaos/business/generate-workflow", body);
             if (!res.ok) return { error: res.error };
-            return { workflow: res.data, downloadable: true };
+            return { workflow: res.data };
         },
     };
 

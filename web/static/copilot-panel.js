@@ -45,7 +45,12 @@
             const raw = localStorage.getItem(HISTORY_KEY);
             if (!raw) return [];
             const arr = JSON.parse(raw);
-            return Array.isArray(arr) ? arr : [];
+            if (!Array.isArray(arr)) return [];
+            // Drop leading orphaned tool results (history persisted by older
+            // versions may have been cut mid-tool-round).
+            let start = 0;
+            while (start < arr.length && arr[start] && arr[start].role === "tool") start++;
+            return start > 0 ? arr.slice(start) : arr;
         } catch (_) { return []; }
     }
 
@@ -54,16 +59,25 @@
     // untouched; only what is persisted across reloads is trimmed.
     const MAX_PERSISTED_MESSAGES = 200;
 
+    // Trim to the last `max` messages, then advance past any leading
+    // "role: tool" entries: a tool result whose parent assistant tool_calls
+    // message was cut would make the restored payload invalid (the API
+    // rejects tool messages with no preceding tool_calls).
+    function trimHistoryForPersist(arr, max) {
+        if (arr.length <= max) return arr;
+        let start = arr.length - max;
+        while (start < arr.length && arr[start] && arr[start].role === "tool") start++;
+        return arr.slice(start);
+    }
+
     function saveHistory() {
-        let toPersist = history.length > MAX_PERSISTED_MESSAGES
-            ? history.slice(history.length - MAX_PERSISTED_MESSAGES)
-            : history;
+        let toPersist = trimHistoryForPersist(history, MAX_PERSISTED_MESSAGES);
         try {
             localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
         } catch (_) {
             // Quota exceeded: halve and retry once, then give up silently.
             try {
-                toPersist = toPersist.slice(Math.floor(toPersist.length / 2));
+                toPersist = trimHistoryForPersist(toPersist, Math.floor(toPersist.length / 2));
                 localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
             } catch (_) {}
         }
@@ -544,6 +558,18 @@
         };
     }
 
+    function downloadJSONFile(jsonText, fileName) {
+        const blob = new Blob([jsonText], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     function addToolExtras(toolName, args, result, card) {
         const extrasEl = card && card.querySelector("[data-tool-extras]");
         if (!extrasEl) return;
@@ -561,22 +587,11 @@
             const workflow = result && result.workflow;
             if (!workflow) return;
             const jsonText = typeof workflow === "string" ? workflow : JSON.stringify(workflow, null, 2);
-            const runID = typeof window.ChaosUI === "object" && typeof window.ChaosUI.isMapVisible === "function"
-                ? (document.querySelector("[data-chaos-stats-text]") || {}).textContent || ""
-                : "";
             const btn = makeBtn("⬇ Download Workflow JSON", function () {
                 if (typeof window.ChaosUI === "object" && typeof window.ChaosUI.downloadWorkflow === "function") {
                     window.ChaosUI.downloadWorkflow(jsonText, "");
                 } else {
-                    const blob = new Blob([jsonText], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "chaos-workflow.json";
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    downloadJSONFile(jsonText, "chaos-workflow.json");
                 }
             });
             extrasEl.appendChild(btn);
@@ -592,15 +607,7 @@
             const fnName = (workflow && workflow.Name) || (args && args.name) || "business-workflow";
             const fileName = String(fnName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "business-workflow";
             const btn = makeBtn("⬇ Download Workflow JSON", function () {
-                const blob = new Blob([jsonText], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = fileName + ".json";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                downloadJSONFile(jsonText, fileName + ".json");
             });
             extrasEl.appendChild(btn);
             extrasEl.hidden = false;

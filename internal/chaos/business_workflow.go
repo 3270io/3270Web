@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -39,15 +40,25 @@ func GenerateBusinessWorkflow(mm *MindMap, name string, paramValues map[string]s
 			}
 			continue
 		}
-		row, col, length, _ := parseMindMapFieldKey(p.FieldKey)
-		usedParams = append(usedParams, session.WorkflowParameter{
+		param := session.WorkflowParameter{
 			Name:        p.Name,
 			Description: p.Description,
 			Value:       value,
-			Row:         row,
-			Column:      col,
-			Length:      length,
-		})
+		}
+		if row, col, length, ok := parseMindMapFieldKey(p.FieldKey); ok {
+			param.Row = row
+			param.Column = col
+			param.Length = length
+		}
+		// Values headed for sensitive fields (password-style hidden fields or
+		// fields the AI marked sensitive) are not echoed in the metadata. The
+		// FillString step still carries the value — playback needs it — so
+		// the document as a whole must still be handled as sensitive.
+		if isSensitiveParameter(mm, fn, p) {
+			param.Value = ""
+			param.Sensitive = true
+		}
+		usedParams = append(usedParams, param)
 	}
 
 	steps := []session.WorkflowStep{{Type: "Connect"}}
@@ -164,12 +175,49 @@ func GenerateBusinessWorkflowFromSavedRun(run *SavedRun, name string, paramValue
 	return GenerateBusinessWorkflow(run.MindMap, name, paramValues, hostName, port, run.WorkflowHeader)
 }
 
-// validateBusinessParameterValue mirrors the control-character rejection used
-// by the screen write endpoints: CR/LF/TAB would be interpreted by the s3270
+// isSensitiveParameter reports whether a parameter's value lands in a field
+// that is hidden (3270 non-display, password-style) or that the AI marked
+// sensitive in the screen's field semantics — either via the parameter's own
+// screen/field mapping or via any function step input that references it.
+func isSensitiveParameter(mm *MindMap, fn *BusinessFunction, p BusinessParameter) bool {
+	if fieldIsSensitive(mm, p.ScreenHash, p.FieldKey) {
+		return true
+	}
+	for _, step := range fn.Steps {
+		for _, input := range step.Inputs {
+			if strings.TrimSpace(input.Parameter) == strings.TrimSpace(p.Name) &&
+				fieldIsSensitive(mm, step.ScreenHash, input.FieldKey) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func fieldIsSensitive(mm *MindMap, screenHash, fieldKey string) bool {
+	if mm == nil {
+		return false
+	}
+	area := mm.Areas[strings.TrimSpace(screenHash)]
+	if area == nil {
+		return false
+	}
+	key := strings.TrimSpace(fieldKey)
+	if sem, ok := area.FieldSemantics[key]; ok && sem.Sensitive {
+		return true
+	}
+	if meta, ok := area.FieldMetadata[key]; ok && meta.Hidden {
+		return true
+	}
+	return false
+}
+
+// validateBusinessParameterValue applies the same field-text rule as the
+// screen write endpoints: CR/LF/TAB would be interpreted by the s3270
 // protocol layer rather than typed into the field.
 func validateBusinessParameterValue(value string) error {
-	if strings.ContainsAny(value, "\r\n\t") {
-		return fmt.Errorf("value must not contain control characters")
+	if host.ContainsForbiddenFieldText(value) {
+		return fmt.Errorf("value must not contain CR/LF/TAB")
 	}
 	return nil
 }

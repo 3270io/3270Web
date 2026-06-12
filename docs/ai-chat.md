@@ -49,7 +49,7 @@ To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel
 
 The panel header includes a **model selector** dropdown that lists the
 Copilot models your GitHub account has access to. The default is
-**Claude Opus 4**; switch at any time and the next message uses the
+**Claude Sonnet 4.6**; switch at any time and the next message uses the
 new model. The choice persists across page reloads.
 
 Pick a heavier model (Opus / Sonnet) for screen-reasoning-heavy
@@ -115,7 +115,7 @@ Generated business workflows carry `Name`, `Description`, `BusinessFunction`, an
 
 ## Model Selection
 
-Use the **Model** dropdown in the panel to switch between available Copilot models at any time. The default is Claude Opus 4.
+Use the **Model** dropdown in the panel to switch between available Copilot models at any time. The default is Claude Sonnet 4.6.
 
 ## Clear the Conversation
 

@@ -196,6 +196,16 @@ func New(h host.Host, cfg Config) *Engine {
 	}
 }
 
+// MindMapSnapshot returns a deep copy of the engine's current mind map
+// without the rest of the Status payload (attempts, counters), making it the
+// cheap accessor for read-only mind-map consumers. Safe to call while the
+// engine is running.
+func (e *Engine) MindMapSnapshot() *MindMap {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.mindMap.clone()
+}
+
 // ExportMindMap returns the engine's current mind map as a JSON byte slice.
 // Safe to call while the engine is running.
 func (e *Engine) ExportMindMap() ([]byte, error) {
@@ -221,6 +231,7 @@ func (e *Engine) ImportMindMap(imported *MindMap) bool {
 	if imported == nil {
 		return true
 	}
+	normalizeMindMapSignatures(imported)
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}

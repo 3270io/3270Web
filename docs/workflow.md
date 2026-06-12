@@ -115,6 +115,8 @@ Workflows generated from a cataloged business function (see [AI Chat — Busines
 
 `Parameters` documents which business input produced which `FillString` value and where it was written, making the file self-describing.
 
+Parameters whose value lands in a hidden (password-style) field, or in a field the AI marked sensitive, are exported with `"Sensitive": true` and an empty `Value` in the metadata. The `FillString` step itself still carries the value — playback needs it — so treat generated workflow files that fill sensitive fields as secrets.
+
 ## Troubleshooting Playback
 
 - Confirm host and port are correct.

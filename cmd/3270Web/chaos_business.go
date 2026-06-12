@@ -31,19 +31,30 @@ func (s *chaosEngineStore) withLoadedRun(sessionID string, fn func(*chaos.SavedR
 	return true, fn(run)
 }
 
+// sessionChaosRun resolves the session's saved-run data: the loaded run
+// first, then the auto-saved run on disk (cached as the loaded run for
+// subsequent calls). Shared by the export, screens, and business handlers so
+// the fallback order lives in one place.
+func (app *App) sessionChaosRun(s *session.Session) (*chaos.SavedRun, bool) {
+	if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok && run != nil {
+		return run, true
+	}
+	if run := app.loadSessionChaosRunFromDisk(s); run != nil {
+		app.chaosEngines.setLoadedRun(s.ID, run)
+		return run, true
+	}
+	return nil, false
+}
+
 // sessionChaosMindMap resolves the freshest mind map for a session: live
 // engine first, then the loaded run, then the auto-saved run on disk.
 func (app *App) sessionChaosMindMap(s *session.Session) *chaos.MindMap {
 	if eng, ok := app.chaosEngines.get(s.ID); ok {
-		if st := eng.Status(); st.MindMap != nil {
-			return st.MindMap
+		if mm := eng.MindMapSnapshot(); mm != nil {
+			return mm
 		}
 	}
-	if run, ok := app.chaosEngines.getLoadedRun(s.ID); ok && run != nil {
-		return run.MindMap
-	}
-	if run := app.loadSessionChaosRunFromDisk(s); run != nil {
-		app.chaosEngines.setLoadedRun(s.ID, run)
+	if run, ok := app.sessionChaosRun(s); ok {
 		return run.MindMap
 	}
 	return nil
@@ -326,14 +337,7 @@ func (app *App) ChaosBusinessGenerateWorkflowHandler(c *gin.Context) {
 	var err error
 	if eng, ok := app.chaosEngines.get(s.ID); ok {
 		data, err = eng.GenerateBusinessWorkflow(req.Name, req.Parameters, targetHost, targetPort)
-	} else if found, runErr := app.chaosEngines.withLoadedRun(s.ID, func(run *chaos.SavedRun) error {
-		var genErr error
-		data, genErr = chaos.GenerateBusinessWorkflowFromSavedRun(run, req.Name, req.Parameters, targetHost, targetPort)
-		return genErr
-	}); found {
-		err = runErr
-	} else if run := app.loadSessionChaosRunFromDisk(s); run != nil {
-		app.chaosEngines.setLoadedRun(s.ID, run)
+	} else if run, ok := app.sessionChaosRun(s); ok {
 		data, err = chaos.GenerateBusinessWorkflowFromSavedRun(run, req.Name, req.Parameters, targetHost, targetPort)
 	} else {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
@@ -353,33 +357,53 @@ func (app *App) ChaosBusinessGenerateWorkflowHandler(c *gin.Context) {
 }
 
 // applyChaosBusinessWrite routes a business-knowledge write to the live
-// engine when one exists (the engine mutex serializes against the run loop),
-// otherwise to the loaded run under the store mutex, loading the auto-saved
-// run from disk if needed. Saved-run writes are re-persisted immediately so
-// annotations survive restarts.
+// engine when one exists, otherwise to the loaded run, loading the
+// auto-saved run from disk if needed. Both paths run under the store mutex
+// (withEngine / withLoadedRun), so a write can never fall into the gap where
+// completeEngine snapshots and unregisters a finishing engine. Engine writes
+// persist with the completion snapshot (same durability as the discovery
+// data itself); saved-run writes are re-persisted to disk immediately, with
+// the file write kept outside the store lock.
 func (app *App) applyChaosBusinessWrite(sessionID string, onEngine func(*chaos.Engine) error, onRun func(*chaos.SavedRun) error) error {
-	if eng, ok := app.chaosEngines.get(sessionID); ok {
-		return onEngine(eng)
+	if found, err := app.chaosEngines.withEngine(sessionID, onEngine); found {
+		return err
 	}
-	writeAndSave := func(run *chaos.SavedRun) error {
+	var encoded []byte
+	var runID string
+	mutateAndEncode := func(run *chaos.SavedRun) error {
 		if err := onRun(run); err != nil {
 			return err
 		}
 		if app.chaosRunsDir != "" {
-			if err := chaos.SaveRun(app.chaosRunsDir, run); err != nil {
+			data, err := chaos.EncodeRun(run)
+			if err != nil {
 				return err
 			}
+			encoded = data
+			runID = run.ID
 		}
 		return nil
 	}
-	if found, err := app.chaosEngines.withLoadedRun(sessionID, writeAndSave); found {
-		return err
+	persist := func() error {
+		if encoded == nil {
+			return nil
+		}
+		return chaos.WriteRunFile(app.chaosRunsDir, runID, encoded)
+	}
+	if found, err := app.chaosEngines.withLoadedRun(sessionID, mutateAndEncode); found {
+		if err != nil {
+			return err
+		}
+		return persist()
 	}
 	if s, ok := app.SessionManager.GetSession(sessionID); ok {
 		if run := app.loadSessionChaosRunFromDisk(s); run != nil {
 			app.chaosEngines.setLoadedRun(sessionID, run)
-			if found, err := app.chaosEngines.withLoadedRun(sessionID, writeAndSave); found {
-				return err
+			if found, err := app.chaosEngines.withLoadedRun(sessionID, mutateAndEncode); found {
+				if err != nil {
+					return err
+				}
+				return persist()
 			}
 		}
 	}

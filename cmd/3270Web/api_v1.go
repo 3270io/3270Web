@@ -214,7 +214,7 @@ func (app *App) APIWriteField(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "row/col must be >= 0"})
 		return
 	}
-	if strings.ContainsAny(body.Text, "\r\n\t") {
+	if host.ContainsForbiddenFieldText(body.Text) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}

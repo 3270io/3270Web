@@ -127,6 +127,11 @@ func upsertMindMapBusinessFunction(mm *MindMap, fn BusinessFunction) error {
 		if name == "" {
 			return fmt.Errorf("business function parameter name is required")
 		}
+		if key := strings.TrimSpace(p.FieldKey); key != "" {
+			if _, _, _, ok := parseMindMapFieldKey(key); !ok {
+				return fmt.Errorf("parameter %q: invalid fieldKey %q (expected R<row>C<col>L<len>)", name, p.FieldKey)
+			}
+		}
 		paramNames[name] = true
 	}
 	for i, step := range fn.Steps {

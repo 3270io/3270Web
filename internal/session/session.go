@@ -68,6 +68,10 @@ type WorkflowParameter struct {
 	Row         int    `json:"Row,omitempty"`
 	Column      int    `json:"Column,omitempty"`
 	Length      int    `json:"Length,omitempty"`
+	// Sensitive marks parameters whose value goes into a hidden or
+	// AI-flagged-sensitive field; Value is omitted from the metadata for
+	// these (the FillString step still carries it for playback).
+	Sensitive bool `json:"Sensitive,omitempty"`
 }
 
 type WorkflowRecording struct {
