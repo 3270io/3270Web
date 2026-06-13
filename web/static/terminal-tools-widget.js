@@ -11,7 +11,6 @@
     toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
     var label = collapsed ? "Open terminal tools" : "Collapse terminal tools";
     toggle.setAttribute("aria-label", label);
-    toggle.setAttribute("title", label);
     toggle.setAttribute("data-tippy-content", label);
     if (toggle._tippy && typeof toggle._tippy.setContent === "function") {
       toggle._tippy.setContent(label);
