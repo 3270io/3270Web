@@ -2,7 +2,13 @@
     "use strict";
 
     function openPrintWindow(html) {
-        const win = window.open("", "_blank", "noopener,noreferrer");
+        // NOTE: we deliberately do not pass "noopener" here. With noopener the
+        // browser returns null instead of a window handle, which would make it
+        // impossible to write the print document and would trigger the
+        // pop-up-blocked alert even when pop-ups are allowed. The target is a
+        // same-origin about:blank window we fully control, so noopener adds no
+        // security benefit.
+        const win = window.open("", "_blank");
         if (!win) {
             window.alert("Unable to open print window. Allow pop-ups for this site and try again.");
             return;

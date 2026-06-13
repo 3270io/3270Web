@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +17,11 @@ import (
 	"github.com/jnnngs/3270Web/internal/chaos"
 	"github.com/jnnngs/3270Web/internal/session"
 )
+
+// maxSavedChaosRuns caps how many auto-saved chaos run files are retained on
+// disk. The newest runs are kept and older ones are pruned so the runs
+// directory (and the cost of listing it) does not grow without bound.
+const maxSavedChaosRuns = 100
 
 // chaosEngineStore maps session IDs to their running chaos engines. It lives
 // outside App so that it can be initialised once and does not need a pointer
@@ -876,7 +882,11 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 			if app.chaosRunsDir != "" {
 				if saveErr := chaos.SaveRun(app.chaosRunsDir, snapshot); saveErr != nil {
 					// Non-fatal: log but do not interrupt teardown.
-					_ = saveErr
+					log.Printf("chaos: auto-save run %s failed: %v", runID, saveErr)
+				} else if pruned, pruneErr := chaos.PruneRuns(app.chaosRunsDir, maxSavedChaosRuns); pruneErr != nil {
+					log.Printf("chaos: prune saved runs failed: %v", pruneErr)
+				} else if pruned > 0 {
+					log.Printf("chaos: pruned %d old saved run(s), keeping newest %d", pruned, maxSavedChaosRuns)
 				}
 			}
 			return

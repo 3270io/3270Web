@@ -52,6 +52,7 @@
     let modalPromise = null;
     let modalResolve = null;
     let pollTimer = 0;
+    let focusTrap = { activate() {}, deactivate() {} };
 
     function buildModal() {
         if (modalEl) return modalEl;
@@ -94,14 +95,31 @@
         wrap.addEventListener("click", function (ev) {
             if (ev.target === wrap) closeModal(false);
         });
+        wrap.addEventListener("keydown", function (ev) {
+            if (ev.key === "Escape" && !wrap.hidden) closeModal(false);
+        });
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap) {
+            focusTrap = window.ThreeSeventyWeb.createFocusTrap(wrap);
+        }
         wrap.querySelector("[data-copilot-modal-close]").addEventListener("click", () => closeModal(false));
         wrap.querySelector("[data-copilot-modal-cancel]").addEventListener("click", () => closeModal(false));
         wrap.querySelector("[data-copilot-copy-code]").addEventListener("click", function () {
+            const btn = this;
             const code = wrap.querySelector("[data-copilot-user-code]").textContent || "";
             if (!code) return;
-            navigator.clipboard && navigator.clipboard.writeText(code);
-            this.textContent = "Copied";
-            setTimeout(() => { this.textContent = "Copy"; }, 1500);
+            const writePromise =
+                navigator.clipboard && navigator.clipboard.writeText
+                    ? navigator.clipboard.writeText(code)
+                    : Promise.reject(new Error("clipboard unavailable"));
+            writePromise.then(function () {
+                btn.textContent = "Copied";
+            }).catch(function () {
+                // writeText rejects on insecure origins (plain http) or when
+                // permission is denied — many 3270 hosts are reached over http.
+                btn.textContent = "Copy failed";
+            }).finally(function () {
+                setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+            });
         });
         return wrap;
     }
@@ -113,6 +131,7 @@
 
     function closeModal(success) {
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = 0; }
+        focusTrap.deactivate();
         if (modalEl) modalEl.hidden = true;
         const resolve = modalResolve;
         modalResolve = null;
@@ -124,6 +143,9 @@
         if (modalPromise) return modalPromise;
         const wrap = buildModal();
         wrap.hidden = false;
+        focusTrap.activate();
+        const cancelBtn = wrap.querySelector("[data-copilot-modal-cancel]");
+        if (cancelBtn) cancelBtn.focus();
         modalPromise = new Promise((resolve) => { modalResolve = resolve; });
         setStatus("Requesting device code from GitHub...");
         wrap.querySelector("[data-copilot-user-code]").textContent = "----";

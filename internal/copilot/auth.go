@@ -330,7 +330,19 @@ func (m *AuthManager) refreshCopilotTokenLocked(ctx context.Context) error {
 	}
 	m.cache.CopilotToken = payload.Token
 	m.cache.APIEndpoint = endpoint
-	expiresMS := payload.ExpiresAt*1000 - int64(tokenRefreshBuffer/time.Millisecond)
+	// Guard against a missing/zero expires_at. Without this, expiresMS would be
+	// negative, so the freshly-fetched token would be treated as already
+	// expired and re-fetched on every call (and the bad value persisted).
+	now := time.Now().UnixMilli()
+	var expiresMS int64
+	if payload.ExpiresAt > 0 {
+		expiresMS = payload.ExpiresAt*1000 - int64(tokenRefreshBuffer/time.Millisecond)
+	}
+	if expiresMS <= now {
+		// Fall back to a conservative TTL so the token is usable for at least
+		// one refresh window rather than being considered instantly stale.
+		expiresMS = now + int64(tokenRefreshBuffer/time.Millisecond)
+	}
 	m.cache.CopilotExpires = expiresMS
 	return m.saveLocked()
 }
@@ -362,9 +374,16 @@ func (m *AuthManager) saveLocked() error {
 	return os.WriteFile(m.path, data, 0o600)
 }
 
+// truncate shortens s to at most n runes (not bytes), appending an ellipsis.
+// Counting by runes avoids slicing through the middle of a multibyte UTF-8
+// sequence, which would produce invalid text in error messages.
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if n < 0 {
+		n = 0
+	}
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return string(r[:n]) + "…"
 }

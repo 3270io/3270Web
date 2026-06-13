@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateRunID(t *testing.T) {
@@ -107,5 +108,56 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if err := DeleteRun(dir, run.ID); err != nil {
 		t.Fatalf("DeleteRun: %v", err)
+	}
+}
+
+func TestPruneRuns(t *testing.T) {
+	dir := t.TempDir()
+
+	// keep <= 0 disables pruning.
+	if removed, err := PruneRuns(dir, 0); err != nil || removed != 0 {
+		t.Fatalf("PruneRuns(keep=0) = (%d, %v), want (0, nil)", removed, err)
+	}
+
+	// Create 5 run files with increasing modification times so the newest are
+	// deterministic regardless of filesystem timestamp resolution.
+	ids := make([]string, 5)
+	base := time.Now().Add(-time.Hour)
+	for i := 0; i < 5; i++ {
+		id := NewRunID()
+		ids[i] = id
+		run := &SavedRun{SavedRunMeta: SavedRunMeta{ID: id, StepsRun: i}}
+		if err := SaveRun(dir, run); err != nil {
+			t.Fatalf("SaveRun %d: %v", i, err)
+		}
+		mt := base.Add(time.Duration(i) * time.Minute)
+		if err := os.Chtimes(filepath.Join(dir, runFileName(id)), mt, mt); err != nil {
+			t.Fatalf("Chtimes %d: %v", i, err)
+		}
+	}
+
+	removed, err := PruneRuns(dir, 2)
+	if err != nil {
+		t.Fatalf("PruneRuns: %v", err)
+	}
+	if removed != 3 {
+		t.Fatalf("PruneRuns removed = %d, want 3", removed)
+	}
+
+	// The two newest (ids[4], ids[3]) must survive; the three oldest are gone.
+	for _, id := range []string{ids[3], ids[4]} {
+		if _, err := LoadRun(dir, id); err != nil {
+			t.Fatalf("expected run %q to survive pruning: %v", id, err)
+		}
+	}
+	for _, id := range []string{ids[0], ids[1], ids[2]} {
+		if _, err := LoadRun(dir, id); err == nil {
+			t.Fatalf("expected run %q to be pruned", id)
+		}
+	}
+
+	// Pruning again is a no-op when the count is already within the limit.
+	if removed, err := PruneRuns(dir, 2); err != nil || removed != 0 {
+		t.Fatalf("PruneRuns(second) = (%d, %v), want (0, nil)", removed, err)
 	}
 }
