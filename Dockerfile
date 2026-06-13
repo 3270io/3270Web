@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.25-bookworm AS build
+# Run the build stage natively on the builder's architecture and cross-compile
+# to the target arch. With CGO disabled this is a pure Go cross-compile, which
+# avoids slow QEMU-emulated compilation for non-native targets (e.g. arm64).
+FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS build
 WORKDIR /src
+
+ARG TARGETOS
+ARG TARGETARCH
 
 ENV CGO_ENABLED=0
 ENV GOTOOLCHAIN=auto
@@ -10,7 +16,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . ./
-RUN go build -trimpath -ldflags "-s -w" -o /out/3270Web ./cmd/3270Web
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w" -o /out/3270Web ./cmd/3270Web
 
 FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
