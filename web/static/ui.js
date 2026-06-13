@@ -4110,7 +4110,7 @@
                                 <button type="button" data-chaos-flow-zoom-reset aria-label="Reset zoom to 100%" data-tippy-content="Reset zoom to 100%">100%</button>
                                 <span class="chaos-map-flow-zoom-value subtle" data-chaos-flow-zoom-value>100%</span>
                             </div>
-                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View Map</button>' : ''}
+                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View map</button>' : ''}
                         </div>
                     </div>
                     <div class="chaos-map-flow-meta-row">
@@ -4156,7 +4156,7 @@
                     <strong>Discovery Flow</strong>
                     <div class="chaos-map-flow-header-actions">
                         <span class="subtle">${escapeHtml(summaryBits || 'No discovery flow data yet.')}</span>
-                        <button type="button" data-chaos-flow-open>View Map</button>
+                        <button type="button" data-chaos-flow-open>View map</button>
                     </div>
                 </div>
                 <p class="subtle chaos-map-flow-launcher-copy">Open the dedicated Discovery Flow modal for the interactive canvas (pan, drag, zoom) and the full transition list.</p>
@@ -5315,7 +5315,7 @@
                 </div>
                 <div class="chaos-map-card-actions">
                     <span class="subtle" data-chaos-map-card-status></span>
-                    <button type="button" data-chaos-map-save>Save Screen Hints</button>
+                    <button type="button" data-chaos-map-save>Save screen hints</button>
                 </div>
             `;
 
