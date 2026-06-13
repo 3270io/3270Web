@@ -2251,7 +2251,7 @@
             } catch (_err) {
                 // fall through to user-facing message
             }
-            window.alert('Unable to disable verbose logging. Chaos mode was not started.');
+            notifyUi('Unable to disable verbose logging. Chaos mode was not started.', 'error');
             return false;
         }
         return false;

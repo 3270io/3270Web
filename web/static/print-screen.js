@@ -1,6 +1,15 @@
 (function () {
     "use strict";
 
+    function notify(message, type) {
+        if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
+            window.ThreeSeventyWeb.notify(message, type || "error");
+        } else {
+            // Fallback for the unlikely case the toast module failed to load.
+            window.alert(message);
+        }
+    }
+
     function openPrintWindow(html) {
         // NOTE: we deliberately do not pass "noopener" here. With noopener the
         // browser returns null instead of a window handle, which would make it
@@ -10,7 +19,7 @@
         // security benefit.
         const win = window.open("", "_blank");
         if (!win) {
-            window.alert("Unable to open print window. Allow pop-ups for this site and try again.");
+            notify("Unable to open print window. Allow pop-ups for this site and try again.", "warning");
             return;
         }
         win.document.open();
@@ -61,7 +70,7 @@
             openPrintWindow(content);
         } catch (err) {
             console.error("print-screen: request failed", err);
-            window.alert("Failed to print screen: " + err.message);
+            notify("Failed to print screen: " + err.message, "error");
         } finally {
             btn.disabled = false;
         }
