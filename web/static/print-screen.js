@@ -48,7 +48,16 @@
         if (!btn || btn.disabled) {
             return;
         }
+        // Show a loading state while the network request is in flight, matching
+        // the icon-button spinner treatment used by the other async toolbar
+        // actions. The button is icon-only, so swap the icon for a centered
+        // spinner and mark it aria-busy.
+        const originalHtml = btn.innerHTML;
+        const originalLabel = btn.getAttribute("aria-label");
         btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
+        btn.setAttribute("aria-label", "Printing...");
+        btn.innerHTML = '<span class="spinner" aria-hidden="true" style="margin-right: 0"></span>';
         try {
             const resp = await fetch("/screen/print?format=html", {
                 credentials: "same-origin",
@@ -72,6 +81,13 @@
             console.error("print-screen: request failed", err);
             notify("Failed to print screen: " + err.message, "error");
         } finally {
+            btn.innerHTML = originalHtml;
+            btn.removeAttribute("aria-busy");
+            if (originalLabel) {
+                btn.setAttribute("aria-label", originalLabel);
+            } else {
+                btn.removeAttribute("aria-label");
+            }
             btn.disabled = false;
         }
     }
