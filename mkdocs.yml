@@ -53,6 +53,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md
   - Recordings and Playback: workflow.md
   - Chaos Mode: chaos-mode.md

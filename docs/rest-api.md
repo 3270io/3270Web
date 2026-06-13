@@ -204,6 +204,14 @@ that already drive 3270Web through the cookie.
 | `POST` | `/chaos/business/functions` | Upsert a business function. Body: `{"name", "description", "entry_screen_hash", "steps": [{"screen_hash", "inputs": [{"field_key", "value", "parameter"}], "aid_key", "expect_hash"}], "parameters": [{"name", "description", "screen_hash", "field_key", "example", "required"}]}`. |
 | `POST` | `/chaos/business/generate-workflow` | Generate a business-focused workflow JSON from a cataloged function. Body: `{"name", "parameters": {"param": "value"}, "host", "port"}`. Returns a playback-compatible workflow document with `Name`/`Description`/`BusinessFunction`/`Parameters` metadata. |
 
+## System endpoints
+
+Unauthenticated and not session-scoped — intended for liveness/readiness probes.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/healthz` | Returns `200 OK` with `{"status":"ok","version":"<app version>"}`. Used by the Docker `HEALTHCHECK` and orchestrators. Performs no session or `s3270` work. See [Install and Run](installation.md). |
+
 ## Errors
 
 | Status | Meaning |

@@ -81,12 +81,14 @@ No emulator install. No thick client. Open a browser tab, connect to any TN3270 
 
 ## First Session
 
-1. Open 3270Web in your browser.
-2. Enter your TN3270 host and port on the connect screen.
-3. Use the terminal — keyboard shortcuts, PF keys, and field navigation all work as expected.
-4. Optional: hit **Start recording** to capture the session for replay later.
+1. Get 3270Web running — native Linux binary, Docker, or Docker Compose.
+2. Open 3270Web in your browser (`http://localhost:8080`).
+3. Enter your TN3270 host and port on the connect screen.
+4. Use the terminal — keyboard shortcuts, PF keys, and field navigation all work as expected.
+5. Optional: hit **Start recording** to capture the session for replay later.
 
-[:octicons-arrow-right-24: Full setup guide](configuration.md)
+[:octicons-arrow-right-24: Install and Run](installation.md)
+&nbsp;&nbsp;[:octicons-arrow-right-24: Full setup guide](configuration.md)
 
 ---
 
@@ -94,6 +96,7 @@ No emulator install. No thick client. Open a browser tab, connect to any TN3270 
 
 | Section | What you'll find |
 |---|---|
+| [Install and Run](installation.md) | Run the native Linux binary, Docker image, or Docker Compose |
 | [Connect and Use 3270Web](configuration.md) | Host configuration, startup options, UI tour |
 | [Recordings and Playback](workflow.md) | Record, load, play, debug, and export workflows |
 | [Chaos Mode](chaos-mode.md) | Automated screen exploration and load-test export |
