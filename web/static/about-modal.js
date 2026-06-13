@@ -15,6 +15,7 @@
 
     const closeModal = () => {
       modal.hidden = true;
+      document.body.style.overflow = "";
       focusTrap.deactivate();
       if (lastFocused && typeof lastFocused.focus === "function") {
         lastFocused.focus();
@@ -25,6 +26,7 @@
     const openModal = () => {
       lastFocused = document.activeElement;
       modal.hidden = false;
+      document.body.style.overflow = "hidden";
       focusTrap.activate();
       const firstFocusable = modal.querySelector("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])");
       if (firstFocusable) {

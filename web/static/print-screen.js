@@ -1,6 +1,15 @@
 (function () {
     "use strict";
 
+    function notify(message, type) {
+        if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
+            window.ThreeSeventyWeb.notify(message, type || "error");
+        } else {
+            // Fallback for the unlikely case the toast module failed to load.
+            window.alert(message);
+        }
+    }
+
     function openPrintWindow(html) {
         // NOTE: we deliberately do not pass "noopener" here. With noopener the
         // browser returns null instead of a window handle, which would make it
@@ -10,7 +19,7 @@
         // security benefit.
         const win = window.open("", "_blank");
         if (!win) {
-            window.alert("Unable to open print window. Allow pop-ups for this site and try again.");
+            notify("Unable to open print window. Allow pop-ups for this site and try again.", "warning");
             return;
         }
         win.document.open();
@@ -39,7 +48,16 @@
         if (!btn || btn.disabled) {
             return;
         }
+        // Show a loading state while the network request is in flight, matching
+        // the icon-button spinner treatment used by the other async toolbar
+        // actions. The button is icon-only, so swap the icon for a centered
+        // spinner and mark it aria-busy.
+        const originalHtml = btn.innerHTML;
+        const originalLabel = btn.getAttribute("aria-label");
         btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
+        btn.setAttribute("aria-label", "Printing...");
+        btn.innerHTML = '<span class="spinner" aria-hidden="true" style="margin-right: 0"></span>';
         try {
             const resp = await fetch("/screen/print?format=html", {
                 credentials: "same-origin",
@@ -61,8 +79,15 @@
             openPrintWindow(content);
         } catch (err) {
             console.error("print-screen: request failed", err);
-            window.alert("Failed to print screen: " + err.message);
+            notify("Failed to print screen: " + err.message, "error");
         } finally {
+            btn.innerHTML = originalHtml;
+            btn.removeAttribute("aria-busy");
+            if (originalLabel) {
+                btn.setAttribute("aria-label", originalLabel);
+            } else {
+                btn.removeAttribute("aria-label");
+            }
             btn.disabled = false;
         }
     }

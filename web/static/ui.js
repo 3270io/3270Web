@@ -97,6 +97,15 @@
         return;
     }
 
+    // Keep keyboard focus inside the dialog while it is open, matching the
+    // other modals in the app (about, disconnect, logs). Without this, Tab
+    // walks focus behind the backdrop.
+    let settingsLastFocused = null;
+    const settingsFocusTrap =
+        window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+            ? window.ThreeSeventyWeb.createFocusTrap(modal)
+            : { activate() {}, deactivate() {} };
+
     const openButton = document.querySelector('[data-settings-open]');
     const closeButtons = modal.querySelectorAll('[data-settings-close]');
     const refreshButton = modal.querySelector('[data-settings-refresh]');
@@ -882,7 +891,10 @@
     };
 
     const openSettingsModal = () => {
+        settingsLastFocused = document.activeElement;
         modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        settingsFocusTrap.activate();
         ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
             loadSettings();
@@ -893,7 +905,13 @@
         closeChaosDefaultsSubModal();
         closeRestartConfirm(false);
         modal.hidden = true;
+        document.body.style.overflow = '';
+        settingsFocusTrap.deactivate();
         setStatus('');
+        if (settingsLastFocused && typeof settingsLastFocused.focus === 'function') {
+            settingsLastFocused.focus();
+        }
+        settingsLastFocused = null;
     };
 
     const closeRestartConfirm = (confirmed) => {
@@ -2251,7 +2269,7 @@
             } catch (_err) {
                 // fall through to user-facing message
             }
-            window.alert('Unable to disable verbose logging. Chaos mode was not started.');
+            notifyUi('Unable to disable verbose logging. Chaos mode was not started.', 'error');
             return false;
         }
         return false;
@@ -4092,7 +4110,7 @@
                                 <button type="button" data-chaos-flow-zoom-reset aria-label="Reset zoom to 100%" data-tippy-content="Reset zoom to 100%">100%</button>
                                 <span class="chaos-map-flow-zoom-value subtle" data-chaos-flow-zoom-value>100%</span>
                             </div>
-                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View Map</button>' : ''}
+                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View map</button>' : ''}
                         </div>
                     </div>
                     <div class="chaos-map-flow-meta-row">
@@ -4138,7 +4156,7 @@
                     <strong>Discovery Flow</strong>
                     <div class="chaos-map-flow-header-actions">
                         <span class="subtle">${escapeHtml(summaryBits || 'No discovery flow data yet.')}</span>
-                        <button type="button" data-chaos-flow-open>View Map</button>
+                        <button type="button" data-chaos-flow-open>View map</button>
                     </div>
                 </div>
                 <p class="subtle chaos-map-flow-launcher-copy">Open the dedicated Discovery Flow modal for the interactive canvas (pan, drag, zoom) and the full transition list.</p>
@@ -5297,7 +5315,7 @@
                 </div>
                 <div class="chaos-map-card-actions">
                     <span class="subtle" data-chaos-map-card-status></span>
-                    <button type="button" data-chaos-map-save>Save Screen Hints</button>
+                    <button type="button" data-chaos-map-save>Save screen hints</button>
                 </div>
             `;
 

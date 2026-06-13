@@ -260,6 +260,12 @@ func NewRunID() string {
 // randomHex returns n random bytes encoded as a lowercase hex string (2n chars).
 func randomHex(n int) string {
 	b := make([]byte, n)
-	_, _ = cryptorand.Read(b)
+	if _, err := cryptorand.Read(b); err != nil {
+		// crypto/rand should never fail, but if it does, fall back to a
+		// nanosecond timestamp so the run-ID suffix stays unique. Returning a
+		// constant (e.g. all-zero) here would let two same-second runs collide
+		// and silently overwrite each other's saved file.
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }

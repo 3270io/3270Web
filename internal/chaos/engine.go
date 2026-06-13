@@ -945,6 +945,20 @@ func (e *Engine) Resume(saved *SavedRun) error {
 }
 
 // run is the main exploration loop executed in a goroutine.
+// screenSnapshot returns an immutable copy of the host's current screen.
+// GetScreen() hands back the live *Screen that UpdateScreen rebuilds in place
+// under the host lock; reading it from this background goroutine while a
+// concurrent request refreshes the same session's screen is a data race that
+// can observe a half-rebuilt Fields slice. Snapshotting (clone under the host
+// lock) gives this goroutine a stable view. Falls back to the live pointer for
+// hosts that do not implement GetScreenSnapshot.
+func (e *Engine) screenSnapshot() *host.Screen {
+	if provider, ok := e.h.(interface{ GetScreenSnapshot() *host.Screen }); ok {
+		return provider.GetScreenSnapshot()
+	}
+	return e.h.GetScreen()
+}
+
 func (e *Engine) run() {
 	defer func() {
 		e.mu.Lock()
@@ -1021,7 +1035,7 @@ func (e *Engine) run() {
 			e.mu.Unlock()
 			return
 		}
-		screen := e.h.GetScreen()
+		screen := e.screenSnapshot()
 		if screen == nil {
 			return
 		}
@@ -1181,7 +1195,7 @@ func (e *Engine) run() {
 			e.mu.Unlock()
 			return
 		}
-		newScreen := e.h.GetScreen()
+		newScreen := e.screenSnapshot()
 		newHash := ""
 		if newScreen != nil {
 			newHash = hashScreen(newScreen)
