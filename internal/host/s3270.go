@@ -458,7 +458,13 @@ func (h *S3270) SubmitUnformatted(data string) error {
 			}
 			index++
 		}
-		index++ // skip newline
+		// Skip the row separator only when one is actually present. An
+		// unconditional increment assumes every row is newline-terminated and
+		// full-width; when that does not hold it would swallow a real character
+		// and shift every subsequent write by one cell.
+		if index < len(runes) && runes[index] == '\n' {
+			index++
+		}
 	}
 
 	return nil
