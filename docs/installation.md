@@ -19,7 +19,7 @@ Whichever you choose, 3270Web listens on **port 8080** by default. Open
 
 ---
 
-## Run the Linux/Unix binary
+## Run the Linux binary
 
 ### Build it
 
@@ -37,6 +37,13 @@ go run ./cmd/3270Web                                           # run without bui
 ```
 
 Set `GOARCH`/`GOOS` to cross-compile, e.g. `GOARCH=arm64 ./scripts/build-linux.sh 3270Web-arm64`.
+
+PowerShell users can run the equivalent wrapper:
+
+```powershell
+.\scripts\build-linux.ps1
+```
+Use `-Goarch arm64` or `-Goos linux -Goarch arm64` for cross-compiles.
 
 ### Run it
 

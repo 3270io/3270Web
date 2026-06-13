@@ -45,12 +45,19 @@ Then open http://localhost:8080
 ```
 This produces `3270Web.exe` in the repo root.
 
-## Build Linux/Unix binary
+## Build Linux binary
 ```bash
 ./scripts/build-linux.sh
 ```
 This produces a `3270Web` binary in the repo root. Set `GOARCH`/`GOOS` to cross-compile,
 e.g. `GOARCH=arm64 ./scripts/build-linux.sh 3270Web-arm64`.
+
+Or from PowerShell:
+
+```powershell
+.\scripts\build-linux.ps1
+```
+Use `-Goarch arm64` or `-Goos linux -Goarch arm64` for cross-compiles.
 
 ## Docker
 ```bash
