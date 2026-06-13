@@ -7,6 +7,10 @@
 
   const closeButtons = modal.querySelectorAll('[data-disconnect-close]');
   const confirmButton = modal.querySelector('[data-disconnect-confirm]');
+  const focusTrap =
+    window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+      ? window.ThreeSeventyWeb.createFocusTrap(modal)
+      : { activate() {}, deactivate() {} };
 
   const openModal = (event) => {
     if (event) {
@@ -14,6 +18,7 @@
     }
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    focusTrap.activate();
     if (confirmButton) {
       confirmButton.focus();
     }
@@ -22,6 +27,7 @@
   const closeModal = () => {
     modal.hidden = true;
     document.body.style.overflow = '';
+    focusTrap.deactivate();
     trigger.focus();
   };
 

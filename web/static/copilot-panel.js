@@ -884,14 +884,27 @@
     function openClearModal() {
         const modal = document.querySelector("[data-copilot-clear-modal]");
         if (!modal) { clearHistory(); return; }
+        const returnFocus = document.activeElement;
+        const trap =
+            window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+                ? window.ThreeSeventyWeb.createFocusTrap(modal)
+                : { activate() {}, deactivate() {} };
         modal.hidden = false;
+        trap.activate();
         const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
         const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
-        function close() { modal.hidden = true; }
+        function close() {
+            modal.hidden = true;
+            trap.deactivate();
+            modal.removeEventListener("keydown", onKeydown);
+            if (returnFocus && typeof returnFocus.focus === "function") returnFocus.focus();
+        }
         function onConfirm() { close(); clearHistory(); }
-        if (confirmBtn) confirmBtn.onclick = onConfirm;
+        function onKeydown(ev) { if (ev.key === "Escape") close(); }
+        if (confirmBtn) { confirmBtn.onclick = onConfirm; confirmBtn.focus(); }
         cancelBtns.forEach(function (b) { b.onclick = close; });
         modal.onclick = function (ev) { if (ev.target === modal) close(); };
+        modal.addEventListener("keydown", onKeydown);
     }
 
     function attachToolbarToggle() {

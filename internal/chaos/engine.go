@@ -1065,7 +1065,13 @@ func (e *Engine) run() {
 			fields = e.selectFirstScreenTargetFields(unprotectedFields(screen))
 			attempt.FieldsTargeted = len(fields)
 		}
+		// snapshotKeyBoostsLocked reads e.mindMap under the lock; it must be
+		// called with e.mu held. AnnotateArea/UpsertBusinessFunction can mutate
+		// e.mindMap.Areas concurrently (reachable from the Copilot tools while a
+		// run is active), so reading it unlocked is a data race / panic.
+		e.mu.Lock()
 		keyBoosts := e.snapshotKeyBoostsLocked(currentHash, attempt.FieldsTargeted)
+		e.mu.Unlock()
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))

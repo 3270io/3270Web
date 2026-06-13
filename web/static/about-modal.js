@@ -8,9 +8,14 @@
     const openButtons = document.querySelectorAll("[data-about-open]");
     const closeButtons = modal.querySelectorAll("[data-about-close]");
     let lastFocused = null;
+    const focusTrap =
+      window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+        ? window.ThreeSeventyWeb.createFocusTrap(modal)
+        : { activate() {}, deactivate() {} };
 
     const closeModal = () => {
       modal.hidden = true;
+      focusTrap.deactivate();
       if (lastFocused && typeof lastFocused.focus === "function") {
         lastFocused.focus();
       }
@@ -20,6 +25,7 @@
     const openModal = () => {
       lastFocused = document.activeElement;
       modal.hidden = false;
+      focusTrap.activate();
       const firstFocusable = modal.querySelector("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])");
       if (firstFocusable) {
         firstFocusable.focus();

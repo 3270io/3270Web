@@ -90,7 +90,10 @@ func (h *S3270) Start() error {
 		return fmt.Errorf("failed to start s3270: %w", err)
 	}
 
-	go h.captureStderr()
+	// Pass the scanner explicitly: the goroutine must not read the mutable
+	// h.stderr field, which stop/cleanup paths set to nil under h.mu (a data
+	// race and potential nil deref otherwise).
+	go h.captureStderr(h.stderr)
 
 	if h.TargetHost == "" {
 		return nil
@@ -566,9 +569,12 @@ func (h *S3270) readResponse(stdout *bufio.Scanner) ([]string, string, error) {
 	return data, status, nil
 }
 
-func (h *S3270) captureStderr() {
-	for h.stderr.Scan() {
-		msg := strings.TrimSpace(h.stderr.Text())
+func (h *S3270) captureStderr(scanner *bufio.Scanner) {
+	if scanner == nil {
+		return
+	}
+	for scanner.Scan() {
+		msg := strings.TrimSpace(scanner.Text())
 		if msg == "" {
 			continue
 		}

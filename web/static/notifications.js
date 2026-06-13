@@ -45,7 +45,12 @@
     }
     var resolvedType = type || 'info';
     var opts = options || {};
-    var duration = typeof opts.duration === 'number' ? opts.duration : AUTO_DISMISS_MS;
+    // Errors and warnings stay until dismissed so the user can read/act on
+    // them; transient success/info toasts auto-dismiss. An explicit
+    // opts.duration always wins (use 0 to make any toast persistent).
+    var defaultDuration =
+      resolvedType === 'error' || resolvedType === 'warning' ? 0 : AUTO_DISMISS_MS;
+    var duration = typeof opts.duration === 'number' ? opts.duration : defaultDuration;
 
     var container = getOrCreateContainer();
 
@@ -58,8 +63,9 @@
 
     var toast = document.createElement('div');
     toast.className = 'h3270-notification h3270-notification--' + resolvedType;
-    toast.setAttribute('role', 'status');
-    toast.setAttribute('aria-live', 'polite');
+    // The container is already an aria-live region, so the toast itself must
+    // NOT also be a live region — nesting live regions causes screen readers
+    // to announce the message twice.
 
     var iconWrap = document.createElement('span');
     iconWrap.className = 'h3270-notification__icon';

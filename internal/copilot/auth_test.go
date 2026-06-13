@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func newTestManager(t *testing.T) *AuthManager {
@@ -113,6 +114,55 @@ func TestCopilotTokenRefresh(t *testing.T) {
 	}
 	if tok2 != tok {
 		t.Fatalf("cached token mismatch")
+	}
+}
+
+func TestCopilotTokenMissingExpiryIsNotInstantlyStale(t *testing.T) {
+	m := newTestManager(t)
+	m.cache.OAuth = "OAUTH_TOKEN"
+	m.loaded = true
+
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		// Omit expires_at entirely (decodes as 0). The old code computed a
+		// negative expiry, so the freshly-fetched token was treated as expired
+		// and re-fetched on every call.
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"token":     "COPILOT_TOKEN",
+			"endpoints": map[string]string{"api": "https://api.example.test"},
+		})
+	}))
+	defer srv.Close()
+	m.apiHost = srv.URL
+
+	if _, _, err := m.CopilotToken(context.Background()); err != nil {
+		t.Fatalf("CopilotToken: %v", err)
+	}
+	if m.cache.CopilotExpires <= time.Now().UnixMilli() {
+		t.Fatalf("CopilotExpires = %d, want a future timestamp", m.cache.CopilotExpires)
+	}
+	// A second call must be served from cache, not trigger another refresh.
+	if _, _, err := m.CopilotToken(context.Background()); err != nil {
+		t.Fatalf("cached CopilotToken: %v", err)
+	}
+	if hits != 1 {
+		t.Fatalf("server hit %d times, want 1 (token should be cached)", hits)
+	}
+}
+
+func TestTruncateRuneSafe(t *testing.T) {
+	// Truncating between bytes of a multibyte rune must not corrupt the string.
+	s := "héllo wörld" // contains multibyte runes
+	got := truncate(s, 4)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncate produced invalid UTF-8: %q", got)
+	}
+	if r := []rune(got); len(r) != 5 { // 4 runes + ellipsis
+		t.Fatalf("truncate(%q, 4) = %q (%d runes), want 4 runes + ellipsis", s, got, len(r))
+	}
+	if short := truncate("ab", 5); short != "ab" {
+		t.Fatalf("truncate of short string changed it: %q", short)
 	}
 }
 

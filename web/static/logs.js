@@ -28,6 +28,13 @@
   let clearConfirmReturnFocus = null;
   let logAccessEnabled = true;
 
+  const makeTrap = (el) =>
+    window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+      ? window.ThreeSeventyWeb.createFocusTrap(el)
+      : { activate() {}, deactivate() {} };
+  const focusTrap = makeTrap(modal);
+  const clearConfirmTrap = makeTrap(clearConfirmModal);
+
   const logsToggleLabel = logsToggle
     ? logsToggle.closest('.logs-toggle-label')
     : null;
@@ -39,6 +46,7 @@
     lastFocusedElement = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    focusTrap.activate();
     const firstFocusable = modal.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -57,6 +65,7 @@
     closeClearConfirm();
     modal.hidden = true;
     document.body.style.overflow = '';
+    focusTrap.deactivate();
     stopAutoRefresh();
     if (lastFocusedElement) {
       lastFocusedElement.focus();
@@ -302,6 +311,9 @@
     }
     clearConfirmReturnFocus = document.activeElement;
     clearConfirmModal.hidden = false;
+    // Hand the focus trap off to the nested confirm dialog so Tab stays within it.
+    focusTrap.deactivate();
+    clearConfirmTrap.activate();
     const firstFocusable = clearConfirmModal.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -315,6 +327,11 @@
       return;
     }
     clearConfirmModal.hidden = true;
+    clearConfirmTrap.deactivate();
+    // Restore the trap on the parent logs modal if it is still open.
+    if (!modal.hidden) {
+      focusTrap.activate();
+    }
     if (
       clearConfirmReturnFocus &&
       typeof clearConfirmReturnFocus.focus === 'function'
@@ -325,7 +342,16 @@
   };
 
   const downloadLogs = () => {
-    window.location.href = '/logs/download';
+    // Use a temporary anchor with the download attribute instead of navigating
+    // the top window. If the endpoint returns an error page (e.g. 403 HTML),
+    // navigating window.location would discard the live terminal session.
+    const link = document.createElement('a');
+    link.href = '/logs/download';
+    link.download = '';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const setMaximized = (maximized) => {

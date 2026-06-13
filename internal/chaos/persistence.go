@@ -152,6 +152,61 @@ func ListRuns(dir string) ([]SavedRunMeta, error) {
 	return metas, nil
 }
 
+// PruneRuns keeps at most keep saved-run files in dir (the newest by file
+// modification time) and deletes the rest. A keep value <= 0 disables pruning.
+// It returns the number of files removed. Auto-saved runs would otherwise grow
+// without bound, and ListRuns reads+parses every file on each call, so its cost
+// grows with history.
+func PruneRuns(dir string, keep int) (int, error) {
+	if dir == "" || keep <= 0 {
+		return 0, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("read chaos runs dir: %w", err)
+	}
+
+	type runFile struct {
+		name    string
+		modTime time.Time
+	}
+	var files []runFile
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, runFile{name: e.Name(), modTime: info.ModTime()})
+	}
+	if len(files) <= keep {
+		return 0, nil
+	}
+
+	// Newest first; everything past the keep threshold is removed.
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].modTime.After(files[j].modTime)
+	})
+
+	var removed int
+	var firstErr error
+	for _, f := range files[keep:] {
+		if err := os.Remove(filepath.Join(dir, f.name)); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		removed++
+	}
+	return removed, firstErr
+}
+
 // LoadRun reads and returns the full SavedRun for the given run ID from dir.
 func LoadRun(dir, runID string) (*SavedRun, error) {
 	if dir == "" {
