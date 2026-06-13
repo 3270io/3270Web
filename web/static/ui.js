@@ -97,6 +97,15 @@
         return;
     }
 
+    // Keep keyboard focus inside the dialog while it is open, matching the
+    // other modals in the app (about, disconnect, logs). Without this, Tab
+    // walks focus behind the backdrop.
+    let settingsLastFocused = null;
+    const settingsFocusTrap =
+        window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+            ? window.ThreeSeventyWeb.createFocusTrap(modal)
+            : { activate() {}, deactivate() {} };
+
     const openButton = document.querySelector('[data-settings-open]');
     const closeButtons = modal.querySelectorAll('[data-settings-close]');
     const refreshButton = modal.querySelector('[data-settings-refresh]');
@@ -882,7 +891,9 @@
     };
 
     const openSettingsModal = () => {
+        settingsLastFocused = document.activeElement;
         modal.hidden = false;
+        settingsFocusTrap.activate();
         ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
             loadSettings();
@@ -893,7 +904,12 @@
         closeChaosDefaultsSubModal();
         closeRestartConfirm(false);
         modal.hidden = true;
+        settingsFocusTrap.deactivate();
         setStatus('');
+        if (settingsLastFocused && typeof settingsLastFocused.focus === 'function') {
+            settingsLastFocused.focus();
+        }
+        settingsLastFocused = null;
     };
 
     const closeRestartConfirm = (confirmed) => {
