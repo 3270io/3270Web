@@ -45,12 +45,26 @@ Then open http://localhost:8080
 ```
 This produces `3270Web.exe` in the repo root.
 
+## Build Linux/Unix binary
+```bash
+./scripts/build-linux.sh
+```
+This produces a `3270Web` binary in the repo root. Set `GOARCH`/`GOOS` to cross-compile,
+e.g. `GOARCH=arm64 ./scripts/build-linux.sh 3270Web-arm64`.
+
 ## Docker
 ```bash
+# Compose (recommended) — serves on http://127.0.0.1:8080
+docker compose up --build
+
+# Or build/run directly:
 docker build -t 3270web .
 docker run -p 8080:8080 3270web
 ```
-The Docker image installs the `s3270` package so it is available at `/usr/bin/s3270`.
+The image is published multi-arch (`linux/amd64`, `linux/arm64`) to
+`ghcr.io/3270io/3270web`. It installs the `s3270` package (available at `/usr/bin/s3270`),
+runs as a non-root `app` user, and exposes a `GET /healthz` liveness endpoint that the
+container's `HEALTHCHECK` polls.
 
 ## Recording workflow.json
 1. Connect to a host.

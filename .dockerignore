@@ -7,6 +7,5 @@
 **/node_modules
 **/bin
 **/obj
-s3270-bin/*.exe
-s3270-bin/s3270
+s3270-bin/
 old_java_app
