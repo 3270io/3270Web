@@ -893,6 +893,7 @@
     const openSettingsModal = () => {
         settingsLastFocused = document.activeElement;
         modal.hidden = false;
+        document.body.style.overflow = 'hidden';
         settingsFocusTrap.activate();
         ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
@@ -904,6 +905,7 @@
         closeChaosDefaultsSubModal();
         closeRestartConfirm(false);
         modal.hidden = true;
+        document.body.style.overflow = '';
         settingsFocusTrap.deactivate();
         setStatus('');
         if (settingsLastFocused && typeof settingsLastFocused.focus === 'function') {
