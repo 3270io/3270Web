@@ -60,6 +60,9 @@ The Workflow Status panel shows:
 - Delay range and applied delay (when present)
 - Recent playback events
 
+When you connect to a host the widget starts minimized so it stays out of the
+way until you need it.
+
 You can:
 
 - Open it from the status indicator
