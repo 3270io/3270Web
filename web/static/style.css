@@ -4633,6 +4633,67 @@ body.copilot-open .page-wrap {
   overflow-x: auto;
 }
 
+/* Rich markdown rendered inside a chat message body. */
+.copilot-msg-body > :first-child { margin-top: 0; }
+.copilot-msg-body > :last-child { margin-bottom: 0; }
+.copilot-msg-body p { margin: 0 0 8px; }
+.copilot-msg-body h1,
+.copilot-msg-body h2,
+.copilot-msg-body h3,
+.copilot-msg-body h4,
+.copilot-msg-body h5,
+.copilot-msg-body h6 {
+  margin: 12px 0 6px;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--accent);
+}
+.copilot-msg-body h1 { font-size: 1.25em; }
+.copilot-msg-body h2 { font-size: 1.18em; }
+.copilot-msg-body h3 { font-size: 1.1em; }
+.copilot-msg-body h4,
+.copilot-msg-body h5,
+.copilot-msg-body h6 { font-size: 1em; }
+.copilot-msg-body ul,
+.copilot-msg-body ol { margin: 4px 0 8px; padding-left: 22px; }
+.copilot-msg-body li { margin: 2px 0; }
+.copilot-msg-body li > ul,
+.copilot-msg-body li > ol { margin: 2px 0; }
+.copilot-msg-body a { color: var(--accent); text-decoration: underline; }
+.copilot-msg-body a:hover { text-decoration: none; }
+.copilot-msg-body blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  color: var(--fg-muted);
+}
+.copilot-msg-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+.copilot-md-table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  width: 100%;
+  font-size: 12px;
+  display: block;
+  overflow-x: auto;
+}
+.copilot-md-table th,
+.copilot-md-table td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.copilot-md-table th {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+  font-weight: 600;
+}
+.copilot-md-table tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+
 .copilot-tool-call {
   border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--border));
   background: color-mix(in srgb, var(--accent) 8%, var(--panel-2));
