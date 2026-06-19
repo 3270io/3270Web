@@ -1283,13 +1283,11 @@
       return;
     }
     try {
+      // Always start minimised when the connected screen loads, regardless of
+      // any previously saved expanded/maximised state. The user can restore it
+      // for the current session; their saved size is reapplied when they do.
       applyStoredSize();
-      const minimized = localStorage.getItem(widgetMinimizedKey) === '1';
-      setWidgetMinimized(minimized);
-      const maximized = localStorage.getItem(widgetMaximizedKey) === '1';
-      if (!minimized) {
-        setWidgetMaximized(maximized);
-      }
+      setWidgetMinimized(true);
     } catch (err) {
       // ignore
     }
