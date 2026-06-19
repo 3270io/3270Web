@@ -4652,6 +4652,11 @@ body.copilot-open .page-wrap {
   font-size: 12px;
   font-weight: 600;
   color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  margin-right: 8px;
 }
 .copilot-tool-call-status {
   font-size: 11px;
@@ -4981,3 +4986,123 @@ body.copilot-open .page-wrap {
   cursor: pointer;
 }
 .copilot-modal-footer button:hover { color: var(--fg); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* --- Streaming "thinking" indicator --- */
+.copilot-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 2px 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: fit-content;
+}
+.copilot-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  opacity: 0.5;
+  animation: copilot-typing-bounce 1.2s infinite ease-in-out;
+}
+.copilot-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.copilot-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes copilot-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .copilot-typing-dot { animation: none; }
+}
+
+/* --- Empty state / example prompts --- */
+.copilot-empty-state {
+  padding: 18px 14px;
+  color: var(--fg-muted);
+  text-align: center;
+}
+.copilot-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 6px;
+}
+.copilot-empty-hint { font-size: 12px; margin: 0 0 12px; }
+.copilot-empty-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.copilot-example-chip {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--fg);
+  border-radius: 16px;
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.copilot-example-chip:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+/* --- Copy button on <pre> blocks --- */
+.copilot-pre-copyable { position: relative; }
+.copilot-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  color: var(--fg-muted);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.copilot-pre-copyable:hover .copilot-copy-btn,
+.copilot-copy-btn:focus { opacity: 1; }
+.copilot-copy-btn:hover { color: var(--fg); background: var(--bg); }
+
+/* --- Retry / Continue affordance --- */
+.copilot-btn-retry {
+  display: inline-block;
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.copilot-btn-retry:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+
+/* --- Jump-to-latest button --- */
+.copilot-jump-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 96px;
+  z-index: 5;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel-2));
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 5px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.copilot-jump-btn:hover { background: color-mix(in srgb, var(--accent) 34%, var(--panel-2)); }
+
+/* Disabled Send button (in-flight request). */
+.copilot-panel-form button[data-copilot-send]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

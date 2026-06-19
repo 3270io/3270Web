@@ -1732,6 +1732,24 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 	if mindMapJSON := chaosMindMapToJSON(st.MindMap); mindMapJSON != nil {
 		resp["mindMap"] = mindMapJSON
 	}
+	// Surface why the run stopped so the UI and Copilot agent can react
+	// (e.g. "blocked" -> relax the key blacklist; "saturated" with
+	// saturatedNoProgress -> stop resuming and update hints instead).
+	if st.TerminationReason != "" {
+		resp["terminationReason"] = st.TerminationReason
+	}
+	if st.SaturatedNoProgress {
+		resp["saturatedNoProgress"] = true
+	}
+	if cov := st.CoverageStats; cov != nil {
+		resp["coverageStats"] = gin.H{
+			"windowSteps":               cov.WindowSteps,
+			"newScreensLast10Steps":     cov.NewScreensInWindow,
+			"newTransitionsLast10Steps": cov.NewTransitionsInWindow,
+			"saturationStreak":          cov.SaturationStreak,
+			"saturationThresholdSteps":  cov.SaturationThresholdSteps,
+		}
+	}
 	if st.Error != "" {
 		resp["error"] = st.Error
 	}

@@ -45,7 +45,11 @@ type Status struct {
 	MindMap           *MindMap       `json:"mindMap,omitempty"`
 	CoverageStats     *CoverageStats `json:"coverageStats,omitempty"`
 	TerminationReason string         `json:"terminationReason,omitempty"`
-	Error             string         `json:"error,omitempty"`
+	// SaturatedNoProgress is true when TerminationReason is "saturated" and the
+	// run discovered no transitions at all. Callers use it to avoid resuming a
+	// run that will only re-saturate on the same screen.
+	SaturatedNoProgress bool   `json:"saturatedNoProgress,omitempty"`
+	Error               string `json:"error,omitempty"`
 }
 
 // CoverageStats summarises how productive the recent window of chaos steps
@@ -66,6 +70,21 @@ const (
 	TerminationReasonSaturated  = "saturated"
 	TerminationReasonStopped    = "stopped"
 	TerminationReasonError      = "error"
+	// TerminationReasonBlocked means the run halted because no usable
+	// (non-blacklisted) AID key was available for the current screen. Unlike
+	// TerminationReasonError this is a recoverable, expected stop: the caller
+	// (Copilot agent / UI) should relax the key blacklist or add hints and
+	// resume, rather than treating it as a host failure.
+	TerminationReasonBlocked = "blocked"
+)
+
+// hostOpMaxAttempts and hostOpBaseBackoff control the bounded retry applied to
+// transient host operations (screen reads, key sends) inside the chaos loop.
+// A single s3270 timeout or socket blip should not kill an entire exploration
+// run, so each op is retried with exponential backoff before the run gives up.
+const (
+	hostOpMaxAttempts = 3
+	hostOpBaseBackoff = 200 * time.Millisecond
 )
 
 const coverageWindowSize = 10
@@ -84,18 +103,22 @@ type AttemptFieldWrite struct {
 // Attempt captures granular details for a single chaos submission cycle:
 // field writes, selected AID key, transition result, and any terminal error.
 type Attempt struct {
-	Attempt                int                 `json:"attempt"`
-	Time                   time.Time           `json:"time"`
-	FromHash               string              `json:"fromHash,omitempty"`
-	ToHash                 string              `json:"toHash,omitempty"`
-	AIDKey                 string              `json:"aidKey,omitempty"`
-	FirstScreenHintApplied bool                `json:"firstScreenHintApplied,omitempty"`
-	FirstScreenHintReason  string              `json:"firstScreenHintReason,omitempty"`
-	FieldsTargeted         int                 `json:"fieldsTargeted"`
-	FieldsWritten          int                 `json:"fieldsWritten"`
-	Transitioned           bool                `json:"transitioned"`
-	Error                  string              `json:"error,omitempty"`
-	FieldWrites            []AttemptFieldWrite `json:"fieldWrites,omitempty"`
+	Attempt                int       `json:"attempt"`
+	Time                   time.Time `json:"time"`
+	FromHash               string    `json:"fromHash,omitempty"`
+	ToHash                 string    `json:"toHash,omitempty"`
+	AIDKey                 string    `json:"aidKey,omitempty"`
+	FirstScreenHintApplied bool      `json:"firstScreenHintApplied,omitempty"`
+	FirstScreenHintReason  string    `json:"firstScreenHintReason,omitempty"`
+	FieldsTargeted         int       `json:"fieldsTargeted"`
+	FieldsWritten          int       `json:"fieldsWritten"`
+	Transitioned           bool      `json:"transitioned"`
+	Error                  string    `json:"error,omitempty"`
+	// Retries counts how many extra host-operation attempts (transient screen
+	// read / key send failures that were retried) this step absorbed before
+	// succeeding. Zero in the common case; non-zero indicates a flaky host.
+	Retries     int                 `json:"retries,omitempty"`
+	FieldWrites []AttemptFieldWrite `json:"fieldWrites,omitempty"`
 }
 
 const maxRecentAttempts = 40
@@ -156,7 +179,12 @@ type Engine struct {
 	newScreensWindow  []bool // sliding window: did step add a new screen?
 	newTransWindow    []bool // sliding window: did step add a new transition tuple?
 	terminationReason string
-	autoAppliedHashes map[string]bool // areas where we've already auto-applied PF label scan
+	// saturatedNoProgress is set when the run saturates without ever recording
+	// a single state transition. It is the signal the caller uses to stop
+	// resuming a run that keeps re-saturating on the same screen with nothing
+	// new to discover (the saturate -> resume -> saturate loop).
+	saturatedNoProgress bool
+	autoAppliedHashes   map[string]bool // areas where we've already auto-applied PF label scan
 
 	// Optional JSONL transition log (one JSON object per attempt).
 	transitionLog *os.File
@@ -357,6 +385,13 @@ func (e *Engine) Start() error {
 	if !e.h.IsConnected() {
 		return fmt.Errorf("not connected to host")
 	}
+	// Fail fast if the key blacklist leaves no usable AID key at all: the run
+	// would otherwise start and immediately halt on the first screen. Surfacing
+	// this from Start() gives the caller a clear, actionable message instead of
+	// a "blocked" run with zero steps.
+	if fallbackChaosKey(e.blacklistedKeys) == "" {
+		return fmt.Errorf("all usable AID keys are blacklisted; relax the key blacklist before starting chaos")
+	}
 
 	e.active = true
 	e.startedAt = time.Now()
@@ -379,6 +414,7 @@ func (e *Engine) Start() error {
 	e.newScreensWindow = nil
 	e.newTransWindow = nil
 	e.terminationReason = ""
+	e.saturatedNoProgress = false
 	e.autoAppliedHashes = make(map[string]bool)
 	if path := strings.TrimSpace(e.cfg.TransitionLogPath); path != "" {
 		if dir := filepath.Dir(path); dir != "" {
@@ -428,24 +464,25 @@ func (e *Engine) Status() Status {
 	}
 	mindMap := e.mindMap.clone()
 	return Status{
-		Active:            e.active,
-		StepsRun:          e.stepsRun,
-		StartedAt:         e.startedAt,
-		StoppedAt:         e.stoppedAt,
-		MaxSteps:          e.cfg.MaxSteps,
-		TimeBudget:        e.cfg.TimeBudget,
-		Transitions:       len(e.transitions),
-		UniqueScreens:     len(e.screenHashes),
-		UniqueInputs:      len(e.uniqueInputs),
-		AIDKeyCounts:      aidCopy,
-		LoadedRunID:       e.loadedRunID,
-		FirstScreenHash:   e.firstScreenHash,
-		LastAttempt:       lastAttempt,
-		RecentAttempts:    attempts,
-		MindMap:           mindMap,
-		CoverageStats:     e.coverageStatsSnapshotLocked(),
-		TerminationReason: e.terminationReason,
-		Error:             e.lastErr,
+		Active:              e.active,
+		StepsRun:            e.stepsRun,
+		StartedAt:           e.startedAt,
+		StoppedAt:           e.stoppedAt,
+		MaxSteps:            e.cfg.MaxSteps,
+		TimeBudget:          e.cfg.TimeBudget,
+		Transitions:         len(e.transitions),
+		UniqueScreens:       len(e.screenHashes),
+		UniqueInputs:        len(e.uniqueInputs),
+		AIDKeyCounts:        aidCopy,
+		LoadedRunID:         e.loadedRunID,
+		FirstScreenHash:     e.firstScreenHash,
+		LastAttempt:         lastAttempt,
+		RecentAttempts:      attempts,
+		MindMap:             mindMap,
+		CoverageStats:       e.coverageStatsSnapshotLocked(),
+		TerminationReason:   e.terminationReason,
+		SaturatedNoProgress: e.saturatedNoProgress,
+		Error:               e.lastErr,
 	}
 }
 
@@ -959,6 +996,32 @@ func (e *Engine) screenSnapshot() *host.Screen {
 	return e.h.GetScreen()
 }
 
+// retryHostOp runs a transient host operation (screen read, key send) with a
+// bounded number of retries and exponential backoff. A single timeout or
+// socket blip should not terminate a whole chaos run, so the op is retried
+// hostOpMaxAttempts times. The backoff wait is cancellable via stopCh so a
+// user-requested Stop is honoured promptly even while retrying. It returns the
+// number of *extra* attempts consumed (0 on first-try success) and the final
+// error (nil on success).
+func (e *Engine) retryHostOp(fn func() error) (retries int, err error) {
+	backoff := hostOpBaseBackoff
+	for attempt := 1; attempt <= hostOpMaxAttempts; attempt++ {
+		if err = fn(); err == nil {
+			return attempt - 1, nil
+		}
+		if attempt == hostOpMaxAttempts {
+			break
+		}
+		select {
+		case <-e.stopCh:
+			return attempt - 1, err
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+	}
+	return hostOpMaxAttempts - 1, err
+}
+
 func (e *Engine) run() {
 	defer func() {
 		e.mu.Lock()
@@ -1028,8 +1091,8 @@ func (e *Engine) run() {
 			return
 		}
 
-		// Read the current screen state.
-		if err := e.h.UpdateScreen(); err != nil {
+		// Read the current screen state (retried on transient host errors).
+		if _, err := e.retryHostOp(e.h.UpdateScreen); err != nil {
 			e.mu.Lock()
 			e.lastErr = err.Error()
 			e.mu.Unlock()
@@ -1166,15 +1229,23 @@ func (e *Engine) run() {
 		}
 		attempt.AIDKey = aidKey
 		if strings.TrimSpace(aidKey) == "" {
+			// No usable key for this screen: every candidate is blacklisted.
+			// This is a recoverable, expected stop, not a host failure — mark it
+			// "blocked" (without setting lastErr) so the caller can relax the
+			// blacklist / add hints and resume instead of seeing an error run.
 			attempt.Error = "no non-blacklisted AID key available"
 			e.mu.Lock()
-			e.lastErr = attempt.Error
+			if e.terminationReason == "" {
+				e.terminationReason = TerminationReasonBlocked
+			}
 			e.recordMindMapAttemptLocked(attempt)
 			e.appendAttemptLocked(attempt)
 			e.mu.Unlock()
 			return
 		}
-		if err := e.h.SendKey(aidKey); err != nil {
+		sendRetries, err := e.retryHostOp(func() error { return e.h.SendKey(aidKey) })
+		attempt.Retries += sendRetries
+		if err != nil {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
@@ -1185,8 +1256,10 @@ func (e *Engine) run() {
 		}
 		batchSteps = append(batchSteps, session.WorkflowStep{Type: aidKeyToStepType(aidKey)})
 
-		// Refresh the screen after the key press.
-		if err := e.h.UpdateScreen(); err != nil {
+		// Refresh the screen after the key press (retried on transient errors).
+		refreshRetries, err := e.retryHostOp(e.h.UpdateScreen)
+		attempt.Retries += refreshRetries
+		if err != nil {
 			attempt.Error = err.Error()
 			e.mu.Lock()
 			e.lastErr = err.Error()
@@ -1275,6 +1348,12 @@ func (e *Engine) run() {
 		shouldStopForSaturation := e.cfg.SaturationSteps > 0 && e.saturationStreak >= e.cfg.SaturationSteps
 		if shouldStopForSaturation && e.terminationReason == "" {
 			e.terminationReason = TerminationReasonSaturated
+			// If this run discovered no transitions at all, resuming it will
+			// only re-saturate on the same screen. Flag it so the caller stops
+			// the resume loop and switches to updating hints / manual nav.
+			if len(e.transitions) == 0 {
+				e.saturatedNoProgress = true
+			}
 		}
 		if e.transitionLog != nil {
 			if entry, err := json.Marshal(attempt); err == nil {

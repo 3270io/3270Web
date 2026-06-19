@@ -15,10 +15,18 @@
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
     const MODEL_KEY = "copilot.panel.model";
-    // Effectively unbounded — chaos monkey can issue hundreds of tool calls
-    // in auto mode. The user can interrupt via the Stop button at any time,
-    // so the only purpose of this ceiling is to catch a true infinite loop.
-    const MAX_TOOL_ROUNDS = 10000;
+    // Hard safety net on tool-call rounds per user message. The system prompt
+    // asks the model to stay within ~30 rounds; this ceiling is a generous
+    // backstop (well below the old effectively-unbounded 10000) so a runaway
+    // never burns thousands of API calls. The real protection against tight
+    // loops (e.g. chaos resume -> saturated -> resume) is the repeated-call
+    // guard below, which stops as soon as no progress is being made.
+    const MAX_TOOL_ROUNDS = 150;
+    // If the model requests the exact same tool call(s) this many rounds in a
+    // row, assume it is stuck in a no-progress loop and stop.
+    const MAX_REPEATED_TOOL_ROUNDS = 5;
+    let lastToolSignature = null;
+    let repeatedToolRounds = 0;
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
@@ -37,6 +45,7 @@
     let autoMode = false;
     let activeAbort = null;       // AbortController for the in-flight fetch
     let stopRequested = false;    // set by Stop button; breaks tool-round loop
+    let stickToBottom = true;     // false once the user scrolls up to read history
 
     try { autoMode = localStorage.getItem(AUTO_MODE_KEY) === "1"; } catch (_) {}
 
@@ -233,9 +242,59 @@
         return panel ? panel.querySelector("[data-copilot-messages]") : null;
     }
 
-    function scrollToBottom() {
+    // scrollToBottom keeps the transcript pinned to the latest message, but
+    // respects the user: once they scroll up to read earlier history we stop
+    // yanking them back down (stickToBottom=false). Pass force=true to override
+    // (e.g. when the user sends a new message or opens the panel).
+    function scrollToBottom(force) {
         const list = messageList();
-        if (list) list.scrollTop = list.scrollHeight;
+        if (!list) return;
+        if (force) stickToBottom = true;
+        if (stickToBottom) list.scrollTop = list.scrollHeight;
+        updateJumpButton();
+    }
+
+    function isNearBottom(list) {
+        return list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+    }
+
+    function attachScrollWatcher() {
+        const list = messageList();
+        if (!list || list.dataset.scrollWatch) return;
+        list.dataset.scrollWatch = "1";
+        list.addEventListener("scroll", function () {
+            stickToBottom = isNearBottom(list);
+            updateJumpButton();
+        });
+    }
+
+    function jumpButton() {
+        const panel = ensurePanel();
+        return panel ? panel.querySelector("[data-copilot-jump]") : null;
+    }
+
+    function ensureJumpButton() {
+        const panel = ensurePanel();
+        if (!panel) return null;
+        let btn = jumpButton();
+        if (btn) return btn;
+        const list = messageList();
+        if (!list || !list.parentNode) return null;
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copilot-jump-btn";
+        btn.setAttribute("data-copilot-jump", "");
+        btn.setAttribute("aria-label", "Jump to latest message");
+        btn.textContent = "↓ Latest";
+        btn.hidden = true;
+        btn.addEventListener("click", function () { scrollToBottom(true); });
+        list.parentNode.insertBefore(btn, list.nextSibling);
+        return btn;
+    }
+
+    function updateJumpButton() {
+        const btn = jumpButton();
+        if (btn) btn.hidden = stickToBottom;
     }
 
     function modelSelect() {
@@ -269,24 +328,133 @@
         } catch (_) {}
     }
 
+    function removeEmptyState() {
+        const list = messageList();
+        if (!list) return;
+        const es = list.querySelector(".copilot-empty-state");
+        if (es) es.remove();
+    }
+
     function appendMessage(role, content, extra) {
         const list = messageList();
         if (!list) return null;
+        removeEmptyState();
         const el = document.createElement("div");
         el.className = "copilot-msg copilot-msg-" + role;
         if (extra && extra.id) el.dataset.id = extra.id;
+        // Errors are announced assertively so screen-reader users hear them
+        // even mid-stream.
+        if (role === "error") el.setAttribute("role", "alert");
         const inner = document.createElement("div");
         inner.className = "copilot-msg-body";
         inner.innerHTML = renderMarkdownLite(content || "");
         el.appendChild(inner);
         list.appendChild(el);
-        scrollToBottom();
+        // Decorate any rendered code blocks with a copy button.
+        decoratePreBlocks(inner);
+        // Force the view down for the user's own messages; assistant streaming
+        // respects the scroll lock.
+        scrollToBottom(role === "user");
         return el;
+    }
+
+    // -- Typing indicator --------------------------------------------------
+
+    function showTyping() {
+        const list = messageList();
+        if (!list || list.querySelector(".copilot-typing")) return;
+        removeEmptyState();
+        const el = document.createElement("div");
+        el.className = "copilot-typing";
+        el.setAttribute("aria-label", "Assistant is thinking");
+        el.innerHTML = '<span class="copilot-typing-dot"></span><span class="copilot-typing-dot"></span><span class="copilot-typing-dot"></span>';
+        list.appendChild(el);
+        scrollToBottom();
+    }
+
+    function hideTyping() {
+        const list = messageList();
+        if (!list) return;
+        const el = list.querySelector(".copilot-typing");
+        if (el) el.remove();
+    }
+
+    // -- Copy buttons ------------------------------------------------------
+
+    // decoratePreBlocks adds a small "Copy" button to every <pre> inside the
+    // given container that doesn't already have one. Used for assistant code
+    // blocks and tool-result dumps (screen text, JSON) which are tedious to
+    // select by hand in a narrow panel.
+    function decoratePreBlocks(container) {
+        if (!container) return;
+        const blocks = container.tagName === "PRE" ? [container] : container.querySelectorAll("pre");
+        blocks.forEach(function (pre) {
+            if (pre.dataset.copyDecorated) return;
+            pre.dataset.copyDecorated = "1";
+            pre.classList.add("copilot-pre-copyable");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "copilot-copy-btn";
+            btn.textContent = "Copy";
+            btn.setAttribute("aria-label", "Copy to clipboard");
+            btn.addEventListener("click", function () {
+                // Copy the block's text without the button's own "Copy" label.
+                const clone = pre.cloneNode(true);
+                clone.querySelectorAll(".copilot-copy-btn").forEach(function (b) { b.remove(); });
+                const text = clone.innerText || clone.textContent || "";
+                const done = function () {
+                    btn.textContent = "Copied";
+                    setTimeout(function () { btn.textContent = "Copy"; }, 1200);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, function () { done(); });
+                } else {
+                    done();
+                }
+            });
+            pre.appendChild(btn);
+        });
+    }
+
+    // -- Empty state -------------------------------------------------------
+
+    const EXAMPLE_PROMPTS = [
+        "Explain the current screen",
+        "Run chaos monkey to explore this app",
+        "Map the business functions of this app",
+    ];
+
+    function renderEmptyState() {
+        const list = messageList();
+        if (!list) return;
+        const wrap = document.createElement("div");
+        wrap.className = "copilot-empty-state";
+        const title = document.createElement("p");
+        title.className = "copilot-empty-title";
+        title.textContent = "Ask the assistant about this 3270 session";
+        wrap.appendChild(title);
+        const hint = document.createElement("p");
+        hint.className = "copilot-empty-hint";
+        hint.textContent = "It can read screens, drive transactions, and run the chaos monkey explorer. Try:";
+        wrap.appendChild(hint);
+        const chips = document.createElement("div");
+        chips.className = "copilot-empty-chips";
+        EXAMPLE_PROMPTS.forEach(function (p) {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "copilot-example-chip";
+            chip.textContent = p;
+            chip.addEventListener("click", function () { send(p); });
+            chips.appendChild(chip);
+        });
+        wrap.appendChild(chips);
+        list.appendChild(wrap);
     }
 
     function appendToolCallCard(call) {
         const list = messageList();
         if (!list) return null;
+        removeEmptyState();
         const card = document.createElement("div");
         card.className = "copilot-tool-call";
         card.dataset.toolCallId = call.id;
@@ -314,6 +482,7 @@
     function appendAskUserCard(tc, args) {
         const list = messageList();
         if (!list) return null;
+        removeEmptyState();
         const question = (args && args.question) || "Make a choice:";
         const options = (args && Array.isArray(args.options) && args.options.length) ? args.options : ["OK"];
 
@@ -367,8 +536,17 @@
         if (!panel) return;
         const sendBtn = panel.querySelector("[data-copilot-send]");
         const stopBtn = panel.querySelector("[data-copilot-stop]");
-        if (sendBtn) sendBtn.hidden = !!running;
+        const form = panel.querySelector("[data-copilot-form]");
+        const textarea = panel.querySelector("[data-copilot-input]");
+        if (sendBtn) {
+            sendBtn.hidden = !!running;
+            sendBtn.disabled = !!running;
+        }
         if (stopBtn) stopBtn.hidden = !running;
+        // Expose busy state to assistive tech so a send is announced as in
+        // progress rather than appearing to do nothing.
+        if (form) form.setAttribute("aria-busy", running ? "true" : "false");
+        if (textarea) textarea.setAttribute("aria-busy", running ? "true" : "false");
     }
 
     function requestStop() {
@@ -378,34 +556,116 @@
         }
     }
 
+    // toolSignature returns a stable string identifying a set of tool calls
+    // (names + arguments) so we can detect the model repeating itself.
+    function toolSignature(toolCalls) {
+        return toolCalls
+            .map(function (tc) { return (tc.function && tc.function.name || "") + ":" + (tc.function && tc.function.arguments || ""); })
+            .join("|");
+    }
+
+    // rollbackFailedTurn keeps history well-formed when a turn fails before the
+    // assistant produced anything: it drops the trailing user message so the
+    // next send doesn't create two user turns in a row (which the API rejects).
+    // Returns the rolled-back user text, or null if there was nothing to roll.
+    function rollbackFailedTurn() {
+        if (toolRound <= 1 && history.length && history[history.length - 1].role === "user") {
+            const failed = history.pop();
+            saveHistory();
+            return (failed && failed.content) || "";
+        }
+        return null;
+    }
+
+    function appendRetryAffordance(text) {
+        if (text == null) return;
+        const el = appendMessage("error", "The message above wasn't sent.");
+        if (!el) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copilot-btn-retry";
+        btn.textContent = "Retry";
+        btn.addEventListener("click", function () { el.remove(); send(text); });
+        el.appendChild(btn);
+        scrollToBottom();
+    }
+
+    function appendContinueAffordance() {
+        const el = appendMessage("error", "The response was cut off (token limit). Continue to finish it.");
+        if (!el) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copilot-btn-retry";
+        btn.textContent = "Continue";
+        btn.addEventListener("click", function () { el.remove(); send("Please continue from where you stopped."); });
+        el.appendChild(btn);
+        scrollToBottom();
+    }
+
     async function chatRound() {
         if (stopRequested) return;
         toolRound++;
         if (toolRound > MAX_TOOL_ROUNDS) {
-            appendMessage("error", "Safety ceiling of " + MAX_TOOL_ROUNDS + " tool rounds reached; stopping.");
+            appendMessage("error", "Safety ceiling of " + MAX_TOOL_ROUNDS + " tool rounds reached; stopping. Send a new message to keep going.");
             return;
         }
 
+        showTyping();
         const stream = await fetchChatStream();
-        if (!stream) return;
+        if (!stream) {
+            hideTyping();
+            // fetchChatStream already surfaced the error message; just keep
+            // history clean and offer a one-click retry.
+            appendRetryAffordance(rollbackFailedTurn());
+            return;
+        }
         const result = await consumeStream(stream);
+        hideTyping();
         if (stopRequested) return;
         if (result.error) {
             appendMessage("error", "Chat error: " + friendlyChatError(result.error));
+            appendRetryAffordance(rollbackFailedTurn());
             return;
         }
+
+        // A truncated response (finish_reason "length") can leave half-streamed
+        // tool calls with invalid JSON arguments. Don't execute those — persist
+        // the partial text and let the user continue.
+        const hasToolCalls = result.toolCalls && result.toolCalls.length;
+        const truncated = result.finishReason === "length";
+        const toolCallsActionable = hasToolCalls && !truncated;
+
         // Persist the assistant turn into history.
         const assistantMsg = { role: "assistant", content: result.content || "" };
-        if (result.toolCalls && result.toolCalls.length) {
+        if (toolCallsActionable) {
             assistantMsg.tool_calls = result.toolCalls;
-            // Save content (often null/empty) and the tool_calls; per OpenAI
-            // spec, content can be null when tool_calls are present.
+            // Per OpenAI spec, content may be empty when tool_calls are present.
             if (!assistantMsg.content) assistantMsg.content = "";
         }
         history.push(assistantMsg);
         saveHistory();
 
-        if (result.toolCalls && result.toolCalls.length) {
+        if (truncated) {
+            appendContinueAffordance();
+            return;
+        }
+
+        if (toolCallsActionable) {
+            // No-progress loop guard: if the model keeps asking for the exact
+            // same tool call(s), stop instead of burning the round budget
+            // (the classic chaos resume -> saturated -> resume loop).
+            const sig = toolSignature(result.toolCalls);
+            if (sig && sig === lastToolSignature) {
+                repeatedToolRounds++;
+            } else {
+                repeatedToolRounds = 0;
+                lastToolSignature = sig;
+            }
+            if (repeatedToolRounds >= MAX_REPEATED_TOOL_ROUNDS) {
+                appendMessage("error", "Stopped: the assistant repeated the same action " + (MAX_REPEATED_TOOL_ROUNDS + 1) + " times without making progress. Adjust your request, update chaos hints, or try a different approach.");
+                return;
+            }
+
             const toolResults = await collectToolResults(result.toolCalls);
             // Append each tool result as a message.
             for (const tr of toolResults) {
@@ -496,6 +756,9 @@
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;
+            // First bytes received: the model is responding, drop the "thinking"
+            // indicator so it doesn't sit alongside streamed content.
+            hideTyping();
             buffer += decoder.decode(value, { stream: true });
 
             let idx;
@@ -548,6 +811,11 @@
                 }
             }
         }
+
+        // Streaming finished: decorate the completed message's code blocks with
+        // copy buttons (skipped during streaming since innerHTML is rebuilt on
+        // every delta).
+        if (assistantEl) decoratePreBlocks(assistantEl.querySelector(".copilot-msg-body"));
 
         const toolCalls = Array.from(toolCallsById.values()).sort((a, b) => a.index - b.index);
         return {
@@ -695,6 +963,7 @@
                 statusEl.textContent = label;
                 resultEl.hidden = false;
                 resultEl.textContent = JSON.stringify(resultObj, null, 2);
+                decoratePreBlocks(resultEl);
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
                 resolve({ id: tc.id, contentJSON: JSON.stringify(resultObj) });
@@ -705,10 +974,18 @@
                 skipBtn.disabled = true;
                 statusEl.textContent = "Running...";
                 let args = {};
-                try { args = JSON.parse(tc.function.arguments || "{}"); } catch (_) {}
+                try {
+                    args = JSON.parse(tc.function.arguments || "{}");
+                } catch (e) {
+                    // Malformed/truncated tool arguments: report the failure back
+                    // to the model as the tool result (so it can retry) instead
+                    // of silently running with empty args.
+                    finish({ error: "invalid tool arguments JSON: " + (e && e.message || e) }, "Failed");
+                    return;
+                }
                 const r = await CopilotTools.runTool(tc.function.name, args);
                 finish(r, r && r.error ? "Failed" : "Done");
-                if (!r.error && !r.skipped) {
+                if (r && !r.error && !r.skipped) {
                     addToolExtras(tc.function.name, args, r, card);
                 }
             }
@@ -736,7 +1013,9 @@
         if (open) {
             const ta = panel.querySelector("[data-copilot-input]");
             if (ta) ta.focus();
-            scrollToBottom();
+            ensureJumpButton();
+            attachScrollWatcher();
+            scrollToBottom(true);
             refreshConnectionState().then(function () {
                 populateModelSelect();
             });
@@ -749,19 +1028,26 @@
         const list = messageList();
         if (list) list.innerHTML = "";
         toolRound = 0;
+        lastToolSignature = null;
+        repeatedToolRounds = 0;
+        renderEmptyState();
     }
 
     function renderHistoryAfterLoad() {
         const list = messageList();
         if (!list) return;
         list.innerHTML = "";
+        if (!history.length) {
+            renderEmptyState();
+            return;
+        }
         for (const m of history) {
             if (m.role === "user") appendMessage("user", m.content || "");
             else if (m.role === "assistant" && m.content) appendMessage("assistant", m.content);
             // tool messages + tool_calls already executed in earlier sessions
             // are skipped so we don't reanimate the cards.
         }
-        scrollToBottom();
+        scrollToBottom(true);
     }
 
     async function send(text) {
@@ -779,17 +1065,24 @@
                 return;
             }
         }
-        history.push({ role: "user", content: text });
-        saveHistory();
-        appendMessage("user", text);
-        toolRound = 0;
-
+        // Authenticate BEFORE committing the user turn so a cancelled sign-in
+        // doesn't leave a dangling user message in history (and the typed text
+        // stays in the box for another attempt).
         const ok = await CopilotAuth.ensureLogin();
         if (!ok) {
             appendMessage("error", "Sign-in cancelled.");
             return;
         }
         setConnectedState(true);
+
+        history.push({ role: "user", content: text });
+        saveHistory();
+        appendMessage("user", text);
+        clearInput();
+        toolRound = 0;
+        lastToolSignature = null;
+        repeatedToolRounds = 0;
+
         await populateModelSelect();
         stopRequested = false;
         setRunning(true);
@@ -799,7 +1092,15 @@
             activeAbort = null;
             stopRequested = false;
             setRunning(false);
+            hideTyping();
         }
+    }
+
+    function clearInput() {
+        const panel = ensurePanel();
+        if (!panel) return;
+        const ta = panel.querySelector("[data-copilot-input]");
+        if (ta) ta.value = "";
     }
 
     function attachInputHandlers() {
@@ -851,6 +1152,9 @@
         if (signOutBtn) signOutBtn.addEventListener("click", async () => {
             try {
                 await CopilotAuth.logout();
+                // Clear the conversation on sign-out so the next user doesn't
+                // inherit the previous session's transcript.
+                clearHistory();
                 appendMessage("error", "Signed out.");
                 setConnectedState(false);
             } catch (e) { appendMessage("error", "Logout failed: " + e); }
@@ -864,18 +1168,16 @@
         });
 
         if (form && textarea) {
+            // The textarea is cleared by send() only once the turn is committed,
+            // so a failed/cancelled send keeps the user's text.
             form.addEventListener("submit", function (ev) {
                 ev.preventDefault();
-                const text = textarea.value;
-                textarea.value = "";
-                send(text);
+                send(textarea.value);
             });
             textarea.addEventListener("keydown", function (ev) {
                 if (ev.key === "Enter" && !ev.shiftKey) {
                     ev.preventDefault();
-                    const text = textarea.value;
-                    textarea.value = "";
-                    send(text);
+                    send(textarea.value);
                 }
             });
         }

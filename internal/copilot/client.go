@@ -8,7 +8,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
+	"time"
 )
+
+// streamIdleTimeout is the maximum time the proxied SSE stream may go without
+// receiving any data before it is treated as stalled and aborted. This is far
+// tighter than the handler's overall stream cap so a hung upstream fails fast
+// (with an actionable error) instead of pinning the connection for minutes.
+const streamIdleTimeout = 60 * time.Second
+
+// errStreamStalled is returned when the upstream stops sending data for longer
+// than streamIdleTimeout.
+var errStreamStalled = errors.New("upstream stalled (no data received for 60s)")
 
 // ChatRequest is a thin wrapper around the OpenAI-compatible request body
 // the Copilot API expects. We let the frontend supply most of the JSON
@@ -73,7 +85,13 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 		return fmt.Errorf("encode chat request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiEndpoint+"/chat/completions", bytes.NewReader(body))
+	// Derive a cancellable context so the idle watchdog can abort a stalled
+	// stream (which unblocks the in-flight Body.Read) independently of the
+	// caller's overall timeout.
+	streamCtx, cancelStream := context.WithCancel(ctx)
+	defer cancelStream()
+
+	httpReq, err := http.NewRequestWithContext(streamCtx, "POST", apiEndpoint+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -101,10 +119,44 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 		}
 	}
 
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	if err := copyWithIdleTimeout(out, resp.Body, streamIdleTimeout, cancelStream); err != nil {
 		return fmt.Errorf("copilot stream: %w", err)
 	}
 	return nil
+}
+
+// copyWithIdleTimeout copies src to dst like io.Copy, but aborts (via onIdle,
+// which cancels the request context to unblock a stuck Read) when no data has
+// arrived for `idle`. The deadline resets on every chunk received, so a slow
+// but steadily-streaming completion is never interrupted — only a genuinely
+// stalled upstream is. Returns errStreamStalled when the idle watchdog fires.
+func copyWithIdleTimeout(dst io.Writer, src io.Reader, idle time.Duration, onIdle func()) error {
+	var stalled atomic.Bool
+	timer := time.AfterFunc(idle, func() {
+		stalled.Store(true)
+		onIdle()
+	})
+	defer timer.Stop()
+
+	buf := make([]byte, 32*1024)
+	for {
+		n, rerr := src.Read(buf)
+		if n > 0 {
+			timer.Reset(idle)
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return werr
+			}
+		}
+		if rerr != nil {
+			if rerr == io.EOF {
+				return nil
+			}
+			if stalled.Load() {
+				return errStreamStalled
+			}
+			return rerr
+		}
+	}
 }
 
 // ListModels fetches the available model IDs from the Copilot /models endpoint.
