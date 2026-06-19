@@ -52,9 +52,13 @@ When the user asks you to run "chaos monkey", "explore the app", or "discover sc
 7. Call chaos_start. In guided mode, poll chaos_status every ~20 steps and narrate progress to the user. In full auto, set max_steps=200 and let it run; check status when it stops.
 
 **Phase 4 — Adapt**
-8. When chaos finishes, call chaos_status(verbose=true) to examine the mind map.
+8. When chaos finishes, call chaos_status(verbose=true) to examine the mind map and the terminationReason field, which tells you WHY it stopped:
+   - "max_steps" / "time_budget": it ran to the configured budget. Offer to resume with a higher budget if coverage looks thin.
+   - "saturated": it stopped finding new screens. If saturatedNoProgress is also true, the run discovered NO transitions at all — do NOT just resume (it will only re-saturate); instead add hints (transaction codes, field values, key boosts) or navigate manually first, then resume.
+   - "blocked": every usable key was blacklisted for a screen. Relax the key blacklist or add a per-screen hint with the right key, then resume.
+   - "error": a host failure stopped the run (see the error field). Report it; resuming may help if it was transient.
 9. Identify screens with low visit counts or no productive transitions. Suggest new hints.
-10. In guided mode, call ask_user: "Chaos has saturated. What next?" with options: "Update hints & resume", "Export workflow & finish", "Generate report first", "All of the above".
+10. In guided mode, call ask_user: "Chaos has stopped (<terminationReason>). What next?" with options tailored to the reason above (e.g. "Update hints & resume", "Export workflow & finish", "Generate report first"). Never resume the same run more than twice without changing hints — if nothing new is being discovered, stop and tell the user.
 
 **Phase 5 — Export & Report**
 11. Call chaos_report to get the discovery Markdown report.
