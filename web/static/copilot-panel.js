@@ -136,24 +136,193 @@
             .replace(/'/g, "&#39;");
     }
 
+    // Inline-level markdown: code spans, bold, italics, strikethrough, links.
+    // Input must already be HTML-escaped; output is safe HTML. Inline code is
+    // stashed behind a sentinel first so emphasis rules never touch its body.
+    function renderInline(s) {
+        const codeSpans = [];
+        s = s.replace(/`([^`\n]+)`/g, function (_m, code) {
+            codeSpans.push(code);
+            return "\u0000c" + (codeSpans.length - 1) + "\u0000";
+        });
+        s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
+            if (!/^(https?:\/\/|mailto:|\/|#)/i.test(url)) return m;
+            return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + "</a>";
+        });
+        s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+        s = s.replace(/(^|\W)\*([^*\n]+)\*(?=\W|$)/g, "$1<em>$2</em>");
+        s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+        s = s.replace(/\u0000c(\d+)\u0000/g, function (_m, i) {
+            return "<code>" + codeSpans[+i] + "</code>";
+        });
+        return s;
+    }
+
+    // Split a GitHub-style table row into trimmed cells (honouring escaped \|).
+    function mdSplitRow(row) {
+        let s = row.trim().replace(/\\\|/g, "\u0000p\u0000");
+        if (s.charAt(0) === "|") s = s.slice(1);
+        if (s.charAt(s.length - 1) === "|") s = s.slice(0, -1);
+        return s.split("|").map(function (c) {
+            return c.trim().replace(/\u0000p\u0000/g, "|");
+        });
+    }
+
+    function mdAlign(cell) {
+        const l = cell.charAt(0) === ":";
+        const r = cell.charAt(cell.length - 1) === ":";
+        if (l && r) return "center";
+        if (r) return "right";
+        if (l) return "left";
+        return "";
+    }
+
+    function mdIsTableSep(line) {
+        return line.indexOf("|") !== -1 && /-/.test(line) && /^[\s|:-]+$/.test(line);
+    }
+
+    // True when lines[i] opens a block, so paragraph gathering knows to stop.
+    function mdStartsBlock(lines, i) {
+        const line = lines[i];
+        return /^\u0000B\d+\u0000$/.test(line)
+            || /^ {0,3}#{1,6}[ \t]+/.test(line)
+            || /^ {0,3}([-*_])([ \t]*\1){2,}[ \t]*$/.test(line)
+            || /^ {0,3}&gt;/.test(line)
+            || /^\s*([-*+]|\d+[.)])\s+/.test(line)
+            || (line.indexOf("|") !== -1 && i + 1 < lines.length && mdIsTableSep(lines[i + 1]));
+    }
+
+    // Parse a (possibly nested) ordered/unordered list starting at lines[start].
+    // Returns the built HTML and the index of the first line past the list.
+    function mdParseList(lines, start) {
+        const n = lines.length;
+        const itemRe = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+        let i = start;
+        let html = "";
+        const stack = [];
+        while (i < n) {
+            const line = lines[i];
+            if (/^\s*$/.test(line)) {
+                if (i + 1 < n && itemRe.test(lines[i + 1])) { i++; continue; }
+                break;
+            }
+            const m = line.match(itemRe);
+            if (!m) break;
+            const indent = m[1].replace(/\t/g, "    ").length;
+            const type = /^\d/.test(m[2]) ? "ol" : "ul";
+            const content = renderInline(m[3].trim());
+            if (!stack.length) {
+                stack.push({ indent: indent, type: type });
+                html += "<" + type + "><li>" + content;
+            } else if (indent > stack[stack.length - 1].indent) {
+                stack.push({ indent: indent, type: type });
+                html += "<" + type + "><li>" + content;
+            } else {
+                while (stack.length > 1 && indent < stack[stack.length - 1].indent) {
+                    html += "</li></" + stack.pop().type + ">";
+                }
+                const top = stack[stack.length - 1];
+                if (top.type !== type) {
+                    html += "</li></" + top.type + "><" + type + "><li>" + content;
+                    stack[stack.length - 1] = { indent: indent, type: type };
+                } else {
+                    html += "</li><li>" + content;
+                }
+            }
+            i++;
+        }
+        while (stack.length) html += "</li></" + stack.pop().type + ">";
+        return { html: html, next: i };
+    }
+
+    // Block-level markdown: headings, tables, lists, blockquotes, horizontal
+    // rules, fenced code (mermaid -> inline SVG), and paragraphs. Dependency-free
+    // and tolerant of partial input, since it re-runs on every streaming delta.
     function renderMarkdownLite(text) {
-        // Intentionally minimal: code fences, inline code, bold, italics,
-        // newlines. The chat panel doesn't need full markdown.
-        let html = escapeHTML(text);
-        // Render mermaid fences as inline diagrams; other fences as <pre><code>.
-        html = html.replace(/```mermaid\n([\s\S]*?)```/g, function (_m, body) {
-            const svg = renderMermaidFlowLR(body.trim());
-            if (svg) return '<div class="copilot-mermaid-wrap">' + svg + '</div>';
-            return "<pre><code>" + escapeHTML(body) + "</code></pre>";
+        const src = String(text == null ? "" : text);
+        // 1. Pull fenced code blocks out of the RAW text first so their contents
+        //    are never treated as markdown (and mermaid keeps literal "/-->).
+        const blocks = [];
+        function stash(html) {
+            blocks.push(html);
+            return "\n\u0000B" + (blocks.length - 1) + "\u0000\n";
+        }
+        let work = src.replace(/```[ \t]*mermaid[ \t]*\n([\s\S]*?)```/g, function (_m, body) {
+            const svg = renderMermaidFlowLR(body.replace(/\s+$/, ""));
+            return stash(svg
+                ? '<div class="copilot-mermaid-wrap">' + svg + "</div>"
+                : "<pre><code>" + escapeHTML(body.replace(/\n+$/, "")) + "</code></pre>");
         });
-        html = html.replace(/```([\s\S]*?)```/g, function (_m, body) {
-            return "<pre><code>" + body + "</code></pre>";
+        work = work.replace(/```[ \t]*[\w-]*[ \t]*\n([\s\S]*?)```/g, function (_m, body) {
+            return stash("<pre><code>" + escapeHTML(body.replace(/\n+$/, "")) + "</code></pre>");
         });
-        html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-        html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-        html = html.replace(/(^|\W)\*([^*\n]+)\*(?=\W|$)/g, "$1<em>$2</em>");
-        html = html.replace(/\n/g, "<br>");
-        return html;
+
+        // 2. Escape everything else, then walk it block by block.
+        const lines = escapeHTML(work).split("\n");
+        const out = [];
+        const n = lines.length;
+        let i = 0;
+        while (i < n) {
+            const line = lines[i];
+            const ph = line.match(/^\u0000B(\d+)\u0000$/);
+            if (ph) { out.push(blocks[+ph[1]]); i++; continue; }
+            if (/^\s*$/.test(line)) { i++; continue; }
+            if (/^ {0,3}([-*_])([ \t]*\1){2,}[ \t]*$/.test(line)) { out.push("<hr>"); i++; continue; }
+            const h = line.match(/^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/);
+            if (h) {
+                const lvl = h[1].length;
+                out.push("<h" + lvl + ">" + renderInline(h[2]) + "</h" + lvl + ">");
+                i++; continue;
+            }
+            // Table: a row containing | whose next line is a separator (---|---).
+            if (line.indexOf("|") !== -1 && i + 1 < n && mdIsTableSep(lines[i + 1])) {
+                const heads = mdSplitRow(line);
+                const aligns = mdSplitRow(lines[i + 1]).map(mdAlign);
+                let t = '<table class="copilot-md-table"><thead><tr>';
+                heads.forEach(function (c, ci) {
+                    const a = aligns[ci] ? ' style="text-align:' + aligns[ci] + '"' : "";
+                    t += "<th" + a + ">" + renderInline(c) + "</th>";
+                });
+                t += "</tr></thead><tbody>";
+                i += 2;
+                while (i < n && lines[i].indexOf("|") !== -1 && !/^\s*$/.test(lines[i])) {
+                    const cells = mdSplitRow(lines[i]);
+                    t += "<tr>";
+                    for (let ci = 0; ci < heads.length; ci++) {
+                        const a = aligns[ci] ? ' style="text-align:' + aligns[ci] + '"' : "";
+                        t += "<td" + a + ">" + renderInline(cells[ci] || "") + "</td>";
+                    }
+                    t += "</tr>";
+                    i++;
+                }
+                t += "</tbody></table>";
+                out.push(t);
+                continue;
+            }
+            if (/^ {0,3}&gt;/.test(line)) {
+                const buf = [];
+                while (i < n && /^ {0,3}&gt;/.test(lines[i])) {
+                    buf.push(renderInline(lines[i].replace(/^ {0,3}&gt;[ \t]?/, "")));
+                    i++;
+                }
+                out.push("<blockquote>" + buf.join("<br>") + "</blockquote>");
+                continue;
+            }
+            if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
+                const r = mdParseList(lines, i);
+                out.push(r.html);
+                i = r.next;
+                continue;
+            }
+            // Paragraph: gather plain lines until a blank line or a new block.
+            const para = [];
+            while (i < n && !/^\s*$/.test(lines[i]) && !mdStartsBlock(lines, i)) {
+                para.push(renderInline(lines[i].replace(/^[ \t]+/, "")));
+                i++;
+            }
+            if (para.length) out.push("<p>" + para.join("<br>") + "</p>");
+        }
+        return out.join("\n");
     }
 
     // Lightweight renderer for `flowchart LR` diagrams generated by chaos_report.
@@ -518,9 +687,132 @@
 
     // -- Chat round --------------------------------------------------------
 
+    // Outgoing-payload size budgets. The whole history is replayed verbatim on
+    // every chat call, so without these caps a long auto-mode chaos loop (which
+    // polls chaos_status repeatedly, each result embedding the full mind map)
+    // grows the request until it blows past the model's input window. Copilot
+    // then rejects every subsequent request — including brand-new user
+    // messages — with a bare "400 Bad Request", wedging the conversation for
+    // good. Trimming is applied to a *copy* built for the request; the
+    // in-memory/persisted history keeps the full content for the UI.
+    const MAX_TOOL_RESULT_CHARS_RECENT = 24000; // tool results in the current turn
+    const MAX_TOOL_RESULT_CHARS_OLD = 4000;     // tool results from earlier turns
+    const MAX_TOTAL_CHARS = 200000;             // overall message budget (~50k tokens)
+
+    function capToolContent(content, max) {
+        const s = String(content == null ? "" : content);
+        if (s.length <= max) return s;
+        // Keep the head: for chaos_status JSON the alphabetically-early keys
+        // (active, aidKeyCounts, coverageStats, error, firstScreenHash,
+        // lastAttempt) carry the status the model needs; the bulky mindMap /
+        // recentAttempts sit later and are the safe thing to drop.
+        return s.slice(0, max) + "\n…[truncated " + (s.length - max) + " chars to fit the model context window]";
+    }
+
+    // sanitizeForRequest returns a structurally valid copy of `messages` that
+    // Copilot will accept even when the stored history is malformed. It:
+    //   - pairs every assistant `tool_calls` with exactly one `tool` result per
+    //     id, synthesizing a placeholder for any missing result (a dangling
+    //     assistant turn — e.g. persisted mid-round then reloaded — otherwise
+    //     400s the whole request);
+    //   - drops orphan `tool` messages with no matching preceding tool_call;
+    //   - guarantees each tool_call carries valid JSON `arguments` (defaulting
+    //     to "{}"), and strips the streaming-only `index` field;
+    //   - caps tool-result sizes (older turns harder than the current one).
+    function sanitizeForRequest(messages) {
+        const out = [];
+        // The current turn is everything after the last user message; its tool
+        // results get the larger cap so the model still sees fresh detail.
+        let lastUserIdx = -1;
+        for (let k = messages.length - 1; k >= 0; k--) {
+            if (messages[k] && messages[k].role === "user") { lastUserIdx = k; break; }
+        }
+        for (let i = 0; i < messages.length; i++) {
+            const m = messages[i];
+            if (!m || !m.role) continue;
+            if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+                const calls = [];
+                for (const tc of m.tool_calls) {
+                    if (!tc || !tc.id) continue;
+                    const fn = tc.function || {};
+                    let args = typeof fn.arguments === "string" ? fn.arguments : "";
+                    try { JSON.parse(args); } catch (_) { args = "{}"; }
+                    if (!args.trim()) args = "{}";
+                    calls.push({ id: tc.id, type: "function", function: { name: fn.name || "", arguments: args } });
+                }
+                if (!calls.length) {
+                    if (m.content) out.push({ role: "assistant", content: m.content });
+                    continue;
+                }
+                // Consume the contiguous run of tool results that follows.
+                const resultsById = Object.create(null);
+                let j = i + 1;
+                for (; j < messages.length; j++) {
+                    const t = messages[j];
+                    if (t && t.role === "tool" && t.tool_call_id != null) resultsById[t.tool_call_id] = t;
+                    else break;
+                }
+                const cap = i > lastUserIdx ? MAX_TOOL_RESULT_CHARS_RECENT : MAX_TOOL_RESULT_CHARS_OLD;
+                out.push({ role: "assistant", content: m.content || "", tool_calls: calls });
+                for (const tc of calls) {
+                    const r = resultsById[tc.id];
+                    out.push({
+                        role: "tool",
+                        tool_call_id: tc.id,
+                        content: r ? capToolContent(r.content, cap) : '{"error":"tool result missing"}',
+                    });
+                }
+                i = j - 1; // skip the consumed tool messages
+                continue;
+            }
+            if (m.role === "tool") continue; // orphan tool result: drop it
+            out.push({ role: m.role, content: m.content || "" });
+        }
+        return out;
+    }
+
+    function messagesCharLength(messages) {
+        let n = 0;
+        for (const m of messages) {
+            n += 16; // rough per-message envelope (role, braces, ...)
+            if (m.content) n += m.content.length;
+            if (m.tool_calls) n += JSON.stringify(m.tool_calls).length;
+            if (m.tool_call_id) n += m.tool_call_id.length;
+        }
+        return n;
+    }
+
+    // enforceCharBudget drops the oldest turns until the payload fits MAX_TOTAL_CHARS,
+    // keeping the system prompt and never dropping the final user message (the
+    // current ask) or anything after it. Input is assumed already sanitized, so
+    // an assistant `tool_calls` message is always immediately followed by its
+    // tool results — they are dropped together to avoid orphaning either side.
+    function enforceCharBudget(messages, budget) {
+        if (messagesCharLength(messages) <= budget) return messages;
+        const system = messages.length && messages[0].role === "system" ? messages[0] : null;
+        const body = system ? messages.slice(1) : messages.slice();
+        let lastUserIdx = -1;
+        for (let k = body.length - 1; k >= 0; k--) {
+            if (body[k].role === "user") { lastUserIdx = k; break; }
+        }
+        while (body.length && messagesCharLength((system ? [system] : []).concat(body)) > budget) {
+            if (lastUserIdx <= 0) break; // protect the current ask and everything after it
+            let drop = 1;
+            if (body[0].role === "assistant" && Array.isArray(body[0].tool_calls)) {
+                while (drop < body.length && body[drop].role === "tool") drop++;
+            }
+            if (drop > lastUserIdx) break; // would cross into the protected tail
+            body.splice(0, drop);
+            lastUserIdx -= drop;
+        }
+        while (body.length && body[0].role === "tool") body.shift(); // strip any leading orphan
+        return (system ? [system] : []).concat(body);
+    }
+
     function buildPayload() {
-        const messages = [{ role: "system", content: systemPrompt || "" }];
-        for (const m of history) messages.push(m);
+        const raw = [{ role: "system", content: systemPrompt || "" }];
+        for (const m of history) raw.push(m);
+        const messages = enforceCharBudget(sanitizeForRequest(raw), MAX_TOTAL_CHARS);
         return {
             model,
             messages,
