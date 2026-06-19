@@ -518,9 +518,132 @@
 
     // -- Chat round --------------------------------------------------------
 
+    // Outgoing-payload size budgets. The whole history is replayed verbatim on
+    // every chat call, so without these caps a long auto-mode chaos loop (which
+    // polls chaos_status repeatedly, each result embedding the full mind map)
+    // grows the request until it blows past the model's input window. Copilot
+    // then rejects every subsequent request — including brand-new user
+    // messages — with a bare "400 Bad Request", wedging the conversation for
+    // good. Trimming is applied to a *copy* built for the request; the
+    // in-memory/persisted history keeps the full content for the UI.
+    const MAX_TOOL_RESULT_CHARS_RECENT = 24000; // tool results in the current turn
+    const MAX_TOOL_RESULT_CHARS_OLD = 4000;     // tool results from earlier turns
+    const MAX_TOTAL_CHARS = 200000;             // overall message budget (~50k tokens)
+
+    function capToolContent(content, max) {
+        const s = String(content == null ? "" : content);
+        if (s.length <= max) return s;
+        // Keep the head: for chaos_status JSON the alphabetically-early keys
+        // (active, aidKeyCounts, coverageStats, error, firstScreenHash,
+        // lastAttempt) carry the status the model needs; the bulky mindMap /
+        // recentAttempts sit later and are the safe thing to drop.
+        return s.slice(0, max) + "\n…[truncated " + (s.length - max) + " chars to fit the model context window]";
+    }
+
+    // sanitizeForRequest returns a structurally valid copy of `messages` that
+    // Copilot will accept even when the stored history is malformed. It:
+    //   - pairs every assistant `tool_calls` with exactly one `tool` result per
+    //     id, synthesizing a placeholder for any missing result (a dangling
+    //     assistant turn — e.g. persisted mid-round then reloaded — otherwise
+    //     400s the whole request);
+    //   - drops orphan `tool` messages with no matching preceding tool_call;
+    //   - guarantees each tool_call carries valid JSON `arguments` (defaulting
+    //     to "{}"), and strips the streaming-only `index` field;
+    //   - caps tool-result sizes (older turns harder than the current one).
+    function sanitizeForRequest(messages) {
+        const out = [];
+        // The current turn is everything after the last user message; its tool
+        // results get the larger cap so the model still sees fresh detail.
+        let lastUserIdx = -1;
+        for (let k = messages.length - 1; k >= 0; k--) {
+            if (messages[k] && messages[k].role === "user") { lastUserIdx = k; break; }
+        }
+        for (let i = 0; i < messages.length; i++) {
+            const m = messages[i];
+            if (!m || !m.role) continue;
+            if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+                const calls = [];
+                for (const tc of m.tool_calls) {
+                    if (!tc || !tc.id) continue;
+                    const fn = tc.function || {};
+                    let args = typeof fn.arguments === "string" ? fn.arguments : "";
+                    try { JSON.parse(args); } catch (_) { args = "{}"; }
+                    if (!args.trim()) args = "{}";
+                    calls.push({ id: tc.id, type: "function", function: { name: fn.name || "", arguments: args } });
+                }
+                if (!calls.length) {
+                    if (m.content) out.push({ role: "assistant", content: m.content });
+                    continue;
+                }
+                // Consume the contiguous run of tool results that follows.
+                const resultsById = Object.create(null);
+                let j = i + 1;
+                for (; j < messages.length; j++) {
+                    const t = messages[j];
+                    if (t && t.role === "tool" && t.tool_call_id != null) resultsById[t.tool_call_id] = t;
+                    else break;
+                }
+                const cap = i > lastUserIdx ? MAX_TOOL_RESULT_CHARS_RECENT : MAX_TOOL_RESULT_CHARS_OLD;
+                out.push({ role: "assistant", content: m.content || "", tool_calls: calls });
+                for (const tc of calls) {
+                    const r = resultsById[tc.id];
+                    out.push({
+                        role: "tool",
+                        tool_call_id: tc.id,
+                        content: r ? capToolContent(r.content, cap) : '{"error":"tool result missing"}',
+                    });
+                }
+                i = j - 1; // skip the consumed tool messages
+                continue;
+            }
+            if (m.role === "tool") continue; // orphan tool result: drop it
+            out.push({ role: m.role, content: m.content || "" });
+        }
+        return out;
+    }
+
+    function messagesCharLength(messages) {
+        let n = 0;
+        for (const m of messages) {
+            n += 16; // rough per-message envelope (role, braces, ...)
+            if (m.content) n += m.content.length;
+            if (m.tool_calls) n += JSON.stringify(m.tool_calls).length;
+            if (m.tool_call_id) n += m.tool_call_id.length;
+        }
+        return n;
+    }
+
+    // enforceCharBudget drops the oldest turns until the payload fits MAX_TOTAL_CHARS,
+    // keeping the system prompt and never dropping the final user message (the
+    // current ask) or anything after it. Input is assumed already sanitized, so
+    // an assistant `tool_calls` message is always immediately followed by its
+    // tool results — they are dropped together to avoid orphaning either side.
+    function enforceCharBudget(messages, budget) {
+        if (messagesCharLength(messages) <= budget) return messages;
+        const system = messages.length && messages[0].role === "system" ? messages[0] : null;
+        const body = system ? messages.slice(1) : messages.slice();
+        let lastUserIdx = -1;
+        for (let k = body.length - 1; k >= 0; k--) {
+            if (body[k].role === "user") { lastUserIdx = k; break; }
+        }
+        while (body.length && messagesCharLength((system ? [system] : []).concat(body)) > budget) {
+            if (lastUserIdx <= 0) break; // protect the current ask and everything after it
+            let drop = 1;
+            if (body[0].role === "assistant" && Array.isArray(body[0].tool_calls)) {
+                while (drop < body.length && body[drop].role === "tool") drop++;
+            }
+            if (drop > lastUserIdx) break; // would cross into the protected tail
+            body.splice(0, drop);
+            lastUserIdx -= drop;
+        }
+        while (body.length && body[0].role === "tool") body.shift(); // strip any leading orphan
+        return (system ? [system] : []).concat(body);
+    }
+
     function buildPayload() {
-        const messages = [{ role: "system", content: systemPrompt || "" }];
-        for (const m of history) messages.push(m);
+        const raw = [{ role: "system", content: systemPrompt || "" }];
+        for (const m of history) raw.push(m);
+        const messages = enforceCharBudget(sanitizeForRequest(raw), MAX_TOTAL_CHARS);
         return {
             model,
             messages,
