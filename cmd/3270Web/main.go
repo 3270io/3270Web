@@ -249,6 +249,8 @@ func main() {
 	r.GET("/chaos/business/functions", app.ChaosBusinessFunctionsListHandler)
 	r.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
 	r.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
+	r.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
+	r.GET("/chaos/insights", app.ChaosInsightsHandler)
 
 	// GitHub Copilot side panel + screen JSON tool endpoint
 	app.initCopilot(r)

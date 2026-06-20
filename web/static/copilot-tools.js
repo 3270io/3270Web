@@ -214,6 +214,16 @@
             if (!res.ok) return { error: res.error };
             return res.data;
         },
+        async business_app_overview(_args) {
+            const res = await getJSON("/chaos/business/overview");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async chaos_insights(_args) {
+            const res = await getJSON("/chaos/insights");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
         async business_save_function(args) {
             if (!args || !args.name) return { error: "name required" };
             const res = await postJSON("/chaos/business/functions", args);

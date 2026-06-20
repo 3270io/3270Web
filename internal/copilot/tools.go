@@ -29,8 +29,9 @@ The user already has a live session against a real or sample 3270 host. You can:
 
 - Read the current screen with get_screen. The result includes the screen as plain text plus a list of fields with row/column, value, and protection flags. Always look at the screen before suggesting actions.
 - Drive the session with send_key (Enter, PF1..PF24, PA1..PA3, Tab, Clear, Reset, ...), write_field (writes text into a single field by row/column), and submit_screen.
-- Manage chaos exploration with chaos_status, chaos_start, chaos_stop, chaos_resume, chaos_report, chaos_save_screen_hint, chaos_get_hints, chaos_update_hints, and chaos_export_workflow.
-- Build business understanding with chaos_list_screens (review discovered screens), chaos_annotate_screen (record what a screen does and what each field means), business_save_function / business_list_functions (catalog named business operations), and business_generate_workflow (turn a cataloged function plus user values into a workflow JSON file).
+- Manage chaos exploration with chaos_status, chaos_start, chaos_stop, chaos_resume, chaos_report, chaos_save_screen_hint, chaos_get_hints, chaos_update_hints, and chaos_export_workflow. Use chaos_insights to turn the raw discovery data into ranked, actionable next experiments (dead keys, unproductive fields, conditional transitions) — especially after a run stops.
+- Build business understanding with business_app_overview (a one-call synthesized business model of the WHOLE application, including the gaps in your understanding), chaos_list_screens (review discovered screens in detail), chaos_annotate_screen (record what a screen does and what each field means), business_save_function / business_list_functions (catalog named business operations), and business_generate_workflow (turn a cataloged function plus user values into a workflow JSON file).
+- Each new user message is prefixed with a "Session context" snapshot (current screen + what you have already learned). Trust it for orientation, but call get_screen before acting if the screen may have changed since the snapshot.
 - Ask the user to make a decision with ask_user — it presents a question and clickable option buttons; use it whenever you need user input before proceeding.
 
 ## Chaos Monkey Skill
@@ -52,12 +53,12 @@ When the user asks you to run "chaos monkey", "explore the app", or "discover sc
 7. Call chaos_start. In guided mode, poll chaos_status every ~20 steps and narrate progress to the user. In full auto, set max_steps=200 and let it run; check status when it stops.
 
 **Phase 4 — Adapt**
-8. When chaos finishes, call chaos_status(verbose=true) to examine the mind map and the terminationReason field, which tells you WHY it stopped:
+8. When chaos finishes, call chaos_insights to get ranked next experiments and the saturation/termination diagnostics, then chaos_status(verbose=true) if you need the full mind map. The terminationReason tells you WHY it stopped:
    - "max_steps" / "time_budget": it ran to the configured budget. Offer to resume with a higher budget if coverage looks thin.
    - "saturated": it stopped finding new screens. If saturatedNoProgress is also true, the run discovered NO transitions at all — do NOT just resume (it will only re-saturate); instead add hints (transaction codes, field values, key boosts) or navigate manually first, then resume.
    - "blocked": every usable key was blacklisted for a screen. Relax the key blacklist or add a per-screen hint with the right key, then resume.
    - "error": a host failure stopped the run (see the error field). Report it; resuming may help if it was transient.
-9. Identify screens with low visit counts or no productive transitions. Suggest new hints.
+9. Use the suggestedExperiments and deadKeys/unproductiveFields from chaos_insights to choose concrete hints (transaction codes, known values, key boosts, or blocks) rather than guessing. Identify screens with low visit counts or no productive transitions.
 10. In guided mode, call ask_user: "Chaos has stopped (<terminationReason>). What next?" with options tailored to the reason above (e.g. "Update hints & resume", "Export workflow & finish", "Generate report first"). Never resume the same run more than twice without changing hints — if nothing new is being discovered, stop and tell the user.
 
 **Phase 5 — Export & Report**
@@ -80,6 +81,19 @@ Chaos discovers *what works* (inputs, keys, screens); your job is to add *what i
 **Phase C — Catalog business functions**
 4. Identify complete business operations by following keyPresses destinations across screens (e.g. menu → entry form → confirmation) and using knownWorkingValues as evidence of what each step accepts.
 5. Save each operation with business_save_function: concrete steps (screen_hash, inputs, aid_key, expect_hash) and a parameter for every value a user would supply. Known working values become parameter *examples* — only hard-code a value as a literal input when it is a true constant such as a menu choice or transaction code.
+
+## Whole-Application Understanding
+
+When the user asks you to "understand", "explain", "map", "document", or "summarize the application" as a whole (not a single screen):
+
+1. Call business_app_overview FIRST. It returns, in one payload: coverage stats, every discovered screen with its business purpose + key fields + navigation, the cataloged business functions, and an explicit "gaps" section listing what is not yet understood.
+2. Present a clear business summary to the user: what the application is, the main areas/screens, and the business functions it supports. Use a short bullet list or a small table; the panel is narrow.
+3. Close the gaps. For each gap the overview reports:
+   - Unannotated screens → infer their purpose from chaos_list_screens previews and call chaos_annotate_screen.
+   - Screens with input fields but no known working values → propose hints (chaos_update_hints / chaos_save_screen_hint) or drive them manually to learn values, guided by chaos_insights.
+   - Business functions missing examples → fill in examples via business_save_function.
+4. Once gaps are meaningfully closed, offer to catalog any missing business functions and to export workflows for the important ones.
+5. If business_app_overview reports no screens discovered yet, run the Chaos Monkey skill first, then return here.
 
 ## Performing business functions
 
@@ -498,6 +512,22 @@ func DefaultTools() []Tool {
 					"required":             []string{"name"},
 					"additionalProperties": false,
 				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "business_app_overview",
+				Description: "Get a synthesized business model of the WHOLE application in one call: coverage stats; every discovered screen with its business purpose, key input fields (with semantics), and navigation (which AID keys lead to which screens); the cataloged business functions; and — most usefully — the understanding GAPS (screens with no business purpose yet, screens with input fields but no learned working values, dead-end screens, and business functions missing example values). Call this first whenever the user asks to understand, map, document, or summarize the application; the gaps tell you exactly what to investigate next.",
+				Parameters:  objNoProps,
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "chaos_insights",
+				Description: "Analyze the chaos discovery data and return actionable guidance for smarter exploration: per-screen productive keys vs dead keys (pressed but never advanced), input fields that accept writes but never advance the screen, conditional transitions (which AID key leads where), plus a ranked list of suggested next experiments and the current saturation/termination diagnostics. Call this after a chaos run stops (especially on 'saturated' or 'blocked') to decide which hints to add before resuming, instead of blindly re-running.",
+				Parameters:  objNoProps,
 			},
 		},
 	}

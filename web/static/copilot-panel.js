@@ -30,6 +30,10 @@
 
     let toolSchema = null;        // cached from /api/copilot/tools
     let systemPrompt = "";
+    // Ephemeral per-turn orientation block (current screen + learned app
+    // knowledge). Captured once at the start of each user turn and prepended to
+    // the system prompt in buildPayload; never persisted into history.
+    let turnContext = "";
     let model = "claude-sonnet-4.6";
     try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
     // Migrate the old dash-format ID that briefly shipped as the default but
@@ -590,7 +594,7 @@
     const EXAMPLE_PROMPTS = [
         "Explain the current screen",
         "Run chaos monkey to explore this app",
-        "Map the business functions of this app",
+        "Give me a business overview of this app",
     ];
 
     function renderEmptyState() {
@@ -809,8 +813,28 @@
         return (system ? [system] : []).concat(body);
     }
 
+    // fetchTurnContext grabs a compact orientation block (current screen +
+    // learned application knowledge) so Copilot starts each turn oriented
+    // without spending tool rounds. Best-effort: any failure yields "" and the
+    // turn proceeds without the extra context.
+    async function fetchTurnContext() {
+        try {
+            const resp = await fetch("/copilot/context", { credentials: "same-origin" });
+            if (!resp.ok) return "";
+            const data = await resp.json();
+            return (data && typeof data.text === "string") ? data.text : "";
+        } catch (_) {
+            return "";
+        }
+    }
+
     function buildPayload() {
-        const raw = [{ role: "system", content: systemPrompt || "" }];
+        // Prepend the per-turn context to the system prompt rather than adding a
+        // separate message, so the careful tool_call/tool pairing and char-budget
+        // logic below operate on an unchanged message shape.
+        const sys = systemPrompt || "";
+        const sysContent = turnContext ? (sys ? sys + "\n\n" + turnContext : turnContext) : sys;
+        const raw = [{ role: "system", content: sysContent }];
         for (const m of history) raw.push(m);
         const messages = enforceCharBudget(sanitizeForRequest(raw), MAX_TOTAL_CHARS);
         return {
@@ -1376,6 +1400,8 @@
         repeatedToolRounds = 0;
 
         await populateModelSelect();
+        // Capture a fresh orientation snapshot for this turn (best-effort).
+        turnContext = await fetchTurnContext();
         stopRequested = false;
         setRunning(true);
         try {
