@@ -160,6 +160,277 @@ func businessFunctionNamesOf(mm *chaos.MindMap) []string {
 	return names
 }
 
+// overviewMaxScreens bounds how many screens the business overview lists so a
+// large discovered application cannot blow past the model's context window.
+const overviewMaxScreens = 60
+
+// overviewMaxNavPerScreen bounds the navigation edges reported per screen.
+const overviewMaxNavPerScreen = 6
+
+// ChaosBusinessOverviewHandler handles GET /chaos/business/overview – returns a
+// synthesized business model of the whole application: coverage stats, every
+// discovered screen with its business purpose / key fields / navigation, the
+// cataloged business functions, and the explicit gaps in current understanding
+// so the AI knows what to investigate next.
+func (app *App) ChaosBusinessOverviewHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	if app.chaosEngines.isRemoved(s.ID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos run data for this session"})
+		return
+	}
+	mm := app.sessionChaosMindMap(s)
+	if mm == nil || len(mm.Areas) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no screens discovered yet; run chaos exploration first"})
+		return
+	}
+	c.JSON(http.StatusOK, buildBusinessAppOverview(mm))
+}
+
+// labelForHash returns a short human label for a screen hash, falling back to a
+// truncated hash when the area has no label.
+func labelForHash(mm *chaos.MindMap, hash string) string {
+	if mm != nil {
+		if area, ok := mm.Areas[hash]; ok && area != nil && area.Label != "" {
+			return area.Label
+		}
+	}
+	if len(hash) > 8 {
+		return hash[:8]
+	}
+	return hash
+}
+
+// areaHasProgression reports whether any AID key on the area has caused a
+// screen transition (i.e. the screen is not a dead end).
+func areaHasProgression(area *chaos.MindMapArea) bool {
+	if area == nil {
+		return false
+	}
+	for _, kp := range area.KeyPresses {
+		if kp != nil && kp.Progressions > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// buildBusinessAppOverview synthesizes the mind map into the business-overview
+// payload. Pure function of the mind map so it is straightforward to test.
+func buildBusinessAppOverview(mm *chaos.MindMap) gin.H {
+	// Stable screen ordering: most-visited first, then hash for determinism.
+	type areaEntry struct {
+		hash string
+		area *chaos.MindMapArea
+	}
+	areas := make([]areaEntry, 0, len(mm.Areas))
+	for hash, area := range mm.Areas {
+		if area == nil {
+			continue
+		}
+		areas = append(areas, areaEntry{hash: hash, area: area})
+	}
+	sort.Slice(areas, func(i, j int) bool {
+		if areas[i].area.Visits != areas[j].area.Visits {
+			return areas[i].area.Visits > areas[j].area.Visits
+		}
+		return areas[i].hash < areas[j].hash
+	})
+
+	var (
+		annotated       int
+		withTransitions int
+		totalInputs     int
+		unannotated     []gin.H
+		noWorkingValues []gin.H
+		deadEnds        []gin.H
+	)
+
+	screens := make([]gin.H, 0, len(areas))
+	for _, ae := range areas {
+		area := ae.area
+		totalInputs += area.InputFieldCount
+		if area.BusinessPurpose != "" {
+			annotated++
+		}
+		hasProg := areaHasProgression(area)
+		if hasProg {
+			withTransitions++
+		}
+
+		label := area.Label
+		if label == "" {
+			label = labelForHash(mm, ae.hash)
+		}
+
+		// Track gaps (independent of the per-screen list cap below).
+		if area.BusinessPurpose == "" {
+			unannotated = append(unannotated, gin.H{"hash": ae.hash, "label": label})
+		}
+		if area.InputFieldCount > 0 && len(area.KnownWorkingValues) == 0 {
+			noWorkingValues = append(noWorkingValues, gin.H{
+				"hash": ae.hash, "label": label, "inputFieldCount": area.InputFieldCount,
+			})
+		}
+		if !hasProg {
+			deadEnds = append(deadEnds, gin.H{"hash": ae.hash, "label": label})
+		}
+
+		if len(screens) >= overviewMaxScreens {
+			continue
+		}
+
+		entry := gin.H{
+			"hash":            ae.hash,
+			"label":           label,
+			"visits":          area.Visits,
+			"inputFieldCount": area.InputFieldCount,
+		}
+		if area.BusinessPurpose != "" {
+			entry["businessPurpose"] = area.BusinessPurpose
+		}
+		if area.BusinessNotes != "" {
+			entry["businessNotes"] = area.BusinessNotes
+		}
+		if keyFields := overviewKeyFields(area); len(keyFields) > 0 {
+			entry["keyFields"] = keyFields
+		}
+		if nav := overviewNavigation(mm, area); len(nav) > 0 {
+			entry["navigation"] = nav
+		}
+		screens = append(screens, entry)
+	}
+
+	// Business functions + the examples gap.
+	fns := chaos.BusinessFunctionsOf(mm)
+	funcList := make([]gin.H, 0, len(fns))
+	var funcsMissingExamples []string
+	for _, fn := range fns {
+		params := make([]gin.H, 0, len(fn.Parameters))
+		missing := false
+		for _, p := range fn.Parameters {
+			if p.Required && p.Example == "" {
+				missing = true
+			}
+			params = append(params, gin.H{
+				"name":     p.Name,
+				"example":  p.Example,
+				"required": p.Required,
+			})
+		}
+		if missing {
+			funcsMissingExamples = append(funcsMissingExamples, fn.Name)
+		}
+		funcList = append(funcList, gin.H{
+			"name":        fn.Name,
+			"description": fn.Description,
+			"parameters":  params,
+		})
+	}
+
+	return gin.H{
+		"coverage": gin.H{
+			"screensDiscovered":      len(areas),
+			"screensAnnotated":       annotated,
+			"screensWithTransitions": withTransitions,
+			"totalInputFields":       totalInputs,
+			"businessFunctions":      len(funcList),
+		},
+		"screens":           screens,
+		"screensTruncated":  len(areas) > len(screens),
+		"businessFunctions": funcList,
+		"gaps": gin.H{
+			"unannotatedScreens":       unannotated,
+			"screensWithoutValues":     noWorkingValues,
+			"deadEndScreens":           deadEnds,
+			"functionsMissingExamples": funcsMissingExamples,
+		},
+	}
+}
+
+// overviewKeyFields merges field metadata with any business semantics into a
+// compact per-field list for the overview.
+func overviewKeyFields(area *chaos.MindMapArea) []gin.H {
+	if area == nil || len(area.FieldMetadata) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(area.FieldMetadata))
+	for k := range area.FieldMetadata {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]gin.H, 0, len(keys))
+	for _, k := range keys {
+		meta := area.FieldMetadata[k]
+		f := gin.H{
+			"key":     k,
+			"numeric": meta.Numeric,
+			"hidden":  meta.Hidden,
+		}
+		if sem, ok := area.FieldSemantics[k]; ok {
+			f["name"] = sem.Name
+			if sem.Example != "" {
+				f["example"] = sem.Example
+			}
+			if sem.Sensitive {
+				f["sensitive"] = true
+			}
+		} else if vals, ok := area.KnownWorkingValues[k]; ok && len(vals) > 0 && !meta.Hidden {
+			// No business name yet, but we know a value that worked.
+			f["exampleWorkingValue"] = vals[len(vals)-1]
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// overviewNavigation lists where each AID key on the screen leads, most
+// productive first, bounded by overviewMaxNavPerScreen.
+func overviewNavigation(mm *chaos.MindMap, area *chaos.MindMapArea) []gin.H {
+	if area == nil || len(area.KeyPresses) == 0 {
+		return nil
+	}
+	type navEdge struct {
+		key    string
+		toHash string
+		count  int
+	}
+	edges := make([]navEdge, 0)
+	for key, kp := range area.KeyPresses {
+		if kp == nil || kp.Progressions == 0 {
+			continue
+		}
+		for toHash, count := range kp.Destinations {
+			edges = append(edges, navEdge{key: key, toHash: toHash, count: count})
+		}
+	}
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].count != edges[j].count {
+			return edges[i].count > edges[j].count
+		}
+		if edges[i].key != edges[j].key {
+			return edges[i].key < edges[j].key
+		}
+		return edges[i].toHash < edges[j].toHash
+	})
+	if len(edges) > overviewMaxNavPerScreen {
+		edges = edges[:overviewMaxNavPerScreen]
+	}
+	out := make([]gin.H, 0, len(edges))
+	for _, e := range edges {
+		out = append(out, gin.H{
+			"key":     e.key,
+			"toLabel": labelForHash(mm, e.toHash),
+			"toHash":  e.toHash,
+			"count":   e.count,
+		})
+	}
+	return out
+}
+
 // chaosScreenAnnotateRequest is the JSON body for POST /chaos/screens/annotate.
 type chaosScreenAnnotateRequest struct {
 	ScreenHash      string                                 `json:"screen_hash"`

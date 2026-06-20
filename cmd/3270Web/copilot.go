@@ -32,6 +32,10 @@ func (app *App) initCopilot(r *gin.Engine) {
 	r.POST("/screen/key", app.ScreenKeyHandler)
 	r.POST("/screen/write", app.ScreenWriteHandler)
 	r.POST("/screen/submit", app.ScreenSubmitHandler)
+
+	// Per-turn orientation block injected by the chat panel into the system
+	// prompt (current screen + learned application knowledge).
+	r.GET("/copilot/context", app.CopilotContextHandler)
 }
 
 // ScreenKeyHandler sends an AID key to the host without first submitting
