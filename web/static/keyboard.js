@@ -1627,7 +1627,9 @@
         if (typeof window.installKeyHandler === "function") window.installKeyHandler(updatedFormId);
         if (typeof window.sizeScreenContainer === "function") window.sizeScreenContainer();
       })
-      .catch(function () {});
+      .catch(function (err) {
+        console.error("Failed to refresh screen content:", err);
+      });
   };
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -13,10 +13,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -114,13 +116,42 @@ func (m *AuthManager) EnterpriseURL() string {
 	return m.cache.EnterpriseURL
 }
 
+// enterpriseHostPattern matches a bare hostname with an optional trailing
+// :port — no scheme, path, userinfo, or whitespace. StartDeviceLogin,
+// PollDeviceLogin, and refreshCopilotTokenLocked build request URLs by
+// concatenating this value directly (e.g. "https://"+host), so anything
+// other than a plain hostname here would let the value redirect those
+// requests (and the bearer token they carry) to an attacker-controlled
+// origin.
+var enterpriseHostPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$`)
+
+func isValidEnterpriseHost(host string) bool {
+	if host == "" || len(host) > 253 || !enterpriseHostPattern.MatchString(host) {
+		return false
+	}
+	hostOnly := host
+	if i := strings.LastIndex(host, ":"); i != -1 {
+		hostOnly = host[:i]
+	}
+	// No legitimate GHE deployment lives at a link-local address; that
+	// range also covers cloud metadata services (e.g. 169.254.169.254).
+	if ip := net.ParseIP(hostOnly); ip != nil && (ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
+		return false
+	}
+	return true
+}
+
 // SetEnterpriseURL persists a GitHub Enterprise hostname (without scheme).
 // An empty value clears it.
 func (m *AuthManager) SetEnterpriseURL(host string) error {
+	host = strings.TrimSpace(host)
+	if host != "" && !isValidEnterpriseHost(host) {
+		return fmt.Errorf("invalid enterprise host %q: expected a bare hostname, e.g. ghe.example.com", host)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensureLoadedLocked()
-	m.cache.EnterpriseURL = strings.TrimSpace(host)
+	m.cache.EnterpriseURL = host
 	// Invalidate the Copilot token since it depends on the host.
 	m.cache.CopilotToken = ""
 	m.cache.CopilotExpires = 0
@@ -218,6 +249,10 @@ func (m *AuthManager) PollDeviceLogin(ctx context.Context, deviceCode string) (P
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("device token poll failed: status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return PollResult{Status: "error", Error: errMsg}, errors.New(errMsg)
+	}
 	var payload struct {
 		AccessToken      string `json:"access_token"`
 		Error            string `json:"error"`

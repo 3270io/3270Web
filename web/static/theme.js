@@ -382,7 +382,8 @@
           })
           .filter(Boolean);
       })
-      .catch(function () {
+      .catch(function (err) {
+        console.error("Failed to load custom themes:", err);
         fileThemes = [];
       });
   }

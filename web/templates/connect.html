@@ -195,6 +195,7 @@
             </div>
         </div>
     </div>
+    <script src="/static/modal-utils.js" defer></script>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script>
@@ -229,6 +230,15 @@
             const portSelect = document.querySelector("#sample-app-port");
 
             let lastFocusedElement = null;
+            const noopFocusTrap = { activate() {}, deactivate() {} };
+            const hostsFocusTrap =
+                window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap && hostsModal
+                    ? window.ThreeSeventyWeb.createFocusTrap(hostsModal)
+                    : noopFocusTrap;
+            const sampleFocusTrap =
+                window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap && sampleModal
+                    ? window.ThreeSeventyWeb.createFocusTrap(sampleModal)
+                    : noopFocusTrap;
 
             const setLoading = () => {
                 if (connectBtn) {
@@ -359,6 +369,7 @@
                 }
                 lastFocusedElement = document.activeElement;
                 hostsModal.hidden = false;
+                hostsFocusTrap.activate();
                 populateSavedHostInputs();
                 setHostsStatus("");
                 if (savedHostSelect && !savedHostSelect.disabled) {
@@ -373,6 +384,7 @@
                     return;
                 }
                 hostsModal.hidden = true;
+                hostsFocusTrap.deactivate();
                 if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
                     lastFocusedElement.focus();
                 }
@@ -496,12 +508,16 @@
 
             if (hostsConnectButton) {
                 hostsConnectButton.addEventListener("click", () => {
+                    if (hostsConnectButton.disabled) {
+                        return;
+                    }
                     const host = applySelectedHost();
                     if (!host || !hostInput || !hostInput.form) {
                         return;
                     }
                     upsertSavedHost(savedHostNameInput ? savedHostNameInput.value : "", host);
                     closeHostsModal();
+                    hostsConnectButton.disabled = true;
                     setLoading();
                     hostInput.form.submit();
                 });
@@ -607,6 +623,7 @@
                     return;
                 }
                 sampleModal.hidden = true;
+                sampleFocusTrap.deactivate();
                 if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
                     lastFocusedElement.focus();
                 }
@@ -617,6 +634,7 @@
                 sampleOpenButton.addEventListener("click", () => {
                     lastFocusedElement = document.activeElement;
                     sampleModal.hidden = false;
+                    sampleFocusTrap.activate();
                     const firstInput = sampleModal.querySelector("select, input, button:not(.modal-close)");
                     if (firstInput) {
                         firstInput.focus();
@@ -643,6 +661,9 @@
 
             if (sampleStartButton && hostInput && appSelect && portSelect) {
                 sampleStartButton.addEventListener("click", () => {
+                    if (sampleStartButton.disabled) {
+                        return;
+                    }
                     const appId = appSelect.value || "";
                     const port = Number(portSelect.value || 0);
                     if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
@@ -651,6 +672,7 @@
                     hostInput.value = "sampleapp:" + appId + ":" + port;
                     hideSampleModal();
                     if (hostInput.form) {
+                        sampleStartButton.disabled = true;
                         setLoading();
                         hostInput.form.submit();
                     }
