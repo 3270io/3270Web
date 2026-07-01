@@ -508,12 +508,16 @@
 
             if (hostsConnectButton) {
                 hostsConnectButton.addEventListener("click", () => {
+                    if (hostsConnectButton.disabled) {
+                        return;
+                    }
                     const host = applySelectedHost();
                     if (!host || !hostInput || !hostInput.form) {
                         return;
                     }
                     upsertSavedHost(savedHostNameInput ? savedHostNameInput.value : "", host);
                     closeHostsModal();
+                    hostsConnectButton.disabled = true;
                     setLoading();
                     hostInput.form.submit();
                 });
@@ -657,6 +661,9 @@
 
             if (sampleStartButton && hostInput && appSelect && portSelect) {
                 sampleStartButton.addEventListener("click", () => {
+                    if (sampleStartButton.disabled) {
+                        return;
+                    }
                     const appId = appSelect.value || "";
                     const port = Number(portSelect.value || 0);
                     if (!allowedAppIds || !allowedPorts || !allowedAppIds.has(appId) || !allowedPorts.has(port)) {
@@ -665,6 +672,7 @@
                     hostInput.value = "sampleapp:" + appId + ":" + port;
                     hideSampleModal();
                     if (hostInput.form) {
+                        sampleStartButton.disabled = true;
                         setLoading();
                         hostInput.form.submit();
                     }
