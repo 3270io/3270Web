@@ -303,6 +303,24 @@ func TestSetEnterpriseURLAcceptsBareHostnames(t *testing.T) {
 	}
 }
 
+func TestPollDeviceLoginNonOKStatusSurfacesError(t *testing.T) {
+	m := newTestManager(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	m.githubHost = srv.URL
+
+	res, err := m.PollDeviceLogin(context.Background(), "DEV")
+	if err == nil {
+		t.Fatalf("expected error from 502 response, got nil")
+	}
+	if res.Status != "error" {
+		t.Fatalf("status = %q, want error", res.Status)
+	}
+}
+
 func TestDefaultAuthPathHonorsEnv(t *testing.T) {
 	t.Setenv("COPILOT_AUTH_PATH", "/tmp/copilot-foo.json")
 	p, err := DefaultAuthPath()

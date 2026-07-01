@@ -249,6 +249,10 @@ func (m *AuthManager) PollDeviceLogin(ctx context.Context, deviceCode string) (P
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("device token poll failed: status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return PollResult{Status: "error", Error: errMsg}, errors.New(errMsg)
+	}
 	var payload struct {
 		AccessToken      string `json:"access_token"`
 		Error            string `json:"error"`
