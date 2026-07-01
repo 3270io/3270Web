@@ -132,6 +132,77 @@ func TestChatProxiesUpstreamStream(t *testing.T) {
 	}
 }
 
+// TestLoginPollRejectsSupersededAttempt verifies the fix for the device-flow
+// race: a second /login/start (e.g. another browser tab, or another user on
+// a shared instance) must invalidate the first attempt's login_id so its
+// poll can't silently ride along with whichever device code is now current.
+func TestLoginPollRejectsSupersededAttempt(t *testing.T) {
+	h, m := newHandlersForTest(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login/device/code":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"device_code":      "DEV",
+				"user_code":        "ABCD-1234",
+				"verification_uri": "https://github.com/login/device",
+				"expires_in":       900,
+				"interval":         5,
+			})
+		case "/login/oauth/access_token":
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "authorization_pending"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	m.githubHost = srv.URL
+
+	r := gin.New()
+	h.Register(r)
+
+	start := func() string {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/api/copilot/login/start", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("login/start status = %d, body=%s", w.Code, w.Body.String())
+		}
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode login/start: %v", err)
+		}
+		id, _ := body["login_id"].(string)
+		if id == "" {
+			t.Fatalf("login/start returned empty login_id")
+		}
+		return id
+	}
+
+	poll := func(loginID string) map[string]any {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/copilot/login/poll", bytes.NewBufferString(`{"login_id":"`+loginID+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("login/poll status = %d, body=%s", w.Code, w.Body.String())
+		}
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode login/poll: %v", err)
+		}
+		return body
+	}
+
+	firstID := start()
+	secondID := start() // supersedes the first attempt
+
+	if got := poll(firstID)["status"]; got != "superseded" {
+		t.Fatalf("poll(firstID) status = %v, want superseded", got)
+	}
+	if got := poll(secondID)["status"]; got != "pending" {
+		t.Fatalf("poll(secondID) status = %v, want pending", got)
+	}
+}
+
 func TestChatRejectsEmptyMessages(t *testing.T) {
 	h, m := newHandlersForTest(t)
 	m.cache = cachedAuth{

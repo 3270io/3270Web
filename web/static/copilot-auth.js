@@ -52,6 +52,7 @@
     let modalPromise = null;
     let modalResolve = null;
     let pollTimer = 0;
+    let currentLoginId = "";
     let focusTrap = { activate() {}, deactivate() {} };
 
     function buildModal() {
@@ -154,6 +155,7 @@
         link.href = "https://github.com/login/device";
 
         jsonPost(ENDPOINTS.loginStart).then(function (data) {
+            currentLoginId = data.login_id || "";
             wrap.querySelector("[data-copilot-user-code]").textContent = data.user_code || "";
             const verify = data.verification_uri || "https://github.com/login/device";
             link.textContent = verify;
@@ -170,7 +172,7 @@
     function schedulePoll(intervalMs) {
         pollTimer = window.setTimeout(async function () {
             try {
-                const res = await jsonPost(ENDPOINTS.loginPoll);
+                const res = await jsonPost(ENDPOINTS.loginPoll, { login_id: currentLoginId });
                 if (!res || !res.status) {
                     schedulePoll(intervalMs);
                     return;
@@ -180,6 +182,7 @@
                 if (res.status === "slow_down") { schedulePoll(intervalMs + 5000); return; }
                 if (res.status === "expired") { setStatus("Code expired. Close and try again."); return; }
                 if (res.status === "denied") { setStatus("Sign-in denied."); return; }
+                if (res.status === "superseded") { setStatus("This sign-in attempt was replaced by a newer one. Close and try again."); return; }
                 setStatus(res.error || ("Sign-in failed: " + res.status));
             } catch (err) {
                 setStatus("Polling failed: " + (err && err.message || err));

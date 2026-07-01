@@ -2,10 +2,13 @@ package copilot
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,9 +30,26 @@ type Handlers struct {
 }
 
 type deviceState struct {
+	loginID   string
 	code      string
 	startedAt time.Time
 	expiresIn time.Duration
+}
+
+// newLoginID returns a random token identifying one device-flow attempt.
+// LoginPoll requires the caller to echo it back so that a second, unrelated
+// /login/start (e.g. from another browser tab or a different user on a
+// shared instance) can't silently redirect an in-flight poll onto its device
+// code, which would attach whichever GitHub account finishes first to the
+// single shared Copilot login.
+func newLoginID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand failing is effectively unrecoverable; fall back to a
+		// time-derived value so login can still proceed.
+		return strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return hex.EncodeToString(b)
 }
 
 // NewHandlers wires an AuthManager and Client together for HTTP routing.
@@ -122,14 +142,17 @@ func (h *Handlers) LoginStart(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
+	loginID := newLoginID()
 	h.mu.Lock()
 	h.device = deviceState{
+		loginID:   loginID,
 		code:      dc.DeviceCode,
 		startedAt: time.Now(),
 		expiresIn: time.Duration(dc.ExpiresIn) * time.Second,
 	}
 	h.mu.Unlock()
 	c.JSON(http.StatusOK, gin.H{
+		"login_id":         loginID,
 		"user_code":        dc.UserCode,
 		"verification_uri": dc.VerificationURI,
 		"expires_in":       dc.ExpiresIn,
@@ -137,13 +160,28 @@ func (h *Handlers) LoginStart(c *gin.Context) {
 	})
 }
 
+type loginPollRequest struct {
+	LoginID string `json:"login_id"`
+}
+
 // LoginPoll asks GitHub whether the user has finished the device flow yet.
+// Callers must echo the login_id returned by LoginStart; a mismatch means a
+// different /login/start call has since superseded this one (e.g. another
+// browser tab, or another user on a shared instance), so polling stops
+// rather than silently tracking whichever attempt is currently in flight.
 func (h *Handlers) LoginPoll(c *gin.Context) {
+	var req loginPollRequest
+	_ = c.ShouldBindJSON(&req)
+
 	h.mu.Lock()
 	state := h.device
 	h.mu.Unlock()
 	if state.code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no login in progress"})
+		return
+	}
+	if req.LoginID != state.loginID {
+		c.JSON(http.StatusOK, gin.H{"status": "superseded", "error": "a newer sign-in attempt has started"})
 		return
 	}
 	if state.expiresIn > 0 && time.Since(state.startedAt) > state.expiresIn {
@@ -158,7 +196,9 @@ func (h *Handlers) LoginPoll(c *gin.Context) {
 	if res.Status == "success" {
 		// Clear the cached device code so it can't be reused.
 		h.mu.Lock()
-		h.device = deviceState{}
+		if h.device.loginID == state.loginID {
+			h.device = deviceState{}
+		}
 		h.mu.Unlock()
 	}
 	c.JSON(http.StatusOK, gin.H{"status": res.Status, "error": res.Error})
