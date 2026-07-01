@@ -87,6 +87,53 @@ func (s *chaosEngineStore) startIfAbsent(sessionID string, build func() (*chaos.
 	return built, nil, true
 }
 
+// resumeIfAbsent is startIfAbsent's counterpart for /chaos/resume: it holds
+// the store mutex across the active-engine check, the build callback, and
+// the resume callback so a concurrent /chaos/start or /chaos/resume for the
+// same session cannot race past the "already running" guard and overwrite
+// each other's engine in the map (orphaning the loser as an unstoppable
+// goroutine still driving the shared host connection).
+//
+// Returns (engine, nil, true) once resumed and installed, (existing, nil,
+// false) when an active engine is already present, or (nil, err, false) if
+// build or resume fails.
+func (s *chaosEngineStore) resumeIfAbsent(sessionID string, build func() (*chaos.Engine, error), resume func(*chaos.Engine) error) (eng *chaos.Engine, err error, started bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+		return existing, nil, false
+	}
+	built, buildErr := build()
+	if buildErr != nil {
+		return nil, buildErr, false
+	}
+	if built == nil {
+		return nil, fmt.Errorf("chaos engine build returned nil"), false
+	}
+	if resumeErr := resume(built); resumeErr != nil {
+		return nil, resumeErr, false
+	}
+	delete(s.removed, sessionID)
+	s.engines[sessionID] = built
+	return built, nil, true
+}
+
+// loadRecordingIfInactive installs run as the session's loaded run, but only
+// if no engine is currently active for that session. It holds the store
+// mutex across the active-engine check and the map mutation so a concurrent
+// /chaos/start cannot have its just-started engine's active status silently
+// wiped out by this handler between the check and the write.
+func (s *chaosEngineStore) loadRecordingIfInactive(sessionID string, run *chaos.SavedRun) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+		return false
+	}
+	delete(s.removed, sessionID)
+	s.loadedRuns[sessionID] = run
+	return true
+}
+
 func (s *chaosEngineStore) delete(sessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1000,11 +1047,6 @@ func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if existing, ok := app.chaosEngines.get(s.ID); ok && existing.Status().Active {
-		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
-		return
-	}
-
 	var workflowPayload []byte
 	withSessionLock(s, func() {
 		if s.LoadedWorkflow != nil {
@@ -1023,8 +1065,10 @@ func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
 	}
 
 	run := chaosSeedRunFromWorkflow(workflow)
-	app.chaosEngines.clearRemoved(s.ID)
-	app.chaosEngines.setLoadedRun(s.ID, run)
+	if !app.chaosEngines.loadRecordingIfInactive(s.ID, run) {
+		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
+		return
+	}
 	withSessionLock(s, func() {
 		// Loading a recording into chaos should clear stale active-run metadata.
 		s.Chaos = nil
@@ -1059,12 +1103,6 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 	}
 	if loaded == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "loaded run is invalid; load a run again"})
-		return
-	}
-
-	// Reject if an engine is already running for this session.
-	if existing, ok2 := app.chaosEngines.get(s.ID); ok2 && existing.Status().Active {
-		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
 		return
 	}
 
@@ -1104,18 +1142,23 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		cfg.ExportPort = s.TargetPort
 	})
 
-	var eng *chaos.Engine
-	withSessionLock(s, func() {
-		eng = chaos.New(s.Host, cfg)
+	eng, err, started := app.chaosEngines.resumeIfAbsent(s.ID, func() (*chaos.Engine, error) {
+		var built *chaos.Engine
+		withSessionLock(s, func() {
+			built = chaos.New(s.Host, cfg)
+		})
+		return built, nil
+	}, func(built *chaos.Engine) error {
+		return built.Resume(loaded)
 	})
-
-	if err := eng.Resume(loaded); err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to resume: %v", err)})
 		return
 	}
-
-	app.chaosEngines.set(s.ID, eng)
-	app.chaosEngines.clearRemoved(s.ID)
+	if !started {
+		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
+		return
+	}
 	go app.syncChaosStatus(s, eng)
 
 	c.JSON(http.StatusOK, gin.H{
