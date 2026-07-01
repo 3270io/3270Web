@@ -273,6 +273,36 @@ func TestSetEnterpriseInvalidatesToken(t *testing.T) {
 	}
 }
 
+func TestSetEnterpriseURLRejectsNonHostValues(t *testing.T) {
+	m := newTestManager(t)
+	cases := []string{
+		"https://evil.example.com",     // scheme
+		"ghe.example.com/steal",        // path
+		"ghe.example.com\r\nX-Evil: 1", // header injection via CRLF
+		"attacker.com@ghe.example.com", // userinfo-style smuggling
+		"169.254.169.254",              // cloud metadata address
+		"[fe80::1]",                    // link-local IPv6
+	}
+	for _, host := range cases {
+		if err := m.SetEnterpriseURL(host); err == nil {
+			t.Errorf("SetEnterpriseURL(%q) = nil error, want rejection", host)
+		}
+	}
+	// The invalid attempts must not have overwritten any prior valid value.
+	if got := m.EnterpriseURL(); got != "" {
+		t.Fatalf("EnterpriseURL = %q after rejected inputs, want empty", got)
+	}
+}
+
+func TestSetEnterpriseURLAcceptsBareHostnames(t *testing.T) {
+	m := newTestManager(t)
+	for _, host := range []string{"ghe.example.com", "ghe.internal:8443", "localhost"} {
+		if err := m.SetEnterpriseURL(host); err != nil {
+			t.Errorf("SetEnterpriseURL(%q) = %v, want success", host, err)
+		}
+	}
+}
+
 func TestDefaultAuthPathHonorsEnv(t *testing.T) {
 	t.Setenv("COPILOT_AUTH_PATH", "/tmp/copilot-foo.json")
 	p, err := DefaultAuthPath()
