@@ -1402,7 +1402,7 @@ func TestChaosStart_RespectsEnvSettings(t *testing.T) {
 	// Write a temporary .env file with custom chaos settings.
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
-	envContent := "CHAOS_MAX_STEPS=42\nCHAOS_TIME_BUDGET_SEC=999\nCHAOS_STEP_DELAY_SEC=0\nCHAOS_MAX_FIELD_LENGTH=10\nCHAOS_SCREEN_DEDUP_SIMILARITY=0.9\nCHAOS_LEARNED_INPUT_REUSE_BIAS=0.5\nCHAOS_LEARNED_KEY_REUSE_BIAS=0.5\nCHAOS_EXCLUDE_NO_PROGRESS_EVENTS=false\nCHAOS_FORCE_OVERRIDE_EXISTING_INPUTS=false\n"
+	envContent := "CHAOS_MAX_STEPS=42\nCHAOS_TIME_BUDGET_SEC=999\nCHAOS_STEP_DELAY_SEC=0\nCHAOS_MAX_FIELD_LENGTH=10\nCHAOS_SCREEN_DEDUP_SIMILARITY=0.9\nCHAOS_LEARNED_INPUT_REUSE_BIAS=0.5\nCHAOS_LEARNED_KEY_REUSE_BIAS=0.5\nCHAOS_EXCLUDE_NO_PROGRESS_EVENTS=false\nCHAOS_FORCE_OVERRIDE_EXISTING_INPUTS=false\nCHAOS_TRANSITION_LOG_PATH=/tmp/transitions.jsonl\n"
 	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
 		t.Fatalf("failed to write .env: %v", err)
 	}
@@ -1460,6 +1460,9 @@ func TestChaosStart_RespectsEnvSettings(t *testing.T) {
 	}
 	if cfg.ForceOverrideExistingInputs {
 		t.Errorf("ForceOverrideExistingInputs: want false (from env), got true")
+	}
+	if cfg.TransitionLogPath != "/tmp/transitions.jsonl" {
+		t.Errorf("TransitionLogPath: want %q (from env), got %q", "/tmp/transitions.jsonl", cfg.TransitionLogPath)
 	}
 }
 

@@ -176,6 +176,35 @@
     }, keySubmitDelayMs);
   }
 
+  // The OIA status line (keyboard lock, model, dimensions, cursor) is
+  // rendered once server-side at full page load and marked aria-live, but
+  // nothing ever updated it afterward — every subsequent async refresh only
+  // ever replaced .screen-container's innerHTML, which the status line
+  // lives outside of. /screen/content now includes these fields so this can
+  // keep it live.
+  function updateScreenStatusLine(payload) {
+    if (!payload) {
+      return;
+    }
+    var fields = [
+      ["[data-status-keyboard]", payload.statusKeyboard],
+      ["[data-status-model]", payload.statusModel],
+      ["[data-status-dimensions]", payload.statusDimensions],
+      ["[data-status-cursor]", payload.statusCursor]
+    ];
+    for (var i = 0; i < fields.length; i++) {
+      var selector = fields[i][0];
+      var value = fields[i][1];
+      if (typeof value !== "string") {
+        continue;
+      }
+      var el = document.querySelector(selector);
+      if (el) {
+        el.textContent = value;
+      }
+    }
+  }
+
   function submitFormWithoutNavigation(form, formId, preferredFieldName, preferredCaret) {
     var action = "/submit/async";
     var method = (form.getAttribute("method") || "post").toUpperCase();
@@ -228,6 +257,7 @@
           return;
         }
         container.innerHTML = payload.html;
+        updateScreenStatusLine(payload);
 
         var updatedForm = container.querySelector("form.renderer-form");
         var updatedFormId = updatedForm ? (updatedForm.id || updatedForm.getAttribute("name")) : formId;

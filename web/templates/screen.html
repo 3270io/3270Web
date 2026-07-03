@@ -15,12 +15,19 @@
     <script src="/static/theme.js?v=7" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/modal-utils.js" defer></script>
+    <!-- ui.js must load before workflow.js: workflow.js's submit interceptor
+         relies on the busy/disabled-state hooks (submitter._restoreState)
+         that ui.js's own submit listener sets up. If workflow.js's listener
+         (also on `document`, same event) runs first and calls
+         preventDefault(), ui.js's listener sees event.defaultPrevented and
+         skips entirely — so toolbar buttons never got the spinner/disabled
+         state, allowing double-submits. -->
+    <script src="/static/ui.js?v=19" defer></script>
     <script src="/static/workflow.js?v=16" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
     <script src="/static/toolbar-section-toggle.js" defer></script>
-    <script src="/static/ui.js?v=19" defer></script>
     <script src="/static/print-screen.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
     <script src="/static/copilot-auth.js" defer></script>
@@ -257,10 +264,10 @@
                         {{ .ScreenContent }}
                     </div>
                     <div class="screen-status-line" role="status" aria-live="polite">
-                        <span class="screen-status-field">KB {{ .StatusKeyboard }}</span>
-                        <span class="screen-status-field">MODEL {{ .StatusModel }}</span>
-                        <span class="screen-status-field">SIZE {{ .StatusDimensions }}</span>
-                        <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
+                        <span class="screen-status-field">KB <span data-status-keyboard>{{ .StatusKeyboard }}</span></span>
+                        <span class="screen-status-field">MODEL <span data-status-model>{{ .StatusModel }}</span></span>
+                        <span class="screen-status-field">SIZE <span data-status-dimensions>{{ .StatusDimensions }}</span></span>
+                        <span class="screen-status-field">CURSOR <span data-status-cursor>{{ .StatusCursor }}</span></span>
                     </div>
                 </div>
                 <button type="button" id="terminal-escape-hatch" class="visually-hidden-focusable" data-terminal-escape-hatch>

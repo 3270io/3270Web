@@ -1,9 +1,10 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package host
 
 import "os/exec"
 
 func configureCmd(cmd *exec.Cmd) {
-	// no-op on non-Windows platforms
+	// no-op: Pdeathsig (see exec_linux.go) is Linux-only; other
+	// non-Windows platforms (e.g. macOS/BSD) have no equivalent.
 }
