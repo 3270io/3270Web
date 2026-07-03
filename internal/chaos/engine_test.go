@@ -2344,3 +2344,142 @@ func TestLevenshteinDistance(t *testing.T) {
 		}
 	}
 }
+
+// TestTransitionsAreDedupedByTuple guards against unbounded memory growth on
+// a long (or many-times-resumed) chaos run: bouncing between the same two
+// screens with the same AID key forever used to append a new Transition
+// (each carrying its own copy of the step data) every single time that exact
+// edge was re-traversed, so e.transitions grew with the total steps ever
+// taken instead of with the size of the discovered state graph. It must
+// instead record each distinct (from, to, aidKey) tuple once.
+func TestTransitionsAreDedupedByTuple(t *testing.T) {
+	a := buildScriptedChaosScreen("FIRST SCREEN A", false)
+	b := buildScriptedChaosScreen("SECOND SCREEN B", false)
+	h := &loopingChaosHost{screens: []*host.Screen{a, b}, connected: true}
+
+	cfg := DefaultConfig()
+	// Exact dedup mode so these two screens are treated as genuinely
+	// distinct areas instead of collapsing into one under the default
+	// structural mode (which masks away plain label text with no fields).
+	cfg.DedupMode = DedupModeExact
+	cfg.MaxSteps = 300
+	cfg.TimeBudget = 10 * time.Second
+	cfg.StepDelay = 0
+	cfg.Seed = 1
+	cfg.SaturationSteps = 0 // don't let saturation cut the run short
+	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
+	cfg.AutoBlockExitKeys = false
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForChaosStop(t, e, 5*time.Second)
+
+	e.mu.Lock()
+	stepsRun := e.stepsRun
+	transitionCount := len(e.transitions)
+	e.mu.Unlock()
+
+	if stepsRun < 100 {
+		t.Fatalf("stepsRun = %d, want a long run (>=100) for this to be a meaningful check", stepsRun)
+	}
+	// Only two edges are ever possible here: A->B and B->A on "Enter".
+	if transitionCount != 2 {
+		t.Fatalf("len(transitions) = %d after %d steps, want exactly 2 (deduped) — transitions must not grow with every repeat of an already-seen edge", transitionCount, stepsRun)
+	}
+}
+
+// TestStepsLogBoundedAcrossLongRun guards the same memory-growth issue for
+// e.steps, the flat unconditional step log kept only as a last-resort export
+// fallback (see ExportWorkflowWithSuccessBalance): it used to grow with the
+// total steps ever taken across a run, unboundedly. A trailing window must
+// cap it regardless of how long the run goes.
+func TestStepsLogBoundedAcrossLongRun(t *testing.T) {
+	a := buildScriptedChaosScreen("FIRST SCREEN A", false)
+	b := buildScriptedChaosScreen("SECOND SCREEN B", false)
+	h := &loopingChaosHost{screens: []*host.Screen{a, b}, connected: true}
+
+	cfg := DefaultConfig()
+	cfg.DedupMode = DedupModeExact
+	cfg.MaxSteps = maxRecentRawSteps + 100
+	cfg.TimeBudget = 15 * time.Second
+	cfg.StepDelay = 0
+	cfg.Seed = 1
+	cfg.SaturationSteps = 0
+	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
+	cfg.AutoBlockExitKeys = false
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForChaosStop(t, e, 10*time.Second)
+
+	e.mu.Lock()
+	stepsRun := e.stepsRun
+	stepsLogLen := len(e.steps)
+	e.mu.Unlock()
+
+	if stepsRun <= maxRecentRawSteps {
+		t.Fatalf("stepsRun = %d, want more than maxRecentRawSteps (%d) for this to be a meaningful check", stepsRun, maxRecentRawSteps)
+	}
+	if stepsLogLen > maxRecentRawSteps {
+		t.Fatalf("len(e.steps) = %d after %d steps, want <= maxRecentRawSteps (%d)", stepsLogLen, stepsRun, maxRecentRawSteps)
+	}
+	if stepsLogLen == 0 {
+		t.Fatalf("len(e.steps) = 0; the fallback export log must still have content after a long run")
+	}
+}
+
+// TestTransitionDedupSurvivesResume guards the same dedup fix across a
+// Resume: resetSaturationStateLocked (called by both Start and Resume)
+// clears transitionTuples, so without rebuilding it from the restored
+// e.transitions, an edge discovered before a resume would look "new" again
+// the next time it's re-traversed, appending one more duplicate Transition
+// entry per resume cycle instead of staying capped at one entry per edge for
+// the run's whole life (across as many resumes as an "extend limits" loop
+// performs).
+func TestTransitionDedupSurvivesResume(t *testing.T) {
+	a := buildScriptedChaosScreen("FIRST SCREEN A", false)
+	b := buildScriptedChaosScreen("SECOND SCREEN B", false)
+	h := &loopingChaosHost{screens: []*host.Screen{a, b}, connected: true}
+
+	cfg := DefaultConfig()
+	cfg.DedupMode = DedupModeExact
+	cfg.MaxSteps = 10
+	cfg.TimeBudget = 10 * time.Second
+	cfg.StepDelay = 0
+	cfg.Seed = 1
+	cfg.SaturationSteps = 0
+	cfg.AIDKeyWeights = map[string]int{"Enter": 1}
+	cfg.AutoBlockExitKeys = false
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForChaosStop(t, e, 5*time.Second)
+	if got := len(e.transitions); got != 2 {
+		t.Fatalf("after first run: len(transitions) = %d, want 2", got)
+	}
+	snap := e.Snapshot("test-run")
+
+	// Resume several times on fresh engines seeded from the prior snapshot,
+	// re-traversing the same two already-known edges each time.
+	for i := 0; i < 3; i++ {
+		h2 := &loopingChaosHost{screens: []*host.Screen{a, b}, connected: true, index: h.index}
+		cfg2 := cfg
+		cfg2.MaxSteps = snap.StepsRun + 10
+		e2 := New(h2, cfg2)
+		if err := e2.Resume(snap); err != nil {
+			t.Fatalf("Resume iteration %d: %v", i, err)
+		}
+		waitForChaosStop(t, e2, 5*time.Second)
+		if got := len(e2.transitions); got != 2 {
+			t.Fatalf("after resume iteration %d: len(transitions) = %d, want 2 (deduped across the resume boundary too)", i, got)
+		}
+		snap = e2.Snapshot("test-run")
+		h = h2
+	}
+}

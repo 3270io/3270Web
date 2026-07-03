@@ -24,6 +24,12 @@ type Transition struct {
 	FromHash string                 `json:"fromHash"`
 	ToHash   string                 `json:"toHash"`
 	Steps    []session.WorkflowStep `json:"steps"`
+	// AIDKey is the AID key that caused this transition. Combined with
+	// FromHash/ToHash it forms the same dedup tuple key used to decide
+	// whether a transition is newly-discovered (see run() and Resume()) —
+	// stored explicitly rather than re-derived from Steps so Resume can
+	// rebuild that dedup state without reversing aidKeyToStepType.
+	AIDKey string `json:"aidKey,omitempty"`
 }
 
 // Status is a snapshot of the engine's current state.
@@ -122,6 +128,15 @@ type Attempt struct {
 }
 
 const maxRecentAttempts = 40
+
+// maxRecentRawSteps bounds e.steps, the flat, unconditional log of every
+// step's WorkflowSteps regardless of whether it made progress. It exists
+// only as a last-resort export fallback for a run that never produced a
+// single transition or recorded attempt (see ExportWorkflowWithSuccessBalance
+// and buildExportWorkflowSteps), so it needs no more history than a handful
+// of attempts' worth — without a cap it grew with the total steps ever
+// taken across a whole (possibly many-times-resumed) exploration campaign.
+const maxRecentRawSteps = 200
 
 // minPressesForPenalty is the number of times a key must be pressed from a
 // screen without causing any transition before it receives a negative boost.
@@ -991,6 +1006,15 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	e.lastErr = ""
 	e.stopCh = make(chan struct{})
 	e.resetSaturationStateLocked()
+	// resetSaturationStateLocked clears transitionTuples, so without this the
+	// resumed run wouldn't recognize any edge discovered before the resume as
+	// already-seen — re-discovering it once more would append one more
+	// Transition entry for it on every resume, rather than staying capped at
+	// one entry per edge for the run's entire life (see run()'s newTuple
+	// gating on e.transitions).
+	for _, tr := range e.transitions {
+		e.transitionTuples[tr.FromHash+"|"+tr.ToHash+"|"+tr.AIDKey] = true
+	}
 
 	go e.run()
 	return nil
@@ -1305,33 +1329,17 @@ func (e *Engine) run() {
 			e.observeMindMapAreaLocked(newHash, newScreen, attempt.Time)
 		}
 		e.recordMindMapAttemptLocked(attempt)
-		e.stepsRun++
-		e.steps = append(e.steps, batchSteps...)
-		e.screenHashes[currentHash] = true
-		if newHash != "" {
-			e.screenHashes[newHash] = true
-		}
-		e.aidKeyCounts[aidKey]++
-		for _, bs := range batchSteps {
-			if bs.Type == "FillString" && bs.Text != "" {
-				e.uniqueInputs[bs.Text] = true
-			}
-		}
-		if newHash != "" && newHash != currentHash {
-			e.transitions = append(e.transitions, Transition{
-				FromHash: currentHash,
-				ToHash:   newHash,
-				Steps:    batchSteps,
-			})
-		}
-		if recordAttempt {
-			e.appendAttemptLocked(attempt)
-		}
 
-		// Saturation tracking: a step is "productive" if it added a new screen,
-		// a new (from,to,aid) transition tuple, or a new field value that caused
-		// a transition. Otherwise the streak grows. When the streak reaches
-		// SaturationSteps, the run stops with TerminationReasonSaturated.
+		// A step is "productive" if it added a new screen, a new (from,to,aid)
+		// transition tuple, or a new field value that caused a transition.
+		// Computed before the appends below (rather than after, as it used to
+		// be) so both e.steps and e.transitions can be bounded by it: without
+		// this, a long-running (or many-times-resumed via "extend limits")
+		// exploration re-recorded the same already-discovered transition edge,
+		// and every non-productive repeat step, forever — growing both slices
+		// with the total steps ever taken across a whole campaign instead of
+		// with the size of the actual discovered state graph, which is what
+		// they're used to reconstruct.
 		tupleKey := currentHash + "|" + newHash + "|" + aidKey
 		newTuple := false
 		if attempt.Transitioned {
@@ -1353,6 +1361,43 @@ func (e *Engine) run() {
 			}
 		}
 		productive := newScreenObserved || newTuple || newProductiveValue
+
+		e.stepsRun++
+		// e.steps is an unconditional, flat step log used only as a
+		// last-resort export fallback (see ExportWorkflowWithSuccessBalance)
+		// when neither transitions nor attempts yield anything — e.g. a run
+		// that saturates without ever making progress. 3270Connect's
+		// playback pipeline requires *some* non-empty workflow in that case,
+		// so this can't be limited to productive steps the way e.transitions
+		// is; a trailing window bounds its memory instead.
+		e.steps = append(e.steps, batchSteps...)
+		if len(e.steps) > maxRecentRawSteps {
+			e.steps = e.steps[len(e.steps)-maxRecentRawSteps:]
+		}
+		e.screenHashes[currentHash] = true
+		if newHash != "" {
+			e.screenHashes[newHash] = true
+		}
+		e.aidKeyCounts[aidKey]++
+		for _, bs := range batchSteps {
+			if bs.Type == "FillString" && bs.Text != "" {
+				e.uniqueInputs[bs.Text] = true
+			}
+		}
+		if newTuple {
+			e.transitions = append(e.transitions, Transition{
+				FromHash: currentHash,
+				ToHash:   newHash,
+				Steps:    batchSteps,
+				AIDKey:   aidKey,
+			})
+		}
+		if recordAttempt {
+			e.appendAttemptLocked(attempt)
+		}
+
+		// Saturation tracking: otherwise the streak grows. When the streak
+		// reaches SaturationSteps, the run stops with TerminationReasonSaturated.
 		appendSlidingBool(&e.newScreensWindow, newScreenObserved, coverageWindowSize)
 		appendSlidingBool(&e.newTransWindow, newTuple, coverageWindowSize)
 		if productive {
