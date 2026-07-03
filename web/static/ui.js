@@ -5305,12 +5305,12 @@
                 ${chaosMapFieldDiscoveryTableMarkup(group)}
                 <div class="chaos-map-hints">
                     <div class="chaos-hint-field">
-                        <label class="chaos-hint-field-label" for="chaos-map-data-${cardKey}">Known Data</label>
-                        <textarea id="chaos-map-data-${cardKey}" data-chaos-map-known-data placeholder="Known values for this screen (comma or newline separated)">${formatListLines(hint.knownData)}</textarea>
+                        <label class="chaos-hint-field-label" for="chaos-map-data-${escapeHtml(cardKey)}">Known Data</label>
+                        <textarea id="chaos-map-data-${escapeHtml(cardKey)}" data-chaos-map-known-data placeholder="Known values for this screen (comma or newline separated)">${escapeHtml(formatListLines(hint.knownData))}</textarea>
                     </div>
                     <div class="chaos-hint-field">
-                        <label class="chaos-hint-field-label" for="chaos-map-keys-${cardKey}">Known Keys</label>
-                        <textarea id="chaos-map-keys-${cardKey}" data-chaos-map-known-keys placeholder="Known keys for this screen (e.g. PF3, Enter, Down)">${formatListLines(hint.knownKeys)}</textarea>
+                        <label class="chaos-hint-field-label" for="chaos-map-keys-${escapeHtml(cardKey)}">Known Keys</label>
+                        <textarea id="chaos-map-keys-${escapeHtml(cardKey)}" data-chaos-map-known-keys placeholder="Known keys for this screen (e.g. PF3, Enter, Down)">${escapeHtml(formatListLines(hint.knownKeys))}</textarea>
                     </div>
                 </div>
                 <div class="chaos-map-card-actions">
@@ -5929,7 +5929,7 @@
                     r.transitions > 0 ? `${r.transitions} transitions` : null,
                     r.uniqueScreens > 0 ? `${r.uniqueScreens} screens` : null,
                 ].filter(Boolean).join(', ');
-                return `<div class="chaos-run-item" data-run-id="${r.id}">
+                return `<div class="chaos-run-item" data-run-id="${escapeHtml(r.id)}">
                     <div class="chaos-run-item-top">
                         <input type="checkbox" class="chaos-run-select" data-chaos-run-select="${escapeHtml(r.id)}" aria-label="Select chaos run ${escapeHtml(r.id)}">
                         <div>

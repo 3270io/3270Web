@@ -25,7 +25,7 @@ func (app *App) PrintScreenHandler(c *gin.Context) {
 		return
 	}
 
-	content, err := s.Host.PrintText(format)
+	content, err := app.sessionHost(s).PrintText(format)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

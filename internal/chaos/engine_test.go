@@ -1774,6 +1774,73 @@ func TestResumeNilSavedRun(t *testing.T) {
 	}
 }
 
+// TestResumeThenTransitionDoesNotPanic guards against a regression where
+// Resume() (unlike Start()) left transitionTuples/productiveValues nil.
+// The HTTP resume path builds a fresh Engine via New() and calls Resume()
+// directly, so the first screen transition after a resume wrote to those
+// nil maps and panicked inside the run() goroutine, which has no recover
+// and crashes the process.
+func TestResumeThenTransitionDoesNotPanic(t *testing.T) {
+	screenA := buildScriptedChaosScreen("SCREEN A", true)
+	screenB := buildScriptedChaosScreen("SCREEN B", true)
+	h := &scriptedChaosHost{
+		screens:   []*host.Screen{screenA, screenB},
+		connected: true,
+	}
+
+	cfg := DefaultConfig()
+	cfg.MaxSteps = 1
+	cfg.StepDelay = 0
+	cfg.Seed = 7
+	// Exact dedup so "SCREEN A" -> "SCREEN B" is observed as a real
+	// transition instead of being canonicalized to the same structural hash.
+	cfg.DedupMode = DedupModeExact
+
+	e := New(h, cfg)
+	if err := e.Start(); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	snap := e.Snapshot("resume-transition-test")
+
+	// Resume on a FRESH engine built via New() only (mirroring the HTTP
+	// resume path, which never calls Start() first) and let it run far
+	// enough to force at least one more screen transition.
+	h.index = 0
+	cfg2 := DefaultConfig()
+	cfg2.MaxSteps = snap.StepsRun + 3
+	cfg2.StepDelay = 0
+	cfg2.Seed = 11
+	cfg2.DedupMode = DedupModeExact
+
+	e2 := New(h, cfg2)
+	if err := e2.Resume(snap); err != nil {
+		t.Fatalf("Resume() error: %v", err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !e2.Status().Active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	st := e2.Status()
+	if st.Active {
+		t.Fatal("resumed engine still active after deadline")
+	}
+	if st.Transitions == 0 {
+		t.Fatal("expected at least one transition to be recorded after resume")
+	}
+}
+
 func TestStopIsIdempotent(t *testing.T) {
 	h, err := host.NewMockHost("")
 	if err != nil {

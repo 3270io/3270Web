@@ -35,13 +35,10 @@ func (app *App) CopilotContextHandler(c *gin.Context) {
 	sb.WriteString("# Session context (snapshot at the start of this turn)\n")
 
 	// --- Current screen -------------------------------------------------
-	var h interface {
-		IsConnected() bool
-	}
-	withSessionLock(s, func() { h = s.Host })
+	h := app.sessionHost(s)
 	if h != nil && h.IsConnected() {
-		if err := s.Host.UpdateScreen(); err == nil {
-			if screen := hostScreenSnapshot(s.Host); screen != nil {
+		if err := h.UpdateScreen(); err == nil {
+			if screen := hostScreenSnapshot(h); screen != nil {
 				if rows, cols, ok := app.modelDimensions(); ok {
 					screen = limitScreenForDisplay(screen, rows, cols)
 				}

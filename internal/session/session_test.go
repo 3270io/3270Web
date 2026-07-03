@@ -98,3 +98,42 @@ func TestManager_GetSession_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestManager_IdleSessionIDs verifies that only sessions whose LastAccess
+// predates the cutoff are reported idle, guarding the reaper's core query.
+func TestManager_IdleSessionIDs(t *testing.T) {
+	m := NewManager()
+	h1, _ := host.NewMockHost("")
+	h2, _ := host.NewMockHost("")
+
+	idle := m.CreateSession(h1)
+	idle.LastAccess = time.Now().Add(-3 * time.Hour)
+
+	fresh := m.CreateSession(h2)
+	fresh.LastAccess = time.Now()
+
+	ids := m.IdleSessionIDs(2 * time.Hour)
+	if len(ids) != 1 || ids[0] != idle.ID {
+		t.Fatalf("IdleSessionIDs(2h) = %v, want only %q", ids, idle.ID)
+	}
+}
+
+// TestManager_PeekSession_DoesNotUpdateLastAccess guards against the reaper
+// itself keeping every session alive forever: unlike GetSession, PeekSession
+// must not bump LastAccess, or IdleSessionIDs would never see a session as
+// idle once the reaper has looked at it once.
+func TestManager_PeekSession_DoesNotUpdateLastAccess(t *testing.T) {
+	m := NewManager()
+	h, _ := host.NewMockHost("")
+	s := m.CreateSession(h)
+	stale := time.Now().Add(-3 * time.Hour)
+	s.LastAccess = stale
+
+	retrieved, ok := m.PeekSession(s.ID)
+	if !ok {
+		t.Fatal("PeekSession: session not found")
+	}
+	if !retrieved.LastAccess.Equal(stale) {
+		t.Fatalf("PeekSession updated LastAccess: got %v, want unchanged %v", retrieved.LastAccess, stale)
+	}
+}

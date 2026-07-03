@@ -61,10 +61,11 @@ func (app *App) runProbeForSessionID(ctx context.Context, sessionID string, body
 	if !ok {
 		return nil, http.StatusNotFound, errSessionNotFound
 	}
-	if s.Host == nil {
+	h := app.sessionHost(s)
+	if h == nil {
 		return nil, http.StatusConflict, errSessionHostMissing
 	}
-	if !s.Host.IsConnected() {
+	if !h.IsConnected() {
 		return nil, http.StatusConflict, errSessionNotConnected
 	}
 
@@ -82,7 +83,7 @@ func (app *App) runProbeForSessionID(ctx context.Context, sessionID string, body
 
 	probeCtx, cancel := context.WithTimeout(ctx, probeSessionTimeout)
 	defer cancel()
-	p, err := profiler.Probe(probeCtx, s.Host, opts)
+	p, err := profiler.Probe(probeCtx, h, opts)
 	if err != nil {
 		if probeCtx.Err() == context.DeadlineExceeded {
 			return nil, http.StatusGatewayTimeout, err
