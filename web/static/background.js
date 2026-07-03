@@ -432,10 +432,23 @@
     requestAnimationFrame(renderFrame);
   }
 
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
   function init() {
     setCanvasSize();
     applyThemeConfig(getCurrentTheme());
-    state.running = localStorage.getItem(storageKey) !== "off";
+    var storedPreference = localStorage.getItem(storageKey);
+    // Respect an explicit user choice (they clicked the toggle) either way;
+    // otherwise default off for prefers-reduced-motion instead of always
+    // starting the animation regardless of that OS-level accessibility
+    // setting.
+    if (storedPreference === null) {
+      state.running = !prefersReducedMotion();
+    } else {
+      state.running = storedPreference !== "off";
+    }
     document.body.classList.toggle("bg-paused", !state.running);
     if (overlay) {
       overlay.setAttribute("aria-pressed", state.running ? "true" : "false");
