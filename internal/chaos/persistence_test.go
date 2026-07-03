@@ -111,6 +111,102 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 }
 
+// TestWriteFileAtomicReplacesContentCorrectly is a basic correctness check:
+// the final file must contain exactly the new data.
+func TestWriteFileAtomicReplacesContentCorrectly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "run.json")
+
+	if err := WriteFileAtomic(path, []byte("first"), 0600); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	if err := WriteFileAtomic(path, []byte("second"), 0600); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(got) != "second" {
+		t.Fatalf("content = %q, want %q", got, "second")
+	}
+}
+
+// TestWriteFileAtomicLeavesNoTempFileOnSuccess guards against ListRuns
+// (which lists *.json files) picking up a leftover temp file: the ".tmp-*"
+// staging file must be gone once WriteFileAtomic returns successfully.
+func TestWriteFileAtomicLeavesNoTempFileOnSuccess(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "run.json")
+
+	if err := WriteFileAtomic(path, []byte("data"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "run.json" {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		t.Fatalf("directory contains unexpected entries after a successful write: %v", names)
+	}
+}
+
+// TestWriteFileAtomicPreservesExistingStateOnFailure guards against the
+// exact corruption os.WriteFile risks: it truncates the destination in
+// place, so a failure partway through a write (crash, full disk, a
+// concurrent change) can destroy whatever was previously there.
+// WriteFileAtomic must leave the destination path completely untouched
+// when the write itself fails, because it never opens/truncates the real
+// path — only a temp file that only replaces it via a final rename.
+//
+// The failure is induced by making `path` an existing, non-empty directory:
+// renaming a file onto that is rejected by the OS (EISDIR/ENOTEMPTY)
+// regardless of user privilege, unlike a chmod-based simulation (this test
+// container runs as root, which bypasses ordinary permission checks).
+func TestWriteFileAtomicPreservesExistingStateOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "run.json")
+	if err := os.Mkdir(path, 0755); err != nil {
+		t.Fatalf("seed existing directory at path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "marker"), []byte("x"), 0600); err != nil {
+		t.Fatalf("seed marker file inside directory: %v", err)
+	}
+
+	err := WriteFileAtomic(path, []byte(`{"id":"should-not-land"}`), 0600)
+	if err == nil {
+		t.Fatal("expected WriteFileAtomic to fail when path is an existing non-empty directory")
+	}
+
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		t.Fatalf("existing directory missing after failed write: %v", statErr)
+	}
+	if !info.IsDir() {
+		t.Fatal("existing directory was replaced by a file despite the write failing")
+	}
+	if _, err := os.Stat(filepath.Join(path, "marker")); err != nil {
+		t.Fatalf("marker file inside the existing directory is gone after failed write: %v", err)
+	}
+
+	// No leftover temp file should remain in dir after the failed rename.
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "run.json" {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		t.Fatalf("unexpected leftover entries in dir after failed write: %v", names)
+	}
+}
+
 func TestPruneRuns(t *testing.T) {
 	dir := t.TempDir()
 

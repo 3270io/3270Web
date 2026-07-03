@@ -7,71 +7,77 @@ import (
 
 func TestNormalizeKey(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		input      string
+		expected   string
+		expectedOK bool
 	}{
 		// Basic keys
-		{"", "Enter"},
-		{"   ", "Enter"},
-		{"Enter", "Enter"},
-		{"enter", "Enter"},
-		{"Tab", "Tab"},
-		{"tab", "Tab"},
+		{"", "", false},
+		{"   ", "", false},
+		{"Enter", "Enter", true},
+		{"enter", "Enter", true},
+		{"Tab", "Tab", true},
+		{"tab", "Tab", true},
 
-		// Command injection prevention
-		{"key;rm -rf /", "Enter"},
-		{"key\n", "Enter"},
-		{"key\r", "Enter"},
-		{"key\t", "Enter"},
+		// Command injection prevention: rejected outright, not silently
+		// reinterpreted as Enter.
+		{"key;rm -rf /", "", false},
+		{"key\n", "", false},
+		{"key\r", "", false},
+		{"key\t", "", false},
 
 		// PF keys
-		{"PF1", "PF(1)"},
-		{"pf1", "PF(1)"},
-		{"PF(1)", "PF(1)"},
-		{"PF12", "PF(12)"},
-		{"PF24", "PF(24)"},
-		{"F1", "PF(1)"},
-		{"f1", "PF(1)"},
+		{"PF1", "PF(1)", true},
+		{"pf1", "PF(1)", true},
+		{"PF(1)", "PF(1)", true},
+		{"PF12", "PF(12)", true},
+		{"PF24", "PF(24)", true},
+		{"F1", "PF(1)", true},
+		{"f1", "PF(1)", true},
 
 		// PA keys
-		{"PA1", "PA(1)"},
-		{"pa1", "PA(1)"},
-		{"PA(1)", "PA(1)"},
-		{"PA3", "PA(3)"},
+		{"PA1", "PA(1)", true},
+		{"pa1", "PA(1)", true},
+		{"PA(1)", "PA(1)", true},
+		{"PA3", "PA(3)", true},
 
 		// Named keys
-		{"BackTab", "BackTab"},
-		{"Clear", "Clear"},
-		{"Reset", "Reset"},
-		{"EraseEOF", "EraseEOF"},
-		{"erase_eof", "EraseEOF"},
-		{"EraseInput", "EraseInput"},
-		{"Dup", "Dup"},
-		{"FieldMark", "FieldMark"},
-		{"SysReq", "SysReq"},
-		{"Attn", "Attn"},
-		{"Newline", "Newline"},
-		{"BackSpace", "BackSpace"},
-		{"Delete", "Delete"},
-		{"Insert", "Insert"},
-		{"Home", "Home"},
-		{"Up", "Up"},
-		{"Down", "Down"},
-		{"Left", "Left"},
-		{"Right", "Right"},
+		{"BackTab", "BackTab", true},
+		{"Clear", "Clear", true},
+		{"Reset", "Reset", true},
+		{"EraseEOF", "EraseEOF", true},
+		{"erase_eof", "EraseEOF", true},
+		{"EraseInput", "EraseInput", true},
+		{"Dup", "Dup", true},
+		{"FieldMark", "FieldMark", true},
+		{"SysReq", "SysReq", true},
+		{"Attn", "Attn", true},
+		{"Newline", "Newline", true},
+		{"BackSpace", "BackSpace", true},
+		{"Delete", "Delete", true},
+		{"Insert", "Insert", true},
+		{"Home", "Home", true},
+		{"Up", "Up", true},
+		{"Down", "Down", true},
+		{"Left", "Left", true},
+		{"Right", "Right", true},
 
-		// Invalid/Unknown keys
-		{"UnknownKey", "Enter"},
-		{"PF0", "Enter"},
-		{"PF25", "Enter"},
-		{"PA4", "Enter"},
+		// Invalid/Unknown keys: rejected, not silently defaulted to Enter —
+		// a caller (Copilot's send_key tool, the REST API, the manual
+		// submit form) must see this as a failure, since silently pressing
+		// Enter for an unrecognized key can submit the current screen when
+		// that was never the caller's intent.
+		{"UnknownKey", "", false},
+		{"PF0", "", false},
+		{"PF25", "", false},
+		{"PA4", "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("input=%q", tt.input), func(t *testing.T) {
-			got := normalizeKey(tt.input)
-			if got != tt.expected {
-				t.Errorf("normalizeKey(%q) = %q, want %q", tt.input, got, tt.expected)
+			got, ok := normalizeKey(tt.input)
+			if got != tt.expected || ok != tt.expectedOK {
+				t.Errorf("normalizeKey(%q) = (%q, %v), want (%q, %v)", tt.input, got, ok, tt.expected, tt.expectedOK)
 			}
 		})
 	}
@@ -120,10 +126,11 @@ func TestWorkflowStepForKey(t *testing.T) {
 }
 
 func TestNormalizeKey_SecurityLogging(t *testing.T) {
-	// This test just ensures no panic when logging
+	// This test just ensures no panic when logging, and that a suspicious
+	// key is rejected outright rather than silently reinterpreted.
 	input := "key;injection"
-	got := normalizeKey(input)
-	if got != "Enter" {
-		t.Errorf("normalizeKey(%q) = %q, want 'Enter'", input, got)
+	got, ok := normalizeKey(input)
+	if ok || got != "" {
+		t.Errorf("normalizeKey(%q) = (%q, %v), want (\"\", false)", input, got, ok)
 	}
 }

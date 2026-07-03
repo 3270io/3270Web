@@ -55,7 +55,14 @@ func (app *App) ScreenKeyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	key := normalizeKey(body.Key)
+	key, ok := normalizeKey(body.Key)
+	if !ok {
+		// A model asking for a key that doesn't exist (e.g. a typo like
+		// "PF25") must fail loudly, not silently press Enter and submit
+		// whatever is currently on screen.
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized key %q", body.Key)})
+		return
+	}
 	if err := app.sessionHost(s).SendKey(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

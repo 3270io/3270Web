@@ -563,10 +563,16 @@ func TestIsValidHostname(t *testing.T) {
 		{name: "hostname", hostname: "localhost", expected: true},
 		{name: "host with port", hostname: "localhost:3270", expected: true},
 		{name: "sample app", hostname: "sampleapp:app1:3270", expected: true},
-		{name: "ipv4", hostname: "127.0.0.1", expected: true},
-		{name: "ipv6", hostname: "::1", expected: true},
-		{name: "ipv6 with port", hostname: "[::1]:3270", expected: true},
-		{name: "ipv6 brackets no port", hostname: "[::1]", expected: true},
+		// Loopback literals are rejected: a real TN3270 mainframe is never
+		// reachable via loopback from this app's perspective, and allowing
+		// it serves no legitimate purpose (see isRestrictedIP).
+		{name: "ipv4 loopback", hostname: "127.0.0.1", expected: false},
+		{name: "ipv6 loopback", hostname: "::1", expected: false},
+		{name: "ipv6 loopback with port", hostname: "[::1]:3270", expected: false},
+		{name: "ipv6 loopback brackets no port", hostname: "[::1]", expected: false},
+		{name: "ipv4 unspecified", hostname: "0.0.0.0", expected: false},
+		{name: "ipv6 unspecified", hostname: "::", expected: false},
+		{name: "ipv4 private (allowed)", hostname: "10.0.0.5", expected: true},
 		{name: "ipv6 missing bracket", hostname: "[::1", expected: false},
 		{name: "ipv6 missing opening bracket", hostname: "::1]", expected: false},
 		{name: "ipv6 trailing garbage", hostname: "[::1]x", expected: false},
@@ -586,6 +592,30 @@ func TestIsValidHostname(t *testing.T) {
 				t.Errorf("isValidHostname(%q) = %v, want %v", tt.hostname, got, tt.expected)
 			}
 		})
+	}
+}
+
+// TestResetSessionHostRejectsRestrictedHostname guards the workflow-driven
+// reconnect path (PlayWorkflowHandler/DebugWorkflowHandler -> resetSessionHost),
+// which reads its target hostname from an uploaded workflow file's "Host"
+// field. Before this fix, resetSessionHost validated only via parseHostPort
+// (a plain string split with no IP restriction), so a crafted workflow file
+// could target loopback/link-local/unspecified addresses even though the
+// manual /connect form (via startHostSession -> isValidHostname) already
+// blocked them.
+func TestResetSessionHostRejectsRestrictedHostname(t *testing.T) {
+	app := &App{SessionManager: session.NewManager()}
+	mh, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := app.SessionManager.CreateSession(mh)
+
+	if err := app.resetSessionHost(sess, "127.0.0.1:23"); err == nil {
+		t.Fatal("expected resetSessionHost to reject a loopback hostname")
+	}
+	if err := app.resetSessionHost(sess, "169.254.169.254:80"); err == nil {
+		t.Fatal("expected resetSessionHost to reject a link-local hostname")
 	}
 }
 
@@ -658,4 +688,45 @@ func TestSecurityHeaders(t *testing.T) {
 			t.Errorf("Header %q: expected %q, got %q", k, v, got)
 		}
 	}
+}
+
+// TestMaxBodySizeMiddleware guards against unbounded request bodies:
+// before this middleware existed, endpoints that read the body via
+// ShouldBindJSON/GetRawData (settings, theme save, chaos mind-map import,
+// ...) had no size limit at all, so an arbitrarily large request body would
+// be buffered entirely in memory before any validation ran.
+func TestMaxBodySizeMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const limit = 16 // tiny limit so the test doesn't need a huge payload
+
+	r := gin.New()
+	r.Use(MaxBodySizeMiddleware(limit))
+	r.POST("/echo", func(c *gin.Context) {
+		data, err := c.GetRawData()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"len": len(data)})
+	})
+
+	t.Run("within limit succeeds", func(t *testing.T) {
+		body := strings.Repeat("a", limit)
+		req := httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200, body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("over limit is rejected", func(t *testing.T) {
+		body := strings.Repeat("a", limit*10)
+		req := httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code == http.StatusOK {
+			t.Fatalf("expected an oversized body to be rejected, got 200: %s", w.Body.String())
+		}
+	})
 }

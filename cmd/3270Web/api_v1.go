@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -187,7 +188,11 @@ func (app *App) APISendKey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "key is required"})
 		return
 	}
-	key := normalizeKey(body.Key)
+	key, ok := normalizeKey(body.Key)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized key %q", body.Key)})
+		return
+	}
 	if err := app.sessionHost(s).SendKey(key); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -246,7 +251,12 @@ func (app *App) APISubmit(c *gin.Context) {
 	if aid == "" {
 		aid = "Enter"
 	}
-	if err := h.SendKey(normalizeKey(aid)); err != nil {
+	normalizedAID, ok := normalizeKey(aid)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized aid %q", aid)})
+		return
+	}
+	if err := h.SendKey(normalizedAID); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}

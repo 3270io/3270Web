@@ -108,7 +108,24 @@ func isValidDomainLabel(label string) bool {
 func isRestrictedIP(ip net.IP) bool {
 	// Block link-local addresses (e.g. 169.254.x.x, fe80::) which include
 	// cloud metadata services and local network segments.
-	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	// Block loopback (127.0.0.0/8, ::1). A real TN3270 mainframe is never
+	// reachable via loopback from this app's perspective — loopback only
+	// exposes services co-located with this process itself (e.g. an
+	// internal admin port on the same host), so there is no legitimate
+	// connect target here. The built-in sample-app feature is unaffected:
+	// its "sampleapp:" pseudo-hostname is resolved and short-circuited
+	// earlier in isValidHostname, before this function is ever reached.
+	if ip.IsLoopback() {
+		return true
+	}
+	// Reject unspecified addresses (0.0.0.0, ::) too — never a valid target.
+	if ip.IsUnspecified() {
+		return true
+	}
+	return false
 }
 
 func parseSampleAppHost(hostname string) (string, int, bool) {

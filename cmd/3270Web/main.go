@@ -151,6 +151,7 @@ func main() {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
 	}
+	r.Use(MaxBodySizeMiddleware(maxRequestBodyBytes))
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(OriginRefererCheckMiddleware())
 	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
@@ -971,7 +972,11 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	// 3. Send action key
 	actionKey := "Enter"
 	if key != "" {
-		actionKey = normalizeKey(key)
+		normalized, ok := normalizeKey(key)
+		if !ok {
+			return fmt.Errorf("unrecognized key %q", key)
+		}
+		actionKey = normalized
 	}
 	log.Printf("Submit: normalized key=%q", actionKey)
 	recordActionKey(s, actionKey)
@@ -2875,6 +2880,16 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 	if s == nil {
 		return errors.New("missing session")
 	}
+	// This path is reached from workflow-driven reconnects (PlayWorkflowHandler
+	// /DebugWorkflowHandler), where hostname comes from an uploaded workflow's
+	// "Host" field — unlike startHostSession (used by the manual /connect
+	// form), it previously validated only via parseHostPort (a plain string
+	// split, no IP restriction at all), so a crafted workflow file could
+	// target loopback/link-local/unspecified addresses that isValidHostname
+	// exists specifically to block.
+	if !isValidHostname(hostname) {
+		return fmt.Errorf("invalid hostname format: %q", hostname)
+	}
 	var existing host.Host
 	withSessionLock(s, func() {
 		existing = s.Host
@@ -3235,6 +3250,27 @@ func (app *App) resolveFontName(name string) string {
 		}
 	}
 	return ""
+}
+
+// maxRequestBodyBytes bounds every request body this server accepts. It's
+// sized generously enough to comfortably cover the largest legitimate body
+// (a multipart /workflow/load upload, itself capped at maxWorkflowUploadBytes
+// plus multipart header/boundary overhead) while still bounding endpoints
+// that previously had no limit at all (settings, theme save, chaos
+// mind-map import, ...) — without this, a request with an arbitrarily large
+// body could force the server to buffer gigabytes in memory via
+// c.ShouldBindJSON/c.GetRawData before ever validating anything in it.
+const maxRequestBodyBytes = 8 * 1024 * 1024
+
+// MaxBodySizeMiddleware rejects any request body larger than maxBytes.
+// Gin's JSON binding, GetRawData, and multipart form parsing all read
+// through c.Request.Body, so wrapping it here applies the limit uniformly
+// regardless of which of those a given handler uses.
+func MaxBodySizeMiddleware(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
 }
 
 func SecurityHeadersMiddleware() gin.HandlerFunc {

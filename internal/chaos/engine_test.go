@@ -139,6 +139,16 @@ func TestDefaultConfig(t *testing.T) {
 	if len(cfg.AIDKeyWeights) == 0 {
 		t.Error("DefaultConfig.AIDKeyWeights must not be empty")
 	}
+	// PF(3) commonly logs the user off and Clear wipes the screen on many
+	// 3270 applications; AutoBlockExitKeys only catches this when the
+	// current screen's help legend literally names the key, which many
+	// screens don't have. Both must require explicit opt-in rather than
+	// being pressed by default during random exploration.
+	for _, dangerous := range []string{"PF(3)", "Clear"} {
+		if _, present := cfg.AIDKeyWeights[dangerous]; present {
+			t.Errorf("DefaultConfig.AIDKeyWeights must not include %q by default", dangerous)
+		}
+	}
 	if cfg.MaxFieldLength <= 0 {
 		t.Error("DefaultConfig.MaxFieldLength must be positive")
 	}

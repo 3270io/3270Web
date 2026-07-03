@@ -9,16 +9,26 @@ import (
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
-func normalizeKey(key string) string {
+// normalizeKey canonicalizes a caller-supplied AID/navigation key name (e.g.
+// "pf3", "PF(3)", "enter") to the exact form host.Host.SendKey expects. It
+// returns ok=false for empty, malformed, or unrecognized input — callers
+// must reject the request rather than substitute a default, since silently
+// falling back to "Enter" for anything unrecognized means a typo or a
+// malformed request (from a script, an API caller, or an AI model choosing
+// a key by name) submits the current screen instead of failing loudly. That
+// matters most for machine-driven callers (the Copilot send_key tool, the
+// REST API): a request for a key that doesn't exist should be rejected, not
+// silently reinterpreted as "press Enter and submit".
+func normalizeKey(key string) (normalized string, ok bool) {
 	trimmed := strings.TrimSpace(key)
 	if trimmed == "" {
-		return "Enter"
+		return "", false
 	}
 
-	// Sanitize to prevent command injection
+	// Reject characters that could be interpreted as s3270 script commands.
 	if strings.ContainsAny(trimmed, "\n\r\t;") {
 		log.Printf("Security warning: detected potential command injection in key: %q", key)
-		return "Enter"
+		return "", false
 	}
 
 	upper := strings.ToUpper(trimmed)
@@ -28,7 +38,7 @@ func normalizeKey(key string) string {
 		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
 		if n, err := strconv.Atoi(inner); err == nil {
 			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n)
+				return fmt.Sprintf("PF(%d)", n), true
 			}
 		}
 	}
@@ -36,77 +46,76 @@ func normalizeKey(key string) string {
 		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
 		if n, err := strconv.Atoi(inner); err == nil {
 			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA(%d)", n)
+				return fmt.Sprintf("PA(%d)", n), true
 			}
 		}
 	}
 	if strings.HasPrefix(upper, "PF") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil {
 			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n)
+				return fmt.Sprintf("PF(%d)", n), true
 			}
 		}
 	}
 	if strings.HasPrefix(upper, "PA") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil {
 			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA(%d)", n)
+				return fmt.Sprintf("PA(%d)", n), true
 			}
 		}
 	}
 	if strings.HasPrefix(upper, "F") {
 		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "F")); err == nil {
 			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n)
+				return fmt.Sprintf("PF(%d)", n), true
 			}
 		}
 	}
 
 	switch lower {
 	case "enter":
-		return "Enter"
+		return "Enter", true
 	case "tab":
-		return "Tab"
+		return "Tab", true
 	case "backtab":
-		return "BackTab"
+		return "BackTab", true
 	case "clear":
-		return "Clear"
+		return "Clear", true
 	case "reset":
-		return "Reset"
+		return "Reset", true
 	case "eraseeof", "erase_eof":
-		return "EraseEOF"
+		return "EraseEOF", true
 	case "eraseinput", "erase_input":
-		return "EraseInput"
+		return "EraseInput", true
 	case "dup":
-		return "Dup"
+		return "Dup", true
 	case "fieldmark", "field_mark":
-		return "FieldMark"
+		return "FieldMark", true
 	case "sysreq", "sys_req":
-		return "SysReq"
+		return "SysReq", true
 	case "attn":
-		return "Attn"
+		return "Attn", true
 	case "newline", "new_line":
-		return "Newline"
+		return "Newline", true
 	case "backspace":
-		return "BackSpace"
+		return "BackSpace", true
 	case "delete":
-		return "Delete"
+		return "Delete", true
 	case "insert":
-		return "Insert"
+		return "Insert", true
 	case "home":
-		return "Home"
+		return "Home", true
 	case "up":
-		return "Up"
+		return "Up", true
 	case "down":
-		return "Down"
+		return "Down", true
 	case "left":
-		return "Left"
+		return "Left", true
 	case "right":
-		return "Right"
+		return "Right", true
 	}
 
-	// Default to Enter for any unrecognized key to prevent command injection
-	return "Enter"
+	return "", false
 }
 
 func workflowStepForKey(key string) *session.WorkflowStep {
