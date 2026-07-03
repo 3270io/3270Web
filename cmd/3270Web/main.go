@@ -316,6 +316,7 @@ func main() {
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Printf("Shutdown failed: %v", err)
 		}
+		app.stopAllSessions()
 	}()
 
 	startServer := func(errCh chan<- error) {
@@ -633,6 +634,17 @@ func (app *App) cleanupSession(s *session.Session) {
 	app.SessionManager.RemoveSession(s.ID)
 }
 
+// stopAllSessions cleans up every active session, killing each one's s3270
+// subprocess. Called on graceful shutdown — without it, a clean server exit
+// (SIGINT, /app/restart) left every connected session's s3270 child running,
+// orphaned rather than killed, relying only on the OS being asked nicely to
+// cascade the exit (which it does not do on its own).
+func (app *App) stopAllSessions() {
+	for _, s := range app.SessionManager.ListSessions() {
+		app.cleanupSession(s)
+	}
+}
+
 const lastTargetCookieName = "3270Web_last_target"
 
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
@@ -705,6 +717,41 @@ func connectErrorMessage(hostname string, err error) string {
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
 }
 
+// screenStatusLabels formats the OIA status line's four fields (keyboard
+// lock, model, dimensions, cursor) the same way for both the full-page
+// render (ScreenHandler) and the async refresh payload
+// (ScreenContentHandler) — the latter needs these too so the client can
+// actually update the aria-live status line instead of leaving it frozen
+// at whatever the last full page load rendered.
+func screenStatusLabels(screen *host.Screen) (keyboard, model, dimensions, cursor string) {
+	keyboard = "UNKNOWN"
+	if state, ok := screen.StatusKeyboardState(); ok {
+		switch state {
+		case "U":
+			keyboard = "UNLOCKED"
+		case "L":
+			keyboard = "LOCKED"
+		case "E":
+			keyboard = "ERROR"
+		default:
+			keyboard = state
+		}
+	}
+	model = "--"
+	if m, ok := screen.StatusModel(); ok {
+		model = m
+	}
+	dimensions = "--x--"
+	if rows, cols, ok := screen.StatusDimensions(); ok {
+		dimensions = fmt.Sprintf("%dx%d", rows, cols)
+	}
+	cursor = "--,--"
+	if row, col, ok := screen.StatusCursor(); ok {
+		cursor = fmt.Sprintf("%d,%d", row+1, col+1)
+	}
+	return keyboard, model, dimensions, cursor
+}
+
 func (app *App) ScreenHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -730,31 +777,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	snap := app.snapshotSession(s)
 	themeCSS := app.buildThemeCSS(snap.Prefs)
 
-	keyboardLabel := "UNKNOWN"
-	if state, ok := screen.StatusKeyboardState(); ok {
-		switch state {
-		case "U":
-			keyboardLabel = "UNLOCKED"
-		case "L":
-			keyboardLabel = "LOCKED"
-		case "E":
-			keyboardLabel = "ERROR"
-		default:
-			keyboardLabel = state
-		}
-	}
-	modelLabel := "--"
-	if model, ok := screen.StatusModel(); ok {
-		modelLabel = model
-	}
-	dimensionLabel := "--x--"
-	if rows, cols, ok := screen.StatusDimensions(); ok {
-		dimensionLabel = fmt.Sprintf("%dx%d", rows, cols)
-	}
-	cursorLabel := "--,--"
-	if row, col, ok := screen.StatusCursor(); ok {
-		cursorLabel = fmt.Sprintf("%d,%d", row+1, col+1)
-	}
+	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
 
 	sampleAppName := ""
 	sampleAppPort := 0
@@ -823,16 +846,19 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
-	cursorRow, cursorCol, cursorOK := screen.StatusCursor()
-	if cursorOK {
-		c.JSON(http.StatusOK, gin.H{
-			"html":      rendered,
-			"cursorRow": cursorRow,
-			"cursorCol": cursorCol,
-		})
-		return
+	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
+	payload := gin.H{
+		"html":             rendered,
+		"statusKeyboard":   keyboardLabel,
+		"statusModel":      modelLabel,
+		"statusDimensions": dimensionLabel,
+		"statusCursor":     cursorLabel,
 	}
-	c.JSON(http.StatusOK, gin.H{"html": rendered})
+	if cursorRow, cursorCol, ok := screen.StatusCursor(); ok {
+		payload["cursorRow"] = cursorRow
+		payload["cursorCol"] = cursorCol
+	}
+	c.JSON(http.StatusOK, payload)
 }
 
 func hostScreenSnapshot(h host.Host) *host.Screen {
@@ -1636,6 +1662,7 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_LEARNED_KEY_REUSE_BIAS"] = "1.0"
 	defaults["CHAOS_EXPORT_SUCCESS_BALANCE"] = "1.0"
 	defaults["CHAOS_OUTPUT_FILE"] = ""
+	defaults["CHAOS_TRANSITION_LOG_PATH"] = ""
 	defaults["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"] = "true"
 	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
 

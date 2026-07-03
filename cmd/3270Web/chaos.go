@@ -856,6 +856,9 @@ func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
 	if v := strings.TrimSpace(settings["CHAOS_OUTPUT_FILE"]); v != "" {
 		cfg.OutputFile = v
 	}
+	if v := strings.TrimSpace(settings["CHAOS_TRANSITION_LOG_PATH"]); v != "" {
+		cfg.TransitionLogPath = v
+	}
 	if v := strings.TrimSpace(settings["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"]); v != "" {
 		cfg.ForceOverrideExistingInputs = strings.EqualFold(v, "true")
 	}
