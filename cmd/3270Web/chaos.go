@@ -154,22 +154,32 @@ func (s *chaosEngineStore) withEngine(sessionID string, fn func(*chaos.Engine) e
 }
 
 // completeEngine atomically snapshots the engine, installs the snapshot as
-// the session's loaded run, and removes the engine from the store. Holding
-// the store mutex across all three steps means writes routed through
+// the session's loaded run, removes the engine from the store, and encodes
+// the snapshot to JSON — all while holding the store mutex. Holding the
+// mutex across all four steps means writes routed through
 // withEngine/withLoadedRun land either in the engine before the snapshot or
-// in the loaded run after it — never in the gap, where they would be lost.
-// Returns nil if no engine is registered for the session.
-func (s *chaosEngineStore) completeEngine(sessionID, runID string) *chaos.SavedRun {
+// in the loaded run after it — never in the gap, where they would be lost —
+// and, just as importantly, the encode itself can never race a concurrent
+// business-annotation write to the same run's maps (which is exactly what
+// happened when the caller used to encode after this function returned,
+// with the store mutex already released: a concurrent withLoadedRun write
+// could be mutating MindMap.Areas/BusinessFunctions at the same moment
+// json.Marshal was ranging over them, risking Go's fatal "concurrent map
+// read and map write"). The returned bytes are ready for WriteRunFile,
+// keeping the actual file I/O out of the critical section.
+// Returns (nil, nil, nil) if no engine is registered for the session.
+func (s *chaosEngineStore) completeEngine(sessionID, runID string) (*chaos.SavedRun, []byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	eng, ok := s.engines[sessionID]
 	if !ok || eng == nil {
-		return nil
+		return nil, nil, nil
 	}
 	snapshot := eng.Snapshot(runID)
 	s.loadedRuns[sessionID] = snapshot
 	delete(s.engines, sessionID)
-	return snapshot
+	encoded, err := chaos.EncodeRun(snapshot)
+	return snapshot, encoded, err
 }
 
 func (s *chaosEngineStore) getScreenHints(sessionID string) map[string]chaos.ScreenHint {
@@ -211,11 +221,28 @@ func (s *chaosEngineStore) upsertScreenHint(sessionID, screenHash string, hint c
 	return cloneChaosScreenHintsMap(s.screenHints[sessionID])
 }
 
+// getLoadedRun returns a clone of the session's loaded run, made under the
+// store lock. Handing back the shared pointer instead (as this used to)
+// let callers range over/marshal MindMap.Areas/BusinessFunctions outside
+// any lock, racing a concurrent business-annotation write to the same
+// maps — CloneRun's cost (one MindMap deep-copy) is proven cheap enough
+// elsewhere in this package (Engine.Snapshot/MindMapSnapshot do the same
+// clone on every call).
+// getLoadedRun returns a clone of the session's loaded run, made under the
+// store lock. Handing back the shared pointer instead (as this used to)
+// let callers range over/marshal MindMap.Areas/BusinessFunctions outside
+// any lock, racing a concurrent business-annotation write to the same
+// maps — CloneRun's cost (one MindMap deep-copy) is proven cheap enough
+// elsewhere in this package (Engine.Snapshot/MindMapSnapshot do the same
+// clone on every call).
 func (s *chaosEngineStore) getLoadedRun(sessionID string) (*chaos.SavedRun, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r, ok := s.loadedRuns[sessionID]
-	return r, ok
+	if !ok {
+		return nil, false
+	}
+	return r.CloneRun(), true
 }
 
 func (s *chaosEngineStore) setLoadedRun(sessionID string, run *chaos.SavedRun) {
@@ -913,10 +940,12 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 				return
 			}
 			runID := chaos.NewRunID()
-			// Snapshot, install as loaded run, and unregister the engine in
-			// one atomic store operation so concurrent business writes are
-			// never lost between the snapshot and the engine removal.
-			snapshot := app.chaosEngines.completeEngine(s.ID, runID)
+			// Snapshot, install as loaded run, unregister the engine, and
+			// encode to JSON in one atomic store operation so concurrent
+			// business writes are never lost between the snapshot and the
+			// engine removal, and never race the encode itself (see
+			// completeEngine's doc comment).
+			snapshot, encoded, encodeErr := app.chaosEngines.completeEngine(s.ID, runID)
 			if snapshot == nil {
 				return
 			}
@@ -927,7 +956,9 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 			})
 			// Auto-save the completed run if a runs directory is configured.
 			if app.chaosRunsDir != "" {
-				if saveErr := chaos.SaveRun(app.chaosRunsDir, snapshot); saveErr != nil {
+				if encodeErr != nil {
+					log.Printf("chaos: auto-save run %s failed: %v", runID, encodeErr)
+				} else if saveErr := chaos.WriteRunFile(app.chaosRunsDir, runID, encoded); saveErr != nil {
 					// Non-fatal: log but do not interrupt teardown.
 					log.Printf("chaos: auto-save run %s failed: %v", runID, saveErr)
 				} else if pruned, pruneErr := chaos.PruneRuns(app.chaosRunsDir, maxSavedChaosRuns); pruneErr != nil {

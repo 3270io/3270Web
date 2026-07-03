@@ -75,6 +75,16 @@ func parseMindMapFieldKey(key string) (row, col, length int, ok bool) {
 	return row, col, length, true
 }
 
+// ParseMindMapFieldKey parses a "R<row>C<col>L<len>" field key (as seen in
+// chaos_list_screens output and business function steps), returning
+// 1-based row/col/length. Callers driving a 0-based API (e.g. the Copilot
+// write_field tool) must subtract 1 from row and col themselves — see
+// cmd/3270Web/workflow_playback.go's FillString step handling for the
+// canonical example of that conversion.
+func ParseMindMapFieldKey(key string) (row, col, length int, ok bool) {
+	return parseMindMapFieldKey(key)
+}
+
 // annotateMindMapArea merges a business annotation into the area for hash,
 // creating the area if needed. Non-empty purpose/notes overwrite; field
 // semantics are merged per field key. Callers must hold whatever lock guards

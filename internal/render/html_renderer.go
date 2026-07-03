@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -56,6 +57,14 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Builder) {
 	sb.WriteString("<pre>")
 
+	// rowLabels tracks the most recently rendered protected field's text per
+	// row (keyed by StartY), so an unprotected field can be given an
+	// aria-label derived from the label immediately to its left — without
+	// this, screen readers announce every field as a bare "edit text" with
+	// no indication of what it's for (fields are anonymous <input>s with no
+	// association to the surrounding protected label text).
+	rowLabels := make(map[int]string)
+
 	for _, f := range s.Fields {
 		// Append attribute spacer
 		if f.StartX == 0 {
@@ -67,7 +76,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 		}
 
 		if !f.IsProtected() {
-			r.renderInputField(sb, f, id)
+			r.renderInputField(sb, f, id, rowLabels[f.StartY])
 		} else {
 			needSpan := r.needSpan(f)
 			if needSpan {
@@ -82,6 +91,10 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 
 			if needSpan {
 				sb.WriteString("</span>")
+			}
+
+			if label := strings.TrimSpace(f.GetValue()); label != "" {
+				rowLabels[f.StartY] = label
 			}
 		}
 
@@ -120,12 +133,12 @@ func (r *HtmlRenderer) screenDimensions(s *host.Screen) (int, int) {
 	return rows, cols
 }
 
-func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id string) {
+func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id, ariaLabel string) {
 	if !f.IsMultiline() {
 		// Optimization: Avoid GetValueLines() allocation for single line fields
 		val, _, _ := strings.Cut(f.GetValue(), "\n")
 		width := f.EndX - f.StartX + 1
-		r.createHtmlInput(sb, f, id, val, -1, width)
+		r.createHtmlInput(sb, f, id, val, -1, width, ariaLabel)
 	} else {
 		lines := f.GetValueLines()
 		for i := 0; i < f.Height(); i++ {
@@ -144,7 +157,11 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id s
 			} else {
 				w = f.EndX + 1
 			}
-			r.createHtmlInput(sb, f, id, val, i, w)
+			lineLabel := ariaLabel
+			if lineLabel != "" && i > 0 {
+				lineLabel = fmt.Sprintf("%s (line %d)", lineLabel, i+1)
+			}
+			r.createHtmlInput(sb, f, id, val, i, w, lineLabel)
 			if i < f.Height()-1 {
 				sb.WriteString("\n")
 			}
@@ -152,7 +169,7 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id s
 	}
 }
 
-func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, val string, lineNum, width int) {
+func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, val string, lineNum, width int, ariaLabel string) {
 	inputType := "text"
 
 	class := "color-input"
@@ -200,6 +217,11 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 	sb.WriteString(`" data-w="`)
 	r.writeInt(sb, width)
 	sb.WriteString(`"`)
+	if ariaLabel != "" {
+		sb.WriteString(` aria-label="`)
+		r.writeEscaped(sb, ariaLabel)
+		sb.WriteString(`"`)
+	}
 	r.writeFieldDebugDataAttrs(sb, f)
 	sb.WriteString(` autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
 }

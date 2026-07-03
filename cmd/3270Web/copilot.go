@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/chaos"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 )
@@ -62,7 +64,12 @@ func (app *App) ScreenKeyHandler(c *gin.Context) {
 }
 
 // ScreenWriteHandler writes text into the field at (row, col). Used by
-// the Copilot write_field tool.
+// the Copilot write_field tool. Accepts either a 1-indexed field_key (the
+// R<row>C<col>L<len> key from chaos_list_screens/business function steps)
+// or 0-indexed row/col (from get_screen) — never both conventions applied
+// to the same call, which is what let the model silently land one row and
+// one column off when it passed a business function's field_key straight
+// through as if it were 0-indexed.
 func (app *App) ScreenWriteHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -70,15 +77,27 @@ func (app *App) ScreenWriteHandler(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Row  int    `json:"row"`
-		Col  int    `json:"col"`
-		Text string `json:"text"`
+		FieldKey string `json:"field_key"`
+		Row      int    `json:"row"`
+		Col      int    `json:"col"`
+		Text     string `json:"text"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if body.Row < 0 || body.Col < 0 {
+
+	row, col := body.Row, body.Col
+	if fieldKey := strings.TrimSpace(body.FieldKey); fieldKey != "" {
+		fkRow, fkCol, _, ok := chaos.ParseMindMapFieldKey(fieldKey)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid field_key %q (expected R<row>C<col>L<len>)", fieldKey)})
+			return
+		}
+		// field_key is 1-indexed; WriteStringAt is 0-indexed.
+		row, col = fkRow-1, fkCol-1
+	}
+	if row < 0 || col < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "row/col must be >= 0"})
 		return
 	}
@@ -87,7 +106,7 @@ func (app *App) ScreenWriteHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}
-	if err := app.sessionHost(s).WriteStringAt(body.Row, body.Col, body.Text); err != nil {
+	if err := app.sessionHost(s).WriteStringAt(row, col, body.Text); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

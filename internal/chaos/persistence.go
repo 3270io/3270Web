@@ -40,6 +40,24 @@ type SavedRun struct {
 	MindMap           *MindMap               `json:"mindMap,omitempty"`
 }
 
+// CloneRun returns a copy of run with a deep-cloned MindMap, safe to read
+// (including json.Marshal, or ranging over MindMap.Areas/BusinessFunctions)
+// concurrently with in-place business-annotation writes to the original run
+// — those writes only ever mutate MindMap.Areas/BusinessFunctions (see
+// AnnotateSavedRun/UpsertSavedRunBusinessFunction), so cloning just the
+// MindMap is sufficient; every other field is set once at snapshot time and
+// never mutated again, so it's safe to share rather than re-copy. Callers
+// that hand a *SavedRun to a goroutine outside the lock that installed it
+// (e.g. an HTTP handler reading a session's loaded run) should clone first.
+func (run *SavedRun) CloneRun() *SavedRun {
+	if run == nil {
+		return nil
+	}
+	clone := *run
+	clone.MindMap = run.MindMap.clone()
+	return &clone
+}
+
 // runFileName returns the file name for a given run ID.
 func runFileName(runID string) string {
 	return runID + ".json"
