@@ -54,7 +54,7 @@ func (app *App) ScreenKeyHandler(c *gin.Context) {
 		return
 	}
 	key := normalizeKey(body.Key)
-	if err := s.Host.SendKey(key); err != nil {
+	if err := app.sessionHost(s).SendKey(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -87,7 +87,7 @@ func (app *App) ScreenWriteHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}
-	if err := s.Host.WriteStringAt(body.Row, body.Col, body.Text); err != nil {
+	if err := app.sessionHost(s).WriteStringAt(body.Row, body.Col, body.Text); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -102,7 +102,7 @@ func (app *App) ScreenSubmitHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if err := s.Host.SubmitScreen(); err != nil {
+	if err := app.sessionHost(s).SubmitScreen(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -120,11 +120,12 @@ func (app *App) ScreenJSONHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if err := s.Host.UpdateScreen(); err != nil {
+	h := app.sessionHost(s)
+	if err := h.UpdateScreen(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update screen: " + err.Error()})
 		return
 	}
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	if screen == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
 		return
@@ -145,7 +146,14 @@ func screenToJSON(s *host.Screen) gin.H {
 		if f == nil {
 			continue
 		}
-		val := f.GetValue()
+		// Hidden (e.g. password) fields never leave the server: their typed
+		// value must not reach the Copilot API or be echoed back to the
+		// browser, where it would land in the tool-card transcript and
+		// persist in localStorage.
+		val := ""
+		if !f.IsHidden() {
+			val = f.GetValue()
+		}
 		fields = append(fields, gin.H{
 			"row":       f.StartY,
 			"col":       f.StartX,
@@ -162,7 +170,7 @@ func screenToJSON(s *host.Screen) gin.H {
 	out := gin.H{
 		"width":     s.Width,
 		"height":    s.Height,
-		"text":      s.Text(),
+		"text":      redactHiddenFieldText(s),
 		"fields":    fields,
 		"formatted": s.IsFormatted,
 		"status":    strings.TrimSpace(s.Status),
@@ -173,6 +181,47 @@ func screenToJSON(s *host.Screen) gin.H {
 		out["cursorCol"] = cursorCol
 	}
 	return out
+}
+
+// redactHiddenFieldText returns the screen's text with any hidden (e.g.
+// password) field's characters replaced by '*'. screen.Text() renders the
+// raw buffer, which still holds the actual typed characters for hidden
+// fields — 3270 "hidden" only suppresses local echo on a real terminal, it
+// doesn't stop the value from being present in the buffer sent here.
+func redactHiddenFieldText(s *host.Screen) string {
+	text := s.Text()
+	if s.Width <= 0 {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	for _, f := range s.Fields {
+		if f == nil || !f.IsHidden() {
+			continue
+		}
+		curX, curY := f.StartX, f.StartY
+		endX, endY := f.EndX, f.EndY
+		for {
+			if curY >= 0 && curY < len(lines) {
+				line := []rune(lines[curY])
+				if curX >= 0 && curX < len(line) {
+					line[curX] = '*'
+					lines[curY] = string(line)
+				}
+			}
+			if curX == endX && curY == endY {
+				break
+			}
+			curX++
+			if curX >= s.Width {
+				curX = 0
+				curY++
+				if curY >= s.Height {
+					break
+				}
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func fieldLength(f *host.Field) int {

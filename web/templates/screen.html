@@ -284,7 +284,11 @@
             </div>
             {{ end }}
 
-                <div class="terminal-shell">
+                <p id="terminal-focus-hint" class="visually-hidden">
+                    Tab and Shift+Tab move between mainframe fields while the terminal has focus.
+                    Press Ctrl+Tab (or Ctrl+Shift+Tab) to move keyboard focus out of the terminal to the rest of the page.
+                </p>
+                <div class="terminal-shell" aria-describedby="terminal-focus-hint">
                     <div class="screen-container">
                         {{ .ScreenContent }}
                     </div>
@@ -295,6 +299,9 @@
                         <span class="screen-status-field">CURSOR {{ .StatusCursor }}</span>
                     </div>
                 </div>
+                <button type="button" id="terminal-escape-hatch" class="visually-hidden-focusable" data-terminal-escape-hatch>
+                    Exit terminal keyboard focus (also available via Ctrl+Tab while the terminal has focus)
+                </button>
                 </div>
                 <div id="keypad" class="controls" {{ if not .UseKeypad }}hidden{{ end }}></div>
             </div>

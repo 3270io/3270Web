@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -103,20 +104,24 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 }
 
 func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {
-	if s == nil || s.Host == nil {
+	if s == nil {
+		return errors.New("session host is unavailable")
+	}
+	h := app.sessionHost(s)
+	if h == nil {
 		return errors.New("session host is unavailable")
 	}
 	stepType := strings.TrimSpace(step.Type)
 	switch stepType {
 	case "", "Connect":
-		if s.Host.IsConnected() {
+		if h.IsConnected() {
 			return nil
 		}
-		if err := s.Host.Start(); err != nil {
+		if err := h.Start(); err != nil {
 			return err
 		}
 	case "Disconnect":
-		return s.Host.Stop()
+		return h.Stop()
 	case "FillString":
 		if err := app.applyWorkflowFill(s, step); err != nil {
 			return err
@@ -133,14 +138,14 @@ func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep)
 		if !ok {
 			return unsupportedWorkflowStepError{StepType: step.Type}
 		}
-		if err := s.Host.SendKey(key); err != nil {
+		if err := h.SendKey(key); err != nil {
 			return err
 		}
 	}
 
 	// Keep host screen cache synchronized so /screen/content reflects playback progress.
 	if stepType != "Disconnect" {
-		if err := s.Host.UpdateScreen(); err != nil {
+		if err := h.UpdateScreen(); err != nil {
 			return err
 		}
 	}
@@ -148,7 +153,11 @@ func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep)
 }
 
 func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep) error {
-	if s == nil || s.Host == nil {
+	if s == nil {
+		return errors.New("session host is unavailable")
+	}
+	h := app.sessionHost(s)
+	if h == nil {
 		return errors.New("session host is unavailable")
 	}
 	if step.Coordinates == nil {
@@ -162,10 +171,10 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 
 	lines := strings.Split(step.Text, "\n")
 	for i, line := range lines {
-		if err := s.Host.MoveCursor(row+i, col); err != nil {
+		if err := h.MoveCursor(row+i, col); err != nil {
 			return err
 		}
-		if err := s.Host.WriteStringAt(row+i, col, line); err != nil {
+		if err := h.WriteStringAt(row+i, col, line); err != nil {
 			return err
 		}
 	}
@@ -179,7 +188,11 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 }
 
 func (app *App) applyWorkflowCheckValue(s *session.Session, step session.WorkflowStep) error {
-	if s == nil || s.Host == nil {
+	if s == nil {
+		return errors.New("session host is unavailable")
+	}
+	h := app.sessionHost(s)
+	if h == nil {
 		return errors.New("session host is unavailable")
 	}
 	if step.Coordinates == nil {
@@ -188,7 +201,7 @@ func (app *App) applyWorkflowCheckValue(s *session.Session, step session.Workflo
 	if step.Coordinates.Row <= 0 || step.Coordinates.Column <= 0 {
 		return errors.New("check value coordinates must be 1-based positive values")
 	}
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	if screen == nil {
 		return errors.New("screen is unavailable")
 	}
@@ -229,7 +242,9 @@ func (app *App) applyWorkflowCheckValue(s *session.Session, step session.Workflo
 }
 
 func submitWorkflowPendingInput(s *session.Session) error {
-	if s == nil || s.Host == nil {
+	var h host.Host
+	withSessionLock(s, func() { h = s.Host })
+	if h == nil {
 		return nil
 	}
 	pending := false
@@ -239,7 +254,7 @@ func submitWorkflowPendingInput(s *session.Session) error {
 	if !pending {
 		return nil
 	}
-	if err := s.Host.SubmitScreen(); err != nil {
+	if err := h.SubmitScreen(); err != nil {
 		return err
 	}
 	withSessionLock(s, func() {

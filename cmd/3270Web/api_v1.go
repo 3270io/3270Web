@@ -153,11 +153,12 @@ func (app *App) APIGetScreen(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := s.Host.UpdateScreen(); err != nil {
+	h := app.sessionHost(s)
+	if err := h.UpdateScreen(); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "update screen: " + err.Error()})
 		return
 	}
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	if screen == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
 		return
@@ -187,7 +188,7 @@ func (app *App) APISendKey(c *gin.Context) {
 		return
 	}
 	key := normalizeKey(body.Key)
-	if err := s.Host.SendKey(key); err != nil {
+	if err := app.sessionHost(s).SendKey(key); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -218,7 +219,7 @@ func (app *App) APIWriteField(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}
-	if err := s.Host.WriteStringAt(body.Row, body.Col, body.Text); err != nil {
+	if err := app.sessionHost(s).WriteStringAt(body.Row, body.Col, body.Text); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -236,7 +237,8 @@ func (app *App) APISubmit(c *gin.Context) {
 		AID string `json:"aid"`
 	}
 	_ = c.ShouldBindJSON(&body) // body is optional
-	if err := s.Host.SubmitScreen(); err != nil {
+	h := app.sessionHost(s)
+	if err := h.SubmitScreen(); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -244,15 +246,15 @@ func (app *App) APISubmit(c *gin.Context) {
 	if aid == "" {
 		aid = "Enter"
 	}
-	if err := s.Host.SendKey(normalizeKey(aid)); err != nil {
+	if err := h.SendKey(normalizeKey(aid)); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	if err := s.Host.UpdateScreen(); err != nil {
+	if err := h.UpdateScreen(); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "update screen: " + err.Error()})
 		return
 	}
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	c.JSON(http.StatusOK, gin.H{
 		"ok":     true,
 		"aid":    aid,

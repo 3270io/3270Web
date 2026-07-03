@@ -408,23 +408,7 @@ func (e *Engine) Start() error {
 	e.mindMap = newMindMap()
 	e.workflowHeader = workflowHeaderFromConfig(e.cfg)
 	e.stopCh = make(chan struct{})
-	e.transitionTuples = make(map[string]bool)
-	e.productiveValues = make(map[string]bool)
-	e.saturationStreak = 0
-	e.newScreensWindow = nil
-	e.newTransWindow = nil
-	e.terminationReason = ""
-	e.saturatedNoProgress = false
-	e.autoAppliedHashes = make(map[string]bool)
-	if path := strings.TrimSpace(e.cfg.TransitionLogPath); path != "" {
-		if dir := filepath.Dir(path); dir != "" {
-			_ = os.MkdirAll(dir, 0750)
-		}
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-		if err == nil {
-			e.transitionLog = f
-		}
-	}
+	e.resetSaturationStateLocked()
 
 	go e.run()
 	return nil
@@ -913,6 +897,36 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 	}
 }
 
+// resetSaturationStateLocked (re)initializes the per-run saturation-tracking
+// fields and reopens the optional transition log. Both Start and Resume must
+// call this: leaving transitionTuples/productiveValues/autoAppliedHashes nil
+// causes a nil-map write panic (crashing the run() goroutine, which has no
+// recover) the first time run() records a screen transition or productive
+// field write. Callers must hold e.mu.
+func (e *Engine) resetSaturationStateLocked() {
+	e.transitionTuples = make(map[string]bool)
+	e.productiveValues = make(map[string]bool)
+	e.saturationStreak = 0
+	e.newScreensWindow = nil
+	e.newTransWindow = nil
+	e.terminationReason = ""
+	e.saturatedNoProgress = false
+	e.autoAppliedHashes = make(map[string]bool)
+	if e.transitionLog != nil {
+		_ = e.transitionLog.Close()
+		e.transitionLog = nil
+	}
+	if path := strings.TrimSpace(e.cfg.TransitionLogPath); path != "" {
+		if dir := filepath.Dir(path); dir != "" {
+			_ = os.MkdirAll(dir, 0750)
+		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err == nil {
+			e.transitionLog = f
+		}
+	}
+}
+
 // Resume starts the engine from a previously saved run, merging the existing
 // state (screen hashes, transitions, steps) into the new exploration.
 // It returns an error if exploration is already running or the host is not
@@ -976,6 +990,7 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	e.stoppedAt = time.Time{}
 	e.lastErr = ""
 	e.stopCh = make(chan struct{})
+	e.resetSaturationStateLocked()
 
 	go e.run()
 	return nil

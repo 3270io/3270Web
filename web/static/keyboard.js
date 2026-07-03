@@ -10,6 +10,12 @@
   var keypadResizeObserver = null;
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
+  // Set for one focusin cycle when Ctrl+Tab (or Ctrl+Shift+Tab) deliberately
+  // releases keyboard focus from the terminal (see handleKeyDownEvent and
+  // installTerminalFocusLock). Without this, the focusin listener that keeps
+  // focus pinned to the terminal would immediately snap it back, permanently
+  // trapping keyboard users inside the terminal (WCAG 2.1.2).
+  var terminalFocusReleasePending = false;
   var specialKeys = {
     Enter: "Enter",
     BackSpace: "BackSpace",
@@ -439,6 +445,9 @@
     if (target.closest("#copilot-panel")) {
       return false;
     }
+    if (target.closest("[data-terminal-escape-hatch]")) {
+      return false;
+    }
     if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
       return true;
     }
@@ -466,10 +475,18 @@
     return true;
   }
 
+  // Timestamp of the most recent pointerdown anywhere in the document. The
+  // focusin listener below uses this to tell a mouse-driven focus change
+  // (where snapping focus back to the terminal is a helpful convenience)
+  // apart from a keyboard Tab-driven one (where it would recreate the
+  // keyboard trap described at installTerminalFocusLock's focusin handler).
+  var lastPointerDownAt = 0;
+
   function installTerminalFocusLock() {
     document.addEventListener(
       "pointerdown",
       function (event) {
+        lastPointerDownAt = Date.now();
         if (!shouldPreventPointerDefaultForFocusLock(event.target)) {
           return;
         }
@@ -497,10 +514,23 @@
     document.addEventListener(
       "focusin",
       function (event) {
+        if (terminalFocusReleasePending) {
+          terminalFocusReleasePending = false;
+          return;
+        }
         if (isModalOpen()) {
           return;
         }
         if (isInsideTerminalShell(event.target)) {
+          return;
+        }
+        // Only auto-return focus to the terminal for a MOUSE/touch-driven
+        // focus change (e.g. clicking a toolbar button should leave the
+        // terminal ready to keep receiving keystrokes). A focus change with
+        // no recent pointerdown is keyboard (Tab) navigation, and forcing
+        // focus back to the terminal here would trap keyboard users on
+        // every toolbar control they reach (WCAG 2.1.2).
+        if (Date.now() - lastPointerDownAt > 150) {
           return;
         }
         if (event.target.closest("[data-terminal-size-slider]")) {
@@ -513,6 +543,9 @@
           return;
         }
         if (event.target.closest("#copilot-panel")) {
+          return;
+        }
+        if (event.target.closest("[data-terminal-escape-hatch]")) {
           return;
         }
         window.requestAnimationFrame(function () {
@@ -930,9 +963,30 @@
       animateVirtualKey(visualKey);
     }
 
-    // Handle Tab key to restrict it to terminal screen inputs only
+    // Handle Tab key to restrict it to terminal screen inputs only, and only
+    // while focus is actually inside the terminal. Without the
+    // isInsideTerminalShell guard, Tab would be hijacked everywhere on the
+    // page (including toolbar buttons/links), permanently trapping keyboard
+    // users inside the terminal (WCAG 2.1.2 — see #terminal-escape-hatch).
     var code = event.keyCode || event.which;
     if (event.key === "Tab" || code === 9) {
+      if (!isInsideTerminalShell(event.target)) {
+        return;
+      }
+      // Ctrl+Tab / Ctrl+Shift+Tab is the documented escape hatch (see the
+      // visually-hidden hint rendered next to the terminal): deliberately
+      // move focus to a dedicated landing target instead of sending a 3270
+      // Tab, and suppress the focus lock's next focusin so it doesn't snap
+      // focus straight back into the terminal.
+      if (event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        var hatch = document.getElementById("terminal-escape-hatch");
+        if (hatch) {
+          terminalFocusReleasePending = true;
+          hatch.focus();
+        }
+        return;
+      }
       var form = findForm(formId);
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !isModalOpen() && form) {
         event.preventDefault();
@@ -953,6 +1007,7 @@
       !event.ctrlKey &&
       !event.altKey &&
       !isModalOpen() &&
+      isInsideTerminalShell(event.target) &&
       (event.key === "ArrowUp" ||
         event.key === "ArrowDown" ||
         event.key === "ArrowLeft" ||

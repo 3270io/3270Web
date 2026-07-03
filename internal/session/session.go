@@ -216,6 +216,35 @@ func (m *Manager) ListSessions() []*Session {
 	return out
 }
 
+// PeekSession retrieves a session by ID without updating LastAccess. Use
+// this (rather than GetSession) whenever the lookup itself must not count
+// as activity — e.g. idle-session reaping, where using GetSession would
+// make every session look freshly active and never actually reap.
+func (m *Manager) PeekSession(id string) (*Session, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.sessions[id]
+	return s, ok
+}
+
+// IdleSessionIDs returns the IDs of sessions whose LastAccess is at least
+// maxIdle in the past, relative to now.
+func (m *Manager) IdleSessionIDs(maxIdle time.Duration) []string {
+	cutoff := time.Now().Add(-maxIdle)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var ids []string
+	for id, s := range m.sessions {
+		s.mu.Lock()
+		last := s.LastAccess
+		s.mu.Unlock()
+		if last.Before(cutoff) {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // RemoveSession removes a session. Host.Stop performs I/O (sending Quit,
 // killing the s3270 subprocess, closing pipes) and can take seconds when
 // the subprocess is unresponsive, so it runs after the manager lock is

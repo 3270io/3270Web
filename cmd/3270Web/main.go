@@ -258,6 +258,13 @@ func main() {
 	// Public REST/JSON API (gated by API_TOKEN env var)
 	app.registerAPIv1(r)
 
+	// Idle sessions (browser tab closed without disconnecting, network drop)
+	// otherwise live forever: their s3270 subprocess, chaos engine, and
+	// session-status poller keep running until the server restarts. Reap
+	// them periodically; see reapIdleSessions for what's skipped/cleaned up.
+	stopSessionReaper := app.startSessionReaper(sessionReapInterval, sessionIdleTimeout)
+	defer stopSessionReaper()
+
 	shutdownCh := make(chan struct{})
 	requestShutdown := func() {
 		select {
@@ -533,6 +540,98 @@ func withSessionLock(s *session.Session, fn func()) {
 	fn()
 }
 
+// sessionHost returns a stable snapshot of the session's current Host, read
+// under the session lock. resetSessionHost (called on reconnect/workflow
+// load) swaps s.Host under this same lock; reading s.Host directly from a
+// handler without going through this helper is a data race with that swap,
+// and can observe a Host that has already been Stop()ped. Callers should
+// read the host once per request and reuse the local value rather than
+// re-reading s.Host on every call.
+func (app *App) sessionHost(s *session.Session) host.Host {
+	var h host.Host
+	withSessionLock(s, func() { h = s.Host })
+	return h
+}
+
+const (
+	// sessionIdleTimeout is how long a session may go without an HTTP
+	// request (LastAccess) before the reaper considers it abandoned. Kept
+	// comfortably longer than the session cookie's 1-hour Max-Age (see
+	// setSessionCookie) so a session isn't reaped while its cookie is still
+	// plausibly in use.
+	sessionIdleTimeout = 2 * time.Hour
+	// sessionReapInterval is how often the reaper sweeps for idle sessions.
+	sessionReapInterval = 10 * time.Minute
+)
+
+// startSessionReaper periodically removes sessions that have had no HTTP
+// activity for maxIdle, along with their s3270 subprocess, chaos engine,
+// recording file, and cached compatibility profile. Without this, a session
+// whose browser tab is closed (or that loses network) without an explicit
+// /disconnect lives forever: its s3270 subprocess keeps running and its
+// chaos-status poller keeps ticking until the server itself restarts. The
+// returned stop func halts the sweep goroutine.
+func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()) {
+	done := make(chan struct{})
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				app.reapIdleSessions(maxIdle)
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
+// reapIdleSessions removes sessions idle for at least maxIdle, skipping any
+// with an in-progress chaos exploration or workflow playback so a long,
+// unattended automated run isn't killed out from under itself just because
+// nobody touched the browser.
+func (app *App) reapIdleSessions(maxIdle time.Duration) {
+	for _, id := range app.SessionManager.IdleSessionIDs(maxIdle) {
+		s, ok := app.SessionManager.PeekSession(id)
+		if !ok {
+			continue
+		}
+		if eng, ok := app.chaosEngines.get(id); ok && eng != nil && eng.Status().Active {
+			continue
+		}
+		playbackActive := false
+		withSessionLock(s, func() {
+			playbackActive = s.Playback != nil && s.Playback.Active
+		})
+		if playbackActive {
+			continue
+		}
+		log.Printf("Reaping idle session %s (no activity for %s)", id, maxIdle)
+		app.cleanupSession(s)
+	}
+}
+
+// cleanupSession releases everything owned by a session: its s3270
+// subprocess (via RemoveSession), any in-progress recording file, and the
+// per-session chaos engine, loaded-run, and profile caches. Shared by the
+// explicit /disconnect handler and the idle-session reaper so the two paths
+// can't drift out of sync.
+func (app *App) cleanupSession(s *session.Session) {
+	if s == nil {
+		return
+	}
+	cleanupRecordingFile(s)
+	app.chaosEngines.delete(s.ID)
+	app.chaosEngines.deleteLoadedRun(s.ID)
+	app.chaosEngines.clearRemoved(s.ID)
+	if app.profiles != nil {
+		app.profiles.delete(s.ID)
+	}
+	app.SessionManager.RemoveSession(s.ID)
+}
+
 const lastTargetCookieName = "3270Web_last_target"
 
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
@@ -612,12 +711,13 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		return
 	}
 
-	if err := s.Host.UpdateScreen(); err != nil {
+	h := app.sessionHost(s)
+	if err := h.UpdateScreen(); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
 	}
 
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	if screen == nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": "Screen unavailable"})
 		return
@@ -708,11 +808,12 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if err := s.Host.UpdateScreen(); err != nil {
+	h := app.sessionHost(s)
+	if err := h.UpdateScreen(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
 	}
-	screen := hostScreenSnapshot(s.Host)
+	screen := hostScreenSnapshot(h)
 	if screen == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
 		return
@@ -840,18 +941,19 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	cursorRow := strings.TrimSpace(c.PostForm("cursor_row"))
 	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))
 
-	if s.Host.GetScreen().IsFormatted {
+	h := app.sessionHost(s)
+	if h.GetScreen().IsFormatted {
 		// 1. Update fields from form data
-		app.updateFields(c, s)
-		recordFieldUpdates(s)
+		app.updateFields(c, h)
+		recordFieldUpdates(s, h)
 
 		// 2. Submit changes to host
-		if err := s.Host.SubmitScreen(); err != nil {
+		if err := h.SubmitScreen(); err != nil {
 			return fmt.Errorf("submit failed: %w", err)
 		}
 	} else {
 		data := c.PostForm("field")
-		if err := s.Host.SubmitUnformatted(data); err != nil {
+		if err := h.SubmitUnformatted(data); err != nil {
 			return fmt.Errorf("submit failed: %w", err)
 		}
 	}
@@ -860,7 +962,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 		if row, err := strconv.Atoi(cursorRow); err == nil {
 			if col, err := strconv.Atoi(cursorCol); err == nil {
 				if row >= 0 && col >= 0 {
-					_ = s.Host.MoveCursor(row, col)
+					_ = h.MoveCursor(row, col)
 				}
 			}
 		}
@@ -874,7 +976,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	log.Printf("Submit: normalized key=%q", actionKey)
 	recordActionKey(s, actionKey)
 
-	if err := s.Host.SendKey(actionKey); err != nil {
+	if err := h.SendKey(actionKey); err != nil {
 		return fmt.Errorf("send key failed: %w", err)
 	}
 	return nil
@@ -885,14 +987,7 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 		if lastTarget := formatSessionTarget(s); lastTarget != "" {
 			setSessionCookie(c, lastTargetCookieName, lastTarget)
 		}
-		cleanupRecordingFile(s)
-		app.chaosEngines.delete(s.ID)
-		app.chaosEngines.deleteLoadedRun(s.ID)
-		app.chaosEngines.clearRemoved(s.ID)
-		if app.profiles != nil {
-			app.profiles.delete(s.ID)
-		}
-		app.SessionManager.RemoveSession(s.ID)
+		app.cleanupSession(s)
 	}
 	setSessionCookie(c, "3270Web_session", "")
 	c.Redirect(http.StatusFound, "/")
@@ -2186,8 +2281,8 @@ func (app *App) LogsDownloadHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain", content)
 }
 
-func (app *App) updateFields(c *gin.Context, s *session.Session) {
-	screen := s.Host.GetScreen()
+func (app *App) updateFields(c *gin.Context, h host.Host) {
+	screen := h.GetScreen()
 	maxRows, maxCols, hasLimit := app.modelDimensions()
 	for _, f := range screen.Fields {
 		if !f.IsProtected() {
@@ -2236,11 +2331,11 @@ func fieldWithinBounds(f *host.Field, maxRows, maxCols int) bool {
 	return true
 }
 
-func recordFieldUpdates(s *session.Session) {
-	if s == nil {
+func recordFieldUpdates(s *session.Session, h host.Host) {
+	if s == nil || h == nil {
 		return
 	}
-	screen := s.Host.GetScreen()
+	screen := h.GetScreen()
 	if screen == nil {
 		return
 	}
