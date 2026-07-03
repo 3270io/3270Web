@@ -1715,6 +1715,14 @@
     renderKeypad(containerId);
   };
 
+  // Exposed so screen-live.js (the idle SSE push consumer) can patch the
+  // OIA status line and restore focus/caret the same way a manual submit's
+  // async response does, including honoring terminalFocusEscaped so a
+  // server-pushed update can't drag focus back into the terminal after the
+  // user deliberately left it via the Ctrl+Tab escape hatch.
+  window.updateScreenStatusLine = updateScreenStatusLine;
+  window.restoreScreenFocus = restoreScreenFocus;
+
   // Refresh the 3270 screen HTML from the server without a form submit.
   // Called by Copilot tools after state-changing actions so the terminal
   // display stays in sync.
