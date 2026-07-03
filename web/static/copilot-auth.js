@@ -96,9 +96,6 @@
         wrap.addEventListener("click", function (ev) {
             if (ev.target === wrap) closeModal(false);
         });
-        wrap.addEventListener("keydown", function (ev) {
-            if (ev.key === "Escape" && !wrap.hidden) closeModal(false);
-        });
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap) {
             focusTrap = window.ThreeSeventyWeb.createFocusTrap(wrap);
         }
@@ -133,7 +130,12 @@
     function closeModal(success) {
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = 0; }
         focusTrap.deactivate();
-        if (modalEl) modalEl.hidden = true;
+        if (modalEl) {
+            modalEl.hidden = true;
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+                window.ThreeSeventyWeb.popModal(modalEl);
+            }
+        }
         const resolve = modalResolve;
         modalResolve = null;
         modalPromise = null;
@@ -145,6 +147,9 @@
         const wrap = buildModal();
         wrap.hidden = false;
         focusTrap.activate();
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(wrap, function () { closeModal(false); });
+        }
         const cancelBtn = wrap.querySelector("[data-copilot-modal-cancel]");
         if (cancelBtn) cancelBtn.focus();
         modalPromise = new Promise((resolve) => { modalResolve = resolve; });

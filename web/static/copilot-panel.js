@@ -1818,20 +1818,23 @@
                 : { activate() {}, deactivate() {} };
         modal.hidden = false;
         trap.activate();
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(modal, close);
+        }
         const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
         const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
         function close() {
             modal.hidden = true;
             trap.deactivate();
-            modal.removeEventListener("keydown", onKeydown);
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+                window.ThreeSeventyWeb.popModal(modal);
+            }
             if (returnFocus && typeof returnFocus.focus === "function") returnFocus.focus();
         }
         function onConfirm() { close(); clearHistory(); }
-        function onKeydown(ev) { if (ev.key === "Escape") close(); }
         if (confirmBtn) { confirmBtn.onclick = onConfirm; confirmBtn.focus(); }
         cancelBtns.forEach(function (b) { b.onclick = close; });
         modal.onclick = function (ev) { if (ev.target === modal) close(); };
-        modal.addEventListener("keydown", onKeydown);
     }
 
     function attachToolbarToggle() {

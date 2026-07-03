@@ -187,6 +187,7 @@ func main() {
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
+	r.GET("/screen/stream", app.ScreenStreamHandler)
 	r.GET("/screen/print", app.PrintScreenHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/submit/async", app.SubmitAsyncHandler)

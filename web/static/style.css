@@ -4469,6 +4469,22 @@ html.workflow-status-minimized .workflow-status-widget-header {
   word-break: break-word;
 }
 
+.h3270-notification__action {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.h3270-notification__action:hover {
+  filter: brightness(1.1);
+}
+
 .h3270-notification__close {
   flex-shrink: 0;
   background: none;

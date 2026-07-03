@@ -47,6 +47,9 @@
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
     focusTrap.activate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, closeModal);
+    }
     const firstFocusable = modal.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -66,6 +69,9 @@
     modal.hidden = true;
     document.body.style.overflow = '';
     focusTrap.deactivate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(modal);
+    }
     stopAutoRefresh();
     if (lastFocusedElement) {
       lastFocusedElement.focus();
@@ -314,6 +320,9 @@
     // Hand the focus trap off to the nested confirm dialog so Tab stays within it.
     focusTrap.deactivate();
     clearConfirmTrap.activate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(clearConfirmModal, closeClearConfirm);
+    }
     const firstFocusable = clearConfirmModal.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -328,6 +337,9 @@
     }
     clearConfirmModal.hidden = true;
     clearConfirmTrap.deactivate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(clearConfirmModal);
+    }
     // Restore the trap on the parent logs modal if it is still open.
     if (!modal.hidden) {
       focusTrap.activate();
@@ -391,16 +403,6 @@
 
   modal.addEventListener('click', (event) => {
     if (event.target === modal) {
-      closeModal();
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !modal.hidden) {
-      if (clearConfirmModal && !clearConfirmModal.hidden) {
-        closeClearConfirm();
-        return;
-      }
       closeModal();
     }
   });
