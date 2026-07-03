@@ -95,7 +95,7 @@ const defaultSampleAppPort = 3270
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.3.1.3"
+var appVersion = "0.3.2"
 
 func main() {
 	baseDir := resolveBaseDir()
