@@ -96,13 +96,64 @@ func TestRenderCorrectness(t *testing.T) {
 	expectedSubstrings := []string{
 		`<form id="screen-test_id" name="screen-test_id" action="/submit" method="post" class="renderer-form" data-rows="24" data-cols="80" autocomplete="off" data-form-type="other">`,
 		`<input type="text" name="field_10_5" class="color-input" value="Hello" maxlength="11" size="11" style="width: 11ch; max-width: 11ch;" data-x="10" data-y="5" data-w="11" data-fa="0x00" data-display="normal" data-hidden="0" data-protected="0" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`,
-		`installKeyHandler('screen-test_id');`,
+		`<div hidden data-initial-focus data-form-name="screen-test_id"`,
 	}
 
 	for _, expected := range expectedSubstrings {
 		if !strings.Contains(output, expected) {
 			t.Errorf("Output missing expected substring: %s\nGot:\n%s", expected, output)
 		}
+	}
+}
+
+// TestAppendFocusCaretMatchesHostCursorColumn guards a caret-restore
+// off-by-one: inputStartX used to be focused.StartX+1, treating StartX as
+// an attribute-byte position one column before the field's actual first
+// character. StartX is already that first character column (see the width
+// calculation elsewhere: EndX-StartX+1), so the +1 shifted every restored
+// caret one column left of the true host cursor — most visibly on a
+// field's last character, where the true caret (width-1) came out as
+// width-2.
+func TestAppendFocusCaretMatchesHostCursorColumn(t *testing.T) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+		for j := range screen.Buffer[i] {
+			screen.Buffer[i][j] = ' '
+		}
+	}
+
+	// Field spans host columns 10-20 inclusive (width 11): StartX=10 is the
+	// first character cell, EndX=20 is the last.
+	f := host.NewField(screen, 0, 10, 5, 20, 5, host.AttrColDefault, host.AttrEhDefault)
+	f.SetValue("Hello")
+	screen.Fields = append(screen.Fields, f)
+
+	cases := []struct {
+		name      string
+		cursorX   int
+		wantCaret string
+	}{
+		{"cursor at field start", 10, `data-caret="0"`},
+		{"cursor mid-field", 13, `data-caret="3"`},
+		{"cursor at field's last character", 20, `data-caret="10"`},
+	}
+
+	r := NewHtmlRenderer()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			screen.CursorX = tc.cursorX
+			screen.CursorY = 5
+			output := r.Render(screen, "/submit", "test_id")
+			if !strings.Contains(output, tc.wantCaret) {
+				t.Errorf("cursorX=%d: output missing %q\nGot:\n%s", tc.cursorX, tc.wantCaret, output)
+			}
+		})
 	}
 }
 

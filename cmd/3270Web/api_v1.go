@@ -121,6 +121,10 @@ func (app *App) APICreateSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "sample-app hostnames are not allowed via the API"})
 		return
 	}
+	if !isValidHostname(hostname) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid hostname format: %q", hostname)})
+		return
+	}
 	s, err := app.startHostSession(hostname)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -134,14 +138,14 @@ func (app *App) APICreateSession(c *gin.Context) {
 }
 
 // APIDeleteSession terminates a session and removes it from the manager.
+// Deleting a session that's already gone (never existed, or a repeat of
+// this same call) is treated as success rather than 404 — DELETE should be
+// idempotent, and a client retrying a dropped response shouldn't see an
+// error for a delete that already took effect.
 func (app *App) APIDeleteSession(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
-		return
-	}
-	if _, ok := app.SessionManager.GetSession(id); !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
 	app.SessionManager.RemoveSession(id)

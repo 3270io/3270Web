@@ -416,17 +416,19 @@ func (r *HtmlRenderer) getFormName(id string) string {
 	return "screen-" + id
 }
 
+// appendFocus emits a hidden marker element carrying the data the browser
+// needs to install the key handler and restore focus/caret on load, instead
+// of an inline <script> — this output lands verbatim inside a page the
+// browser parses normally, so an inline script here would need CSP's
+// script-src to allow 'unsafe-inline'. web/static/initial-focus.js reads
+// this marker on DOMContentLoaded.
 func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builder) {
-	sb.WriteString(`<script type="text/javascript">` + "\n")
-	sb.WriteString("  window.addEventListener(\"DOMContentLoaded\", function () {\n")
 	fn := r.getFormName(id)
-	sb.WriteString(`    installKeyHandler('`)
+	sb.WriteString(`<div hidden data-initial-focus data-form-name="`)
 	sb.WriteString(fn)
-	sb.WriteString(`');` + "\n")
+	sb.WriteString(`"`)
 	if !s.IsFormatted {
-		sb.WriteString(`    document.forms["`)
-		sb.WriteString(fn)
-		sb.WriteString(`"].field.focus()` + "\n")
+		sb.WriteString(` data-unformatted="1"`)
 	} else {
 		focused := s.GetInputFieldAt(s.CursorX, s.CursorY)
 		if focused != nil {
@@ -439,21 +441,21 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 					lineOffset = focused.Height() - 1
 				}
 			}
-			caret := 0
-			inputStartX := focused.StartX + 1
+			// focused.StartX is already the field's first character column,
+			// 0-based and directly comparable to s.CursorX (also 0-based) —
+			// not an attribute-byte position needing a +1 to reach the first
+			// character cell. The +1 this used to have shifted every restored
+			// caret one column left of the true host cursor (see the matching
+			// fix in setCursorFromTarget, web/static/keyboard.js).
+			inputStartX := focused.StartX
 			if focused.IsMultiline() && lineOffset > 0 {
 				inputStartX = 0
 			}
-			caret = s.CursorX - inputStartX
+			caret := s.CursorX - inputStartX
 			if caret < 0 {
 				caret = 0
 			}
-			sb.WriteString("    (function () {\n")
-			sb.WriteString(`      var form = document.forms["`)
-			sb.WriteString(fn)
-			sb.WriteString(`"];` + "\n")
-			sb.WriteString("      if (!form) { return; }\n")
-			sb.WriteString(`      var el = form.elements["field_`)
+			sb.WriteString(` data-field-name="field_`)
 			r.writeInt(sb, focused.StartX)
 			sb.WriteString("_")
 			r.writeInt(sb, focused.StartY)
@@ -461,21 +463,12 @@ func (r *HtmlRenderer) appendFocus(s *host.Screen, id string, sb *strings.Builde
 				sb.WriteString("_")
 				r.writeInt(sb, lineOffset)
 			}
-			sb.WriteString(`"];` + "\n")
-			sb.WriteString("      if (!el) { return; }\n")
-			sb.WriteString("      el.focus();\n")
-			sb.WriteString("      if (typeof el.setSelectionRange === \"function\") {\n")
-			sb.WriteString("        var pos = ")
+			sb.WriteString(`" data-caret="`)
 			r.writeInt(sb, caret)
-			sb.WriteString(";\n")
-			sb.WriteString("        if (pos > el.value.length) { pos = el.value.length; }\n")
-			sb.WriteString("        el.setSelectionRange(pos, pos);\n")
-			sb.WriteString("      }\n")
-			sb.WriteString("    })();\n")
+			sb.WriteString(`"`)
 		}
 	}
-	sb.WriteString("  });\n")
-	sb.WriteString("</script>\n")
+	sb.WriteString("></div>\n")
 }
 
 func (r *HtmlRenderer) writeInt(sb *strings.Builder, n int) {

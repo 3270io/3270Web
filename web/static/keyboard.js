@@ -111,7 +111,14 @@
       return;
     }
     var lineOffset = getLineOffsetFromName(target.name || "");
-    var inputStartX = pos.x + 1;
+    // pos.x (field.StartX) is already the field's first character column,
+    // 0-based and directly comparable to the host's reported cursor column
+    // (see findInputAtCursor) — it is not an attribute-byte position that
+    // needs a +1 to reach the first character cell. Adding one here shifted
+    // every reported cursor column one past where the caret actually was,
+    // which on a field's last character produced a column matching nothing
+    // (or the wrong field) once findInputAtCursor tried to map it back.
+    var inputStartX = pos.x;
     if (lineOffset > 0) {
       inputStartX = 0;
     }
