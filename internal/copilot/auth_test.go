@@ -321,6 +321,78 @@ func TestPollDeviceLoginNonOKStatusSurfacesError(t *testing.T) {
 	}
 }
 
+// TestStoreScopesDistinctIdentitiesIndependently guards the core per-browser
+// scoping fix: two different identity IDs must resolve to independent
+// AuthManagers (backed by separate files), so logging in as one identity
+// cannot be observed through another.
+func TestStoreScopesDistinctIdentitiesIndependently(t *testing.T) {
+	store := NewAuthStore(t.TempDir())
+	idA := strings.Repeat("a", 32)
+	idB := strings.Repeat("b", 32)
+
+	a := store.get(idA)
+	b := store.get(idB)
+
+	a.auth.cache.OAuth = "a-token"
+	a.auth.loaded = true
+
+	if b.auth.LoggedIn() {
+		t.Fatalf("identity b reports logged in after only identity a was logged in")
+	}
+	if a.auth.path == b.auth.path {
+		t.Fatalf("identities a and b share the same on-disk auth file: %q", a.auth.path)
+	}
+
+	// Re-fetching the same ID must return the same cached instance, not a
+	// fresh one that would forget the OAuth token just set above.
+	again := store.get(idA)
+	if !again.auth.LoggedIn() {
+		t.Fatalf("re-fetching identity a lost its login state")
+	}
+}
+
+// TestStoreEvictIdleDropsOnlyStaleEntries guards the memory-bounding sweep:
+// only entries untouched for at least maxIdle are dropped from the
+// in-memory cache, and evicting an entry must not delete its on-disk token
+// file (a later request from that same browser should transparently reload
+// it rather than appearing logged out).
+func TestStoreEvictIdleDropsOnlyStaleEntries(t *testing.T) {
+	store := NewAuthStore(t.TempDir())
+	idFresh := strings.Repeat("c", 32)
+	idStale := strings.Repeat("d", 32)
+
+	store.get(idFresh)
+	stale := store.get(idStale)
+	stale.auth.cache.OAuth = "d-token"
+	stale.auth.loaded = true
+	if err := stale.auth.saveLocked(); err != nil {
+		t.Fatalf("seed stale identity's disk file: %v", err)
+	}
+
+	store.mu.Lock()
+	store.entries[idStale].lastUsed = time.Now().Add(-48 * time.Hour)
+	store.mu.Unlock()
+
+	store.EvictIdle(24 * time.Hour)
+
+	store.mu.Lock()
+	_, freshStillCached := store.entries[idFresh]
+	_, staleStillCached := store.entries[idStale]
+	store.mu.Unlock()
+	if !freshStillCached {
+		t.Fatalf("a recently-used identity was evicted")
+	}
+	if staleStillCached {
+		t.Fatalf("a stale identity was not evicted")
+	}
+
+	// The evicted identity's token must still be readable from disk.
+	reloaded := store.get(idStale)
+	if !reloaded.auth.LoggedIn() {
+		t.Fatalf("evicted identity's on-disk token was lost, not just its in-memory cache")
+	}
+}
+
 func TestDefaultAuthPathHonorsEnv(t *testing.T) {
 	t.Setenv("COPILOT_AUTH_PATH", "/tmp/copilot-foo.json")
 	p, err := DefaultAuthPath()

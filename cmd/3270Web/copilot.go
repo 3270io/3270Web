@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,16 +18,18 @@ import (
 // initCopilot wires the Copilot package's HTTP routes and adds the
 // /screen.json route used by the get_screen tool.
 //
-// Auth state is shared across requests; tool execution always resolves the
-// active session via the existing 3270Web_session cookie.
+// Copilot login/token state is scoped per-browser (see the copilotAuthStore
+// field and the identity cookie in internal/copilot/handlers.go), separately
+// from the 3270Web_session cookie that tool execution resolves the active
+// host connection through.
 func (app *App) initCopilot(r *gin.Engine) {
 	authPath, err := copilot.DefaultAuthPath()
 	if err != nil {
 		log.Printf("[copilot] disabled: cannot resolve auth path: %v", err)
 		return
 	}
-	mgr := copilot.NewAuthManager(authPath)
-	copilot.NewHandlers(mgr).Register(r)
+	app.copilotAuthStore = copilot.NewAuthStore(filepath.Dir(authPath))
+	copilot.NewHandlers(app.copilotAuthStore).Register(r)
 
 	// Tool-supporting endpoints for the get_screen / send_key / write_field
 	// / submit_screen tools. These wrap host.* calls in JSON so the

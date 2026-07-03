@@ -100,6 +100,70 @@ func DefaultAuthPath() (string, error) {
 	return filepath.Join(dir, "3270Web", "copilot-auth.json"), nil
 }
 
+// identityAuth bundles one browser identity's AuthManager, Client, and any
+// in-flight device-login attempt (previously fields directly on Handlers,
+// which made them shared by every browser hitting the server).
+type identityAuth struct {
+	auth   *AuthManager
+	client *Client
+
+	// lastUsed is read/written only while holding the owning Store's mu, not
+	// this struct's own mu (which guards only device below).
+	lastUsed time.Time
+
+	mu     sync.Mutex
+	device deviceState
+}
+
+// Store scopes Copilot auth state to one browser identity per entry, keyed
+// by an opaque ID (see the identity cookie in handlers.go). Without this, a
+// single AuthManager was shared by every browser that hit the server: one
+// person's login — or logout — silently applied to everyone else's Copilot
+// session too.
+type Store struct {
+	baseDir string
+
+	mu      sync.Mutex
+	entries map[string]*identityAuth
+}
+
+// NewAuthStore creates a Store whose per-identity token caches live under
+// baseDir, one JSON file per identity.
+func NewAuthStore(baseDir string) *Store {
+	return &Store{baseDir: baseDir, entries: make(map[string]*identityAuth)}
+}
+
+// get returns the identityAuth for id, creating (and persisting to its own
+// file) one if this is the first time this identity has been seen.
+func (st *Store) get(id string) *identityAuth {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	e, ok := st.entries[id]
+	if !ok {
+		auth := NewAuthManager(filepath.Join(st.baseDir, "copilot-auth-"+id+".json"))
+		e = &identityAuth{auth: auth, client: NewClient(auth)}
+		st.entries[id] = e
+	}
+	e.lastUsed = time.Now()
+	return e
+}
+
+// EvictIdle drops cached identities untouched for at least maxIdle, bounding
+// the store's memory on a long-running server that many different browsers
+// connect to over time. Eviction only drops the in-memory cache — the
+// identity's on-disk token file is untouched and reloaded lazily the next
+// time that browser is seen again.
+func (st *Store) EvictIdle(maxIdle time.Duration) {
+	cutoff := time.Now().Add(-maxIdle)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for id, e := range st.entries {
+		if e.lastUsed.Before(cutoff) {
+			delete(st.entries, id)
+		}
+	}
+}
+
 // LoggedIn reports whether the manager holds an OAuth token.
 func (m *AuthManager) LoggedIn() bool {
 	m.mu.Lock()
