@@ -84,8 +84,19 @@
       }
       applyUpdate(container, payload);
     };
-    // EventSource retries automatically on drop/timeout (including the
-    // server's screenStreamMaxDuration cap); there's nothing else to do here.
-    source.onerror = function () {};
+    source.onerror = function () {
+      // A transient network blip leaves readyState CONNECTING and the
+      // browser retries on its own — nothing to do. readyState CLOSED means
+      // the browser gave up for good, which happens when the initial (or a
+      // reconnect) response wasn't a 200 text/event-stream — in practice,
+      // an expired/reaped host session returning 401.
+      if (
+        source.readyState === EventSource.CLOSED &&
+        window.ThreeSeventyWeb &&
+        typeof window.ThreeSeventyWeb.notifySessionExpired === "function"
+      ) {
+        window.ThreeSeventyWeb.notifySessionExpired();
+      }
+    };
   });
 })();

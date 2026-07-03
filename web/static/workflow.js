@@ -1099,6 +1099,9 @@
     })
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
+          if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
+            window.ThreeSeventyWeb.notifySessionExpired();
+          }
           return null;
         }
         if (!res.ok) {

@@ -83,6 +83,19 @@
 
     toast.appendChild(iconWrap);
     toast.appendChild(msgEl);
+    // opts.action lets a caller (e.g. the session-expiry banner) attach a
+    // single actionable button, e.g. "Reconnect", alongside the message.
+    if (opts.action && opts.action.label && typeof opts.action.onClick === 'function') {
+      var actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'h3270-notification__action';
+      actionBtn.textContent = opts.action.label;
+      actionBtn.addEventListener('click', function () {
+        clearTimeout(timer);
+        opts.action.onClick();
+      });
+      toast.appendChild(actionBtn);
+    }
     toast.appendChild(closeBtn);
     container.appendChild(toast);
 

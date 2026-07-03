@@ -22,6 +22,16 @@
   // back into the terminal out from under a deliberate escape while an
   // async screen refresh from an earlier keypress is still in flight.
   var terminalFocusEscaped = false;
+  // Escape reflexively means "get me out of here" for most users, but on a
+  // 3270 terminal it maps to Clear, which wipes the whole screen. Without a
+  // confirmation, one accidental Escape (e.g. muscle memory from closing a
+  // dialog) silently destroys unsaved input. clearConfirmArmed tracks
+  // whether the PREVIOUS keydown was an unconfirmed Escape; a second Escape
+  // within clearConfirmWindowMs actually sends Clear, and any other key (or
+  // the window elapsing) cancels the pending confirmation.
+  var clearConfirmArmed = false;
+  var clearConfirmTimer = 0;
+  var clearConfirmWindowMs = 2000;
   var specialKeys = {
     Enter: "Enter",
     BackSpace: "BackSpace",
@@ -996,6 +1006,24 @@
     }
   }
 
+  function disarmClearConfirmation() {
+    clearConfirmArmed = false;
+    if (clearConfirmTimer) {
+      window.clearTimeout(clearConfirmTimer);
+      clearConfirmTimer = 0;
+    }
+  }
+
+  function armClearConfirmation() {
+    clearConfirmArmed = true;
+    if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
+      window.ThreeSeventyWeb.notify("Press Esc again to clear the screen", "warning", {
+        duration: clearConfirmWindowMs
+      });
+    }
+    clearConfirmTimer = window.setTimeout(disarmClearConfirmation, clearConfirmWindowMs);
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
       return;
@@ -1010,6 +1038,11 @@
     // element (e.g. the Copilot chat textarea, settings inputs).
     if (isEditableTarget(event.target) && !isScreenInput(event.target)) {
       return;
+    }
+
+    var isEscapeKey = event.key === "Escape" || (event.keyCode || event.which) === 27;
+    if (clearConfirmArmed && !isEscapeKey) {
+      disarmClearConfirmation();
     }
 
     var visualKey = mapVisualKey(event);
@@ -1099,6 +1132,13 @@
     var special = mapSpecialKey(event);
     if (special) {
       event.preventDefault();
+      if (special === specialKeys.Clear) {
+        if (!clearConfirmArmed) {
+          armClearConfirmation();
+          return;
+        }
+        disarmClearConfirmation();
+      }
       sendFormWithKey(special, formId, event.target);
       return;
     }

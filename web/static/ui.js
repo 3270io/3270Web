@@ -5884,6 +5884,11 @@
         clearTimeout(pollTimer);
         try {
             const resp = await fetch('/chaos/status');
+            if (resp.status === 401 || resp.status === 403) {
+                if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
+                    window.ThreeSeventyWeb.notifySessionExpired();
+                }
+            }
             if (!resp.ok) {
                 throw new Error('chaos status request failed: ' + resp.status);
             }
