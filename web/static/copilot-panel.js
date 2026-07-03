@@ -11,7 +11,7 @@
 (function () {
     "use strict";
 
-    const HISTORY_KEY = "copilot.panel.history.v1";
+    const HISTORY_KEY_BASE = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
     const MODEL_KEY = "copilot.panel.model";
@@ -49,13 +49,29 @@
     let autoMode = false;
     let activeAbort = null;       // AbortController for the in-flight fetch
     let stopRequested = false;    // set by Stop button; breaks tool-round loop
+    let sendInFlight = false;     // re-entrancy guard: send() awaits several
+                                   // things (auth, tool schema fetch) before
+                                   // setRunning(true) hides the Send button,
+                                   // so a fast double-Enter/double-click could
+                                   // otherwise start a second concurrent turn
     let stickToBottom = true;     // false once the user scrolls up to read history
 
     try { autoMode = localStorage.getItem(AUTO_MODE_KEY) === "1"; } catch (_) {}
 
+    // Chat history used to be one global localStorage entry regardless of
+    // which mainframe host was connected, so switching hosts (or reconnecting
+    // to a different one after disconnecting) left the previous host's
+    // conversation — and its screen-derived context — sitting in the
+    // transcript as if it applied to the new host. Scope it by host instead;
+    // reconnecting to the SAME host still resumes the same conversation.
+    function historyStorageKey() {
+        const host = (document.body && document.body.dataset && document.body.dataset.targetHost) || "";
+        return HISTORY_KEY_BASE + ":" + (host || "unknown-host");
+    }
+
     function loadHistory() {
         try {
-            const raw = localStorage.getItem(HISTORY_KEY);
+            const raw = localStorage.getItem(historyStorageKey());
             if (!raw) return [];
             const arr = JSON.parse(raw);
             if (!Array.isArray(arr)) return [];
@@ -86,12 +102,12 @@
     function saveHistory() {
         let toPersist = trimHistoryForPersist(history, MAX_PERSISTED_MESSAGES);
         try {
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
+            localStorage.setItem(historyStorageKey(), JSON.stringify(toPersist));
         } catch (_) {
             // Quota exceeded: halve and retry once, then give up silently.
             try {
                 toPersist = trimHistoryForPersist(toPersist, Math.floor(toPersist.length / 2));
-                localStorage.setItem(HISTORY_KEY, JSON.stringify(toPersist));
+                localStorage.setItem(historyStorageKey(), JSON.stringify(toPersist));
             } catch (_) {}
         }
     }
@@ -966,6 +982,18 @@
             .join("|");
     }
 
+    // Tools where calling the exact same thing repeatedly is expected, not
+    // stuck: the system prompt directs the model to "poll chaos_status every
+    // ~20 steps" while a long-running chaos run continues in the background,
+    // which is identical calls by design, not a no-progress loop.
+    const POLLING_TOOL_NAMES = new Set(["chaos_status"]);
+
+    function isPollingOnly(toolCalls) {
+        return toolCalls.length > 0 && toolCalls.every(function (tc) {
+            return POLLING_TOOL_NAMES.has(tc.function && tc.function.name);
+        });
+    }
+
     // rollbackFailedTurn keeps history well-formed when a turn fails before the
     // assistant produced anything: it drops the trailing user message so the
     // next send doesn't create two user turns in a row (which the API rejects).
@@ -1023,7 +1051,14 @@
         }
         const result = await consumeStream(stream);
         hideTyping();
-        if (stopRequested) return;
+        if (stopRequested) {
+            // Stopped before the assistant produced anything this round (the
+            // stream never got far enough to append an assistant message to
+            // history) — roll back the same way a failed round does, so the
+            // next send doesn't create two user turns in a row.
+            rollbackFailedTurn();
+            return;
+        }
         if (result.error) {
             appendMessage("error", "Chat error: " + friendlyChatError(result.error));
             appendRetryAffordance(rollbackFailedTurn());
@@ -1055,9 +1090,16 @@
         if (toolCallsActionable) {
             // No-progress loop guard: if the model keeps asking for the exact
             // same tool call(s), stop instead of burning the round budget
-            // (the classic chaos resume -> saturated -> resume loop).
+            // (the classic chaos resume -> saturated -> resume loop). Pure
+            // prescribed polling (see isPollingOnly) is exempted — it's
+            // supposed to repeat identically while a background run
+            // continues, not evidence of being stuck. MAX_TOOL_ROUNDS still
+            // caps the overall round count regardless.
             const sig = toolSignature(result.toolCalls);
-            if (sig && sig === lastToolSignature) {
+            if (isPollingOnly(result.toolCalls)) {
+                repeatedToolRounds = 0;
+                lastToolSignature = sig;
+            } else if (sig && sig === lastToolSignature) {
                 repeatedToolRounds++;
             } else {
                 repeatedToolRounds = 0;
@@ -1160,7 +1202,28 @@
         let finishReason = null;
 
         while (true) {
-            const { value, done } = await reader.read();
+            let value, done;
+            try {
+                ({ value, done } = await reader.read());
+            } catch (err) {
+                // Stop mid-stream aborts the fetch, which rejects the next
+                // reader.read() with AbortError. Left uncaught, this threw
+                // out of consumeStream/chatRound/send entirely (an unhandled
+                // rejection) and skipped the stopRequested check just below
+                // this loop that's supposed to end the turn cleanly — so the
+                // turn's user message (and any tool messages already
+                // appended by an earlier round) stayed in history with no
+                // paired assistant response, corrupting the next request's
+                // message shape. Treat any read failure while a stop was
+                // requested as a graceful end of the stream; chatRound's
+                // stopRequested check right after this function returns
+                // handles not persisting a partial turn.
+                if (stopRequested || (err && err.name === "AbortError")) {
+                    break;
+                }
+                errorMsg = (err && err.message) || String(err);
+                break;
+            }
             if (done) break;
             // First bytes received: the model is responding, drop the "thinking"
             // indicator so it doesn't sit alongside streamed content.
@@ -1324,6 +1387,29 @@
         }
     }
 
+    // AID keys that end a session or destroy in-progress work if pressed
+    // without confirmation. Matches the dangerous-key set 3270Web's own
+    // chaos engine requires explicit opt-in for (see DefaultConfig's
+    // AIDKeyWeights, which excludes exactly these two by default) — Auto
+    // Mode running send_key unattended shouldn't be any less careful about
+    // them than chaos exploration is.
+    const DANGEROUS_SEND_KEYS = [/^pf\(?\s*3\s*\)?$/i, /^clear$/i];
+
+    // requiresManualApproval returns the matched dangerous key name (a
+    // truthy string) if this tool call needs a human to click Run even in
+    // Auto Mode, or "" if it's safe to auto-run.
+    function requiresManualApproval(toolName, argsJSON) {
+        if (toolName !== "send_key") return "";
+        let key = "";
+        try { key = String((JSON.parse(argsJSON || "{}") || {}).key || ""); } catch (_) { return ""; }
+        const trimmed = key.trim();
+        if (!trimmed) return "";
+        for (const pattern of DANGEROUS_SEND_KEYS) {
+            if (pattern.test(trimmed)) return trimmed;
+        }
+        return "";
+    }
+
     function collectToolResults(toolCalls) {
         // Render a card per tool call immediately (so the transcript shows
         // every pending call right away), but in Auto Mode run them
@@ -1411,13 +1497,20 @@
                 finish({ skipped: true }, "Skipped");
             });
 
-            return { promise, run: runTool };
+            const dangerous = requiresManualApproval(name, tc.function && tc.function.arguments);
+            if (dangerous) {
+                statusEl.textContent = "Needs your approval (" + dangerous + ")";
+            }
+            return { promise, run: runTool, requiresApproval: dangerous };
         });
 
         if (autoMode) {
             (async () => {
                 for (const entry of entries) {
-                    if (entry.run) {
+                    // A dangerous send_key (see DANGEROUS_SEND_KEYS) always
+                    // waits for a manual Run/Skip click, even in Auto Mode —
+                    // its card is left as-is, still resolvable by the user.
+                    if (entry.run && !entry.requiresApproval) {
                         await entry.run();
                     }
                 }
@@ -1495,48 +1588,64 @@
     async function send(text) {
         text = String(text || "").trim();
         if (!text) return;
-        if (!toolSchema) {
-            try {
-                const resp = await fetch("/api/copilot/tools", { credentials: "same-origin" });
-                const data = await resp.json();
-                toolSchema = data.tools || [];
-                systemPrompt = data.system_prompt || systemPrompt;
-                model = data.model || model;
-            } catch (err) {
-                appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
+        if (sendInFlight) return;
+        sendInFlight = true;
+        try {
+            if (!toolSchema) {
+                try {
+                    const resp = await fetch("/api/copilot/tools", { credentials: "same-origin" });
+                    const data = await resp.json();
+                    toolSchema = data.tools || [];
+                    systemPrompt = data.system_prompt || systemPrompt;
+                    // Only adopt the server's default model if the user hasn't
+                    // already picked one (persisted to MODEL_KEY either at load
+                    // time or via the model dropdown's change handler) —
+                    // otherwise this clobbered that choice on every first send,
+                    // since populateModelSelect() (which reflects the real
+                    // current selection) doesn't run until after this.
+                    let hasStoredModel = false;
+                    try { hasStoredModel = !!localStorage.getItem(MODEL_KEY); } catch (_) {}
+                    if (!hasStoredModel && data.model) {
+                        model = data.model;
+                    }
+                } catch (err) {
+                    appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
+                    return;
+                }
+            }
+            // Authenticate BEFORE committing the user turn so a cancelled sign-in
+            // doesn't leave a dangling user message in history (and the typed text
+            // stays in the box for another attempt).
+            const ok = await CopilotAuth.ensureLogin();
+            if (!ok) {
+                appendMessage("error", "Sign-in cancelled.");
                 return;
             }
-        }
-        // Authenticate BEFORE committing the user turn so a cancelled sign-in
-        // doesn't leave a dangling user message in history (and the typed text
-        // stays in the box for another attempt).
-        const ok = await CopilotAuth.ensureLogin();
-        if (!ok) {
-            appendMessage("error", "Sign-in cancelled.");
-            return;
-        }
-        setConnectedState(true);
+            setConnectedState(true);
 
-        history.push({ role: "user", content: text });
-        saveHistory();
-        appendMessage("user", text);
-        clearInput();
-        toolRound = 0;
-        lastToolSignature = null;
-        repeatedToolRounds = 0;
+            history.push({ role: "user", content: text });
+            saveHistory();
+            appendMessage("user", text);
+            clearInput();
+            toolRound = 0;
+            lastToolSignature = null;
+            repeatedToolRounds = 0;
 
-        await populateModelSelect();
-        // Capture a fresh orientation snapshot for this turn (best-effort).
-        turnContext = await fetchTurnContext();
-        stopRequested = false;
-        setRunning(true);
-        try {
-            await chatRound();
-        } finally {
-            activeAbort = null;
+            await populateModelSelect();
+            // Capture a fresh orientation snapshot for this turn (best-effort).
+            turnContext = await fetchTurnContext();
             stopRequested = false;
-            setRunning(false);
-            hideTyping();
+            setRunning(true);
+            try {
+                await chatRound();
+            } finally {
+                activeAbort = null;
+                stopRequested = false;
+                setRunning(false);
+                hideTyping();
+            }
+        } finally {
+            sendInFlight = false;
         }
     }
 

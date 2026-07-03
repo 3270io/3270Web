@@ -822,6 +822,8 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"StatusCursor":            cursorLabel,
 		"SampleAppName":           sampleAppName,
 		"SampleAppPort":           sampleAppPort,
+		"TargetHost":              snap.TargetHost,
+		"TargetPort":              snap.TargetPort,
 		"Version":                 appVersion,
 	})
 }
