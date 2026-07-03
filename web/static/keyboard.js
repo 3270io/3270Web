@@ -16,6 +16,12 @@
   // focus pinned to the terminal would immediately snap it back, permanently
   // trapping keyboard users inside the terminal (WCAG 2.1.2).
   var terminalFocusReleasePending = false;
+  // True from the moment Ctrl+Tab moves focus to the escape hatch until
+  // focus genuinely returns inside .terminal-shell (see installTerminalFocusLock's
+  // focusin listener). Read by restoreScreenFocus to avoid dragging focus
+  // back into the terminal out from under a deliberate escape while an
+  // async screen refresh from an earlier keypress is still in flight.
+  var terminalFocusEscaped = false;
   var specialKeys = {
     Enter: "Enter",
     BackSpace: "BackSpace",
@@ -256,6 +262,16 @@
 
   function restoreScreenFocus(form, preferredFieldName, preferredCaret, cursorRow, cursorCol) {
     if (!form) {
+      return;
+    }
+    // A key press (e.g. Tab) can trigger this async screen refresh, and by
+    // the time it resolves the user may have since deliberately left the
+    // terminal via the Ctrl+Tab escape hatch. Don't drag focus back in out
+    // from under that — see terminalFocusEscaped. (Checking
+    // document.activeElement here instead would misfire: replacing
+    // .screen-container's innerHTML just above transiently blurs focus to
+    // <body> on every refresh, escape or not.)
+    if (terminalFocusEscaped) {
       return;
     }
 
@@ -522,6 +538,7 @@
           return;
         }
         if (isInsideTerminalShell(event.target)) {
+          terminalFocusEscaped = false;
           return;
         }
         // Only auto-return focus to the terminal for a MOUSE/touch-driven
@@ -983,6 +1000,7 @@
         var hatch = document.getElementById("terminal-escape-hatch");
         if (hatch) {
           terminalFocusReleasePending = true;
+          terminalFocusEscaped = true;
           hatch.focus();
         }
         return;
