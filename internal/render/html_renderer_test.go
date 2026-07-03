@@ -106,6 +106,70 @@ func TestRenderCorrectness(t *testing.T) {
 	}
 }
 
+// TestRenderInputFieldGetsAriaLabelFromPrecedingLabel guards against screen
+// readers announcing every 3270 input as a bare, context-free "edit text":
+// an unprotected field must be given an aria-label derived from the
+// protected label text immediately preceding it on the same row.
+func TestRenderInputFieldGetsAriaLabelFromPrecedingLabel(t *testing.T) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+		for j := range screen.Buffer[i] {
+			screen.Buffer[i][j] = ' '
+		}
+	}
+
+	label := host.NewField(screen, host.AttrProtected, 0, 3, 10, 3, host.AttrColDefault, host.AttrEhDefault)
+	label.SetValue("First Name:")
+	screen.Fields = append(screen.Fields, label)
+
+	input := host.NewField(screen, 0, 12, 3, 30, 3, host.AttrColDefault, host.AttrEhDefault)
+	input.SetValue("")
+	screen.Fields = append(screen.Fields, input)
+
+	r := NewHtmlRenderer()
+	output := r.Render(screen, "/submit", "test_id")
+
+	if !strings.Contains(output, `aria-label="First Name:"`) {
+		t.Errorf("expected input to be labeled from preceding protected field, got:\n%s", output)
+	}
+}
+
+// TestRenderInputFieldWithoutPrecedingLabelHasNoAriaLabel confirms the
+// renderer doesn't invent a label when there's nothing sensible to derive
+// it from — an input with no preceding protected text on its row should
+// not get an aria-label attribute at all.
+func TestRenderInputFieldWithoutPrecedingLabelHasNoAriaLabel(t *testing.T) {
+	screen := &host.Screen{
+		Width:       80,
+		Height:      24,
+		IsFormatted: true,
+		Buffer:      make([][]rune, 24),
+	}
+	for i := range screen.Buffer {
+		screen.Buffer[i] = make([]rune, 80)
+		for j := range screen.Buffer[i] {
+			screen.Buffer[i][j] = ' '
+		}
+	}
+
+	input := host.NewField(screen, 0, 10, 5, 20, 5, host.AttrColDefault, host.AttrEhDefault)
+	input.SetValue("Hello")
+	screen.Fields = append(screen.Fields, input)
+
+	r := NewHtmlRenderer()
+	output := r.Render(screen, "/submit", "test_id")
+
+	if strings.Contains(output, "aria-label") {
+		t.Errorf("expected no aria-label without a preceding protected label, got:\n%s", output)
+	}
+}
+
 func TestRenderHiddenInputDoesNotUsePasswordType(t *testing.T) {
 	screen := &host.Screen{
 		Width:       80,

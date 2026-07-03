@@ -83,10 +83,17 @@
         },
         async write_field(args) {
             const body = {
-                row: args && Number(args.row) || 0,
-                col: args && Number(args.col) || 0,
                 text: (args && String(args.text != null ? args.text : "")) || "",
             };
+            const fieldKey = args && args.field_key;
+            if (fieldKey) {
+                // 1-indexed R<row>C<col>L<len> key; the server resolves it to
+                // 0-indexed row/col. Forward as-is — do not convert here.
+                body.field_key = String(fieldKey);
+            } else {
+                body.row = args && Number(args.row) || 0;
+                body.col = args && Number(args.col) || 0;
+            }
             const res = await postJSON("/screen/write", body);
             if (!res.ok) return { error: res.error };
             if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();

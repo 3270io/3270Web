@@ -271,9 +271,15 @@ func TestCompleteEngineAtomicallyInstallsAnnotatedSnapshot(t *testing.T) {
 	}
 
 	runID := chaos.NewRunID()
-	snapshot := app.chaosEngines.completeEngine(sessID, runID)
+	snapshot, encoded, err := app.chaosEngines.completeEngine(sessID, runID)
 	if snapshot == nil {
 		t.Fatal("completeEngine returned nil with a registered engine")
+	}
+	if err != nil {
+		t.Fatalf("completeEngine encode error: %v", err)
+	}
+	if len(encoded) == 0 {
+		t.Fatal("completeEngine returned no encoded bytes")
 	}
 	if snapshot.MindMap == nil || snapshot.MindMap.Areas["h1"] == nil ||
 		snapshot.MindMap.Areas["h1"].BusinessPurpose != "Login screen" {
@@ -284,12 +290,18 @@ func TestCompleteEngineAtomicallyInstallsAnnotatedSnapshot(t *testing.T) {
 	if _, ok := app.chaosEngines.get(sessID); ok {
 		t.Fatal("engine still registered after completeEngine")
 	}
+	// getLoadedRun returns a clone (see its doc comment), so compare by ID
+	// and content rather than pointer identity.
 	loaded, ok := app.chaosEngines.getLoadedRun(sessID)
-	if !ok || loaded != snapshot {
+	if !ok || loaded == nil || loaded.ID != snapshot.ID {
 		t.Fatal("snapshot not installed as the loaded run")
 	}
+	if loaded.MindMap == nil || loaded.MindMap.Areas["h1"] == nil ||
+		loaded.MindMap.Areas["h1"].BusinessPurpose != "Login screen" {
+		t.Fatalf("loaded run missing pre-completion annotation: %+v", loaded.MindMap)
+	}
 	// Second completion is a no-op.
-	if again := app.chaosEngines.completeEngine(sessID, chaos.NewRunID()); again != nil {
+	if again, _, _ := app.chaosEngines.completeEngine(sessID, chaos.NewRunID()); again != nil {
 		t.Fatal("completeEngine on a completed session should return nil")
 	}
 

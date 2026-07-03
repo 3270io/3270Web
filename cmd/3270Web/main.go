@@ -1573,12 +1573,16 @@ type themeListItem struct {
 }
 
 func (app *App) SettingsHandler(c *gin.Context) {
-	if !app.hasSessionOrLoopback(c) {
+	if !app.hasSession(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
-	// Only allow sensitive values to be returned to local loopback clients.
-	includeSensitive := c.Query("includeSensitive") == "true" && isLoopbackClient(c)
+	// A valid session is already required above. Sensitive values (e.g.
+	// S3270_KEY_PASSWORD) must never be gated on "the request came from
+	// loopback" alone: the server only ever binds to 127.0.0.1, so every
+	// request it receives is from loopback by construction — that was never
+	// a meaningful authorization signal here, only a tautology.
+	includeSensitive := c.Query("includeSensitive") == "true"
 	switch c.Request.Method {
 	case http.MethodGet:
 		app.writeSettingsResponse(c, includeSensitive)
@@ -1589,16 +1593,13 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	}
 }
 
-func (app *App) hasSessionOrLoopback(c *gin.Context) bool {
-	return app.getSession(c) != nil || isLoopbackClient(c)
-}
-
-func isLoopbackClient(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	ip := net.ParseIP(strings.TrimSpace(c.ClientIP()))
-	return ip != nil && ip.IsLoopback()
+// hasSession reports whether the request carries a valid session cookie.
+// The session ID is a 128-bit crypto/rand value (see session.generateID),
+// so this is a real authorization signal — unlike the loopback check this
+// used to be OR'd with, which was always true for every request this server
+// ever receives (it only binds to 127.0.0.1) and therefore gated nothing.
+func (app *App) hasSession(c *gin.Context) bool {
+	return app.getSession(c) != nil
 }
 
 func (app *App) writeSettingsResponse(c *gin.Context, includeSensitive bool) {
@@ -1722,7 +1723,7 @@ func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
 }
 
 func (app *App) RestartHandler(c *gin.Context) {
-	if !app.hasSessionOrLoopback(c) {
+	if !app.hasSession(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
@@ -1743,7 +1744,7 @@ func (app *App) RestartHandler(c *gin.Context) {
 }
 
 func (app *App) ThemeSaveHandler(c *gin.Context) {
-	if !app.hasSessionOrLoopback(c) {
+	if !app.hasSession(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
@@ -1807,7 +1808,7 @@ func (app *App) ThemeSaveHandler(c *gin.Context) {
 }
 
 func (app *App) ThemeListHandler(c *gin.Context) {
-	if !app.hasSessionOrLoopback(c) {
+	if !app.hasSession(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
