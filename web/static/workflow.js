@@ -247,10 +247,19 @@
     modal.style.top = `${nextTop}px`;
   };
 
+  const modalFocusTrap =
+    window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+      ? window.ThreeSeventyWeb.createFocusTrap(modal)
+      : { activate() {}, deactivate() {} };
+
   const openModal = () => {
     lastFocusedElement = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    modalFocusTrap.activate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, closeModal);
+    }
     const firstFocusable = modal.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -262,6 +271,10 @@
   const closeModal = () => {
     modal.hidden = true;
     document.body.style.overflow = '';
+    modalFocusTrap.deactivate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(modal);
+    }
     setStatus('');
     if (lastFocusedElement) {
       lastFocusedElement.focus();
@@ -440,12 +453,6 @@
 
   modal.addEventListener('click', (event) => {
     if (event.target === modal) {
-      closeModal();
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !modal.hidden) {
       closeModal();
     }
   });

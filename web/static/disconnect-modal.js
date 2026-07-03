@@ -19,6 +19,9 @@
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
     focusTrap.activate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, closeModal);
+    }
     if (confirmButton) {
       confirmButton.focus();
     }
@@ -28,6 +31,9 @@
     modal.hidden = true;
     document.body.style.overflow = '';
     focusTrap.deactivate();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(modal);
+    }
     trigger.focus();
   };
 
@@ -39,12 +45,6 @@
 
   modal.addEventListener('click', (event) => {
     if (event.target === modal) {
-      closeModal();
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !modal.hidden) {
       closeModal();
     }
   });

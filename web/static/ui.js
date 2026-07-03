@@ -386,6 +386,9 @@
             return;
         }
         chaosDefaultsSubModal.hidden = true;
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+            window.ThreeSeventyWeb.popModal(chaosDefaultsSubModal);
+        }
         if (previousChaosDefaultsFocus && typeof previousChaosDefaultsFocus.focus === 'function') {
             previousChaosDefaultsFocus.focus();
         }
@@ -398,6 +401,9 @@
         }
         previousChaosDefaultsFocus = document.activeElement;
         chaosDefaultsSubModal.hidden = false;
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(chaosDefaultsSubModal, closeChaosDefaultsSubModal);
+        }
         const focusTarget = chaosDefaultsSubModal.querySelector('[data-settings-chaos-hint-transaction], [data-settings-chaos-defaults-add-hint], [data-settings-chaos-defaults-load]');
         if (focusTarget && typeof focusTarget.focus === 'function') {
             focusTarget.focus();
@@ -895,6 +901,9 @@
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
         settingsFocusTrap.activate();
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(modal, closeSettingsModal);
+        }
         ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
             loadSettings();
@@ -907,6 +916,9 @@
         modal.hidden = true;
         document.body.style.overflow = '';
         settingsFocusTrap.deactivate();
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+            window.ThreeSeventyWeb.popModal(modal);
+        }
         setStatus('');
         if (settingsLastFocused && typeof settingsLastFocused.focus === 'function') {
             settingsLastFocused.focus();
@@ -924,6 +936,9 @@
             return;
         }
         restartConfirmModal.hidden = true;
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+            window.ThreeSeventyWeb.popModal(restartConfirmModal);
+        }
         if (restartConfirmResolver) {
             const resolve = restartConfirmResolver;
             restartConfirmResolver = null;
@@ -939,6 +954,9 @@
             closeRestartConfirm(false);
         }
         restartConfirmModal.hidden = false;
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(restartConfirmModal, () => closeRestartConfirm(false));
+        }
         restartConfirmButton.focus();
         return new Promise((resolve) => {
             restartConfirmResolver = resolve;
@@ -1603,15 +1621,6 @@
         restartConfirmButton.addEventListener('click', () => closeRestartConfirm(true));
     }
 
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && chaosDefaultsSubModal && !chaosDefaultsSubModal.hidden) {
-            closeChaosDefaultsSubModal();
-            return;
-        }
-        if (event.key === 'Escape' && !modal.hidden && restartConfirmModal && !restartConfirmModal.hidden) {
-            closeRestartConfirm(false);
-        }
-    });
 })();
 
 /**
