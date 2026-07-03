@@ -127,9 +127,51 @@ func WriteRunFile(dir, runID string, data []byte) error {
 		return fmt.Errorf("create chaos runs dir: %w", err)
 	}
 	path := filepath.Join(dir, runFileName(runID))
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := WriteFileAtomic(path, data, 0600); err != nil {
 		return fmt.Errorf("write run file: %w", err)
 	}
+	return nil
+}
+
+// WriteFileAtomic writes data to path by first writing to a temp file in the
+// same directory, fsyncing it, then renaming it into place. A crash or full
+// disk mid-write leaves the temp file behind (not `path`), so callers never
+// observe a truncated/partially-written file at `path` — os.WriteFile
+// truncates the destination in place, so a failure partway through leaves a
+// corrupt file that ListRuns/downstream JSON decoding then silently drops.
+// The temp file's name deliberately doesn't end in ".json" so a leftover
+// temp file (e.g. if the process is killed between write and rename) is
+// never picked up by ListRuns, which filters by that suffix.
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		if tmpPath != "" {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp file: %w", err)
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		return fmt.Errorf("chmod temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename temp file into place: %w", err)
+	}
+	tmpPath = "" // renamed successfully; nothing left for the deferred cleanup to remove
 	return nil
 }
 

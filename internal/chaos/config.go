@@ -45,11 +45,20 @@ type Config struct {
 	StepDelay time.Duration `json:"stepDelay"`
 
 	// AIDKeyWeights maps AID key names (e.g. "Enter", "PF(1)") to relative integer
-	// weights. A key is chosen proportionally to its weight.
+	// weights. A key is chosen proportionally to its weight. DefaultConfig
+	// deliberately excludes PF(3) and Clear: PF3 commonly logs the user off
+	// and Clear wipes the screen on many 3270 applications, and
+	// AutoBlockExitKeys only catches this when the current screen's help
+	// legend literally names the key (e.g. "PF3 Exit") — a screen with no
+	// legend, or an abbreviated/non-English one, leaves them fully live.
+	// Add them back explicitly (here, or per-screen via a hint) once you've
+	// confirmed they're safe on the target application.
 	AIDKeyWeights map[string]int `json:"aidKeyWeights"`
 
-	// KeyBlacklist lists keys that chaos must never press (for example, PF(3)
-	// on systems where PF3 logs the user off).
+	// KeyBlacklist lists keys that chaos must never press (for example, a
+	// host-specific key that logs the user off). PF(3)/Clear are excluded
+	// from DefaultConfig's AIDKeyWeights rather than pre-populated here —
+	// this field is for explicit, user-driven overrides and starts empty.
 	KeyBlacklist []string `json:"keyBlacklist,omitempty"`
 
 	// OutputFile is a path where the learned workflow JSON is persisted on stop
@@ -148,10 +157,8 @@ func DefaultConfig() Config {
 			"Enter":  70,
 			"PF(1)":  5,
 			"PF(2)":  5,
-			"PF(3)":  5,
 			"PF(4)":  5,
 			"PF(12)": 5,
-			"Clear":  5,
 		},
 	}
 }

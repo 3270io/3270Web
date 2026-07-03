@@ -949,12 +949,12 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 			if snapshot == nil {
 				return
 			}
-			withSessionLock(s, func() {
-				if s.Chaos != nil {
-					s.Chaos.LoadedRunID = runID
-				}
-			})
-			// Auto-save the completed run if a runs directory is configured.
+			// Auto-save the completed run (if configured) BEFORE exposing
+			// LoadedRunID via session status. A caller that polls status
+			// and acts on LoadedRunID immediately — including the
+			// disk-fallback path used once a run has aged out of the
+			// in-memory cache — must not be able to observe the ID before
+			// the file it names actually exists on disk.
 			if app.chaosRunsDir != "" {
 				if encodeErr != nil {
 					log.Printf("chaos: auto-save run %s failed: %v", runID, encodeErr)
@@ -967,6 +967,11 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 					log.Printf("chaos: pruned %d old saved run(s), keeping newest %d", pruned, maxSavedChaosRuns)
 				}
 			}
+			withSessionLock(s, func() {
+				if s.Chaos != nil {
+					s.Chaos.LoadedRunID = runID
+				}
+			})
 			return
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -1445,8 +1450,7 @@ func sanitizeChaosHintKeyName(raw string) string {
 	if strings.ContainsAny(trimmed, "\n\r\t;") {
 		return ""
 	}
-	normalized := normalizeKey(trimmed)
-	if normalized != "Enter" || strings.EqualFold(trimmed, "Enter") {
+	if normalized, ok := normalizeKey(trimmed); ok {
 		return normalized
 	}
 	// Preserve unrecognised but sanitized key names so host-specific keys can
@@ -1762,7 +1766,7 @@ func (app *App) saveChaosHintsPayload(payload chaosHintsPayload) error {
 	if err != nil {
 		return fmt.Errorf("marshal chaos hints: %w", err)
 	}
-	if err := os.WriteFile(app.chaosHintsPath, data, 0600); err != nil {
+	if err := chaos.WriteFileAtomic(app.chaosHintsPath, data, 0600); err != nil {
 		return fmt.Errorf("write chaos hints: %w", err)
 	}
 	return nil

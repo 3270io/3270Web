@@ -487,6 +487,23 @@ func TestChaosExport_AfterCompletion_FallbackFromDisk(t *testing.T) {
 		t.Fatal("expected completed runID in status")
 	}
 
+	// Status reporting a completed run reflects the in-memory cache, which
+	// is populated synchronously; the auto-save to disk that this test is
+	// about to rely on happens as a separate, best-effort step afterward.
+	// Wait for the actual run file to land before simulating cache loss,
+	// or evicting the cache races the write this test depends on.
+	runFile := filepath.Join(app.chaosRunsDir, runID+".json")
+	deadline = time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(runFile); err == nil {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if _, err := os.Stat(runFile); err != nil {
+		t.Fatalf("run file %s was not auto-saved in time: %v", runFile, err)
+	}
+
 	// Simulate lost in-memory run cache for this session.
 	app.chaosEngines.mu.Lock()
 	delete(app.chaosEngines.loadedRuns, sessID)
