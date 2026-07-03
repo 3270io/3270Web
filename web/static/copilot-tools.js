@@ -110,6 +110,48 @@
                 screen: screen.ok ? summariseScreen(screen.data) : null,
             };
         },
+        async connect_session(args) {
+            const hostname = (args && String(args.hostname || "").trim()) || "";
+            if (!hostname) return { error: "hostname required" };
+            const res = await postJSON("/screen/connect", { hostname });
+            if (!res.ok) return { error: res.error };
+            // Chat history is scoped by document.body.dataset.targetHost (set
+            // at page load); update it in place so a mid-conversation
+            // reconnect doesn't keep writing to the OLD host's history slot
+            // until the next full page load.
+            if (document.body && res.data) {
+                const newHost = (res.data.targetHost || "") + ":" + (res.data.targetPort || "");
+                document.body.dataset.targetHost = newHost;
+            }
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
+            const screen = await getJSON("/screen.json");
+            return {
+                ok: true,
+                targetHost: res.data && res.data.targetHost,
+                targetPort: res.data && res.data.targetPort,
+                screen: screen.ok ? summariseScreen(screen.data) : null,
+            };
+        },
+        async move_cursor(args) {
+            const row = args && Number(args.row);
+            const col = args && Number(args.col);
+            if (!(row >= 0) || !(col >= 0)) return { error: "row and col (>= 0) required" };
+            const res = await postJSON("/screen/cursor", { row, col });
+            if (!res.ok) return { error: res.error };
+            return { ok: true };
+        },
+        async wait_for_unlock(args) {
+            const body = {};
+            if (args && typeof args.timeout_ms === "number") body.timeout_ms = args.timeout_ms;
+            const res = await postJSON("/screen/wait", body);
+            if (!res.ok) return { error: res.error };
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
+            return {
+                unlocked: !!(res.data && res.data.unlocked),
+                timedOut: !!(res.data && res.data.timedOut),
+                screen: res.data && res.data.screen ? summariseScreen(res.data.screen) : null,
+            };
+        },
         async chaos_status(args) {
             const verbose = !!(args && args.verbose);
             const url = verbose ? "/chaos/status?verbose=true" : "/chaos/status";

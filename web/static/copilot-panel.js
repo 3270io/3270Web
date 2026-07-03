@@ -673,7 +673,13 @@
         if (!list) return null;
         removeEmptyState();
         const question = (args && args.question) || "Make a choice:";
-        const options = (args && Array.isArray(args.options) && args.options.length) ? args.options : ["OK"];
+        const rawOptions = (args && Array.isArray(args.options)) ? args.options : [];
+        const allowFreeText = !!(args && args.allow_free_text);
+        const freeTextLabel = (args && args.free_text_label) || "Your answer";
+        // Only fall back to a single "OK" button when there's truly nothing
+        // else on the card (no options, no free-text box) — a free-text-only
+        // ask_user shouldn't also get a meaningless extra "OK" button.
+        const options = rawOptions.length ? rawOptions : (allowFreeText ? [] : ["OK"]);
 
         const card = document.createElement("div");
         card.className = "copilot-tool-call copilot-ask-user";
@@ -684,16 +690,39 @@
         qEl.textContent = question;
         card.appendChild(qEl);
 
-        const optWrap = document.createElement("div");
-        optWrap.className = "copilot-ask-user-options";
-        options.forEach(function (opt) {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "copilot-btn-option";
-            btn.textContent = opt;
-            optWrap.appendChild(btn);
-        });
-        card.appendChild(optWrap);
+        if (options.length) {
+            const optWrap = document.createElement("div");
+            optWrap.className = "copilot-ask-user-options";
+            options.forEach(function (opt) {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "copilot-btn-option";
+                btn.textContent = opt;
+                optWrap.appendChild(btn);
+            });
+            card.appendChild(optWrap);
+        }
+
+        // ask_user directs the model to collect open-ended input (e.g. an
+        // account number) — previously it could only offer fixed buttons,
+        // so the model had no real way to gather free-form parameters
+        // through this tool at all.
+        if (allowFreeText) {
+            const textForm = document.createElement("form");
+            textForm.className = "copilot-ask-user-textform";
+            const textInput = document.createElement("input");
+            textInput.type = "text";
+            textInput.className = "copilot-ask-user-textinput";
+            textInput.placeholder = freeTextLabel;
+            textInput.setAttribute("aria-label", freeTextLabel);
+            const submitBtn = document.createElement("button");
+            submitBtn.type = "submit";
+            submitBtn.className = "copilot-btn-option";
+            submitBtn.textContent = "Submit";
+            textForm.appendChild(textInput);
+            textForm.appendChild(submitBtn);
+            card.appendChild(textForm);
+        }
 
         const chosenEl = document.createElement("div");
         chosenEl.className = "copilot-ask-user-chosen";
@@ -725,15 +754,29 @@
             const card = appendAskUserCard(call, args);
             if (!card) return;
             const optWrap = card.querySelector(".copilot-ask-user-options");
+            const textForm = card.querySelector(".copilot-ask-user-textform");
+            const textInput = card.querySelector(".copilot-ask-user-textinput");
             const chosenEl = card.querySelector(".copilot-ask-user-chosen");
             if (optWrap) {
                 optWrap.querySelectorAll(".copilot-btn-option").forEach(function (btn) {
                     btn.disabled = true;
                 });
             }
+            if (textInput) textInput.disabled = true;
+            if (textForm) {
+                const submitBtn = textForm.querySelector("button");
+                if (submitBtn) submitBtn.disabled = true;
+            }
             if (chosenEl) {
                 const choice = resultObj && resultObj.choice;
-                chosenEl.textContent = choice ? "You chose: " + choice : "(answered in an earlier session)";
+                const text = resultObj && resultObj.text;
+                if (choice) {
+                    chosenEl.textContent = "You chose: " + choice;
+                } else if (text) {
+                    chosenEl.textContent = "You answered: " + text;
+                } else {
+                    chosenEl.textContent = "(answered in an earlier session)";
+                }
                 chosenEl.hidden = false;
             }
             return;
@@ -1433,18 +1476,47 @@
                     return { promise: Promise.resolve({ id: tc.id, contentJSON: JSON.stringify({ error: "panel not ready" }) }), run: null };
                 }
                 const optWrap = card.querySelector(".copilot-ask-user-options");
+                const textForm = card.querySelector(".copilot-ask-user-textform");
+                const textInput = card.querySelector(".copilot-ask-user-textinput");
                 const chosenEl = card.querySelector(".copilot-ask-user-chosen");
                 const promise = new Promise((resolve) => {
-                    optWrap.querySelectorAll(".copilot-btn-option").forEach(function (btn) {
-                        btn.addEventListener("click", function () {
-                            const choice = btn.textContent;
-                            optWrap.querySelectorAll(".copilot-btn-option").forEach(function (b) { b.disabled = true; });
-                            chosenEl.textContent = "You chose: " + choice;
+                    let settled = false;
+                    const disableAll = function () {
+                        if (optWrap) optWrap.querySelectorAll(".copilot-btn-option").forEach(function (b) { b.disabled = true; });
+                        if (textInput) textInput.disabled = true;
+                        if (textForm) {
+                            const submitBtn = textForm.querySelector("button");
+                            if (submitBtn) submitBtn.disabled = true;
+                        }
+                    };
+                    if (optWrap) {
+                        optWrap.querySelectorAll(".copilot-btn-option").forEach(function (btn) {
+                            btn.addEventListener("click", function () {
+                                if (settled) return;
+                                settled = true;
+                                const choice = btn.textContent;
+                                disableAll();
+                                chosenEl.textContent = "You chose: " + choice;
+                                chosenEl.hidden = false;
+                                scrollToBottom();
+                                resolve({ id: tc.id, contentJSON: JSON.stringify({ choice }) });
+                            });
+                        });
+                    }
+                    if (textForm && textInput) {
+                        textForm.addEventListener("submit", function (ev) {
+                            ev.preventDefault();
+                            if (settled) return;
+                            const text = textInput.value.trim();
+                            if (!text) return;
+                            settled = true;
+                            disableAll();
+                            chosenEl.textContent = "You answered: " + text;
                             chosenEl.hidden = false;
                             scrollToBottom();
-                            resolve({ id: tc.id, contentJSON: JSON.stringify({ choice }) });
+                            resolve({ id: tc.id, contentJSON: JSON.stringify({ text }) });
                         });
-                    });
+                    }
                 });
                 return { promise, run: null };
             }
