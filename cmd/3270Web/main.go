@@ -28,26 +28,28 @@ import (
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/config"
+	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
 type App struct {
-	SessionManager *session.Manager
-	Renderer       render.Renderer
-	Config         *config.Config
-	themeCache     map[string]string
-	themeCacheMu   sync.RWMutex
-	logFilePath    string
-	envPath        string
-	baseDir        string
-	shutdown       func()
-	chaosEngines   *chaosEngineStore
-	chaosRunsDir   string
-	chaosHintsPath string
-	chaosHintsMu   sync.Mutex
-	profiles       *profileCache
+	SessionManager   *session.Manager
+	Renderer         render.Renderer
+	Config           *config.Config
+	themeCache       map[string]string
+	themeCacheMu     sync.RWMutex
+	logFilePath      string
+	envPath          string
+	baseDir          string
+	shutdown         func()
+	chaosEngines     *chaosEngineStore
+	chaosRunsDir     string
+	chaosHintsPath   string
+	chaosHintsMu     sync.Mutex
+	profiles         *profileCache
+	copilotAuthStore *copilot.Store
 }
 
 type WorkflowConfig struct {
@@ -564,6 +566,12 @@ const (
 	sessionIdleTimeout = 2 * time.Hour
 	// sessionReapInterval is how often the reaper sweeps for idle sessions.
 	sessionReapInterval = 10 * time.Minute
+	// copilotIdentityIdleTimeout bounds the in-memory Copilot auth store
+	// across a long-running server that many different browsers connect to
+	// over time. It is far longer than sessionIdleTimeout since evicting an
+	// identity only drops its in-memory cache — the on-disk token file is
+	// untouched and reloaded lazily the next time that browser is seen.
+	copilotIdentityIdleTimeout = 24 * time.Hour
 )
 
 // startSessionReaper periodically removes sessions that have had no HTTP
@@ -584,6 +592,9 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 				return
 			case <-ticker.C:
 				app.reapIdleSessions(maxIdle)
+				if app.copilotAuthStore != nil {
+					app.copilotAuthStore.EvictIdle(copilotIdentityIdleTimeout)
+				}
 			}
 		}
 	}()
@@ -822,6 +833,8 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"StatusCursor":            cursorLabel,
 		"SampleAppName":           sampleAppName,
 		"SampleAppPort":           sampleAppPort,
+		"TargetHost":              snap.TargetHost,
+		"TargetPort":              snap.TargetPort,
 		"Version":                 appVersion,
 	})
 }

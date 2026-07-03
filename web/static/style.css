@@ -4866,6 +4866,22 @@ body.copilot-open .page-wrap {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .copilot-btn-option:disabled { opacity: 0.45; cursor: default; }
+.copilot-ask-user-textform {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.copilot-ask-user-textinput {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--panel);
+  color: var(--fg);
+}
+.copilot-ask-user-textinput:disabled { opacity: 0.45; cursor: default; }
 .copilot-ask-user-chosen {
   margin-top: 8px;
   font-size: 12px;

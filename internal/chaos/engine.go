@@ -1523,6 +1523,12 @@ func signatureCanonicalKey(sig string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// similarityRatio scores how alike two dedup signatures are, from 0 (nothing
+// alike) to 1 (identical). It's edit-distance based rather than a positional
+// character compare: a single character inserted or removed anywhere in a
+// signature shifts every character after it out of positional alignment,
+// which made a true near-duplicate (e.g. one extra digit in a counter field)
+// score as almost entirely different instead of one edit away.
 func similarityRatio(a, b string) float64 {
 	if a == "" || b == "" {
 		return 0
@@ -1539,18 +1545,56 @@ func similarityRatio(a, b string) float64 {
 	if maxLen == 0 {
 		return 1
 	}
-	minLen := len(ar)
-	if len(br) < minLen {
-		minLen = len(br)
+	dist := levenshteinDistance(ar, br)
+	ratio := 1 - float64(dist)/float64(maxLen)
+	if ratio < 0 {
+		ratio = 0
 	}
-	matches := 0
-	for i := 0; i < minLen; i++ {
-		if ar[i] == br[i] {
-			matches++
+	return ratio
+}
+
+// levenshteinDistance computes the classic edit distance (insertions,
+// deletions, substitutions each cost 1) between two rune slices, using a
+// two-row DP to keep memory at O(min(len(a), len(b))) instead of O(len(a) *
+// len(b)).
+func levenshteinDistance(a, b []rune) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	// Iterate over the shorter slice's length as the row width.
+	if len(a) < len(b) {
+		a, b = b, a
+	}
+	prevRow := make([]int, len(b)+1)
+	for j := range prevRow {
+		prevRow[j] = j
+	}
+	currRow := make([]int, len(b)+1)
+	for i := 1; i <= len(a); i++ {
+		currRow[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			del := prevRow[j] + 1
+			ins := currRow[j-1] + 1
+			sub := prevRow[j-1] + cost
+			min := del
+			if ins < min {
+				min = ins
+			}
+			if sub < min {
+				min = sub
+			}
+			currRow[j] = min
 		}
+		prevRow, currRow = currRow, prevRow
 	}
-	// Penalize length mismatches heavily so only very-near duplicates collapse.
-	return float64(matches) / float64(maxLen)
+	return prevRow[len(b)]
 }
 
 func (e *Engine) recordMindMapAttemptLocked(attempt Attempt) {

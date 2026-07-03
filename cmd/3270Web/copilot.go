@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,16 +18,18 @@ import (
 // initCopilot wires the Copilot package's HTTP routes and adds the
 // /screen.json route used by the get_screen tool.
 //
-// Auth state is shared across requests; tool execution always resolves the
-// active session via the existing 3270Web_session cookie.
+// Copilot login/token state is scoped per-browser (see the copilotAuthStore
+// field and the identity cookie in internal/copilot/handlers.go), separately
+// from the 3270Web_session cookie that tool execution resolves the active
+// host connection through.
 func (app *App) initCopilot(r *gin.Engine) {
 	authPath, err := copilot.DefaultAuthPath()
 	if err != nil {
 		log.Printf("[copilot] disabled: cannot resolve auth path: %v", err)
 		return
 	}
-	mgr := copilot.NewAuthManager(authPath)
-	copilot.NewHandlers(mgr).Register(r)
+	app.copilotAuthStore = copilot.NewAuthStore(filepath.Dir(authPath))
+	copilot.NewHandlers(app.copilotAuthStore).Register(r)
 
 	// Tool-supporting endpoints for the get_screen / send_key / write_field
 	// / submit_screen tools. These wrap host.* calls in JSON so the
@@ -34,6 +38,9 @@ func (app *App) initCopilot(r *gin.Engine) {
 	r.POST("/screen/key", app.ScreenKeyHandler)
 	r.POST("/screen/write", app.ScreenWriteHandler)
 	r.POST("/screen/submit", app.ScreenSubmitHandler)
+	r.POST("/screen/connect", app.ScreenConnectHandler)
+	r.POST("/screen/cursor", app.ScreenCursorHandler)
+	r.POST("/screen/wait", app.ScreenWaitHandler)
 
 	// Per-turn orientation block injected by the chat panel into the system
 	// prompt (current screen + learned application knowledge).
@@ -133,6 +140,131 @@ func (app *App) ScreenSubmitHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// ScreenConnectHandler establishes (or replaces) the current session's host
+// connection. Used by the Copilot connect_session tool so a chat request
+// like "log in to the payments app" doesn't dead-end when nothing is
+// connected yet, or when the user wants to switch targets mid-conversation.
+// Reuses resetSessionHost (already used by the workflow-driven reconnect
+// path), which validates the hostname and stops any existing host first.
+func (app *App) ScreenConnectHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var body struct {
+		Hostname string `json:"hostname"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	hostname := strings.TrimSpace(body.Hostname)
+	if hostname == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "hostname is required"})
+		return
+	}
+	if err := app.resetSessionHost(s, hostname); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	snap := app.snapshotSession(s)
+	c.JSON(http.StatusOK, gin.H{
+		"ok":         true,
+		"targetHost": snap.TargetHost,
+		"targetPort": snap.TargetPort,
+	})
+}
+
+// ScreenCursorHandler moves the host cursor to (row, col) without sending a
+// key or writing a field. Used by the Copilot move_cursor tool — MoveCursor
+// already existed on host.Host but was never exposed as a tool, so the
+// model had no way to position the cursor ahead of a key that acts relative
+// to it (e.g. a bare Tab/BackTab, or a host action keyed off cursor
+// position rather than a specific field).
+func (app *App) ScreenCursorHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var body struct {
+		Row int `json:"row"`
+		Col int `json:"col"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if body.Row < 0 || body.Col < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "row/col must be >= 0"})
+		return
+	}
+	if err := app.sessionHost(s).MoveCursor(body.Row, body.Col); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+const (
+	screenWaitDefaultTimeout = 5 * time.Second
+	screenWaitMaxTimeout     = 15 * time.Second
+	screenWaitPollInterval   = 150 * time.Millisecond
+)
+
+// ScreenWaitHandler polls the host status line until the keyboard unlocks
+// (the transaction has finished processing) or timeout_ms elapses, then
+// returns the screen at that point. Used by the Copilot wait_for_unlock
+// tool — without it, a multi-second transaction's get_screen call right
+// after send_key/submit_screen returned the stale pre-action screen, since
+// nothing previously polled for the host to actually finish.
+func (app *App) ScreenWaitHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var body struct {
+		TimeoutMs int `json:"timeout_ms"`
+	}
+	_ = c.ShouldBindJSON(&body) // body is optional; zero value falls back to the default below
+
+	timeout := time.Duration(body.TimeoutMs) * time.Millisecond
+	if timeout <= 0 || timeout > screenWaitMaxTimeout {
+		timeout = screenWaitDefaultTimeout
+	}
+
+	h := app.sessionHost(s)
+	deadline := time.Now().Add(timeout)
+	for {
+		if err := h.UpdateScreen(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "update screen: " + err.Error()})
+			return
+		}
+		screen := hostScreenSnapshot(h)
+		if screen == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
+			return
+		}
+		state, ok := screen.StatusKeyboardState()
+		unlocked := !ok || state != "L"
+		timedOut := !unlocked && time.Now().After(deadline)
+		if unlocked || timedOut {
+			if rows, cols, dimOK := app.modelDimensions(); dimOK {
+				screen = limitScreenForDisplay(screen, rows, cols)
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"unlocked": unlocked,
+				"timedOut": timedOut,
+				"screen":   screenToJSON(screen),
+			})
+			return
+		}
+		time.Sleep(screenWaitPollInterval)
+	}
 }
 
 // ScreenJSONHandler returns the current screen as a JSON object suitable

@@ -8,9 +8,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,13 +20,12 @@ import (
 // stream, including all streamed tokens.
 const chatStreamTimeout = 10 * time.Minute
 
-// Handlers groups the routes the package exposes.
+// Handlers groups the routes the package exposes. Per-browser auth/token
+// state is resolved per-request via identity (see identityCookieName) rather
+// than held directly on Handlers, so one browser's login doesn't leak into
+// another's.
 type Handlers struct {
-	auth   *AuthManager
-	client *Client
-
-	mu     sync.Mutex
-	device deviceState // most recent device-flow attempt
+	store *Store
 }
 
 type deviceState struct {
@@ -36,13 +35,27 @@ type deviceState struct {
 	expiresIn time.Duration
 }
 
-// newLoginID returns a random token identifying one device-flow attempt.
-// LoginPoll requires the caller to echo it back so that a second, unrelated
-// /login/start (e.g. from another browser tab or a different user on a
-// shared instance) can't silently redirect an in-flight poll onto its device
-// code, which would attach whichever GitHub account finishes first to the
-// single shared Copilot login.
-func newLoginID() string {
+// identityCookieName names the long-lived cookie that scopes Copilot login
+// state to one browser. It is independent of 3270Web_session (which churns
+// on every host disconnect/reconnect and reaps after 2 hours idle) so that
+// signing in to Copilot survives host-connection churn instead of forcing a
+// fresh OAuth device-flow login every time.
+const identityCookieName = "3270Web_copilot_id"
+
+// copilotIdentityCookieMaxAge is one year, matching the "sign in once" UX of
+// the real Copilot Chat editor extensions this package's wire protocol
+// mirrors.
+const copilotIdentityCookieMaxAge = 365 * 24 * 3600
+
+// identityIDPattern matches exactly the shape randomID produces (32
+// lowercase hex characters). The cookie value is used to build an on-disk
+// file path (Store.get), so any value that doesn't match this exactly is
+// discarded and replaced rather than trusted as a path component.
+var identityIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// randomID returns a random 32-character lowercase-hex token. Used both to
+// identify one device-flow login attempt and one browser's Copilot identity.
+func randomID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		// crypto/rand failing is effectively unrecoverable; fall back to a
@@ -52,12 +65,24 @@ func newLoginID() string {
 	return hex.EncodeToString(b)
 }
 
-// NewHandlers wires an AuthManager and Client together for HTTP routing.
-func NewHandlers(auth *AuthManager) *Handlers {
-	return &Handlers{
-		auth:   auth,
-		client: NewClient(auth),
+// NewHandlers wires a Store for HTTP routing.
+func NewHandlers(store *Store) *Handlers {
+	return &Handlers{store: store}
+}
+
+// identity resolves the calling browser's Copilot identity, minting and
+// cookie-ing a new one if the request has none (or an unrecognized one).
+// Must be called before any response headers/body are written, since it may
+// itself set a cookie header.
+func (h *Handlers) identity(c *gin.Context) *identityAuth {
+	id, err := c.Cookie(identityCookieName)
+	if err != nil || !identityIDPattern.MatchString(id) {
+		id = randomID()
+		secure := c.Request.TLS != nil
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie(identityCookieName, id, copilotIdentityCookieMaxAge, "/", "", secure, true)
 	}
+	return h.store.get(id)
 }
 
 // Register attaches the package's routes to the given Gin engine.
@@ -83,9 +108,10 @@ func (h *Handlers) Register(r gin.IRouter) {
 
 // Status returns the current login state. No secrets are returned.
 func (h *Handlers) Status(c *gin.Context) {
+	ia := h.identity(c)
 	c.JSON(http.StatusOK, gin.H{
-		"logged_in":  h.auth.LoggedIn(),
-		"enterprise": h.auth.EnterpriseURL(),
+		"logged_in":  ia.auth.LoggedIn(),
+		"enterprise": ia.auth.EnterpriseURL(),
 		"model":      DefaultModel,
 	})
 }
@@ -111,11 +137,12 @@ func (h *Handlers) SetEnterprise(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.auth.SetEnterpriseURL(req.URL); err != nil {
+	ia := h.identity(c)
+	if err := ia.auth.SetEnterpriseURL(req.URL); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"enterprise": h.auth.EnterpriseURL()})
+	c.JSON(http.StatusOK, gin.H{"enterprise": ia.auth.EnterpriseURL()})
 }
 
 // Models returns the list of model IDs available through the Copilot API.
@@ -123,11 +150,12 @@ func (h *Handlers) SetEnterprise(c *gin.Context) {
 // fall back to the static SupportedModels allowlist so the dropdown still
 // populates and the user can pick a model before/independent of sign-in.
 func (h *Handlers) Models(c *gin.Context) {
-	if !h.auth.LoggedIn() {
+	ia := h.identity(c)
+	if !ia.auth.LoggedIn() {
 		c.JSON(http.StatusOK, gin.H{"models": SupportedModels})
 		return
 	}
-	ids, err := h.client.ListModels(c.Request.Context())
+	ids, err := ia.client.ListModels(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"models": SupportedModels})
 		return
@@ -137,20 +165,21 @@ func (h *Handlers) Models(c *gin.Context) {
 
 // LoginStart kicks off a GitHub OAuth device flow.
 func (h *Handlers) LoginStart(c *gin.Context) {
-	dc, err := h.auth.StartDeviceLogin(c.Request.Context())
+	ia := h.identity(c)
+	dc, err := ia.auth.StartDeviceLogin(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	loginID := newLoginID()
-	h.mu.Lock()
-	h.device = deviceState{
+	loginID := randomID()
+	ia.mu.Lock()
+	ia.device = deviceState{
 		loginID:   loginID,
 		code:      dc.DeviceCode,
 		startedAt: time.Now(),
 		expiresIn: time.Duration(dc.ExpiresIn) * time.Second,
 	}
-	h.mu.Unlock()
+	ia.mu.Unlock()
 	c.JSON(http.StatusOK, gin.H{
 		"login_id":         loginID,
 		"user_code":        dc.UserCode,
@@ -173,9 +202,10 @@ func (h *Handlers) LoginPoll(c *gin.Context) {
 	var req loginPollRequest
 	_ = c.ShouldBindJSON(&req)
 
-	h.mu.Lock()
-	state := h.device
-	h.mu.Unlock()
+	ia := h.identity(c)
+	ia.mu.Lock()
+	state := ia.device
+	ia.mu.Unlock()
 	if state.code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no login in progress"})
 		return
@@ -188,25 +218,26 @@ func (h *Handlers) LoginPoll(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "expired"})
 		return
 	}
-	res, err := h.auth.PollDeviceLogin(c.Request.Context(), state.code)
+	res, err := ia.auth.PollDeviceLogin(c.Request.Context(), state.code)
 	if err != nil && res.Status != "pending" && res.Status != "slow_down" {
 		c.JSON(http.StatusOK, gin.H{"status": res.Status, "error": res.Error})
 		return
 	}
 	if res.Status == "success" {
 		// Clear the cached device code so it can't be reused.
-		h.mu.Lock()
-		if h.device.loginID == state.loginID {
-			h.device = deviceState{}
+		ia.mu.Lock()
+		if ia.device.loginID == state.loginID {
+			ia.device = deviceState{}
 		}
-		h.mu.Unlock()
+		ia.mu.Unlock()
 	}
 	c.JSON(http.StatusOK, gin.H{"status": res.Status, "error": res.Error})
 }
 
 // Logout clears all cached tokens.
 func (h *Handlers) Logout(c *gin.Context) {
-	if err := h.auth.Logout(); err != nil {
+	ia := h.identity(c)
+	if err := ia.auth.Logout(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -218,7 +249,8 @@ func (h *Handlers) Logout(c *gin.Context) {
 // any tool calls and appending the results to the message history for the
 // next /chat request.
 func (h *Handlers) Chat(c *gin.Context) {
-	if !h.auth.LoggedIn() {
+	ia := h.identity(c)
+	if !ia.auth.LoggedIn() {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in to copilot"})
 		return
 	}
@@ -257,7 +289,7 @@ func (h *Handlers) Chat(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), chatStreamTimeout)
 	defer cancel()
 
-	if err := h.client.StreamChat(ctx, ChatRequest{Raw: payload}, pw); err != nil {
+	if err := ia.client.StreamChat(ctx, ChatRequest{Raw: payload}, pw); err != nil {
 		// If nothing has been written yet, we can still emit a clean JSON
 		// error. Otherwise, send an `event: error` SSE frame the frontend
 		// understands.

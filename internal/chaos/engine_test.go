@@ -2294,3 +2294,53 @@ func TestAppendUniqueLimited_SlidingWindow(t *testing.T) {
 		t.Errorf("duplicate should not alter the slice: got %v", values)
 	}
 }
+
+// TestSimilarityRatio_SurvivesSingleInsertedCharacter guards against a
+// positional character compare, which a single inserted/removed character
+// anywhere in the string defeats: everything after the insertion point shifts
+// out of alignment and reads as a mismatch, even though the two signatures
+// are one edit apart and represent the same screen (e.g. a counter field
+// gaining a digit). An edit-distance-based ratio must still score this near 1.
+func TestSimilarityRatio_SurvivesSingleInsertedCharacter(t *testing.T) {
+	a := "JOB12345 STATUS=RUNNING STEP=COMPILE ELAPSED=00:01:23"
+	// Same string with a single character ("9") inserted mid-string.
+	b := "JOB12345 STATUS=RUNNING STEP=COMPILE9 ELAPSED=00:01:23"
+
+	got := similarityRatio(a, b)
+	if got < 0.95 {
+		t.Errorf("similarityRatio(%q, %q) = %f, want >= 0.95 (one edit apart)", a, b, got)
+	}
+
+	// Sanity: genuinely different strings of the same length should NOT
+	// score highly.
+	c := "COMPLETELY DIFFERENT SCREEN TEXT WITH NO OVERLAP AT ALL HERE"
+	d := "ANOTHER WHOLLY UNRELATED PIECE OF CONTENT SHARING NO SUBSTRING"
+	if got := similarityRatio(c, d); got > 0.5 {
+		t.Errorf("similarityRatio(%q, %q) = %f, want a low score for unrelated strings", c, d, got)
+	}
+
+	if got := similarityRatio(a, a); got != 1 {
+		t.Errorf("similarityRatio of identical strings = %f, want 1", got)
+	}
+}
+
+func TestLevenshteinDistance(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"", "", 0},
+		{"abc", "", 3},
+		{"", "abc", 3},
+		{"abc", "abc", 0},
+		{"kitten", "sitting", 3},
+		{"abcdef", "abcXdef", 1}, // single insertion
+		{"abcXdef", "abcdef", 1}, // single deletion
+	}
+	for _, tc := range cases {
+		got := levenshteinDistance([]rune(tc.a), []rune(tc.b))
+		if got != tc.want {
+			t.Errorf("levenshteinDistance(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+}

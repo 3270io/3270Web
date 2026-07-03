@@ -1442,7 +1442,12 @@
         const chaosActive = payload && payload.chaosActive;
         const container = document.querySelector('.screen-container');
         if ((isActive && (!isPaused || isDebugMode)) || chaosActive) {
-          return updateScreenContent(container, { force: true }).then(() => true);
+          // Not forced: this fires every playbackFastMs (700ms) while
+          // playback/chaos is active, so forcing it would wipe out anything
+          // the user is actively typing into a focused field every 700ms.
+          // shouldSkipScreenUpdate already skips the refresh while focus is
+          // inside the screen container — let it.
+          return updateScreenContent(container, {}).then(() => true);
         }
         return false;
       })

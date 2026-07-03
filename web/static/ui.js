@@ -1716,6 +1716,9 @@
     }
 
     let pollTimer = null;
+    let pollFailureCount = 0;
+    const pollBaseDelayMs = 1000;
+    const pollMaxDelayMs = 15000;
     let hasData = false;
     let loadedRunID = null;
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
@@ -5882,18 +5885,25 @@
         try {
             const resp = await fetch('/chaos/status');
             if (!resp.ok) {
-                return;
+                throw new Error('chaos status request failed: ' + resp.status);
             }
             const status = await resp.json();
+            pollFailureCount = 0;
             updateUI(status);
             const finalizingCompletedRun = !status.active
                 && (Number(status.stepsRun) || 0) > 0
                 && !String(status.loadedRunID || '').trim();
             if (status.active || finalizingCompletedRun) {
-                pollTimer = setTimeout(pollStatus, 1000);
+                pollTimer = setTimeout(pollStatus, pollBaseDelayMs);
             }
         } catch (_err) {
-            // Network error â€“ stop polling
+            // A transient failure (network blip, momentary 5xx) shouldn't
+            // permanently freeze the displayed status until the user happens
+            // to trigger another chaos action that calls pollStatus() again.
+            // Back off and keep retrying instead of giving up after one miss.
+            pollFailureCount += 1;
+            const delay = Math.min(pollBaseDelayMs * Math.pow(2, pollFailureCount), pollMaxDelayMs);
+            pollTimer = setTimeout(pollStatus, delay);
         }
     };
 
@@ -6642,6 +6652,24 @@
         return cfg;
     };
 
+    const notifyChaosError = async (resp, fallbackMessage) => {
+        if (!window.ThreeSeventyWeb || !window.ThreeSeventyWeb.notify) {
+            return;
+        }
+        let message = fallbackMessage;
+        if (resp) {
+            try {
+                const body = await resp.json();
+                if (body && body.error) {
+                    message = body.error;
+                }
+            } catch (_err) {
+                // Response wasn't JSON (or already consumed) â€“ fall back to the generic message.
+            }
+        }
+        window.ThreeSeventyWeb.notify(message, 'error');
+    };
+
     const startChaosRun = async () => {
         if (!startBtn) {
             return;
@@ -6660,9 +6688,11 @@
                 if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
                     window.ThreeSeventyWeb.notify('Chaos exploration started.', 'info');
                 }
+            } else {
+                await notifyChaosError(resp, 'Failed to start chaos exploration.');
             }
         } catch (_err) {
-            // Ignore
+            await notifyChaosError(null, 'Failed to start chaos exploration: network error.');
         } finally {
             setButtonBusy(startBtn, false);
             applyChaosInterlocks();
@@ -6718,13 +6748,17 @@
         stopBtn.addEventListener('click', async () => {
             setButtonBusy(stopBtn, true);
             try {
-                await fetch('/chaos/stop', { method: 'POST' });
+                const resp = await fetch('/chaos/stop', { method: 'POST' });
                 await pollStatus();
-                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
-                    window.ThreeSeventyWeb.notify('Chaos exploration stopped.', 'info');
+                if (resp.ok) {
+                    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
+                        window.ThreeSeventyWeb.notify('Chaos exploration stopped.', 'info');
+                    }
+                } else {
+                    await notifyChaosError(resp, 'Failed to stop chaos exploration.');
                 }
             } catch (_err) {
-                // Ignore
+                await notifyChaosError(null, 'Failed to stop chaos exploration: network error.');
             } finally {
                 setButtonBusy(stopBtn, false);
                 applyChaosInterlocks();
