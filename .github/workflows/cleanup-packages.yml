@@ -1,0 +1,45 @@
+name: Cleanup Old Container Images
+
+# docker-publish.yml builds and pushes the 3270web image for two platforms
+# (linux/amd64, linux/arm64) on every push to main, tagged via
+# docker/metadata-action (latest + sha). Multi-platform builds are the
+# classic source of orphaned, untagged per-architecture manifests in GHCR,
+# on top of the usual buildx cache layers — those accumulate forever unless
+# pruned. This workflow deletes untagged versions on a schedule, keeping a
+# small buffer of the most recent ones so a just-superseded digest can still
+# be rolled back to.
+#
+# Tagged versions (latest, sha-*) are NEVER deleted — the cleanup is
+# restricted to untagged versions only.
+
+on:
+  schedule:
+    - cron: "47 2 * * *" # daily at 02:47 UTC
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [3270web]
+    steps:
+      - name: Delete untagged versions of ${{ matrix.package }}
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          delete-only-untagged-versions: "true"
+          min-versions-to-keep: 10
+          # docker-publish.yml logs into GHCR with secrets.PAT_TOKEN, so the
+          # package may not be linked to this repository and the default
+          # GITHUB_TOKEN can't see it (the API reports "Package not found").
+          # Use the same PAT. If deletion fails with a 403, the PAT is
+          # missing the delete:packages scope — either add that scope, or
+          # grant this repo admin access on the package (package settings →
+          # Manage Actions access) and switch back to the default token.
+          token: ${{ secrets.PAT_TOKEN }}
