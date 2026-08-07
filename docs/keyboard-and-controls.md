@@ -8,14 +8,54 @@ Main toolbar actions include:
 
 - Disconnect session
 - View logs
-- Open settings
+- Print screen
 - Start/stop recording
 - Load recording
 - Play/debug/view/remove recording
 - Playback pause/resume/stop controls (when active)
+- Chaos exploration controls
+- Command palette, Copilot chat, and settings
 
 ![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
+
+The **Recording** and **Chaos** labels are group toggles — click one to
+expand its controls, and the choice is remembered. Anything hidden inside
+a collapsed group is still reachable from the command palette.
+
+## Command Palette
+
+Press ++ctrl+k++ (++cmd+k++ on macOS) anywhere in the session — including
+while the terminal has keyboard focus — to open a searchable list of
+every toolbar and modal action.
+
+![Command palette screenshot](images/command-palette.png)
+
+- Type to filter; matches are highlighted and grouped by area.
+- ++up++ / ++down++ move through results, ++enter++ runs the highlighted
+  one, ++esc++ closes without doing anything.
+- Recently used commands appear first when the search box is empty.
+- Theme switching is available here too, so you can change the look
+  without opening Settings.
+
+While the palette is open it takes over the keyboard completely, so
+nothing you type leaks through to the 3270 screen underneath.
+
+## Terminal Status Bar
+
+The bar directly beneath the screen is the operator information area.
+
+![Terminal status bar](images/terminal-status-bar.png)
+
+| Field | Meaning |
+|---|---|
+| `KB` | Keyboard state — green `UNLOCKED` when you can type, amber `LOCKED` while the host is inhibiting input, red on `ERROR` |
+| `MODEL` | Negotiated 3270 model number |
+| `SIZE` | Screen geometry in rows × columns |
+| `CURSOR` | Current cursor row and column |
+
+If the keyboard shows `LOCKED`, the host has not finished processing the
+last submission — wait, or press `Reset` from the keypad.
 
 ## Virtual Keyboard (Keypad)
 
@@ -48,7 +88,7 @@ Common mappings used by 3270Web:
 - `Enter` -> Enter
 - `Tab` -> Tab
 - `Shift+Tab` -> BackTab
-- `Esc` -> Clear
+- `Esc` -> Clear (**press twice** — see below)
 - `Arrow keys` -> Cursor movement
 - `Home` -> Home
 - `Backspace` -> BackSpace
@@ -61,6 +101,20 @@ Common mappings used by 3270Web:
 - `Alt+F3` -> `PA3`
 
 Additional 3270 actions available in keypad/full mappings include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and NewLine.
+
+!!! warning "Escape needs a second press"
+
+    On a 3270 terminal `Clear` wipes the entire screen, but most people
+    press ++esc++ reflexively to dismiss things. 3270Web therefore arms
+    `Clear` on the first ++esc++ and only sends it if you press ++esc++
+    again within two seconds. Any other key — or letting the window
+    elapse — cancels it.
+
+### Moving focus out of the terminal
+
+While the terminal has focus it captures ++tab++ so field navigation
+reaches the host instead of moving browser focus. To get out to the rest
+of the page, press ++ctrl+tab++ (or ++ctrl+shift+tab++).
 
 ## Focus and Input Behavior
 
