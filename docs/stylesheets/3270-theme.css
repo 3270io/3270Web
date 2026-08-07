@@ -418,10 +418,17 @@ body::after {
 
 .md-header__button.md-logo :is(img, svg),
 .md-nav__button.md-logo :is(img, svg) {
-  width: 1.6rem;
-  height: 1.6rem;
-  filter: drop-shadow(0 0 10px var(--accent-soft));
+  width: 1.75rem;
+  height: 1.75rem;
 }
+
+/* The mark is tuned for a bright accent on a dark ground. Daylight inverts
+   both: the accent becomes a mid-tone and the ground goes white, so the
+   receding planes fade out and the specular sweep washes the front face.
+   Lift the planes and drop the highlight to hold the same read. */
+html[data-theme='daylight'] .md-logo .t3270-plane-1 { fill-opacity: 0.55; }
+html[data-theme='daylight'] .md-logo .t3270-plane-2 { fill-opacity: 0.32; }
+html[data-theme='daylight'] .md-logo .t3270-spec { opacity: 0.35; }
 
 /* --- Product tabs -------------------------------------------------------- */
 
