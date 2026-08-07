@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  3270Web favicon.
+
+  Same mark as overrides/partials/logo.html, with the phosphor palette baked
+  in: a favicon is rendered by browser chrome, outside the page, so it cannot
+  read the site's theme tokens. The solid deep-green plate keeps the mark
+  legible against both light and dark tab strips.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#03110d"/>
+  <rect x="2.75" y="4.75" width="26.5" height="22.5" rx="5"
+        fill="none" stroke="#e6fff5" stroke-opacity="0.45" stroke-width="1.5"/>
+  <rect x="5.5" y="7.5" width="21" height="17" rx="3" fill="#4effb3" fill-opacity="0.14"/>
+  <path d="M5.5 12.7h21" stroke="#4effb3" stroke-opacity="0.45" stroke-width="1.3"/>
+  <g fill="#4effb3">
+    <circle cx="8.8" cy="10.1" r="1.05"/>
+    <circle cx="12" cy="10.1" r="1.05" fill-opacity="0.55"/>
+    <circle cx="15.2" cy="10.1" r="1.05" fill-opacity="0.35"/>
+  </g>
+  <g fill="none" stroke="#4effb3" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.6 16.6 12.8 19.3 9.6 22"/>
+    <path d="M15.4 22h7"/>
+  </g>
+</svg>
