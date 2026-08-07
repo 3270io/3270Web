@@ -66,16 +66,49 @@ No emulator install. No thick client. Open a browser tab, connect to any TN3270 
 
     [:octicons-arrow-right-24: Terminal Fonts](terminal-fonts.md)
 
+-   :material-magnify: **Command Palette**
+
+    ---
+
+    Press ++ctrl+k++ from anywhere — even mid-keystroke in the terminal — to search every toolbar and modal action, jump into buried chaos and recording controls, and switch themes without opening Settings.
+
+    [:octicons-arrow-right-24: Command Palette](keyboard-and-controls.md#command-palette)
+
 </div>
 
 ---
 
 ## Screenshots
 
-![Connect screen](images/connect_image.png)
-![Session screen](images/yorkshire_image.png)
-![Logging screen](images/logging_image.png)
-![Sample app](images/sampleapp1_image.png)
+<figure markdown>
+  ![Connect screen](images/connect_image.png)
+  <figcaption>Connect to any TN3270 host, a saved profile, or a bundled sample app.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Session screen](images/yorkshire_image.png)
+  <figcaption>A live session in the default Yorkshire Mainframe Terminal theme.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Command palette](images/command-palette.png)
+  <figcaption>++ctrl+k++ searches every action, including controls in collapsed toolbar groups.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Copilot side panel](images/copilot-panel.png)
+  <figcaption>The AI chat panel, ready to sign in. Drag its edge to resize.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Logging screen](images/logging_image.png)
+  <figcaption>The log viewer, available when <code>Allow log access</code> is enabled.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Sample app](images/sampleapp1_image.png)
+  <figcaption>Sample App 1 running against the bundled go3270 example server.</figcaption>
+</figure>
 
 ---
 

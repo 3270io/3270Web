@@ -4,7 +4,7 @@ There are three supported ways to run 3270Web on Linux/Unix:
 
 | Method | Best for | s3270 needed? |
 |---|---|---|
-| [Native binary](#run-the-linuxunix-binary) | Bare-metal / VM installs, quick local use | Bundled on `linux/amd64`; install it for other arches |
+| [Native binary](#run-the-linux-binary) | Bare-metal / VM installs, quick local use | Bundled on `linux/amd64`; install it for other arches |
 | [Docker](#run-with-docker) | Containerized / cloud deployments | No — the image installs it |
 | [Docker Compose](#run-with-docker-compose) | One-command local stack | No — the image installs it |
 

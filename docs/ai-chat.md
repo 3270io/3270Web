@@ -5,23 +5,41 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 ## Open the Panel
 
 1. Connect to a host.
-2. Click the **Open Copilot chat** button in the toolbar (the chat bubble icon).
+2. Click the **Open Copilot chat** button in the toolbar (the chat bubble icon), or press ++ctrl+k++ and run *Toggle Copilot chat*.
 3. The side panel slides open on the right.
+
+![Copilot panel screenshot](images/copilot-panel.png)
+
+Drag the panel's left edge to resize it, or focus the edge and use
+++left++ / ++right++ (hold ++shift++ for larger steps). The width is
+remembered between sessions.
 
 ## Sign In
 
 The first time you open the panel you need to authenticate with GitHub:
 
-1. Click **Sign in with GitHub**.
-2. Copy the one-time code shown.
-3. Visit the verification URL, enter the code, and approve the access request in your browser.
-4. Return to 3270Web — the panel polls automatically and logs you in once you approve.
+1. Click **Connect to Copilot**.
+2. A **Sign in to GitHub Copilot** dialog opens with a verification link and a one-time code. Use **Copy** to grab the code.
+3. Open the link, enter the code, and approve the access request in your browser.
+4. Leave the dialog open and return to 3270Web — it polls automatically and signs you in once you approve.
 
 To sign out at any time, click the **Sign out** button in the panel header.
 
 ### GitHub Enterprise
 
-If your organisation uses GitHub Enterprise, click **Set Enterprise URL** and enter your GitHub Enterprise instance URL before signing in.
+GitHub Enterprise is supported, but there is no button for it in the UI.
+Point 3270Web at your instance by calling the REST endpoint before
+signing in:
+
+```bash
+curl -X POST http://localhost:8080/api/copilot/enterprise \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"ghe.example.com"}'
+```
+
+The value must be a bare hostname (optionally with a port) — for example
+`ghe.example.com`, not `https://ghe.example.com/`. Pass an empty string
+to clear it and go back to github.com.
 
 ## Send a Message
 
@@ -40,8 +58,20 @@ The AI reads the current screen before acting, then proposes one tool call at a 
 Each AI action requires explicit approval:
 
 - The panel shows a **Run** button before executing any tool call.
-- Click **Run** to approve it, or ignore it to skip.
+- Click **Run** to approve it, or **Skip** to decline it.
 - This prevents unintended writes or key presses.
+
+Every tool call is a card carrying its name, arguments, result, and a
+status badge. The badge and the card's left edge are colour-coded so you
+can scan a long exchange quickly:
+
+| Status | Meaning |
+|---|---|
+| **Pending approval** (amber) | Waiting for you to click **Run** |
+| **Running** (blue) | Executing against the session |
+| **Done** (green) | Completed successfully |
+| **Failed** (red) | The call returned an error |
+| **Skipped** (grey) | You declined it |
 
 To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
 
@@ -113,14 +143,13 @@ Generated business workflows carry `Name`, `Description`, `BusinessFunction`, an
 - Conversation history is persisted in browser localStorage and capped at the most recent 200 messages.
 - Business annotations key on screen hashes, which are specific to the run's mind map. Re-running discovery against a changed application may produce new hashes; re-annotate or re-import the mind map in that case.
 
-## Model Selection
-
-Use the **Model** dropdown in the panel to switch between available Copilot models at any time. The default is Claude Sonnet 4.6.
-
 ## Clear the Conversation
 
 Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted.
 
 ## Keyboard Shortcut
 
-There is no default keyboard shortcut for the panel. All other 3270 key bindings remain active while the panel is open; see [Keyboard and Controls](keyboard-and-controls.md).
+Press ++ctrl+k++ (++cmd+k++ on macOS) and run *Toggle Copilot chat* to
+show or hide the panel without reaching for the toolbar. All other 3270
+key bindings remain active while the panel is open; see
+[Keyboard and Controls](keyboard-and-controls.md).

@@ -32,11 +32,18 @@ You can also use:
 ![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
-1. Disconnect
-2. Logs
-3. Settings
-4. Start recording
-5. View recording (when a recording is loaded)
+1. **Disconnect** — end the session (asks for confirmation)
+2. **Logs** — open the log viewer (only enabled when `Allow log access` is on)
+3. **Print screen** — render the current screen for printing
+4. **Recording** — expand the recording and playback group
+5. **Chaos** — expand the chaos exploration group
+6. **Command palette** — search every action (++ctrl+k++)
+7. **Copilot chat** — show or hide the AI side panel
+8. **Settings** — open the settings modal
+
+The eye icon to the left of the palette button hides the header and
+toolbar for a distraction-free terminal; click it again to bring them
+back.
 
 ## Settings Modal Callouts
 
@@ -47,11 +54,14 @@ You can also use:
 2. Maximize/restore modal
 3. Close settings
 4. Section tabs
-5. Active section content
-6. Reset section to defaults
+5. Reset section to defaults
+6. Active section content
 7. Save settings
 
 ## Settings Sections (Full)
+
+The modal has six tabs: **App**, **Chaos Explorer**, **Connectivity**,
+**TLS/Security**, **Emulation**, and **Theme**.
 
 ### Connectivity
 
@@ -93,31 +103,6 @@ Includes:
 
 This section directly affects screen size, field positions, and recording reliability.
 
-### Automation/Startup
-
-Controls startup and command automation behavior.
-
-Includes:
-
-- Exec command override
-- Login macro
-- HTTPD binding
-- Minimum required s3270 version
-
-Use this for scripted startup flows and custom launch behavior.
-
-### Diagnostics
-
-Controls trace and diagnostic output.
-
-Includes:
-
-- Trace enable/disable
-- Trace file and max size
-- Help/version/unit-test environment flags
-
-Use this section when troubleshooting host interaction issues.
-
 ### App
 
 Controls application-level UI features.
@@ -130,6 +115,22 @@ Includes:
 
 Use this section to control log visibility and default keyboard UI behavior.
 
+### Theme
+
+Controls the look of the terminal and surrounding UI.
+
+Includes:
+
+- **Theme** — seven built-in themes plus any custom themes you define:
+  Yorkshire Mainframe Terminal (default), Authentic 3270, Amber Phosphor,
+  Midnight Cyan, Paper Terminal, Neon Grid, and Ocean Ops
+- **Terminal Font** — the three bundled IBM 3270-style fonts
+- A custom theme editor for authoring your own palette
+
+Themes can also be switched straight from the [command
+palette](keyboard-and-controls.md#command-palette) without opening
+Settings.
+
 ### Chaos
 
 Controls chaos exploration defaults.
@@ -141,6 +142,8 @@ Includes:
 - `CHAOS_STEP_DELAY_SEC`
 - `CHAOS_SEED`
 - `CHAOS_MAX_FIELD_LENGTH`
+- `CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS` — overwrite prefilled input fields more aggressively to maximise exploration.
+- `CHAOS_SCREEN_DEDUP_SIMILARITY` (default `0.95`) — similarity threshold for merging near-duplicate screens in the discovery map. Higher is stricter.
 - `CHAOS_LEARNED_INPUT_REUSE_BIAS` (default `1.0`) — weight applied to known-good input values when generating new field writes.
 - `CHAOS_LEARNED_KEY_REUSE_BIAS` (default `1.0`) — how often the engine retries AID keys that have previously caused a transition versus exploring untried keys.
 - `CHAOS_EXPORT_SUCCESS_BALANCE` (default `1.0`) — when exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps.
@@ -148,6 +151,22 @@ Includes:
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
 Use this section to tune how aggressively chaos mode explores screens and where optional output should be written. See [Chaos Mode](chaos-mode.md) for a deeper walkthrough of the bias settings.
+
+## Settings Not Exposed in the Modal
+
+A number of `s3270` options are supported by the configuration file and
+environment variables but deliberately have no field in the Settings
+modal. Set them in `webapp/WEB-INF/3270Web-config.xml` or as environment
+variables before starting 3270Web:
+
+| Purpose | Variables |
+|---|---|
+| Startup automation | `S3270_EXEC_COMMAND`, `S3270_LOGIN_MACRO`, `S3270_HTTPD`, `S3270_MIN_VERSION` |
+| Diagnostics/tracing | `S3270_TRACE`, `S3270_TRACE_FILE`, `S3270_TRACE_FILE_SIZE` |
+| Misc | `S3270_XRM`, `S3270_SET`, `S3270_CLEAR`, `S3270_UTF8`, `S3270_COOKIE_FILE` |
+
+Use the tracing variables when troubleshooting host interaction issues,
+and the startup variables for scripted launch flows.
 
 ## UI Conveniences
 
@@ -168,6 +187,17 @@ A few quality-of-life behaviours worth knowing about:
 - **Toast notifications** — short-lived theme-aware toasts surface the
   result of background actions (save, export, error) without taking
   focus.
+- **Command palette** — ++ctrl+k++ opens a searchable list of every
+  toolbar and modal action, including controls inside collapsed Recording
+  and Chaos groups, plus one-key theme switching. See
+  [Command Palette](keyboard-and-controls.md#command-palette).
+- **Operator information area** — the status bar under the terminal
+  reports keyboard state, model, screen size and cursor position. The
+  keyboard field is colour-coded: green when unlocked, amber when the
+  host has locked input, red on an error condition.
+- **Resizable Copilot panel** — drag the panel's left edge (or focus it
+  and use ++left++/++right++) to change its width. The size is remembered
+  between sessions.
 
 ## Log Access
 
