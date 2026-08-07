@@ -1,31 +1,14 @@
 {#-
-  3270Web mark.
+  3270Web mark — the session stack.
 
-  One family, three glyphs. The bezel and screen geometry is shared verbatim
-  with the 3270.io mark and with 3270Connect's, so the three sites read as one
-  suite; only the glyph inside the screen changes:
-
-    3270.io        ›   prompt          — the platform
-    3270Connect    »   fast-forward    — replay, headless and at scale
-    3270Web        ▣   browser chrome  — the terminal in a browser tab
+  Three terminal screens stacked in depth: one session recorded, then replayed
+  many times. The plate, the stack and the lighting model are shared with
+  3270.io and the sibling product; the fan direction and the glyph on the front
+  screen are what differ (web — see docs/assets/logo.svg for the plated
+  app-icon flavour).
 
   Inlined rather than referenced through `theme.logo`, which Material renders
-  as <img>: an external SVG is its own document, so currentColor and the
-  --accent token would not reach it and the mark would not follow the palette.
+  as <img>: an external SVG is its own document, so the --accent tokens would
+  not reach it and the mark could not follow the GRN/AMB/ICE/DAY palette.
 -#}
-<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-  <!-- Bezel -->
-  <rect x="1.25" y="3.25" width="29.5" height="25.5" rx="6" fill="none"
-        stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5"/>
-  <!-- Screen -->
-  <rect x="4.5" y="6.5" width="23" height="19" rx="3.5" fill="var(--accent-soft, rgba(78,255,176,0.14))"/>
-  <!-- Browser chrome: tab-bar rule and window dots -->
-  <path d="M4.5 12h23" stroke="var(--accent, #4effb3)" stroke-opacity="0.45" stroke-width="1.25"/>
-  <circle cx="7.9" cy="9.25" r="1" fill="var(--accent, #4effb3)"/>
-  <circle cx="11.2" cy="9.25" r="1" fill="var(--accent, #4effb3)" fill-opacity="0.55"/>
-  <circle cx="14.5" cy="9.25" r="1" fill="var(--accent, #4effb3)" fill-opacity="0.35"/>
-  <!-- › — the 3270.io prompt, now inside the browser window -->
-  <path d="M9 16.5 12.25 19.4 9 22.3" stroke="var(--accent, #4effb3)" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M15 22.3h7.5" stroke="var(--accent, #4effb3)" stroke-width="2" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="16 22 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtpl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b2f4a"/><stop offset="0.55" stop-color="#04160f"/><stop offset="1" stop-color="#010806"/></linearGradient><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #9be6ff)"/><stop offset="1" stop-color="var(--accent, #5ad2ff)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="swebtgl" cx="0.22" cy="0.16" r="0.75"><stop offset="0" stop-color="var(--accent, #5ad2ff)" stop-opacity="0.22"/><stop offset="1" stop-color="var(--accent, #5ad2ff)" stop-opacity="0"/></radialGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #5ad2ff)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><circle cx="65" cy="68" r="15" fill="none" stroke="#000" stroke-width="7"/><ellipse cx="65" cy="68" rx="6.5" ry="15" fill="none" stroke="#000" stroke-width="5"/><path d="M50 68h30" stroke="#000" stroke-width="5" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="28" y="26" width="54" height="46" rx="9" fill="var(--accent, #5ad2ff)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="29" y="36" width="62" height="46" rx="10" fill="var(--accent, #5ad2ff)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
