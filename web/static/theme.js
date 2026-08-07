@@ -1013,6 +1013,31 @@
 
   }
 
+  // Public surface for other modules (the command palette switches themes
+  // without having to reach into the settings modal's <select>). Keeping
+  // the select in sync matters: settings reads its value when saving.
+  window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+  window.ThreeSeventyWeb.listThemes = function () {
+    return getAllThemes().map(function (theme) {
+      return { id: theme.id, name: theme.name };
+    });
+  };
+  window.ThreeSeventyWeb.applyTheme = function (themeId) {
+    if (!hasTheme(normalizeThemeId(themeId))) {
+      return false;
+    }
+    applyTheme(themeId);
+    var select = document.querySelector("[data-theme-select]") ||
+      document.getElementById("theme-select");
+    if (select) {
+      select.value = normalizeThemeId(themeId);
+    }
+    return true;
+  };
+  window.ThreeSeventyWeb.getCurrentTheme = function () {
+    return normalizeThemeId(getStoredTheme());
+  };
+
   document.addEventListener("DOMContentLoaded", function () {
     initChromeToggleControl();
     initThemeSelector();

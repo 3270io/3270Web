@@ -5,6 +5,11 @@
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=11">
+    <!-- ui-polish.css layers the shared design system (elevation, motion,
+         unified modal/toolbar/terminal chrome) on top of style.css. It must
+         load after style.css so its overrides win at equal specificity, and
+         before any per-theme CSS so custom themes still get the last word. -->
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=1">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -34,6 +39,7 @@
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=3" defer></script>
+    <script src="/static/ui-polish.js?v=1" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -63,6 +69,14 @@
                         <span data-eye-closed aria-hidden="true" hidden>
                             <svg viewBox="0 0 24 24" focusable="false"><path d="M3.27 2 2 3.27l3 3A11.77 11.77 0 0 0 1 12c1.38 3.56 5.75 7 11 7 2.35 0 4.54-.7 6.37-1.9l2.36 2.36L22 18.19 3.27 2zM7.4 8.67l1.53 1.53a2.5 2.5 0 0 0 3.37 3.37l1.53 1.53A4.5 4.5 0 0 1 7.4 8.67zM12 7c3.55 0 6.67 2.02 8.16 5-.5 1-1.17 1.92-1.96 2.71l1.43 1.43A11.93 11.93 0 0 0 23 12c-1.38-3.56-5.75-7-11-7-1.31 0-2.57.22-3.74.63L9.89 7.26C10.57 7.09 11.27 7 12 7z"/></svg>
                         </span>
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-button cmdk-trigger"
+                        data-command-palette-open
+                        data-tippy-content="Command palette (Ctrl+K)"
+                        aria-label="Open command palette">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
                     </button>
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
