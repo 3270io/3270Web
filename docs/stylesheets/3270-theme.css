@@ -430,6 +430,43 @@ html[data-theme='daylight'] .md-logo .t3270-plane-1 { fill-opacity: 0.55; }
 html[data-theme='daylight'] .md-logo .t3270-plane-2 { fill-opacity: 0.32; }
 html[data-theme='daylight'] .md-logo .t3270-spec { opacity: 0.35; }
 
+/* The product mark above the home page hero. Sized in the markup so it does
+   not reflow while the stylesheet loads. */
+.hero-mark {
+  margin: 0 0 1.1rem;
+  line-height: 0;
+}
+
+/* The framing in "Images" below is for screenshots. A logo on a transparent
+   ground must not pick up a border, a tile and a shadow — hence `.plain` on
+   the markup, and this rule to outrank the same framing in extra.css. */
+.md-typeset .hero-mark img,
+.hero-mark img {
+  width: 72px;
+  height: 72px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* The site name beside the mark is wrapped in a home link by 3270-theme.js.
+   It should read as the title it replaced, not as body-copy link. */
+.md-header__title .t3270-home-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.md-header__title .t3270-home-link:hover {
+  color: var(--accent);
+}
+
+.md-header__title .t3270-home-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
 /* --- Product tabs -------------------------------------------------------- */
 
 .md-tabs {
@@ -870,7 +907,7 @@ html[data-theme='daylight'] .md-logo .t3270-spec { opacity: 0.35; }
 
 /* --- Images -------------------------------------------------------------- */
 
-.md-typeset img:not(.emojione):not(.twemoji):not(.gemoji) {
+.md-typeset img:not(.emojione):not(.twemoji):not(.gemoji):not(.plain) {
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-2);
