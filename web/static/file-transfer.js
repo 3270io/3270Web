@@ -1,8 +1,8 @@
 // IND$FILE file transfer UI.
 //
-// The most-cited gap against Quick3270, PCOMM and Rumba+: getting a dataset
-// off the host into a spreadsheet, or a file up to it, without leaving the
-// terminal.
+// Getting a dataset off the host into a spreadsheet, or a file up to it,
+// without leaving the terminal. Routine work in a 3270 shop, and the most
+// frequently asked-for capability this UI was missing.
 //
 // The form is deliberately two-tier. Send/receive, host file and text-vs-
 // binary are what almost every transfer needs; record format and space

@@ -18,7 +18,7 @@
     <!-- keymap.js must load before keyboard.js: keyboard.js consults it on
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
-    <script src="/static/keymap.js?v=1" defer></script>
+    <script src="/static/keymap.js?v=2" defer></script>
     <script src="/static/keyboard.js?v=11" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
@@ -54,7 +54,7 @@
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=3" defer></script>
-    <script src="/static/ui-polish.js?v=6" defer></script>
+    <script src="/static/ui-polish.js?v=7" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>

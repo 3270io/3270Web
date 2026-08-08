@@ -5,7 +5,7 @@
 // "F1=Help  F3=Exit  F7=Bkwd  F8=Fwd", and on a real emulator those are
 // clickable. It is a small feature that gets used constantly — it is how
 // someone who does not know the keyboard drives the application at all — and
-// Quick3270, PCOMM and Rumba+ all ship it.
+// operators expect it as standard terminal behaviour.
 //
 // Detection runs on the character grid rather than the DOM, because a legend
 // is just text: it has no markup of its own to hook, and the same label can

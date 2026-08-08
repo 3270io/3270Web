@@ -17,9 +17,8 @@ import (
 
 // IND$FILE file transfer.
 //
-// The single most-cited gap against Quick3270, PCOMM and Rumba+. Getting a
-// dataset off the host into a spreadsheet, or a file up to it, is routine
-// work that otherwise means leaving 3270Web entirely.
+// Getting a dataset off the host into a spreadsheet, or a file up to it, is
+// routine work in a 3270 shop that otherwise means leaving 3270Web entirely.
 //
 // The security shape of this feature is worth stating plainly, because it is
 // the difference between a file transfer and an arbitrary file read/write on
