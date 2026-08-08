@@ -84,6 +84,7 @@
     { label: "Focus mode — fill the screen", group: "Terminal", sel: "[data-focus-toggle]", icon: "eye", hint: "Alt+Enter" },
     { label: "Find on screen", group: "Terminal", sel: "[data-find-open]", icon: "search", hint: "Ctrl+F — searches input values too" },
     { label: "Screen history", group: "Terminal", sel: "[data-history-open]", icon: "doc", hint: "Look back at earlier screens" },
+    { label: "File transfer (IND$FILE)", group: "Terminal", sel: "[data-transfer-open]", icon: "upload", hint: "Send or receive a host file" },
     { label: "Toggle hotspots", group: "Terminal", sel: "[data-hotspots-toggle]", icon: "bulb", hint: "Clickable PF labels and URLs" },
     { label: "Copy screen", group: "Terminal", sel: "[data-copy-screen]", icon: "doc", hint: "Whole screen as text" },
     { label: "Copy marked block", group: "Terminal", icon: "doc", hint: "Alt+drag marks a rectangle", run: () => runTerminal("copyBlock") },

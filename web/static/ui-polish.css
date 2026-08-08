@@ -1188,6 +1188,162 @@ body[data-focus="on"] .sample-status {
 }
 
 /* ---------------------------------------------------------------- */
+/* File transfer (IND$FILE)                                           */
+/* ---------------------------------------------------------------- */
+.transfer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.transfer-modal[hidden] { display: none; }
+
+.transfer-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.transfer-modal-content {
+  position: relative;
+  width: min(96vw, 620px);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 18px 20px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.transfer-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.transfer-modal-header h3 { margin: 0; font-size: 1.02rem; }
+
+.transfer-modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transfer-direction {
+  display: flex;
+  gap: 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+}
+
+/* Native checkboxes and radios default to the browser's blue, which reads
+   as a foreign object against every one of the terminal themes. */
+.transfer-modal input[type="radio"],
+.transfer-modal input[type="checkbox"],
+.profiles-modal input[type="checkbox"],
+.profiles-modal input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.transfer-direction label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.transfer-modal-content label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
+.transfer-modal-content input[type="text"],
+.transfer-modal-content input[type="number"],
+.transfer-modal-content input[type="file"],
+.transfer-modal-content select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.transfer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+/* Direction and mode drive which fields are relevant. Hiding the
+   irrelevant ones beats disabling them: an operator receiving a file has
+   no reason to read about record formats at all. */
+.transfer-modal[data-transfer-direction="receive"] .transfer-send-only { display: none; }
+.transfer-modal[data-transfer-mode="binary"] .transfer-ascii-only { display: none; }
+
+.transfer-advanced {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--panel-2) 35%, transparent);
+}
+
+.transfer-advanced summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.transfer-advanced > .subtle { font-size: 0.72rem; margin: 6px 0 10px; }
+
+.transfer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.transfer-status {
+  flex: 1 1 auto;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
+.transfer-status.is-error { color: var(--danger); }
+
+/* A transfer runs at 3270 data-stream speed, so the wait is real and the
+   indicator has to look alive. */
+.transfer-status.is-busy {
+  color: var(--accent);
+  animation: transfer-pulse 1.4s var(--ease-out) infinite;
+}
+
+@keyframes transfer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transfer-status.is-busy { animation: none; }
+}
+
+.transfer-note { font-size: 0.72rem; margin: 0; }
+
+/* ---------------------------------------------------------------- */
 /* Connection profiles                                                */
 /* ---------------------------------------------------------------- */
 .profiles-modal {
