@@ -323,16 +323,16 @@ func main() {
 	}()
 
 	// Bind to loopback by default on all platforms to avoid exposing the admin UI
-	// and host-connection features on the local network unintentionally.
-	// If the default port is already in use, fall back to an OS-assigned free port.
-	preferredAddr := "127.0.0.1:8080"
-	if p := strings.TrimSpace(os.Getenv("WEBUI_PORT")); p != "" {
-		preferredAddr = "127.0.0.1:" + p
-	}
+	// and host-connection features on the local network unintentionally. WEBUI_BIND
+	// overrides the interface; the Docker image sets it to 0.0.0.0 (see Dockerfile).
+	// If the default port is already in use, fall back to an OS-assigned free port
+	// on the same interface.
+	bindHost := os.Getenv("WEBUI_BIND")
+	preferredAddr := resolveListenAddr(bindHost, os.Getenv("WEBUI_PORT"))
 	ln, err := net.Listen("tcp", preferredAddr)
 	if err != nil {
 		log.Printf("Port %s unavailable (%v), falling back to OS-assigned port", preferredAddr, err)
-		ln, err = net.Listen("tcp", "127.0.0.1:0")
+		ln, err = net.Listen("tcp", resolveListenAddr(bindHost, "0"))
 		if err != nil {
 			msg := fmt.Sprintf("3270Web failed to start: could not bind to any port: %v", err)
 			log.Print(msg)
@@ -403,6 +403,38 @@ func waitForServer(addr string, timeout time.Duration) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+const (
+	// defaultBindHost is the interface the server listens on when WEBUI_BIND is
+	// unset. Loopback keeps the UI — which has no password of its own — off the
+	// local network for desktop and `go run` users.
+	//
+	// Containers must override this. A published port (`-p 3270:8080`) forwards
+	// to the container's external interface, so a loopback-only listener inside
+	// the container is unreachable from the host no matter how the ports are
+	// mapped: the connection is refused even though the container is running and
+	// its healthcheck (which curls 127.0.0.1 from inside) passes. The Dockerfile
+	// therefore sets WEBUI_BIND=0.0.0.0 and leaves exposure to the port mapping,
+	// which is where Docker users expect to control it.
+	defaultBindHost  = "127.0.0.1"
+	defaultWebUIPort = "8080"
+)
+
+// resolveListenAddr builds the TCP address to listen on from the WEBUI_BIND and
+// WEBUI_PORT values, falling back to the loopback default and port 8080 when
+// either is empty. net.JoinHostPort brackets IPv6 hosts, so WEBUI_BIND="::"
+// yields "[::]:8080".
+func resolveListenAddr(bind, port string) string {
+	bind = strings.TrimSpace(bind)
+	if bind == "" {
+		bind = defaultBindHost
+	}
+	port = strings.TrimSpace(port)
+	if port == "" {
+		port = defaultWebUIPort
+	}
+	return net.JoinHostPort(bind, port)
 }
 
 func resolveBaseDir() string {
@@ -1856,9 +1888,13 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	}
 	// A valid session is already required above. Sensitive values (e.g.
 	// S3270_KEY_PASSWORD) must never be gated on "the request came from
-	// loopback" alone: the server only ever binds to 127.0.0.1, so every
-	// request it receives is from loopback by construction — that was never
-	// a meaningful authorization signal here, only a tautology.
+	// loopback" alone. That check was worthless when the server always bound
+	// to 127.0.0.1 (every request satisfied it by construction), and it is
+	// worse than worthless now that WEBUI_BIND can expose other interfaces:
+	// behind Docker's port forwarding the peer address is the bridge gateway,
+	// so a loopback test would either pass for every remote client or fail for
+	// every one, depending on the network mode. The session check is the real
+	// authorization signal.
 	includeSensitive := c.Query("includeSensitive") == "true"
 	switch c.Request.Method {
 	case http.MethodGet:
@@ -1873,8 +1909,9 @@ func (app *App) SettingsHandler(c *gin.Context) {
 // hasSession reports whether the request carries a valid session cookie.
 // The session ID is a 128-bit crypto/rand value (see session.generateID),
 // so this is a real authorization signal — unlike the loopback check this
-// used to be OR'd with, which was always true for every request this server
-// ever receives (it only binds to 127.0.0.1) and therefore gated nothing.
+// used to be OR'd with, which gated nothing: it was always true back when the
+// server only ever bound to 127.0.0.1, and it is not a trustworthy signal now
+// that WEBUI_BIND can put the listener on another interface.
 func (app *App) hasSession(c *gin.Context) bool {
 	return app.getSession(c) != nil
 }

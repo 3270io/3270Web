@@ -177,6 +177,24 @@ The image is published multi-arch (`linux/amd64`, `linux/arm64`) to
 runs as a non-root `app` user, and exposes a `GET /healthz` liveness endpoint that the
 container's `HEALTHCHECK` polls.
 
+### Listen address
+
+| Variable | Default | |
+|---|---|---|
+| `WEBUI_BIND` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Interface to listen on |
+| `WEBUI_PORT` | `8080` | Port to listen on |
+
+Outside a container the server binds to loopback, so the UI — which has no
+password of its own — is not published to your local network by default.
+
+The Docker image sets `WEBUI_BIND=0.0.0.0`, because a published port forwards to
+the container's *external* interface: a loopback-only listener inside the
+container refuses every connection from the host while the container still
+reports healthy (its `HEALTHCHECK` curls `127.0.0.1` from inside). Control
+exposure with the port mapping instead — `-p 127.0.0.1:8080:8080` keeps it on
+the host's loopback, `-p 8080:8080` publishes it on every interface. Do not set
+`WEBUI_BIND=127.0.0.1` in a container; nothing outside will be able to reach it.
+
 ## Docker Compose
 
 The repo ships a [`docker-compose.yml`](docker-compose.yml) that builds from
