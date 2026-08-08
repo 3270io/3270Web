@@ -38,7 +38,7 @@ You can also use:
 4. **Recording** — expand the recording and playback group
 5. **Chaos** — expand the chaos exploration group
 6. **Command palette** — search every action (++ctrl+k++)
-7. **Copilot chat** — show or hide the AI side panel
+7. **AI chat** — show or hide the AI side panel
 8. **Settings** — open the settings modal
 9. **Workspace mode** — switch between Business and Engineering
 
@@ -206,7 +206,7 @@ A few quality-of-life behaviours worth knowing about:
   reports keyboard state, model, screen size and cursor position. The
   keyboard field is colour-coded: green when unlocked, amber when the
   host has locked input, red on an error condition.
-- **Resizable Copilot panel** — drag the panel's left edge (or focus it
+- **Resizable AI chat panel** — drag the panel's left edge (or focus it
   and use ++left++/++right++) to change its width. The size is remembered
   between sessions.
 
