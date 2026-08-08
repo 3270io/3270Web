@@ -160,3 +160,21 @@ func ParseMode(value string) (Mode, error) {
 		return "", fmt.Errorf("unsupported %s %q (supported: %s, %s)", ModeEnv, value, ModeNone, ModeLocal)
 	}
 }
+
+// ServiceUserID is the principal behind the instance-wide API token.
+//
+// The token is a single credential shared by every automated client, so it
+// does not identify a person and cannot be scoped to one person's sessions.
+// Naming it here keeps that fact visible in logs and in the authorization
+// rules, rather than leaving API callers indistinguishable from a browser.
+const ServiceUserID = "api-token"
+
+// Service returns the principal for a caller holding the instance-wide API
+// token.
+func Service() Principal {
+	return Principal{
+		UserID: ServiceUserID,
+		Role:   RoleAdmin,
+		Kind:   KindAPIToken,
+	}
+}

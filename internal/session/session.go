@@ -428,3 +428,11 @@ func (s *Session) Unlock() {
 	}
 	s.mu.Unlock()
 }
+
+// Count reports how many sessions exist, owned or not. Used for the
+// instance-wide cap on concurrent s3270 subprocesses.
+func (m *Manager) Count() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions)
+}

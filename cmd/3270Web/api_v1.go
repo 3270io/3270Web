@@ -11,6 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/authz"
+
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
@@ -92,15 +94,20 @@ func registerAPIv1Preflight(r *gin.Engine) {
 	}
 }
 
-// APISessionScope resolves the :id path parameter and presents it to the
-// handler downstream as the session cookie those handlers already read.
+// APISessionScope resolves the :id path parameter and points the handlers
+// downstream at that session.
 //
-// app.getSession reads exactly one thing — the 3270Web_session cookie — so
-// naming the session in the path is enough to serve the entire interactive
-// surface to token-authenticated, browser-free clients without forking a
-// second copy of every handler. SessionManager.GetSession also refreshes
-// LastAccess, so a conversation that stays busy keeps its session out of the
-// idle reaper's way for free.
+// app.getSession reads one session per request, so naming the session in the
+// path is enough to serve the entire interactive surface to
+// token-authenticated, browser-free clients without forking a second copy of
+// every handler. SessionManager.GetSession also refreshes LastAccess, so a
+// conversation that stays busy keeps its session out of the idle reaper's way
+// for free.
+//
+// The scoped ID is set on the request context rather than appended as a
+// cookie. Appending meant a client that sent both a cookie and a path
+// parameter had the path validated here and the cookie used downstream —
+// the check and the effect could disagree about which session was in play.
 func (app *App) APISessionScope() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -108,11 +115,18 @@ func (app *App) APISessionScope() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
 			return
 		}
-		if _, ok := app.SessionManager.GetSession(id); !ok {
+		s, ok := app.SessionManager.GetSession(id)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "session not found"})
 			return
 		}
-		c.Request.AddCookie(&http.Cookie{Name: sessionCookieName, Value: id})
+		// Same answer for "no such session" and "not yours", so a caller
+		// cannot use the difference to discover which IDs are real.
+		if !app.mayUseSession(c, s) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			return
+		}
+		scopeToSession(c, id)
 		c.Next()
 	}
 }
@@ -220,6 +234,11 @@ func (app *App) RequireAPIToken() gin.HandlerFunc {
 			})
 			return
 		}
+		// Replace whatever Authenticate resolved with the service principal.
+		// A token holder is not a browser: under AUTH_MODE=local it carries no
+		// login cookie, so it would otherwise still be anonymous here and the
+		// ownership check would refuse every session it named.
+		c.Set(principalContextKey, authz.Service())
 		c.Next()
 	}
 }
@@ -238,15 +257,28 @@ func (app *App) apiSessionFromPath(c *gin.Context) (*session.Session, bool) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return nil, false
 	}
+	// The flat /sessions/:id/* routes resolve here rather than through
+	// APISessionScope, so the ownership check has to be repeated. Same answer
+	// for "no such session" and "not yours".
+	if !app.mayUseSession(c, s) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return nil, false
+	}
 	return s, true
 }
 
-// APIListSessions returns a snapshot of all active sessions.
+// APIListSessions returns a snapshot of the sessions the caller may use.
+//
+// Today that is every session, because the API token is one instance-wide
+// credential and the service principal it resolves to is unconfined. Filtering
+// through the same predicate the rest of the surface uses means this narrows
+// on its own once tokens belong to individual users, rather than staying an
+// enumeration of everyone's sessions that somebody has to remember to fix.
 func (app *App) APIListSessions(c *gin.Context) {
 	sessions := app.SessionManager.ListSessions()
 	out := make([]gin.H, 0, len(sessions))
 	for _, s := range sessions {
-		if s == nil {
+		if s == nil || !app.mayUseSession(c, s) {
 			continue
 		}
 		s.Lock()

@@ -41,10 +41,15 @@ func (app *App) Authenticate() gin.HandlerFunc {
 // downstream check runs the same code it will run once modes that do
 // authenticate exist.
 func (app *App) resolvePrincipal(c *gin.Context) authz.Principal {
-	switch app.authMode {
-	case authz.ModeNone:
+	// Asked through the same predicate the session rules use, so the two
+	// cannot disagree about what a given mode means. They did briefly: an App
+	// built without buildRouter counted as single-operator for ownership and
+	// as anonymous here, which denied its own sessions.
+	if !app.separatesUsers() {
 		return authz.Local()
+	}
 
+	switch app.authMode {
 	case authz.ModeLocal:
 		id := getCookieValue(c, authCookieName)
 		if id == "" {
