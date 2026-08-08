@@ -50,7 +50,7 @@ in English, and the load-test workload — not four separate projects.
 - Record sessions to workflow.json, compatible with 3270Connect (Connect/FillString/Press keys/Disconnect)
 - Load workflow.json and play it back
 - Chaos mode for automated exploration, run persistence, and workflow JSON export
-- AI Chat side panel — type instructions in plain language to read screens, fill fields, send keys, and run automated exploration (GitHub Copilot / Claude), with a model selector dropdown in the panel header
+- AI Chat side panel — type instructions in plain language to read screens, fill fields, send keys, and run automated exploration, backed by your choice of GitHub Copilot, Claude, OpenAI, Google AI, Ollama (local or cloud), or any OpenAI-compatible endpoint
 - Host Compatibility Profiler at `POST /profile` and `POST /api/v1/sessions/:id/profile` — produces a `CompatibilityProfile` JSON document with the same schema as `3270Connect -profile` ([docs/host-profiler.md](docs/host-profiler.md))
 - Chaos Mind-Map Compare at `POST /chaos/mindmap/compare` — diffs two exported mind maps for migration-readiness checks across hosts ([docs/chaos-compare.md](docs/chaos-compare.md))
 - Three bundled IBM 3270-style terminal fonts (Regular, Semi-Condensed, Condensed) selectable from Settings ([docs/terminal-fonts.md](docs/terminal-fonts.md))
@@ -266,7 +266,7 @@ Recent additions:
 - **Structural mind-map dedup** — screens that differ only by echoed protected text collapse into one area. Set `dedup_mode: "exact"` for the previous raw-hash behaviour.
 - **chaos_report tool** — `POST /chaos/report` returns a Markdown discovery report (ASCII screen graph, per-screen stats, suggested experiments).
 - **Mind-map export/import** — `GET /chaos/mindmap/export` and `POST /chaos/mindmap/import` let learning carry across sessions.
-- **Verbose flag on chaos_status** — pass `?verbose=true` (or `{verbose: true}` to the Copilot tool) for the full mind map; default is a slim summary.
+- **Verbose flag on chaos_status** — pass `?verbose=true` (or `{verbose: true}` to the AI chat tool) for the full mind map; default is a slim summary.
 - **JSONL transition log** — set `transition_log_path` (or `CHAOS_TRANSITION_LOG_PATH` env var) and chaos appends one JSON object per attempt to the file.
 - **Snake_case + camelCase** — every chaos tool body now binds both forms, so the documented snake_case keys (`screen_hash`, `max_steps`, etc.) work directly without manual translation.
 
@@ -321,8 +321,8 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 ### Getting started
 
 1. Connect to a host.
-2. Click the **Open Copilot chat** toolbar button.
-3. Sign in with GitHub (one-time OAuth device flow — copy a code, visit the verification URL, approve).
+2. Click the **Open AI chat** toolbar button.
+3. Click **Provider** in the panel header and pick your AI: sign in to GitHub Copilot, or paste an API key for Claude, OpenAI, Google AI or Ollama Cloud, or point 3270Web at a local Ollama / OpenAI-compatible endpoint.
 4. Type a message, for example: *"Read the current screen and tell me what options are available."*
 5. Click **Run** to approve each proposed tool call, or enable **Auto Mode** to let the AI proceed automatically.
 
@@ -335,9 +335,9 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 - Export learned navigation paths as 3270Connect-compatible workflow JSON
 - Ask you questions with clickable answer buttons (`ask_user` tool)
 
-The model selector dropdown lets you switch between available Copilot models (default: Claude Opus 4). The choice persists across page reloads.
+The model selector above the input box lists the models your selected provider offers; each provider remembers its own choice, and both survive a page reload.
 
-See [AI Chat Mode](docs/ai-chat.md) for full details.
+See [AI Chat Mode](docs/ai-chat.md) for full details, and [AI Providers](docs/ai-providers.md) for per-provider setup.
 
 ## Host Compatibility Profiler
 

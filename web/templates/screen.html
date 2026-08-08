@@ -53,8 +53,11 @@
     <script src="/static/print-screen.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
     <script src="/static/copilot-auth.js" defer></script>
+    <!-- Loads before copilot-panel.js: the panel calls window.AIProvider at
+         init to render whichever backend is selected. -->
+    <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=3" defer></script>
+    <script src="/static/copilot-panel.js?v=4" defer></script>
     <script src="/static/ui-polish.js?v=8" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
@@ -118,7 +121,7 @@
                     </button>
                     <button type="button" data-profiles-open data-tippy-content="Connection profiles">Profiles</button>
                     <button type="button" data-about-open>About</button>
-                    <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
+                    <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open AI chat" aria-label="Open AI chat">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                     </button>
                     <!-- Keyboard mapping sits beside Settings and Profiles
@@ -895,33 +898,33 @@ Select = Enter"></textarea>
             </div>
         </div>
     </div>
-    <aside id="copilot-panel" class="copilot-panel" hidden aria-label="Copilot chat panel">
+    <aside id="copilot-panel" class="copilot-panel" hidden aria-label="AI chat panel">
         <header class="copilot-panel-header">
-            <span class="copilot-panel-title">Copilot</span>
+            <span class="copilot-panel-title">AI Chat</span>
             <div class="copilot-panel-header-actions">
                 <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Toggle auto-run mode" title="Auto Mode: run tools without approval">Auto</button>
+                <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
                 <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
-                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of Copilot" aria-label="Sign out of Copilot" hidden>Sign out</button>
-                <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close Copilot panel">&times;</button>
+                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of the current AI provider" aria-label="Sign out of the current AI provider" hidden>Sign out</button>
+                <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close AI chat panel">&times;</button>
             </div>
         </header>
         <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="polite"></div>
         <div class="copilot-connect-prompt" data-copilot-connect-prompt hidden>
-            <p class="copilot-connect-text">Sign in to GitHub Copilot to start chatting.</p>
-            <button type="button" class="copilot-connect-btn" data-copilot-connect>Connect to Copilot</button>
+            <p class="copilot-connect-text" data-copilot-connect-text>Choose an AI provider to start chatting.</p>
+            <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
         </div>
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
-            <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model">
-                <option value="claude-sonnet-4.6">claude-sonnet-4.6</option>
-            </select>
+            <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model"></select>
+            <span class="copilot-provider-name" data-copilot-provider-name></span>
         </div>
         <form class="copilot-panel-form" data-copilot-form>
             <textarea
                 rows="2"
-                placeholder="Ask Copilot about the screen, or tell it what to do…"
+                placeholder="Ask about the screen, or say what to do…"
                 data-copilot-input
-                aria-label="Message Copilot"></textarea>
+                aria-label="Message the AI assistant"></textarea>
             <button type="submit" class="copilot-send" aria-label="Send message" data-copilot-send>Send</button>
             <button type="button" class="copilot-stop" aria-label="Stop Copilot" data-copilot-stop hidden>Stop</button>
         </form>
@@ -933,7 +936,7 @@ Select = Enter"></textarea>
                 <h3 id="copilot-clear-modal-title">Clear chat history</h3>
                 <button type="button" class="modal-close" data-copilot-clear-cancel>Close</button>
             </div>
-            <p id="copilot-clear-modal-desc">Are you sure you want to clear the Copilot chat history? This cannot be undone.</p>
+            <p id="copilot-clear-modal-desc">Are you sure you want to clear the AI chat history? This cannot be undone.</p>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
                 <button type="button" class="danger" data-copilot-clear-confirm>Clear history</button>

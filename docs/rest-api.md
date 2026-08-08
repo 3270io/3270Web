@@ -207,6 +207,38 @@ that already drive 3270Web through the cookie.
 | `POST` | `/chaos/business/functions` | Upsert a business function. Body: `{"name", "description", "entry_screen_hash", "steps": [{"screen_hash", "inputs": [{"field_key", "value", "parameter"}], "aid_key", "expect_hash"}], "parameters": [{"name", "description", "screen_hash", "field_key", "example", "required"}]}`. |
 | `POST` | `/chaos/business/generate-workflow` | Generate a business-focused workflow JSON from a cataloged function. Body: `{"name", "parameters": {"param": "value"}, "host", "port"}`. Returns a playback-compatible workflow document with `Name`/`Description`/`BusinessFunction`/`Parameters` metadata. |
 
+## AI provider
+
+These endpoints configure which AI service [AI Chat Mode](ai-chat.md) talks
+to. Like the browser-session endpoints above, they use a cookie rather than
+`API_TOKEN` — settings are scoped to one browser identity (`3270Web_copilot_id`),
+so a shared instance keeps each person's credentials to themselves. See
+[AI Providers](ai-providers.md) for the concepts.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/ai/providers` | The provider catalogue (id, label, auth style, default endpoint, fallback model list) plus the caller's saved settings. |
+| `GET` | `/api/ai/status` | Whether the selected provider can answer a chat: `{"provider", "providerLabel", "auth", "ready", "needs", "model", "baseUrl"}`. `needs` is `login` (Copilot sign-in required), `config` (key or endpoint missing), or empty. |
+| `GET` | `/api/ai/config` | Saved settings, per provider: `{"provider", "providers": {"<id>": {"baseUrl", "model", "hasKey"}}}`. **API keys are never returned** — only `hasKey`. |
+| `POST` | `/api/ai/config` | Save settings. Body: `{"provider", "target", "baseUrl", "apiKey", "model"}`. Omitted fields keep their stored value, so a model change does not clear the key; an explicit `"apiKey": ""` clears it. `target` names the provider the other fields apply to (defaults to `provider`). |
+| `POST` | `/api/ai/forget` | Clear the credentials for one provider. Body: `{"provider"}` (defaults to the selected one). For Copilot this also performs the OAuth logout. |
+| `GET` | `/api/ai/models` | Model IDs available from the selected provider, fetched live where possible and falling back to the built-in list otherwise. |
+| `GET` | `/api/ai/tools` | The tool schema and system prompt handed to the model. Identical for every provider — the tools describe the 3270 session, not the backend. |
+| `POST` | `/api/ai/chat` | Streaming chat proxy. Takes an OpenAI-shaped `/chat/completions` body and returns OpenAI-shaped SSE chunks, whichever provider is selected — Anthropic's Messages protocol is translated in both directions. |
+
+```bash
+# Point AI Chat at a local Ollama and confirm it is usable
+curl -X POST http://127.0.0.1:8080/api/ai/config \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"ollama","baseUrl":"http://localhost:11434/v1","model":"qwen3"}'
+
+curl http://127.0.0.1:8080/api/ai/status
+```
+
+The GitHub-specific `/api/copilot/*` routes (`status`, `login/start`,
+`login/poll`, `logout`, `enterprise`) are unchanged and still drive the OAuth
+device flow.
+
 ## System endpoints
 
 Unauthenticated and not session-scoped — intended for liveness/readiness probes.

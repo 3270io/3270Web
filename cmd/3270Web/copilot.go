@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/aiprovider"
 	"github.com/jnnngs/3270Web/internal/chaos"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
@@ -30,6 +31,15 @@ func (app *App) initCopilot(r *gin.Engine) {
 	}
 	app.copilotAuthStore = copilot.NewAuthStore(filepath.Dir(authPath))
 	copilot.NewHandlers(app.copilotAuthStore).Register(r)
+
+	// Provider selection (Claude, OpenAI, Ollama, Google AI, any
+	// OpenAI-compatible endpoint, ...) lives one layer above Copilot: it
+	// stores per-browser credentials and proxies chat to whichever backend is
+	// selected, delegating back to internal/copilot when that backend is
+	// Copilot itself. The /api/copilot/* routes above stay for the OAuth
+	// device flow and for backwards compatibility.
+	app.aiConfigStore = aiprovider.NewConfigStore(filepath.Dir(authPath))
+	aiprovider.NewHandlers(app.aiConfigStore, app.copilotAuthStore).Register(r)
 
 	// Tool-supporting endpoints for the get_screen / send_key / write_field
 	// / submit_screen tools. These wrap host.* calls in JSON so the

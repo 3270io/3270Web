@@ -64,7 +64,7 @@ workflow recording do the heavy lifting.
 
     ---
 
-    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto Mode** to let it run hands-free.
+    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto Mode** to let it run hands-free. Bring your own AI: GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint.
 
     [:octicons-arrow-right-24: AI Chat Mode](ai-chat.md)
 
@@ -146,8 +146,8 @@ workflow recording do the heavy lifting.
 </figure>
 
 <figure markdown>
-  ![Copilot side panel](images/copilot-panel.png)
-  <figcaption>The AI chat panel, ready to sign in. Drag its edge to resize.</figcaption>
+  ![AI chat side panel](images/copilot-panel.png)
+  <figcaption>The AI chat panel, ready to connect a provider. Drag its edge to resize.</figcaption>
 </figure>
 
 <figure markdown>
@@ -183,7 +183,8 @@ workflow recording do the heavy lifting.
 | [Connect and Use 3270Web](configuration.md) | Host configuration, startup options, UI tour |
 | [Recordings and Playback](workflow.md) | Record, load, play, debug, and export workflows |
 | [Chaos Mode](chaos-mode.md) | Automated screen exploration and load-test export |
-| [AI Chat Mode](ai-chat.md) | Conversational session control via GitHub Copilot |
+| [AI Chat Mode](ai-chat.md) | Conversational session control |
+| [AI Providers](ai-providers.md) | Point AI Chat at Copilot, Claude, OpenAI, Google AI, Ollama, or your own endpoint |
 | [Keyboard and Controls](keyboard-and-controls.md) | Full keyboard shortcut reference |
 | [Screen Size and Model Guide](terminal-model-limits.md) | 3270 model limits and field size rules |
 | [REST API](rest-api.md) | Endpoint reference for scripting and CI |
