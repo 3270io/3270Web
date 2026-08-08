@@ -263,7 +263,7 @@ func TestSettingsSnapshot_ChaosDefaultsWhenMissing(t *testing.T) {
 	}
 
 	app := &App{envPath: envPath}
-	settings, _, err := app.settingsSnapshot(true)
+	settings, _, err := app.settingsSnapshot()
 	if err != nil {
 		t.Fatalf("settingsSnapshot failed: %v", err)
 	}

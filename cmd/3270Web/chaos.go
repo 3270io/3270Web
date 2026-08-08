@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/3270Web/internal/chaos"
+	"github.com/jnnngs/3270Web/internal/safepath"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -498,7 +499,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 	}
 	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
-	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
+	app.confineChaosPaths(&cfg, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
 		cfg.ExportPort = s.TargetPort
@@ -798,7 +799,7 @@ func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
 	if app == nil || cfg == nil {
 		return
 	}
-	settings, _, err := app.settingsSnapshot(true)
+	settings, _, err := app.settingsSnapshot()
 	if err != nil {
 		return
 	}
@@ -872,7 +873,7 @@ func (app *App) chaosExportSuccessBalanceSetting() float64 {
 	if app == nil {
 		return defaultBalance
 	}
-	settings, _, err := app.settingsSnapshot(true)
+	settings, _, err := app.settingsSnapshot()
 	if err != nil {
 		return defaultBalance
 	}
@@ -1175,7 +1176,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		cfg.MaxSteps = loaded.StepsRun + cfg.MaxSteps
 	}
 	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
-	cfg.OutputFile = safeChaosOutputFilePath(cfg.OutputFile, loadedWorkflowName(s))
+	app.confineChaosPaths(&cfg, loadedWorkflowName(s))
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
 		cfg.ExportPort = s.TargetPort
@@ -2315,26 +2316,75 @@ func buildChaosSeedMindMap(steps []session.WorkflowStep) *chaos.MindMap {
 	return mindMap
 }
 
-func safeChaosOutputFilePath(outputPath, loadedWorkflowFileName string) string {
-	outputPath = strings.TrimSpace(outputPath)
+// defaultChaosOutputName is used when a caller supplies a name with no usable
+// characters left after sanitising. It must itself be a valid safepath name.
+const defaultChaosOutputName = "chaos-workflow.json"
+
+// confineChaosPaths rewrites the engine's two writable paths so they land
+// inside the chaos runs directory, whatever the caller asked for.
+//
+// Both OutputFile and TransitionLogPath used to be taken as literal
+// filesystem paths straight from the request body (and from CHAOS_OUTPUT_FILE
+// / CHAOS_TRANSITION_LOG_PATH, which the settings API can write). The engine
+// calls os.MkdirAll on the parent before writing, and the transition log is
+// opened O_APPEND, so between them they were an arbitrary file create and an
+// arbitrary append for anyone who could reach POST /chaos/start.
+//
+// These are now names, not paths: a caller chooses what the file is called and
+// the server decides where it goes, which is the same rule the IND$FILE
+// transfer code follows. Operators who need the artefacts elsewhere should
+// mount the runs directory where they want it rather than pointing the app at
+// an arbitrary location.
+func (app *App) confineChaosPaths(cfg *chaos.Config, loadedWorkflowFileName string) {
+	cfg.OutputFile = confineChaosFilePath(app.chaosRunsDir, cfg.OutputFile, loadedWorkflowFileName)
+	cfg.TransitionLogPath = confineChaosFilePath(app.chaosRunsDir, cfg.TransitionLogPath, "")
+}
+
+// confineChaosFilePath resolves requested to a file inside baseDir.
+//
+// An empty request stays empty — that is how the engine is told not to write
+// the artefact at all, and turning "off" into a default path would create
+// files nobody asked for.
+func confineChaosFilePath(baseDir, requested, loadedWorkflowFileName string) string {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return ""
+	}
+	if strings.TrimSpace(baseDir) == "" {
+		// No runs directory configured means there is nowhere safe to put the
+		// file, so decline to write rather than falling back to the caller's path.
+		return ""
+	}
+
+	name := safepath.SanitizeName(requested, defaultChaosOutputName)
+	name = avoidWorkflowNameCollision(name, loadedWorkflowFileName)
+
+	path, err := safepath.Join(baseDir, name)
+	if err != nil {
+		// SanitizeName guarantees a valid name, so this is unreachable short of
+		// a bug in safepath. Fail closed.
+		return ""
+	}
+	return path
+}
+
+// avoidWorkflowNameCollision keeps a chaos export from overwriting the
+// workflow file the session already has loaded, by appending "-chaos" to the
+// stem when the two names match.
+func avoidWorkflowNameCollision(name, loadedWorkflowFileName string) string {
 	loadedWorkflowFileName = strings.TrimSpace(loadedWorkflowFileName)
-	if outputPath == "" || loadedWorkflowFileName == "" {
-		return outputPath
+	if loadedWorkflowFileName == "" {
+		return name
 	}
-
-	outputBase := filepath.Base(filepath.Clean(outputPath))
 	workflowBase := filepath.Base(filepath.Clean(loadedWorkflowFileName))
-	if outputBase == "" || workflowBase == "" {
-		return outputPath
-	}
-	if !strings.EqualFold(outputBase, workflowBase) {
-		return outputPath
+	if workflowBase == "" || !strings.EqualFold(name, workflowBase) {
+		return name
 	}
 
-	ext := filepath.Ext(outputBase)
-	stem := strings.TrimSuffix(outputBase, ext)
+	ext := filepath.Ext(name)
+	stem := strings.TrimSuffix(name, ext)
 	if strings.HasSuffix(strings.ToLower(stem), "-chaos") {
-		return outputPath
+		return name
 	}
 	if stem == "" {
 		stem = "chaos-workflow"
@@ -2342,5 +2392,5 @@ func safeChaosOutputFilePath(outputPath, loadedWorkflowFileName string) string {
 	if ext == "" {
 		ext = ".json"
 	}
-	return filepath.Join(filepath.Dir(outputPath), stem+"-chaos"+ext)
+	return stem + "-chaos" + ext
 }
