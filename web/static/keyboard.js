@@ -613,7 +613,8 @@
       "[data-chaos-confirm-modal]",
       "[data-modal]",
       "[data-copilot-clear-modal]",
-      "[data-copilot-modal]"
+      "[data-copilot-modal]",
+      "[data-history-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);

@@ -14,14 +14,17 @@ they produce a different priority order.
     This is an analysis document. Every claim below is traceable to a
     specific file and line in the repository as of the audit date.
 
-!!! success "Phase 1 is shipped"
-    The six Phase 1 items are implemented — local cursor navigation, a
+!!! success "Phase 1 is shipped; Phase 2 is under way"
+    All six Phase 1 items are implemented — local cursor navigation, a
     real OIA, reconnect, screen and block copy, workspace modes, and
-    3270 field semantics. Section 3 and section 5 describe the state
-    that motivated them and are kept as the rationale; each finding now
-    carries a note on how it was resolved. See
-    [Keyboard and Controls](keyboard-and-controls.md) for the resulting
-    behaviour, and [Phase 1 outcome](#9-phase-1-outcome) below.
+    3270 field semantics. Three Phase 2 items have followed: hotspots,
+    find on screen, and screen history.
+
+    Section 3 and section 5 describe the state that motivated the work
+    and are kept as the rationale; each finding carries a note on how it
+    was resolved. See [Keyboard and Controls](keyboard-and-controls.md)
+    for the resulting behaviour, and [Phase 1 outcome](#9-phase-1-outcome)
+    below.
 
 ---
 
@@ -452,17 +455,17 @@ Rough sizing; sequence matters more than the estimates.
 | 5 | Business / Engineering mode toggle; terminal ops in the palette | S |
 | 6 | Numeric field enforcement; insert-mode toggle; type-ahead buffer | M |
 
-### Phase 2 — Table stakes (~6 weeks)
+### Phase 2 — Table stakes (partly shipped)
 
-| # | Item | Size |
-|---|---|---|
-| 7 | Multiple concurrent sessions with tabs | L |
-| 8 | Server-side connection profiles: TLS, LU, model, codepage per profile | M |
-| 9 | IND$FILE via s3270 `Transfer()` | M |
-| 10 | Hotspots — clickable PF labels and URLs | S |
-| 11 | Screen history / scrollback | M |
-| 12 | Find on screen | S |
-| 13 | Keyboard remapping UI, with PCOMM keymap import | M |
+| # | Item | Size | |
+|---|---|---|---|
+| 7 | Multiple concurrent sessions with tabs | L | |
+| 8 | Server-side connection profiles: TLS, LU, model, codepage per profile | M | |
+| 9 | IND$FILE via s3270 `Transfer()` | M | |
+| 10 | Hotspots — clickable PF labels and URLs | S | ✅ |
+| 11 | Screen history / scrollback | M | ✅ |
+| 12 | Find on screen | S | ✅ |
+| 13 | Keyboard remapping UI, with PCOMM keymap import | M | |
 
 ### Phase 3 — Guided Business Tasks (~6 weeks)
 
@@ -515,6 +518,26 @@ Neither was in scope; both were real.
 - **The OIA bar was `aria-live`.** It carries the cursor position, so a
   screen reader announced row and column on every keystroke. Only the
   inhibit explanation is announced now.
+
+### Phase 2 so far
+
+Three of the seven Phase 2 items are done, all of them screen tools that
+are independent of the session model:
+
+| # | Item | Outcome |
+|---|---|---|
+| 10 | Hotspots | PF/PA labels and URLs on screen are clickable. Never placed over an input field, and only real key ranges are recognised, so a screen full of numbers does not sprout dead controls. |
+| 11 | Screen history | Last 50 screens per session, kept as text, browsable read-only. Consecutive duplicates collapse, so it records what was seen rather than how often the client polled. |
+| 12 | Find on screen | Ctrl+F over the character grid, so it matches input values and text straddling field boundaries — both invisible to the browser's own find. Stepping onto a match in a field moves the 3270 cursor there. |
+
+The three share a new `screen-grid.js` that owns the character grid and
+the cell geometry; whole-screen and block copy were moved onto it too.
+
+**Still open in Phase 2:** concurrent session tabs, server-side
+connection profiles, IND$FILE, and the keyboard remapping UI. The first
+of those is a refactor rather than a feature — `session.Session` holds a
+single `Host` — and is worth doing before the remaining items rather
+than after.
 
 ### Known deviations
 
