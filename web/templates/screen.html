@@ -15,6 +15,9 @@
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=18">
+    <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
+         unless the page was asked for with ?embed=1. See docs/embedding.md. -->
+    <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -65,8 +68,12 @@
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=4" defer></script>
     <script src="/static/ui-polish.js?v=10" defer></script>
+    <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
+         all unless this page is framed AND EMBED_ORIGINS names the framing
+         origin. See web/static/embed.js. -->
+    <script src="/static/embed.js?v=1" defer></script>
 </head>
-<body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
+<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
     <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>

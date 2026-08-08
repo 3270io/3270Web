@@ -289,6 +289,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
+	r.GET("/embed/config", app.EmbedConfigHandler)
 	r.GET("/host/query", app.HostQueryHandler)
 	r.GET("/host/toggles", app.HostTogglesHandler)
 	r.POST("/host/toggles", app.HostToggleSetHandler)
@@ -858,7 +859,10 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 	} else {
 		themesJSON = string(encoded)
 	}
+	rememberEmbedMode(c)
 	c.HTML(status, "connect.html", gin.H{
+		"Embedded":     embedRequested(c),
+		"EmbedOrigins": embedOriginsAttr(),
 		"DefaultHost":  defaultHost,
 		"SampleApps":   availableSampleApps(),
 		"SamplePorts":  samplePorts,
@@ -1103,7 +1107,10 @@ func (app *App) ScreenHandler(c *gin.Context) {
 			}
 		}
 	}
+	rememberEmbedMode(c)
 	c.HTML(http.StatusOK, "screen.html", gin.H{
+		"Embedded":                embedRequested(c),
+		"EmbedOrigins":            embedOriginsAttr(),
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
 		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
@@ -3579,8 +3586,8 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func setSessionCookie(c *gin.Context, name, value string) {
-	secure := c.Request.TLS != nil
-	c.SetSameSite(http.SameSiteLaxMode)
+	sameSite, secure := sessionCookieSameSite(c)
+	c.SetSameSite(sameSite)
 	maxAge := 3600
 	if value == "" {
 		maxAge = -1
@@ -3782,10 +3789,18 @@ func MaxBodySizeMiddleware(maxBytes int64) gin.HandlerFunc {
 
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Frame-Options", "SAMEORIGIN")
+		// X-Frame-Options cannot express "these three origins" — it has
+		// SAMEORIGIN and nothing else — and a browser that honours both headers
+		// applies whichever refuses. So when embedding is configured the
+		// allowlist is stated once, in frame-ancestors, and X-Frame-Options is
+		// left off rather than set to something that would contradict it.
+		// Without embedding, both are sent, exactly as before.
+		if !embeddingEnabled() {
+			c.Header("X-Frame-Options", "SAMEORIGIN")
+		}
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;")
+		c.Header("Content-Security-Policy", baseCSP+" "+frameAncestors())
 		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		c.Next()
 	}

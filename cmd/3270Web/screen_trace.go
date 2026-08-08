@@ -65,8 +65,11 @@ type screenTrace struct {
 	File      string    `json:"file"`
 	Format    string    `json:"format"`
 	StartedAt time.Time `json:"started_at"`
-	StoppedAt time.Time `json:"stopped_at,omitempty"`
-	Running   bool      `json:"running"`
+	// A pointer so a running trace reports no stop time at all. A zero
+	// time.Time is not "empty" to the JSON encoder, so the value type would
+	// have put year 1 in the field of every trace still running.
+	StoppedAt *time.Time `json:"stopped_at,omitempty"`
+	Running   bool       `json:"running"`
 }
 
 // screenTraceStore holds at most one trace per session. One is the right
@@ -112,7 +115,8 @@ func (s *screenTraceStore) end(sessionID string) (screenTrace, bool) {
 		return screenTrace{}, false
 	}
 	t.Running = false
-	t.StoppedAt = time.Now()
+	now := time.Now()
+	t.StoppedAt = &now
 	return *t, true
 }
 
