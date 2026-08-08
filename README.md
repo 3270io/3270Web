@@ -1,9 +1,46 @@
-# 3270Web
+<img src="brand/3270web-lockup-600.png" alt="3270Web" width="320">
 
-Web-based 3270 terminal interface in Go with session recording to a 3270Connect-compatible workflow.
+**An enterprise-grade IBM 3270 terminal that runs in the browser — and understands
+the application behind it.**
+
+3270Web puts a full TN3270 terminal on any browser tab: no emulator install, no
+thick client, no desktop rollout. That is the floor, not the point. On top of the
+terminal sit three capabilities that a terminal emulator does not have:
+
+| | |
+|---|---|
+| **Discover the application** | Point AI auto-navigation at a host and let it explore. It drives the screens itself, maps every screen and transition into a navigable graph, and annotates what each screen and field is *for* — cataloguing named business functions like "Account inquiry" or "Post a payment" as it goes. Undocumented green-screen estates map themselves. |
+| **Run the business in natural language** | Once discovered, the application is addressable by prompt. *"Look up account 1234"* drives the live session step by step — or emits a self-describing workflow JSON that does it unattended. Business users work the mainframe without learning the screens; every action can require approval, or run hands-free. |
+| **Record full screen coverage for load testing** | Discovery does not just document — it captures. Every screen reached and path taken is exported as a 3270Connect-compatible `workflow.json`, so the coverage AI achieved by exploration becomes the input to 3270Connect's performance and volume testing. Realistic mainframe load, generated from the real application rather than guessed at by hand. |
+
+```
+3270Web                                            3270Connect
+──────────────────────────────────────────         ─────────────────────
+browse  →  AI discovers  →  screen graph   ─┐
+                            + business fns  ├──→  workflow.json  →  concurrent
+run by prompt  ←────────────────────────────┘                       load / volume
+                                                                    / CI runs
+```
+
+Discovery, business understanding and recording are the same pass. Explore an
+application once and you get its map, its business vocabulary, a way to drive it
+in English, and the load-test workload — not four separate projects.
+
+## Enterprise readiness
+
+- **No client footprint** — a browser tab per user; nothing to install, package or patch on the desktop.
+- **Deploys where you do** — multi-arch Docker image on GHCR (`linux/amd64`, `linux/arm64`), non-root `app` user, `GET /healthz` liveness endpoint wired to the container `HEALTHCHECK`. Windows `.exe` and Linux binaries for on-prem.
+- **Hardened by default** — CSP and security headers, origin/referer checks, CSRF token validation, request-body limits, and input validation on every handler.
+- **Automatable** — token-guarded REST/JSON API at `/api/v1/*` for RPA bots and CI jobs, opt-in via `API_TOKEN`.
+- **Auditable** — detailed per-session logging, exportable discovery reports, and mind-map diffs for migration-readiness checks across environments.
+- **Host-agnostic** — the compatibility profiler records what a host actually negotiated, so IBM z/OS and Rocket Enterprise Server estates can be compared like for like.
 
 ## Features
-- Web UI for 3270 sessions
+- Enterprise-grade browser UI for interactive 3270 sessions, with a virtual keyboard and detailed logging
+- AI auto-navigation discovery — automated exploration that maps every screen and transition into a mind map
+- Business understanding — per-screen purpose, field meanings, and a catalog of named business functions
+- Natural-language operation — drive a live session by prompt, or generate a workflow that replays it
+- Full screen-coverage recording, exported as 3270Connect-compatible `workflow.json` for performance and volume testing
 - Embedded s3270 binary support (Windows)
 - Print screen (renders the current screen via s3270 `PrintText` and opens a printable view in a new tab)
 - Public REST/JSON API at `/api/v1/*` for RPA bots and CI jobs (opt-in via `API_TOKEN`; see [docs/rest-api.md](docs/rest-api.md))
@@ -23,10 +60,18 @@ Web-based 3270 terminal interface in Go with session recording to a 3270Connect-
 > The warning disappears automatically as usage grows.
 
 ## Screenshots
-![Connect screen](web/static/images/connect_image.png)
-![Yorkshire screen](web/static/images/yorkshire_image.png)
-![Logging screen](web/static/images/logging_image.png)
-![Sample app screen](web/static/images/sampleapp1_image.png)
+
+A connected session — terminal, toolbar, recording and chaos controls:
+
+![A connected 3270Web session](docs/images/yorkshire_image.png)
+
+The AI Chat panel, where discovery and natural-language operation happen:
+
+![3270Web AI Chat panel](docs/images/copilot-panel.png)
+
+More — the command palette, settings, keypad and status bar — in
+[docs/images/](docs/images/), and rendered in context on the
+[documentation site](https://3270Web.3270.io).
 
 
 ## Requirements
@@ -220,3 +265,13 @@ Local docs commands:
 pip install -r requirements-docs.txt
 mkdocs serve
 ```
+
+## Brand
+
+The 3270Web mark and its lockups live in [`brand/`](brand/) — SVG, PNG and
+`.ico`, plus a themable SVG that re-tints with the active palette. They are
+generated from the shared kit in the
+[3270io](https://github.com/3270io/3270io) repo (`brand/build.mjs`); regenerate
+there rather than editing these by hand. The in-app mark is inlined in
+`web/templates/brand.html` so it reads `--accent` from whichever theme is
+active.
