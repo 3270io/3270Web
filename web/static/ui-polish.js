@@ -83,6 +83,10 @@
     { label: "Export chaos workflow JSON", group: "Chaos", sel: "[data-chaos-export]", icon: "download" },
     { label: "Remove chaos run", group: "Chaos", sel: "[data-chaos-remove]", icon: "trash" },
 
+    // Tasks — the business-user surface, so it leads its own group rather
+    // than sitting among the terminal tools.
+    { label: "Run a business task", group: "Tasks", sel: "[data-tasks-open]", icon: "play", hint: "Fill in a form, get an answer" },
+
     // Terminal
     { label: "Focus mode — fill the screen", group: "Terminal", sel: "[data-focus-toggle]", icon: "eye", hint: "Alt+Enter" },
     { label: "Find on screen", group: "Terminal", sel: "[data-find-open]", icon: "search", hint: "Ctrl+F — searches input values too" },
