@@ -1344,6 +1344,161 @@ body[data-focus="on"] .sample-status {
 .transfer-note { font-size: 0.72rem; margin: 0; }
 
 /* ---------------------------------------------------------------- */
+/* Keyboard mapping                                                   */
+/* ---------------------------------------------------------------- */
+.keymap-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.keymap-modal[hidden] { display: none; }
+
+.keymap-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.keymap-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(96vw, 660px);
+  max-height: 88vh;
+  padding: 18px 20px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.keymap-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.keymap-modal-header h3 { margin: 0; font-size: 1.02rem; }
+
+.keymap-filter { width: 100%; box-sizing: border-box; }
+
+/* The action list is the only part that scrolls, so the filter box and the
+   import/export row stay reachable however long the list gets — 24 PF keys
+   plus the editing actions is far more than fits on screen. */
+.keymap-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 35%, transparent);
+}
+
+.keymap-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 10px 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  background: var(--panel);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+
+.keymap-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(120px, 1.2fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+
+.keymap-row:last-child { border-bottom: none; }
+
+.keymap-row.is-capturing {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.keymap-action {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.keymap-keys {
+  font-family: var(--mono, monospace);
+  font-size: 0.76rem;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+/* A key shown greyed is the built-in default, not something the operator
+   chose — the distinction matters when deciding what is safe to rebind. */
+.keymap-keys.is-default {
+  color: var(--fg-muted);
+  opacity: 0.75;
+}
+
+/* No keyboard default at all — the label is prose, not a key name. */
+.keymap-keys.is-unbound {
+  font-family: inherit;
+  font-style: italic;
+}
+
+.keymap-keys.is-waiting {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.keymap-action-btn {
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.keymap-action-btn[disabled] { opacity: 0.4; cursor: default; }
+
+.keymap-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.keymap-status {
+  flex: 1 1 220px;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
+.keymap-status.is-error { color: var(--danger); }
+
+.keymap-note { font-size: 0.72rem; margin: 0; }
+
+@media (max-width: 560px) {
+  .keymap-row { grid-template-columns: 1fr 1fr; }
+  .keymap-action,
+  .keymap-keys { grid-column: 1 / -1; }
+}
+
+/* ---------------------------------------------------------------- */
 /* Connection profiles                                                */
 /* ---------------------------------------------------------------- */
 .profiles-modal {

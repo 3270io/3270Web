@@ -62,7 +62,9 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 - [x] **Hotspots** (clickable PF labels and URLs detected on screen) — *shipped: never placed over an input field, only real key ranges*
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
 - [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
-- [ ] **Customizable keyboard mapping in the UI** (multiple profiles)
+- [x] **Customizable keyboard mapping in the UI** — *shipped: rebind by
+  pressing the key, with JSON export/import and a PCOMM `.KMP` importer
+  that reports what it could not map*
 
 ## Daily-use fidelity
 
@@ -80,6 +82,7 @@ they are whether the thing behaves like a terminal. See the
 - [x] **Focus mode** — *shipped: Alt+Enter fills the screen (true fullscreen) with an auto-hiding rail carrying the real toolbar; the OIA always stays*
 - [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full *numeric* fields, which covers the common real case but is not the full field-attribute rule
 - [ ] **Cursor movement over protected areas** — the cursor can only rest in an input field, so all-protected rows are skipped
+- [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things and the keypad currently wins, leaving the terminal a tile in the corner of a full screen. Which should take priority is a product call, not a bug fix
 
 ## s3270 features not yet surfaced
 
