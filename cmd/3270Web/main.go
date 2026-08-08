@@ -281,6 +281,7 @@ func main() {
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
+	r.GET("/host/query", app.HostQueryHandler)
 
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)

@@ -63,7 +63,7 @@ not yet submitted, which the browser's own find and selection cannot reach.
 | Auto-reconnect on host drop, with a manual Reconnect | ✅ |
 | Session timeout handling with a clear prompt | ✅ |
 | Graceful host disconnect on teardown, rather than dropping the connection | ✅ |
-| Connection introspection — negotiated telnet options, TLS state, terminal name, byte counts | ✅ |
+| Connection introspection — negotiated telnet options, TLS state, terminal name, byte counts — in the UI and on the API | ✅ |
 
 Connection profiles are server-side rather than browser-local, because
 connection settings are what an administrator sets up once for everyone.

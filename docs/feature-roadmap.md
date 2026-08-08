@@ -12,9 +12,11 @@ read before an evaluation; this one is for deciding what to build.
 Newest first. Every item here is live and documented.
 
 - **The connection's own account of itself** — negotiated telnet options, TLS
-  state, terminal name and byte counts over the API, none of which the screen
-  shows; and a graceful host disconnect on teardown rather than a killed
-  subprocess. See [REST API](rest-api.md).
+  state, terminal name and byte counts, none of which the screen shows, in a
+  **Connection** panel one click from the terminal and on the API for scripted
+  checks; and a graceful host disconnect on teardown rather than a killed
+  subprocess. See
+  [Keyboard and Controls](keyboard-and-controls.md#connection-details).
 - **A cursor that is not confined to the fields** — it can rest on any cell of
   the display, so screens driven by cursor position rather than field content
   are operable; and auto-skip now follows the field-attribute rule instead of
@@ -113,8 +115,10 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 - [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting
 - [ ] **`ScreenTrace`** — event-driven screen-change capture for
       observability
-- [ ] **A host-details panel in the browser** — the query surface is on the API
-      only; the same information belongs one click from the terminal
+- [x] **A host-details panel in the browser** — *shipped: **Connection** in the
+      terminal header reads the same endpoint the API does, so the connection's
+      own account of itself is one click away rather than API-only. See
+      [Keyboard and Controls](keyboard-and-controls.md#connection-details)*
 
 ## Enterprise deployment
 

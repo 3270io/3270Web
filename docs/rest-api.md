@@ -252,6 +252,11 @@ only ever taken from the terminal's own answer, never from the request.
 
 `409 Conflict` if the session is not connected.
 
+The browser reads the same thing through its session cookie at
+`GET /host/query`, which is what the **Connection** panel shows — one
+implementation, two doors. See
+[Keyboard and Controls](keyboard-and-controls.md#connection-details).
+
 ### `GET /api/v1/tasks` and `POST /api/v1/tasks`
 
 The [Guided Business Task](business-tasks.md) catalogue. `GET` returns

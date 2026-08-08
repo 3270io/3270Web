@@ -100,6 +100,7 @@
     { label: "Toggle insert mode", group: "Terminal", icon: "gear", hint: "Insert vs overtype", run: () => runTerminal("toggleInsertMode") },
     { label: "Reset keyboard", group: "Terminal", icon: "power", hint: "Clear an X -f operator error", run: () => runTerminal("reset") },
     { label: "Keyboard mapping", group: "Terminal", sel: "[data-keymap-open]", icon: "gear", hint: "Rebind keys; import a keymap file" },
+    { label: "Connection details", group: "Terminal", sel: "[data-host-details-open]", icon: "bulb", hint: "Telnet options, TLS, LU name — what the screen cannot show" },
     { label: "Toggle virtual keypad", group: "Terminal", sel: "[data-keypad-toggle]", icon: "gear" },
     { label: "Switch workspace mode", group: "Terminal", sel: "[data-workspace-toggle]", icon: "gear", hint: "Business ↔ Engineering" }
   ];

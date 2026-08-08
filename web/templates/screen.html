@@ -14,7 +14,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=18">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -24,7 +24,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=13" defer></script>
+    <script src="/static/keyboard.js?v=14" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
@@ -64,7 +64,7 @@
     <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=4" defer></script>
-    <script src="/static/ui-polish.js?v=9" defer></script>
+    <script src="/static/ui-polish.js?v=10" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -126,6 +126,7 @@
                         <span data-workspace-label>Business</span>
                     </button>
                     <button type="button" data-profiles-open data-tippy-content="Connection profiles">Profiles</button>
+                    <button type="button" data-host-details-open data-tippy-content="What the terminal knows about this connection">Connection</button>
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open AI chat" aria-label="Open AI chat">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
@@ -489,6 +490,29 @@
             <div class="stack">
                 <div>Part of the <strong>3270.io</strong> suite of open source solutions.</div>
                 <div><strong>Version:</strong> {{ .Version }}</div>
+            </div>
+        </div>
+    </div>
+    <!-- Connection details. The terminal knows things about its link to the
+         host that the screen cannot show — whether TN3270E negotiated, what the
+         host bound the LU as, which telnet options are in force. This is where
+         an operator on a support call reads them out. -->
+    <div class="modal-backdrop" data-host-details-modal hidden>
+        <div class="modal modal-host-details" role="dialog" aria-modal="true" aria-labelledby="host-details-modal-title" aria-describedby="host-details-modal-desc" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="host-details-modal-title">Connection details</h3>
+                <button type="button" class="modal-close" data-host-details-close>Close</button>
+            </div>
+            <p id="host-details-modal-desc">What the terminal knows about its connection to the host. None of this is on the screen.</p>
+            <div data-host-details-status class="host-details-status" role="status" aria-live="polite">Loading…</div>
+            <dl data-host-details-summary class="host-details-list"></dl>
+            <details data-host-details-all-wrap hidden>
+                <summary>Everything the terminal reports</summary>
+                <dl data-host-details-all class="host-details-list host-details-list-raw"></dl>
+            </details>
+            <div class="modal-actions">
+                <button type="button" data-host-details-refresh>Refresh</button>
+                <button type="button" data-host-details-copy>Copy</button>
             </div>
         </div>
     </div>
@@ -956,6 +980,7 @@ Select = Enter"></textarea>
         </div>
     </div>
     <script src="/static/about-modal.js" defer></script>
+    <script src="/static/host-details.js" defer></script>
     <script src="/static/logs.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/session-expiry.js?v=2" defer></script>
