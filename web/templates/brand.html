@@ -1,0 +1,54 @@
+{{ define "brand-mark" }}
+{{/*
+  The 3270Web mark: the session stack — terminal screens receding in depth, one
+  session recorded and replayed many times. 3270Web's variant fans up-and-right
+  and carries a mouse pointer: the 3270 screen, driven from a browser.
+
+  Inlined rather than served as /static/logo.svg because an <img>-loaded SVG
+  cannot see the page's custom properties: drawn here, the mark reads --accent
+  and --accent-2 and so re-tints with whichever theme is active. The generated
+  source is brand/3270web-mark-themed.svg — regenerate it from the 3270io repo's
+  brand kit rather than editing the geometry here.
+*/}}
+<svg class="brand-mark" viewBox="20 25 96 88" fill="none" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="brand-face" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="var(--accent-2)"/>
+      <stop offset="1" stop-color="var(--accent)"/>
+    </linearGradient>
+    <linearGradient id="brand-spec" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.26"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="brand-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <!-- flood-color ignores var() as an attribute but honours it as CSS. -->
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-opacity="0.45" style="flood-color:var(--accent)"/>
+    </filter>
+    <mask id="brand-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="#fff"/>
+      <g fill="#000">
+        <path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z"
+              stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </g>
+    </mask>
+    <clipPath id="brand-face-clip">
+      <rect x="30" y="46" width="70" height="46" rx="11"/>
+    </clipPath>
+  </defs>
+
+  <!-- Receding planes: the sessions behind the one in front. -->
+  <rect x="52" y="32" width="54" height="46" rx="9" fill="var(--accent)" fill-opacity="0.2"/>
+  <rect x="41" y="39" width="62" height="46" rx="10" fill="var(--accent)" fill-opacity="0.38"/>
+
+  <g filter="url(#brand-glow)">
+    <rect x="30" y="46" width="70" height="46" rx="11"
+          fill="url(#brand-face)" mask="url(#brand-cut)"/>
+  </g>
+
+  <!-- Specular sweep, clipped to the front face. -->
+  <g clip-path="url(#brand-face-clip)">
+    <path d="M30 46h70v20L30 84Z" fill="url(#brand-spec)"/>
+  </g>
+</svg>
+{{ end }}

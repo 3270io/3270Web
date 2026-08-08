@@ -387,6 +387,37 @@ button.danger:focus-visible,
   margin-bottom: 16px;
 }
 
+/* Mark and wordmark on one baseline; see templates/brand.html for the mark. */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-mark {
+  /* The mark's viewBox is 96x88, so the box is sized to match its ratio and
+     avoid the letterboxing a square would introduce. */
+  width: 37px;
+  height: 34px;
+  flex: none;
+  /* The drawing already casts an accent glow; this only seats it on the card. */
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--accent) 24%, transparent));
+}
+
+/* On the connect card the mark carries the page, so it gets a little more room. */
+.page-wrap > .card > .card-header .brand-mark {
+  width: 46px;
+  height: 42px;
+}
+
+@media (max-width: 640px) {
+  .brand-mark {
+    width: 30px;
+    height: 27px;
+  }
+}
+
 /* Brand wordmark with an accent gradient. */
 .card-header [data-chrome-title] h2 {
   background: linear-gradient(96deg, var(--fg), var(--accent) 55%, var(--accent-2));
