@@ -32,10 +32,19 @@ import (
 
 const (
 	sessionRosterCookieName = "3270Web_sessions"
-	// maxConcurrentSessions caps how many s3270 subprocesses one browser can
-	// spawn. Six covers the realistic working set; the cap exists so a stuck
+	// maxConcurrentSessions caps how many s3270 subprocesses one user may have
+	// running. Six covers the realistic working set; the cap exists so a stuck
 	// client cannot fork processes without bound.
+	//
+	// It is enforced in startHostSessionWithProfile, against the session
+	// manager. It used to be enforced here against the length of the roster
+	// cookie, which the client sends: clearing the cookie reset the count to
+	// zero while the sessions and their subprocesses kept running, and two of
+	// the three ways to open a session did not consult it at all.
 	maxConcurrentSessions = 6
+	// maxTotalSessionsDefault bounds the whole instance. Per-user caps do not
+	// bound anything on their own once there can be many users.
+	maxTotalSessionsDefault = 64
 )
 
 // sessionRoster returns the session IDs this browser owns, dropping any that
@@ -59,7 +68,14 @@ func (app *App) sessionRoster(c *gin.Context) []string {
 		}
 		// PeekSession, not GetSession: merely listing tabs must not count as
 		// activity on every session, or none of them would ever be reaped.
-		if _, ok := app.SessionManager.PeekSession(id); !ok {
+		sess, ok := app.SessionManager.PeekSession(id)
+		if !ok {
+			continue
+		}
+		// A cookie is client-supplied, so an ID in it proves nothing about
+		// who may use the session. Filtering here keeps a stale or planted
+		// entry from showing up as somebody else's tab.
+		if !app.mayUseSession(c, sess) {
 			continue
 		}
 		seen[id] = struct{}{}
@@ -248,17 +264,21 @@ func sessionTabLabel(s *session.Session, target string) string {
 func (app *App) SessionsListHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"sessions": app.sessionTabs(c),
-		"max":      maxConcurrentSessions,
+		"max":      app.perUserSessionCap(),
 	})
 }
 
 // SessionsNewHandler opens an additional host session and makes it active.
 // The existing sessions keep running — that is the whole point.
 func (app *App) SessionsNewHandler(c *gin.Context) {
-	if len(app.sessionRoster(c)) >= maxConcurrentSessions {
+	// A friendly early answer for the common case. The cap that actually
+	// holds is in startHostSessionWithProfile, which every creation path goes
+	// through; this one only exists so the UI can say something better than a
+	// generic failure.
+	if app.SessionManager.CountFor(principalFrom(c).UserID) >= app.perUserSessionCap() {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "You already have the maximum number of sessions open. Close one first.",
-			"max":   maxConcurrentSessions,
+			"max":   app.perUserSessionCap(),
 		})
 		return
 	}

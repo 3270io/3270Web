@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
@@ -22,6 +23,21 @@ func newSessionsApp(t *testing.T) *App {
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 	}
+}
+
+// newOwnedMockSession is newMockSession with an owner, for the tests that
+// exercise ownership or the per-user cap.
+func newOwnedMockSession(t *testing.T, app *App, ownerID, target string) *session.Session {
+	t.Helper()
+	mh, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mh.Connected = true
+	mh.Screen = buildSampleApp1Screen()
+	s := app.SessionManager.CreateSessionFor(ownerID, mh)
+	s.TargetHost, s.TargetPort = parseHostPort(target)
+	return s
 }
 
 func newMockSession(t *testing.T, app *App, target string) *session.Session {
@@ -244,23 +260,101 @@ func TestCloseRejectsSessionOutsideRoster(t *testing.T) {
 // An unbounded roster means unbounded s3270 subprocesses.
 func TestNewSessionRefusedPastTheCap(t *testing.T) {
 	app := newSessionsApp(t)
-	ids := make([]string, 0, maxConcurrentSessions)
 	for i := 0; i < maxConcurrentSessions; i++ {
-		ids = append(ids, newMockSession(t, app, "host:3270").ID)
+		newOwnedMockSession(t, app, authz.LocalUserID, "host:3270")
 	}
 
 	r := gin.New()
+	r.Use(app.Authenticate())
 	r.POST("/sessions/new", app.SessionsNewHandler)
 
 	body := url.Values{"hostname": {"sampleapp:app1"}}.Encode()
 	req := httptest.NewRequest(http.MethodPost, "/sessions/new", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: sessionRosterCookieName, Value: strings.Join(ids, ",")})
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409 once the cap is reached", w.Code)
+	}
+}
+
+// The cap used to be the length of a cookie the client sends, so clearing it
+// reset the count to zero while the sessions — and their s3270 subprocesses —
+// kept running. It is now counted against the session manager, which the
+// client cannot edit.
+func TestSessionCapSurvivesClearingTheRosterCookie(t *testing.T) {
+	app := newSessionsApp(t)
+	for i := 0; i < maxConcurrentSessions; i++ {
+		newOwnedMockSession(t, app, authz.LocalUserID, "host:3270")
+	}
+
+	r := gin.New()
+	r.Use(app.Authenticate())
+	r.POST("/sessions/new", app.SessionsNewHandler)
+
+	// No roster cookie at all: the old check would have counted zero.
+	body := url.Values{"hostname": {"sampleapp:app1"}}.Encode()
+	req := httptest.NewRequest(http.MethodPost, "/sessions/new", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 — the cap must not depend on a client cookie", w.Code)
+	}
+}
+
+// The two creation paths that never consulted the roster at all must be
+// capped too, or the limit is advisory.
+func TestSessionCapAppliesToEveryCreationPath(t *testing.T) {
+	app := newSessionsApp(t)
+	for i := 0; i < maxConcurrentSessions; i++ {
+		newOwnedMockSession(t, app, authz.LocalUserID, "host:3270")
+	}
+
+	if err := app.checkSessionCaps(authz.LocalUserID); err == nil {
+		t.Fatal("checkSessionCaps allowed a session past the per-user cap")
+	}
+	// startHostSession is the single point /connect, the tab bar and the REST
+	// API all funnel through.
+	if _, err := app.startHostSession(authz.LocalUserID, "127.0.0.1:3270"); err == nil {
+		t.Error("startHostSession ignored the per-user cap")
+	}
+}
+
+func TestTotalSessionCap(t *testing.T) {
+	t.Setenv("MAX_TOTAL_SESSIONS", "3")
+	app := newSessionsApp(t)
+
+	// Unowned sessions dodge the per-user cap by design — there is no user to
+	// attribute them to — so the instance-wide cap is what bounds them.
+	for i := 0; i < 3; i++ {
+		newMockSession(t, app, "host:3270")
+	}
+	if err := app.checkSessionCaps(""); err == nil {
+		t.Error("the instance-wide cap did not apply to unowned sessions")
+	}
+	if err := app.checkSessionCaps("someone"); err == nil {
+		t.Error("the instance-wide cap did not apply to an owned session")
+	}
+}
+
+func TestSessionCapsAreConfigurable(t *testing.T) {
+	app := newSessionsApp(t)
+	if got := app.perUserSessionCap(); got != maxConcurrentSessions {
+		t.Errorf("default per-user cap = %d, want %d", got, maxConcurrentSessions)
+	}
+
+	t.Setenv("MAX_SESSIONS_PER_USER", "2")
+	if got := app.perUserSessionCap(); got != 2 {
+		t.Errorf("configured per-user cap = %d, want 2", got)
+	}
+	// A nonsense value must not silently become zero, which would read as
+	// "unlimited" and disable the cap.
+	t.Setenv("MAX_SESSIONS_PER_USER", "not-a-number")
+	if got := app.perUserSessionCap(); got != maxConcurrentSessions {
+		t.Errorf("unparseable cap = %d, want the default %d", got, maxConcurrentSessions)
 	}
 }
 

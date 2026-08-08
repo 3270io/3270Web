@@ -146,6 +146,8 @@ the point of changing one.
 | `AUTH_SESSION_IDLE` | `30m` | Sign out after this long with no activity |
 | `AUTH_SESSION_MAX` | `12h` | Sign out this long after signing in, however active |
 | `AUTH_BIND_SESSION_IP` | `auto` | Pin a session to the address that created it |
+| `MAX_SESSIONS_PER_USER` | `6` | Concurrent terminal sessions one account may hold |
+| `MAX_TOTAL_SESSIONS` | `64` | Concurrent terminal sessions across the instance |
 
 Sessions live in memory, so restarting the server signs everyone out.
 
@@ -191,18 +193,34 @@ connection is secure and choose its own apparent address.
 
 ---
 
-## What sign-in does not yet separate
+## What is separated, and what is not
 
-Accounts currently control **who may use the instance**. Work to separate what
-different users can see from one another is ongoing:
+**Terminal sessions are private to the account that opened them.** Holding a
+session's ID is no longer enough to use it: every route resolves the session
+through one ownership check, and a session belonging to somebody else is
+reported as not found rather than refused, so the difference cannot be used to
+discover which IDs are real. This includes administrators — administering the
+instance means managing settings, logs and accounts, not typing into another
+person's authenticated terminal.
 
-- Terminal sessions are labelled with their owner, but that label is not yet
-  enforced on every route.
-- Chaos runs, saved tasks, connection profiles and themes are still shared
-  across everyone on the instance.
-- The `/api/v1` token remains a single instance-wide credential rather than a
-  per-user one.
+Each account is also capped at `MAX_SESSIONS_PER_USER` concurrent sessions
+(default 6), with `MAX_TOTAL_SESSIONS` (default 64) bounding the instance.
+Every session is an `s3270` subprocess, so these are process limits rather
+than tidiness.
 
-Until that lands, treat every account on an instance as able to see the
-instance's stored data. For genuine separation between people who should not
-see each other's work, run one container and one volume per user.
+Instance-wide administration — settings, logs, restart and account management
+— requires the `admin` role.
+
+**Stored data is still shared.** Work to separate it is ongoing:
+
+- Chaos runs, saved tasks, connection profiles and themes live in one pool per
+  instance. Chaos runs in particular hold captured mainframe screens, so treat
+  every account as able to read what any other account explored.
+- The `/api/v1` token is a single instance-wide credential rather than a
+  per-user one. A client holding it can list and drive **any** session,
+  including one opened in somebody's browser. That is what the token has always
+  been; it is called out here because sessions are otherwise private now, and
+  the token is the remaining exception.
+
+For genuine separation between people who should not see each other's work at
+all, run one container and one volume per user.

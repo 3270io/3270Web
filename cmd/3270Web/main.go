@@ -310,19 +310,25 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/workflow/stop", app.StopWorkflowHandler)
 	r.POST("/workflow/remove", app.RemoveWorkflowHandler)
 	r.GET("/workflow/status", app.WorkflowStatusHandler)
-	r.GET("/api/settings", app.SettingsHandler)
-	r.POST("/api/settings", app.SettingsHandler)
+	// Instance-wide administration. These change or expose state that belongs
+	// to the whole deployment, not to one person's terminal: settings are read
+	// by every session, the log holds every user's activity, and a restart ends
+	// everyone's sessions at once. Before this they needed only *a* session,
+	// which any visitor could mint by connecting.
+	adminOnly := r.Group("", app.RequireAdmin())
+	adminOnly.GET("/api/settings", app.SettingsHandler)
+	adminOnly.POST("/api/settings", app.SettingsHandler)
 	r.GET("/api/themes", app.ThemeListHandler)
 	r.POST("/api/themes/save", app.ThemeSaveHandler)
-	r.POST("/app/restart", app.RestartHandler)
+	adminOnly.POST("/app/restart", app.RestartHandler)
 
 	// Logging handlers
-	r.GET("/logs", app.LogsHandler)
-	r.GET("/logs/access", app.LogsAccessHandler)
-	r.POST("/logs/access", app.LogsAccessHandler)
-	r.POST("/logs/toggle", app.LogsToggleHandler)
-	r.POST("/logs/clear", app.LogsClearHandler)
-	r.GET("/logs/download", app.LogsDownloadHandler)
+	adminOnly.GET("/logs", app.LogsHandler)
+	adminOnly.GET("/logs/access", app.LogsAccessHandler)
+	adminOnly.POST("/logs/access", app.LogsAccessHandler)
+	adminOnly.POST("/logs/toggle", app.LogsToggleHandler)
+	adminOnly.POST("/logs/clear", app.LogsClearHandler)
+	adminOnly.GET("/logs/download", app.LogsDownloadHandler)
 
 	// Disconnect handler
 	r.POST("/disconnect", app.DisconnectHandler)
@@ -3608,13 +3614,26 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 	return nil
 }
 
+// getSession resolves the terminal session this request may act on.
+//
+// Every browser handler goes through here, which is why the ownership check
+// belongs here and not in each of them: one edit covers the whole surface, and
+// a route added later inherits it without anyone remembering to.
+//
+// A session the caller does not own is reported as absent rather than
+// forbidden. Handlers already treat nil as "no session" and answer accordingly,
+// and distinguishing "not yours" from "does not exist" would confirm to a
+// caller that a session ID they guessed is real.
 func (app *App) getSession(c *gin.Context) *session.Session {
-	id, err := c.Cookie(sessionCookieName)
-	if err != nil {
+	id := sessionIDFor(c)
+	if id == "" {
 		return nil
 	}
 	s, ok := app.SessionManager.GetSession(id)
 	if !ok {
+		return nil
+	}
+	if !app.mayUseSession(c, s) {
 		return nil
 	}
 	return s
@@ -3661,6 +3680,11 @@ func (app *App) startHostSession(ownerID, hostname string) (*session.Session, er
 func (app *App) startHostSessionWithProfile(ownerID, hostname string, profile *ConnectionProfile) (*session.Session, error) {
 	if !isValidHostname(hostname) {
 		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
+	}
+	// Checked before anything is started, so a refused request costs nothing
+	// and cannot leave a subprocess behind.
+	if err := app.checkSessionCaps(ownerID); err != nil {
+		return nil, err
 	}
 
 	var h host.Host
