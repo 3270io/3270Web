@@ -53,7 +53,7 @@ daily-use defects that outrank most of the items below — see the
 
 Items most enterprise emulators ship that 3270Web does not yet have.
 
-- [ ] **IND$FILE file transfer** (s3270 `Transfer()`) — text and binary, ASCII/EBCDIC
+- [x] **IND$FILE file transfer** (s3270 `Transfer()`) — *shipped: send and receive, text and binary, with TSO dataset creation options*
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
 - [x] **Multiple concurrent sessions / tabs in one browser** — *shipped: up to six live sessions with a tab bar; the active-session cookie is unchanged, so every existing handler was untouched*
 - [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
@@ -86,7 +86,7 @@ they are whether the thing behaves like a terminal. See the
 s3270 already supports these — wiring them up is mostly a wrapper job.
 
 - [x] **`String()` for batched field writes** — *shipped: replaces per-character `key(0x..)` loop*
-- [ ] **`Transfer()`** — IND$FILE; see *Table-stakes gaps* above
+- [x] **`Transfer()`** — *shipped: IND$FILE send and receive*
 - [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and regression tests
 - [ ] **`Query(host|model|cursor|...)`** — richer status surface for the UI and API
 - [x] **`PrintText()`** — *shipped*
