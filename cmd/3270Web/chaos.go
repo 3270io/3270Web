@@ -33,6 +33,9 @@ type chaosEngineStore struct {
 	loadedRuns  map[string]*chaos.SavedRun
 	screenHints map[string]map[string]chaos.ScreenHint
 	removed     map[string]bool
+	// syncStops holds one channel per running status goroutine, closed to
+	// tell it to stop. See startChaosSync.
+	syncStops map[string]chan struct{}
 }
 
 func newChaosEngineStore() *chaosEngineStore {
@@ -41,6 +44,55 @@ func newChaosEngineStore() *chaosEngineStore {
 		loadedRuns:  make(map[string]*chaos.SavedRun),
 		screenHints: make(map[string]map[string]chaos.ScreenHint),
 		removed:     make(map[string]bool),
+		syncStops:   make(map[string]chan struct{}),
+	}
+}
+
+// beginSync registers a stop channel for a session's status goroutine and
+// returns it. A goroutine already running for the session is told to stop
+// first: the store holds one engine per session, so a second run means the
+// first goroutine has nothing left to watch.
+func (s *chaosEngineStore) beginSync(sessionID string) <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, ok := s.syncStops[sessionID]; ok {
+		close(existing)
+	}
+	stop := make(chan struct{})
+	s.syncStops[sessionID] = stop
+	return stop
+}
+
+// endSync forgets a stop channel once its goroutine has returned. It must not
+// close the channel: the goroutine may be ending because a *newer* run
+// replaced it, and the entry under this key is then the new run's.
+func (s *chaosEngineStore) endSync(sessionID string, stop <-chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if current, ok := s.syncStops[sessionID]; ok && current == stop {
+		delete(s.syncStops, sessionID)
+	}
+}
+
+// stopSync tells a session's status goroutine to stop, if one is running.
+// Safe to call for a session that never ran chaos.
+func (s *chaosEngineStore) stopSync(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stop, ok := s.syncStops[sessionID]; ok {
+		close(stop)
+		delete(s.syncStops, sessionID)
+	}
+}
+
+// stopAllSync tells every status goroutine to stop. Used on shutdown, and by
+// tests that want the background work finished before their fixtures go away.
+func (s *chaosEngineStore) stopAllSync() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, stop := range s.syncStops {
+		close(stop)
+		delete(s.syncStops, id)
 	}
 }
 
@@ -529,7 +581,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 	}
 
 	// Kick off a background goroutine that syncs Status back to the session.
-	go app.syncChaosStatus(s, eng)
+	app.startChaosSync(s, eng)
 
 	c.JSON(http.StatusOK, gin.H{"status": "started"})
 }
@@ -566,6 +618,10 @@ func (app *App) ChaosRemoveHandler(c *gin.Context) {
 		return
 	}
 
+	// markRemoved alone would end the status goroutine only on its next wake,
+	// up to a poll interval later — and it is the write it does on the way
+	// out that a caller removing a run does not want landing afterwards.
+	app.chaosEngines.stopSync(s.ID)
 	app.chaosEngines.markRemoved(s.ID)
 	app.chaosEngines.delete(s.ID)
 	app.chaosEngines.deleteLoadedRun(s.ID)
@@ -904,12 +960,68 @@ func (app *App) loadSessionChaosRunFromDisk(s *session.Session) *chaos.SavedRun 
 	return run
 }
 
+// chaosSyncInterval is how often the status goroutine copies engine state
+// into the session.
+const chaosSyncInterval = 500 * time.Millisecond
+
+// startChaosSync launches syncChaosStatus and registers it, so that both a
+// shutdown and a test can wait for it instead of leaving it to outlive
+// whatever started it.
+//
+// Before this existed the goroutine was launched bare, with its only exit
+// conditions being "the run finished" and "the session was marked removed" —
+// and cleanupSession clears that mark on its way out. A session that ended
+// mid-run therefore left a goroutine polling a detached engine forever, and
+// when the run did eventually finish it wrote the saved-run file into a
+// directory whose owner was long gone. In tests that owner is t.TempDir(),
+// which is why this surfaced as "TempDir RemoveAll cleanup: directory not
+// empty" on a loaded CI runner rather than as anything anyone could
+// reproduce.
+func (app *App) startChaosSync(s *session.Session, eng *chaos.Engine) {
+	stop := app.chaosEngines.beginSync(s.ID)
+	app.chaosSync.Add(1)
+	go func() {
+		defer app.chaosSync.Done()
+		defer app.chaosEngines.endSync(s.ID, stop)
+		app.syncChaosStatus(s, eng, stop)
+	}()
+}
+
+// waitForChaosSync blocks until every status goroutine has returned, or until
+// timeout elapses. Reports whether they all finished.
+//
+// Bounded on purpose: this is called on the shutdown path and from test
+// cleanup, and neither is a place to hang indefinitely because one goroutine
+// is wedged. Callers that care tell the goroutines to stop first.
+func (app *App) waitForChaosSync(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		app.chaosSync.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
 // syncChaosStatus runs in a background goroutine and copies engine status
 // snapshots into the session's ChaosState so that the session store always
 // reflects the latest values. It removes the engine from the store once the
 // run completes to avoid memory growth.
-func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
+//
+// It returns when the run completes, when the session's engine is marked
+// removed, or when stop is closed — whichever comes first. Launch it through
+// startChaosSync rather than directly, so it is counted.
+func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-chan struct{}) {
 	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
 		if app.chaosEngines.isRemoved(s.ID) {
 			return
 		}
@@ -978,7 +1090,14 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine) {
 			})
 			return
 		}
-		time.Sleep(500 * time.Millisecond)
+		// A select rather than a sleep, so a session ending is acted on at
+		// once instead of up to half a second later — the window in which the
+		// old code could still be writing a run file.
+		select {
+		case <-stop:
+			return
+		case <-time.After(chaosSyncInterval):
+		}
 	}
 }
 
@@ -1199,7 +1318,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
 		return
 	}
-	go app.syncChaosStatus(s, eng)
+	app.startChaosSync(s, eng)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "resumed",

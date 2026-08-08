@@ -43,14 +43,18 @@ type App struct {
 	Config         *config.Config
 	// authMode selects how callers are identified. Validated at startup, so
 	// handlers can treat it as a known value.
-	authMode       authz.Mode
-	themeCache     map[string]string
-	themeCacheMu   sync.RWMutex
-	logFilePath    string
-	envPath        string
-	baseDir        string
-	shutdown       func()
-	chaosEngines   *chaosEngineStore
+	authMode     authz.Mode
+	themeCache   map[string]string
+	themeCacheMu sync.RWMutex
+	logFilePath  string
+	envPath      string
+	baseDir      string
+	shutdown     func()
+	chaosEngines *chaosEngineStore
+	// chaosSync counts the running chaos status goroutines so shutdown — and
+	// a test's cleanup — can wait for them rather than racing whatever they
+	// are still writing to. See startChaosSync.
+	chaosSync      sync.WaitGroup
 	chaosRunsDir   string
 	chaosHintsPath string
 	chaosHintsMu   sync.Mutex
@@ -805,6 +809,12 @@ func (app *App) cleanupSession(s *session.Session) {
 		return
 	}
 	cleanupRecordingFile(s)
+	// Told to stop before the engine is unregistered and the removed mark is
+	// cleared below. Those two together used to leave the status goroutine
+	// with no exit condition at all: it polled a detached engine, and wrote
+	// the run file whenever it eventually finished — by which time the
+	// session, and in tests the directory it wrote into, had gone.
+	app.chaosEngines.stopSync(s.ID)
 	app.chaosEngines.delete(s.ID)
 	app.chaosEngines.deleteLoadedRun(s.ID)
 	app.chaosEngines.clearRemoved(s.ID)
@@ -846,7 +856,22 @@ func (app *App) stopAllSessions() {
 	for _, s := range app.SessionManager.ListSessions() {
 		app.cleanupSession(s)
 	}
+	// cleanupSession has told each status goroutine to stop; this is where we
+	// wait for them. Without it a chaos run's saved-run file could still be
+	// half-written when the process exits, which is a truncated file on disk
+	// rather than a missing one.
+	if app.chaosEngines != nil {
+		app.chaosEngines.stopAllSync()
+	}
+	if !app.waitForChaosSync(chaosSyncShutdownTimeout) {
+		log.Printf("Warning: chaos status goroutines did not finish within %s", chaosSyncShutdownTimeout)
+	}
 }
+
+// chaosSyncShutdownTimeout bounds how long a shutdown waits for the chaos
+// status goroutines. They stop within one poll interval of being told to, so
+// this is a backstop rather than a budget.
+const chaosSyncShutdownTimeout = 5 * time.Second
 
 // sessionCookieName is the cookie app.getSession reads to identify the
 // active host session. The /api/v1 session-scoped routes set it from the
