@@ -11,6 +11,14 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **The connection's own account of itself** — negotiated telnet options, TLS
+  state, terminal name and byte counts over the API, none of which the screen
+  shows; and a graceful host disconnect on teardown rather than a killed
+  subprocess. See [REST API](rest-api.md).
+- **A cursor that is not confined to the fields** — it can rest on any cell of
+  the display, so screens driven by cursor position rather than field content
+  are operable; and auto-skip now follows the field-attribute rule instead of
+  approximating it. See [Keyboard and Controls](keyboard-and-controls.md).
 - **Guided Business Tasks** — record a screen flow once, and anyone can run
   it from a form and read the answer without navigating a green screen.
   Named inputs, named outputs, and a run that stops at the first divergence
@@ -46,10 +54,11 @@ Newest first. Every item here is live and documented.
   [Host Compatibility Profiler](host-profiler.md) and
   [Chaos Mind-Map Compare](chaos-compare.md).
 
-## Guided Business Tasks — what is left
+## Guided Business Tasks
 
-The flagship capability and its authoring wizard are both shipping. What is
-left is distribution and integration rather than the core experience.
+Complete: authoring from a recording, running from a form, the
+token-authenticated API, export/import, and conversion from a chaos run. See
+[Guided Business Tasks](business-tasks.md).
 
 - [x] **Authoring wizard** — *shipped: record a flow, confirm the derived
       inputs, mark the answer by dragging on the final screen, save. See
@@ -61,9 +70,10 @@ left is distribution and integration rather than the core experience.
 - [x] **Task API** — *shipped: `POST /api/v1/sessions/{id}/tasks/run`,
       token-authenticated and synchronous, so a bot gets the answer in the
       response. See [REST API](rest-api.md)*
-- [ ] **Chaos import** — convert a discovered `BusinessFunction` into a
-      task, so chaos becomes a way of *finding* tasks rather than a separate
-      tool
+- [x] **Chaos import** — *shipped: `GET /chaos/business/task-draft` converts
+      a discovered `BusinessFunction` into a task draft, deriving guards from
+      the screen text the run captured. See
+      [Guided Business Tasks](business-tasks.md)*
 
 ## Daily-use fidelity
 
@@ -72,11 +82,14 @@ Tracked apart from features because they are not features — they are whether
 the thing behaves like a terminal. The rest of this list is shipping; see
 [Terminal Capabilities](terminal-capabilities.md).
 
-- [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full
-      *numeric* fields, which covers the common real case but is not the
-      full field-attribute rule
-- [ ] **Cursor movement over protected areas** — the cursor can only rest in
-      an input field, so rows of purely protected text are skipped
+- [x] **Strict auto-skip semantics** — *shipped: auto-skip now follows the
+      field-attribute rule rather than approximating it as "the field is
+      numeric". See
+      [Keyboard and Controls](keyboard-and-controls.md#auto-skip)*
+- [x] **Cursor movement over protected areas** — *shipped: the cursor can rest
+      on any cell of the display, which is what makes "position the cursor
+      beside your choice" screens operable. See
+      [Keyboard and Controls](keyboard-and-controls.md#cursor-on-protected-text)*
 - [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things
       and the keypad currently wins, leaving the terminal a tile in the
       corner of a full screen. Which should take priority is a product call,
@@ -87,16 +100,21 @@ the thing behaves like a terminal. The rest of this list is shipping; see
 s3270 already supports these — wiring them up is mostly a wrapper job.
 `String()`, `Transfer()` and `PrintText()` are already done.
 
+- [x] **`Query`** — *shipped: `GET /api/v1/sessions/:id/query` returns
+      everything the terminal knows about the connection — negotiated telnet
+      options, TLS state, terminal name, byte counts — none of which is on the
+      screen. See [REST API](rest-api.md)*
+- [x] **Explicit `Disconnect`** — *shipped: teardown closes the host session
+      before the subprocess goes away, instead of killing it and leaving the
+      TCP connection for a gateway to notice in its own time*
 - [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and
       regression tests
-- [ ] **`Query(host|model|cursor|...)`** — richer status surface for the UI
-      and the API
 - [ ] **`Toggle()` / `Set()`** — runtime resource changes (monocase, blink)
 - [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting
 - [ ] **`ScreenTrace`** — event-driven screen-change capture for
       observability
-- [ ] **Explicit `Disconnect`** — today the subprocess is killed; a graceful
-      disconnect is friendlier to upstream proxies
+- [ ] **A host-details panel in the browser** — the query surface is on the API
+      only; the same information belongs one click from the terminal
 
 ## Enterprise deployment
 

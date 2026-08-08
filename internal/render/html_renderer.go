@@ -99,7 +99,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 	// association to the surrounding protected label text).
 	rowLabels := make(map[int]string)
 
-	for _, f := range s.Fields {
+	for i, f := range s.Fields {
 		// Append attribute spacer
 		if f.StartX == 0 {
 			if f.StartY > 0 {
@@ -110,7 +110,7 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 		}
 
 		if !f.IsProtected() {
-			r.renderInputField(sb, f, id, rowLabels[f.StartY])
+			r.renderInputField(sb, f, id, rowLabels[f.StartY], nextIsAutoSkip(s, i))
 		} else {
 			needSpan := r.needSpan(f)
 			if needSpan {
@@ -167,12 +167,37 @@ func (r *HtmlRenderer) screenDimensions(s *host.Screen) (int, int) {
 	return rows, cols
 }
 
-func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id, ariaLabel string) {
+// nextIsAutoSkip reports whether the field following index i is an auto-skip
+// field.
+//
+// On a 3270 "auto-skip" is not a bit of its own: it is the protected+numeric
+// combination. Its effect is on cursor advance — filling the last position of
+// an input field moves the cursor on only when the field that follows is
+// auto-skip. That is the attribute-driven rule, and it is what lets an
+// application say "this field runs straight into the next one" (a date split
+// across three boxes) versus "stop here" (a password the operator may want to
+// correct).
+//
+// The browser cannot work this out for itself: protected fields render as text
+// with no attributes attached, so the answer has to be computed here, where
+// the field list and its attribute bytes are.
+func nextIsAutoSkip(s *host.Screen, i int) bool {
+	if s == nil || i+1 >= len(s.Fields) {
+		return false
+	}
+	next := s.Fields[i+1]
+	if next == nil {
+		return false
+	}
+	return next.IsProtected() && next.IsNumeric()
+}
+
+func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id, ariaLabel string, autoSkipNext bool) {
 	if !f.IsMultiline() {
 		// Optimization: Avoid GetValueLines() allocation for single line fields
 		val, _, _ := strings.Cut(f.GetValue(), "\n")
 		width := f.EndX - f.StartX + 1
-		r.createHtmlInput(sb, f, id, val, -1, width, ariaLabel)
+		r.createHtmlInput(sb, f, id, val, -1, width, ariaLabel, autoSkipNext)
 	} else {
 		lines := f.GetValueLines()
 		for i := 0; i < f.Height(); i++ {
@@ -195,7 +220,7 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id, 
 			if lineLabel != "" && i > 0 {
 				lineLabel = fmt.Sprintf("%s (line %d)", lineLabel, i+1)
 			}
-			r.createHtmlInput(sb, f, id, val, i, w, lineLabel)
+			r.createHtmlInput(sb, f, id, val, i, w, lineLabel, autoSkipNext)
 			if i < f.Height()-1 {
 				sb.WriteString("\n")
 			}
@@ -203,7 +228,7 @@ func (r *HtmlRenderer) renderInputField(sb *strings.Builder, f *host.Field, id, 
 	}
 }
 
-func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, val string, lineNum, width int, ariaLabel string) {
+func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, val string, lineNum, width int, ariaLabel string, autoSkipNext bool) {
 	inputType := "text"
 
 	class := "color-input"
@@ -266,6 +291,13 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		sb.WriteString(` data-numeric="1" inputmode="numeric"`)
 	} else {
 		sb.WriteString(` inputmode="text"`)
+	}
+	// data-autoskip says the field after this one is auto-skip, which is what
+	// decides whether filling this field's last position advances the cursor.
+	// The client cannot derive it: protected fields render as plain text with
+	// no attributes to inspect.
+	if autoSkipNext {
+		sb.WriteString(` data-autoskip="1"`)
 	}
 	sb.WriteString(` autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />`)
 }

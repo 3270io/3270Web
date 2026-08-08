@@ -97,6 +97,28 @@ no label, or a value that was cleared rather than typed all show up there.
     `GRACE` would come back as `GRA`. Trailing spaces are trimmed from the
     result.
 
+### From a chaos run
+
+A [chaos exploration](chaos-mode.md) maps an application's screens and the
+fields that drive them, and a **business function** names one path through
+that map. `GET /chaos/business/task-draft?name=...` converts one into a task
+draft — or every function at once if you omit the name.
+
+This is the join between exploration and use: the mind-map is the asset, the
+task is the product.
+
+The conversion has one real difficulty, and it is worth knowing about. Chaos
+identifies a screen by **hash**, which is exact and useless to a person: when
+it stops matching, all it can say is "a different screen". A task guards with
+**positional text** from the screen's own labels. The bridge is the screen text
+the run captured, so a function whose screens were recorded converts with real
+guards — and one whose screens were not says so, per step, rather than
+producing a task that would act on any screen at all.
+
+The draft also reports anything it dropped: a key a task cannot press, a field
+key it could not read, or a parameter no step fills. As with the wizard, it
+proposes no outputs.
+
 ### By hand
 
 The catalogue is **server-side**, so one person defines a task and everyone

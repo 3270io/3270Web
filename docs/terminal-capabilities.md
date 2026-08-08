@@ -21,7 +21,9 @@ terminal.
 | Extended colour, blink, reverse video, underscore, intensify | ✅ |
 | Operator Information Area — online/application block, `X SYSTEM`, `X -f` operator error, insert indicator | ✅ |
 | Local cursor movement — Tab, Back-Tab, arrows and Home resolve in the client, with no host round-trip | ✅ |
+| A cursor that can rest anywhere on the display, protected text included, for cursor-position-driven screens | ✅ |
 | Numeric field enforcement, with a real operator-error lock | ✅ |
+| Auto-skip driven by the field attributes the application sends, not by guesswork | ✅ |
 | Insert / overtype toggle | ✅ |
 | Type-ahead while the host holds the keyboard | ✅ |
 | Selectable terminal models and screen sizes | ✅ |
@@ -60,6 +62,8 @@ not yet submitted, which the browser's own find and selection cannot reach.
 | Per-connection TLS, certificate verification, LU name, model and code page | ✅ |
 | Auto-reconnect on host drop, with a manual Reconnect | ✅ |
 | Session timeout handling with a clear prompt | ✅ |
+| Graceful host disconnect on teardown, rather than dropping the connection | ✅ |
+| Connection introspection — negotiated telnet options, TLS state, terminal name, byte counts | ✅ |
 
 Connection profiles are server-side rather than browser-local, because
 connection settings are what an administrator sets up once for everyone.
@@ -116,6 +120,7 @@ rather than merely tolerate it.
 | Workflow recording and playback, with pause, step and debug | ✅ |
 | Guided Business Tasks — run a recorded flow from a form and get an answer, no green screen | ✅ |
 | Task authoring from a recording — record once, mark the answer, save to a shared catalogue | ✅ |
+| Task authoring from a chaos run — convert a discovered path into a runnable task | ✅ |
 | Chaos exploration — automated discovery of an application's screens and transitions | ✅ |
 | Screen mind-map, exportable and diffable between hosts | ✅ |
 | Host compatibility profiler | ✅ |

@@ -2380,6 +2380,42 @@ body[data-hotspots="off"] .screen-hotspot {
   pointer-events: auto;
 }
 
+/* The cursor when it is resting on protected text — see the "Cursor over
+   protected text" section of keyboard.js. It is drawn as an underscore rather
+   than a block so the character underneath stays readable, which is what a
+   3270's own cursor does. */
+.screen-free-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  border-bottom: 2px solid var(--accent, currentColor);
+  animation: screen-free-cursor-blink 1.06s steps(1, end) infinite;
+}
+
+.screen-free-cursor[hidden] {
+  display: none;
+}
+
+@keyframes screen-free-cursor-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.15; }
+}
+
+/* An operator with reduced-motion set still needs to see the cursor; what they
+   do not need is it flashing at them. */
+@media (prefers-reduced-motion: reduce) {
+  .screen-free-cursor {
+    animation: none;
+  }
+}
+
+/* Two visible carets would be worse than none. While the cursor is out on
+   protected text the fields' own carets are hidden, so there is exactly one
+   place on the screen that looks like the cursor. */
+.terminal-shell[data-free-cursor] .screen-container input {
+  caret-color: transparent;
+}
+
 .screen-block-selection {
   position: absolute;
   pointer-events: none;

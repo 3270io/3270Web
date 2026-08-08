@@ -114,3 +114,61 @@ func TestRenderMarksNumericFields(t *testing.T) {
 		t.Errorf("non-numeric field lost its text inputmode.\nGot: %s", out)
 	}
 }
+
+// Auto-skip is the protected+numeric attribute on the field that FOLLOWS an
+// input, and the browser cannot see it: protected fields render as plain text
+// with no attributes attached. The renderer has to resolve it.
+func TestRenderMarksAutoSkipFromFollowingField(t *testing.T) {
+	s := &host.Screen{Width: 40, Height: 1, IsFormatted: true}
+	s.Buffer = [][]rune{make([]rune, 40)}
+	for i := range s.Buffer[0] {
+		s.Buffer[0][i] = ' '
+	}
+	const autoSkipAttr = host.AttrProtected | host.AttrNumeric
+	s.Fields = []*host.Field{
+		host.NewField(s, 0x00, 0, 0, 4, 0, host.AttrColDefault, host.AttrEhDefault),
+		host.NewField(s, autoSkipAttr, 6, 0, 10, 0, host.AttrColDefault, host.AttrEhDefault),
+		host.NewField(s, 0x00, 12, 0, 16, 0, host.AttrColDefault, host.AttrEhDefault),
+		host.NewField(s, host.AttrProtected, 18, 0, 22, 0, host.AttrColDefault, host.AttrEhDefault),
+		host.NewField(s, 0x00, 24, 0, 28, 0, host.AttrColDefault, host.AttrEhDefault),
+	}
+
+	out := NewHtmlRenderer().Render(s, "/submit", "sess")
+
+	// Only the field ahead of the auto-skip field advances the cursor when it
+	// fills. The one ahead of a plain protected field, and the trailing one
+	// with nothing after it, must not.
+	cases := []struct {
+		name     string
+		autoSkip bool
+		why      string
+	}{
+		{"field_0_0", true, "followed by a protected+numeric field"},
+		{"field_12_0", false, "followed by a plain protected field"},
+		{"field_24_0", false, "the last field on the screen"},
+	}
+	for _, tc := range cases {
+		tag := inputTagFor(t, out, tc.name)
+		got := strings.Contains(tag, `data-autoskip="1"`)
+		if got != tc.autoSkip {
+			t.Errorf("%s (%s): data-autoskip=%v, want %v.\nTag: %s",
+				tc.name, tc.why, got, tc.autoSkip, tag)
+		}
+	}
+}
+
+// inputTagFor returns the single <input> tag whose name attribute is name.
+func inputTagFor(t *testing.T, out, name string) string {
+	t.Helper()
+	marker := `name="` + name + `"`
+	idx := strings.Index(out, marker)
+	if idx < 0 {
+		t.Fatalf("no input named %s in rendered output.\nGot: %s", name, out)
+	}
+	start := strings.LastIndex(out[:idx], "<input")
+	end := strings.Index(out[idx:], ">")
+	if start < 0 || end < 0 {
+		t.Fatalf("input named %s is not a well-formed tag.\nGot: %s", name, out)
+	}
+	return out[start : idx+end+1]
+}
