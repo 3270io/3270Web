@@ -2,44 +2,41 @@
 
 AI Chat mode is a side panel that lets you drive a 3270 session through conversation. You type instructions in plain language; the AI reads the current screen, fills fields, presses keys, and runs chaos exploration — all with your approval before each action.
 
+You choose which AI answers. GitHub Copilot, Claude, OpenAI, Google AI,
+Ollama (local or cloud) and any OpenAI-compatible endpoint are all
+supported, and everything on this page works the same way whichever one
+you pick. See [AI Providers](ai-providers.md) to set one up.
+
 ## Open the Panel
 
 1. Connect to a host.
-2. Click the **Open Copilot chat** button in the toolbar (the chat bubble icon), or press ++ctrl+k++ and run *Toggle Copilot chat*.
+2. Click the **Open AI chat** button in the toolbar (the chat bubble icon), or press ++ctrl+k++ and run *Toggle AI chat*.
 3. The side panel slides open on the right.
 
-![Copilot panel screenshot](images/copilot-panel.png)
+![AI chat panel screenshot](images/copilot-panel.png)
 
 Drag the panel's left edge to resize it, or focus the edge and use
 ++left++ / ++right++ (hold ++shift++ for larger steps). The width is
 remembered between sessions.
 
-## Sign In
+## Connect a Provider
 
-The first time you open the panel you need to authenticate with GitHub:
+The panel starts on **GitHub Copilot**. Before the first message you need
+either a Copilot sign-in or an API key for a different provider — the
+panel prompts for whichever the selected provider needs.
 
-1. Click **Connect to Copilot**.
-2. A **Sign in to GitHub Copilot** dialog opens with a verification link and a one-time code. Use **Copy** to grab the code.
-3. Open the link, enter the code, and approve the access request in your browser.
-4. Leave the dialog open and return to 3270Web — it polls automatically and signs you in once you approve.
+1. Click **Provider** in the panel header (or press ++ctrl+k++ and run
+   *AI provider settings*).
+2. Pick a provider, fill in whatever it asks for, and click **Save**.
+3. The panel header shows the provider you are talking to, and the model
+   dropdown reloads with that provider's models.
 
-To sign out at any time, click the **Sign out** button in the panel header.
+To disconnect, click **Sign out** in the panel header. For Copilot that
+clears the OAuth token; for every other provider it forgets the stored
+API key.
 
-### GitHub Enterprise
-
-GitHub Enterprise is supported, but there is no button for it in the UI.
-Point 3270Web at your instance by calling the REST endpoint before
-signing in:
-
-```bash
-curl -X POST http://localhost:8080/api/copilot/enterprise \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"ghe.example.com"}'
-```
-
-The value must be a bare hostname (optionally with a port) — for example
-`ghe.example.com`, not `https://ghe.example.com/`. Pass an empty string
-to clear it and go back to github.com.
+Full per-provider setup — including GitHub Enterprise, local Ollama and
+corporate gateways — is in [AI Providers](ai-providers.md).
 
 ## Send a Message
 
@@ -77,13 +74,18 @@ To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel
 
 ## Choose a Model
 
-The panel header includes a **model selector** dropdown that lists the
-Copilot models your GitHub account has access to. The default is
-**Claude Sonnet 4.6**; switch at any time and the next message uses the
-new model. The choice persists across page reloads.
+Above the input box is a **model selector** listing the models your
+selected provider offers. 3270Web asks the provider for its live catalogue
+and falls back to a built-in list when it cannot (no key entered yet, or an
+endpoint that has no model list). Switch at any time and the next message
+uses the new model.
 
-Pick a heavier model (Opus / Sonnet) for screen-reasoning-heavy
-sessions and a lighter one for quick reads or repetitive automation.
+Each provider remembers its own model, so moving between providers does
+not reset your choice — and a model name the dropdown does not list can be
+typed into the **Model** box in the provider dialog.
+
+Pick a heavier model for screen-reasoning-heavy sessions and a lighter one
+for quick reads or repetitive automation.
 
 ## Available Actions
 
@@ -138,7 +140,9 @@ Generated business workflows carry `Name`, `Description`, `BusinessFunction`, an
 
 ## Known Limitations
 
-- Chat requests and tool endpoints are not rate-limited server-side; very long automated loops are bounded only by the per-message tool budget and your Copilot plan quotas.
+- Chat requests and tool endpoints are not rate-limited server-side; very long automated loops are bounded only by the per-message tool budget and your provider's own quotas.
+- Tool calling is required. Every provider listed in [AI Providers](ai-providers.md) supports it, but a small local model served through an OpenAI-compatible endpoint may not, or may do it badly — if the assistant answers in prose instead of reading the screen, that is usually the cause.
+- Reasoning/thinking output is not displayed. Models that think before answering still do so, but only the final answer reaches the panel.
 - If the model stream fails mid-response, that exchange is not added to the history — re-send the prompt.
 - Conversation history is persisted in browser localStorage and capped at the most recent 200 messages.
 - Business annotations key on screen hashes, which are specific to the run's mind map. Re-running discovery against a changed application may produce new hashes; re-annotate or re-import the mind map in that case.
@@ -149,7 +153,8 @@ Click **Clear** in the panel header to remove all messages from the current chat
 
 ## Keyboard Shortcut
 
-Press ++ctrl+k++ (++cmd+k++ on macOS) and run *Toggle Copilot chat* to
-show or hide the panel without reaching for the toolbar. All other 3270
+Press ++ctrl+k++ (++cmd+k++ on macOS) and run *Toggle AI chat* to
+show or hide the panel without reaching for the toolbar; *AI provider
+settings* in the same palette opens the provider dialog. All other 3270
 key bindings remain active while the panel is open; see
 [Keyboard and Controls](keyboard-and-controls.md).

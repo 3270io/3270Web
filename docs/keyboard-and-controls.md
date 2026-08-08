@@ -125,7 +125,7 @@ mainframe application:
 - View logs
 - Print screen
 - Copy screen
-- Command palette, Copilot chat, and settings
+- Command palette, AI chat, and settings
 
 **Engineering** adds the automation surface on top:
 
@@ -145,7 +145,7 @@ once you are there.
 !!! note "Runs are always visible"
 
     If a recording, playback or chaos run starts while you are in
-    Business mode — Copilot can start one — the workflow status widget
+    Business mode — the AI assistant can start one — the workflow status widget
     appears anyway, and goes away again when the run ends. You are never
     left watching a terminal move on its own with no way to see why.
 
@@ -399,7 +399,7 @@ Stepping onto a match that sits in an input field also moves the 3270
 cursor there, since someone who searched for a field is usually about to
 type in it.
 
-Outside the terminal — in the Copilot panel, in a settings field —
+Outside the terminal — in the AI chat panel, in a settings field —
 ++ctrl+f++ is left alone and the browser's own find still works.
 
 ## Screen history

@@ -1,9 +1,14 @@
-// Copilot side-panel chat UI.
+// AI chat side-panel UI.
 //
-// Renders a slide-in panel on the right that streams Copilot chat responses
-// over SSE from POST /api/copilot/chat, executes tool calls via
-// CopilotTools.runTool (one Run/Skip card per call), and loops until the
-// model returns finish_reason=stop.
+// Renders a slide-in panel on the right that streams chat responses over SSE
+// from POST /api/ai/chat, executes tool calls via CopilotTools.runTool (one
+// Run/Skip card per call), and loops until the model returns
+// finish_reason=stop.
+//
+// The panel is provider-agnostic: /api/ai/chat normalizes GitHub Copilot,
+// Claude, OpenAI, Google AI, Ollama and any OpenAI-compatible endpoint onto
+// one streaming protocol, and window.AIProvider owns which one is selected
+// and whether it has the credentials it needs.
 //
 // The full message history lives in memory + localStorage; it is sent
 // verbatim on every chat call so the backend stays stateless.
@@ -14,7 +19,6 @@
     const HISTORY_KEY_BASE = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
-    const MODEL_KEY = "copilot.panel.model";
     // Hard safety net on tool-call rounds per user message. The system prompt
     // asks the model to stay within ~30 rounds; this ceiling is a generous
     // backstop (well below the old effectively-unbounded 10000) so a runaway
@@ -28,20 +32,18 @@
     let lastToolSignature = null;
     let repeatedToolRounds = 0;
 
-    let toolSchema = null;        // cached from /api/copilot/tools
+    let toolSchema = null;        // cached from /api/ai/tools
     let systemPrompt = "";
     // Ephemeral per-turn orientation block (current screen + learned app
     // knowledge). Captured once at the start of each user turn and prepended to
     // the system prompt in buildPayload; never persisted into history.
     let turnContext = "";
-    let model = "claude-sonnet-4.6";
-    try { model = localStorage.getItem(MODEL_KEY) || model; } catch (_) {}
-    // Migrate the old dash-format ID that briefly shipped as the default but
-    // doesn't match any real Copilot model.
-    if (model === "claude-sonnet-4-6") {
-        model = "claude-sonnet-4.6";
-        try { localStorage.setItem(MODEL_KEY, model); } catch (_) {}
-    }
+    // The selected model belongs to the selected provider, so the server owns
+    // it (it is saved per provider alongside that provider's credentials)
+    // rather than localStorage, which had no way to tell one backend's model
+    // names from another's.
+    let model = "";
+    let providerLabel = "AI";
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
@@ -120,26 +122,64 @@
         return null;
     }
 
-    function setConnectedState(loggedIn) {
+    function setConnectedState(ready) {
         const panel = ensurePanel();
         if (!panel) return;
-        panel.classList.toggle("copilot-disconnected", !loggedIn);
+        panel.classList.toggle("copilot-disconnected", !ready);
         const connectPrompt = panel.querySelector("[data-copilot-connect-prompt]");
         const modelBar = panel.querySelector(".copilot-model-bar");
         const form = panel.querySelector("[data-copilot-form]");
         const hint = panel.querySelector("[data-copilot-hint]");
         const signout = panel.querySelector("[data-copilot-signout]");
-        if (connectPrompt) connectPrompt.hidden = !!loggedIn;
-        if (modelBar) modelBar.hidden = !loggedIn;
-        if (form) form.hidden = !loggedIn;
-        if (hint) hint.hidden = !loggedIn;
-        if (signout) signout.hidden = !loggedIn;
+        if (connectPrompt) connectPrompt.hidden = !!ready;
+        if (modelBar) modelBar.hidden = !ready;
+        if (form) form.hidden = !ready;
+        if (hint) hint.hidden = !ready;
+        if (signout) signout.hidden = !ready;
+    }
+
+    // applyProviderStatus renders whichever backend is selected: its name in
+    // the header, and a connect prompt that names the thing actually missing
+    // (a GitHub sign-in, or an API key / endpoint).
+    function applyProviderStatus(s) {
+        const panel = ensurePanel();
+        if (!panel || !s) return;
+        providerLabel = s.providerLabel || "AI";
+        if (s.model) model = s.model;
+
+        const nameEl = panel.querySelector("[data-copilot-provider-name]");
+        if (nameEl) nameEl.textContent = providerLabel;
+        // Drives the label above each assistant bubble (see .copilot-msg-assistant
+        // in ui-polish.css). JSON.stringify produces a correctly quoted and
+        // escaped CSS string, which `content:` requires.
+        panel.style.setProperty("--ai-provider-label", JSON.stringify(providerLabel));
+
+        const promptText = panel.querySelector("[data-copilot-connect-text]");
+        const connectBtn = panel.querySelector("[data-copilot-connect]");
+        if (s.needs === "login") {
+            if (promptText) promptText.textContent = "Sign in to " + providerLabel + " to start chatting.";
+            if (connectBtn) connectBtn.textContent = "Sign in to " + providerLabel;
+        } else if (!s.ready) {
+            if (promptText) promptText.textContent = providerLabel + " needs an API key before you can chat.";
+            if (connectBtn) connectBtn.textContent = "Set up " + providerLabel;
+        }
+        const signout = panel.querySelector("[data-copilot-signout]");
+        if (signout) {
+            // One short label for both auth styles — the header has no room
+            // for a longer one — with the difference spelled out in the
+            // tooltip and accessible name.
+            const what = s.auth === "oauth-device"
+                ? "Sign out of " + providerLabel
+                : "Forget the saved " + providerLabel + " API key";
+            signout.setAttribute("aria-label", what);
+            signout.setAttribute("data-tippy-content", what);
+        }
+        setConnectedState(!!s.ready);
     }
 
     async function refreshConnectionState() {
         try {
-            const s = await CopilotAuth.status();
-            setConnectedState(s && s.logged_in);
+            applyProviderStatus(await window.AIProvider.status());
         } catch (_) {
             setConnectedState(false);
         }
@@ -491,15 +531,22 @@
         return panel ? panel.querySelector("[data-copilot-model]") : null;
     }
 
-    async function populateModelSelect() {
+    // populateModelSelect fills the dropdown from the selected provider's
+    // catalogue. Pass force after a provider change — the cached list belongs
+    // to the previous backend and its model names mean nothing to the new one.
+    async function populateModelSelect(force) {
         const sel = modelSelect();
-        if (!sel || sel.dataset.populated) return;
+        if (!sel) return;
+        if (sel.dataset.populated && !force) return;
         try {
-            const resp = await fetch("/api/copilot/models", { credentials: "same-origin" });
+            const resp = await fetch("/api/ai/models", { credentials: "same-origin" });
             if (!resp.ok) return;
             const data = await resp.json();
             const models = data.models || [];
             if (!models.length) return;
+            // The server knows which model this provider is saved with; only
+            // fall back to the local value when it has nothing to say.
+            if (data.model) model = data.model;
             sel.dataset.populated = "1"; // only lock after a successful fetch
             sel.innerHTML = "";
             for (const id of models) {
@@ -509,8 +556,17 @@
                 if (id === model) opt.selected = true;
                 sel.appendChild(opt);
             }
-            // If saved model isn't in the list, default to first entry.
-            if (!models.includes(model)) {
+            // A saved model the provider no longer advertises (or a
+            // free-form name typed into the settings dialog) still has to be
+            // selectable, so keep it in the list rather than silently
+            // switching backends underneath the user.
+            if (model && !models.includes(model)) {
+                const opt = document.createElement("option");
+                opt.value = model;
+                opt.textContent = model;
+                opt.selected = true;
+                sel.insertBefore(opt, sel.firstChild);
+            } else if (!model) {
                 model = models[0];
                 sel.value = model;
             }
@@ -1171,10 +1227,12 @@
         }
     }
 
-    // friendlyChatError converts upstream Copilot error bodies into a
-    // human-readable explanation. Copilot returns OpenAI-shaped errors like
+    // friendlyChatError converts an upstream error body into a human-readable
+    // explanation. Every provider we proxy reports errors in roughly the
+    // OpenAI shape —
     //   {"error":{"message":"...","code":"model_not_supported",...}}
-    // sometimes nested inside our own "copilot chat: status NNN: <body>".
+    // — sometimes nested inside our own "<provider>: status NNN: <body>", and
+    // Anthropic uses {"type":"..."} where OpenAI uses {"code":"..."}.
     function friendlyChatError(raw) {
         const text = String(raw || "");
         // Try to extract a JSON error object even when wrapped in prose.
@@ -1184,16 +1242,27 @@
             try { parsed = JSON.parse(text.slice(braceAt)); } catch (_) {}
         }
         const errObj = parsed && parsed.error;
-        const code = errObj && errObj.code;
+        const code = (errObj && (errObj.code || errObj.type)) || "";
         const message = (errObj && errObj.message) || text;
-        if (code === "model_not_supported") {
-            return "The selected model (" + model + ") is not available on your Copilot plan. Pick a different model from the dropdown above.";
+        if (code === "model_not_supported" || code === "not_found_error" || /model.*(not found|not supported|does not exist)/i.test(message)) {
+            return "The selected model (" + model + ") is not available on your " + providerLabel +
+                " account. Pick a different one from the dropdown above.";
         }
-        if (code === "rate_limit_exceeded" || /rate.?limit/i.test(message)) {
-            return "Copilot rate limit hit. Wait a moment and try again, or switch to a cheaper model (e.g. claude-haiku-4.5).";
+        if (code === "authentication_error" || code === "invalid_api_key" || code === "permission_error" || /api key|unauthor|forbidden/i.test(message)) {
+            return providerLabel + " rejected the credentials. Open AI provider settings and check the key.";
         }
-        if (/premium request|monthly.*limit|quota|exhaust/i.test(message)) {
-            return "Your Copilot premium request quota is exhausted. Switch to a non-premium model (e.g. claude-haiku-4.5) or wait for the quota to reset.";
+        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+            return providerLabel + " rate limit hit. Wait a moment and try again, or switch to a smaller model.";
+        }
+        if (/premium request|monthly.*limit|quota|exhaust|insufficient_quota|credit balance/i.test(message)) {
+            return "Your " + providerLabel + " quota is exhausted. Switch to a cheaper model, or wait for the quota to reset.";
+        }
+        if (code === "overloaded_error") {
+            return providerLabel + " is overloaded right now. Try again in a moment.";
+        }
+        if (/connection refused|no such host|dial tcp/i.test(message)) {
+            return "Could not reach " + providerLabel + " at its configured endpoint. Check the endpoint URL in AI provider settings, " +
+                "and that the server is running.";
         }
         return message;
     }
@@ -1203,7 +1272,7 @@
         activeAbort = new AbortController();
         let resp;
         try {
-            resp = await fetch("/api/copilot/chat", {
+            resp = await fetch("/api/ai/chat", {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
@@ -1224,8 +1293,10 @@
             let msg = body;
             try { msg = JSON.parse(body).error || body; } catch (_) {}
             if (resp.status === 401) {
-                appendMessage("error", "Not signed in to Copilot. Click \"Sign in\" in the panel header.");
-                CopilotAuth.openLoginModal();
+                // Either the sign-in lapsed or the key was cleared; either
+                // way ensureReady() prompts for whatever this provider needs.
+                appendMessage("error", msg || (providerLabel + " is not set up yet."));
+                window.AIProvider.ensureReady().then(refreshConnectionState);
                 return null;
             }
             appendMessage("error", friendlyChatError(msg));
@@ -1665,19 +1736,15 @@
         try {
             if (!toolSchema) {
                 try {
-                    const resp = await fetch("/api/copilot/tools", { credentials: "same-origin" });
+                    const resp = await fetch("/api/ai/tools", { credentials: "same-origin" });
                     const data = await resp.json();
                     toolSchema = data.tools || [];
                     systemPrompt = data.system_prompt || systemPrompt;
-                    // Only adopt the server's default model if the user hasn't
-                    // already picked one (persisted to MODEL_KEY either at load
-                    // time or via the model dropdown's change handler) —
-                    // otherwise this clobbered that choice on every first send,
-                    // since populateModelSelect() (which reflects the real
-                    // current selection) doesn't run until after this.
-                    let hasStoredModel = false;
-                    try { hasStoredModel = !!localStorage.getItem(MODEL_KEY); } catch (_) {}
-                    if (!hasStoredModel && data.model) {
+                    // The model the provider is saved with is the server's to
+                    // know; only fill in from here if nothing has set it yet
+                    // (populateModelSelect, which reflects the real current
+                    // selection, doesn't run until after this).
+                    if (!model && data.model) {
                         model = data.model;
                     }
                 } catch (err) {
@@ -1685,15 +1752,16 @@
                     return;
                 }
             }
-            // Authenticate BEFORE committing the user turn so a cancelled sign-in
-            // doesn't leave a dangling user message in history (and the typed text
-            // stays in the box for another attempt).
-            const ok = await CopilotAuth.ensureLogin();
+            // Make sure the provider is usable BEFORE committing the user turn,
+            // so a cancelled sign-in (or an abandoned settings dialog) doesn't
+            // leave a dangling user message in history — and the typed text
+            // stays in the box for another attempt.
+            const ok = await window.AIProvider.ensureReady();
             if (!ok) {
-                appendMessage("error", "Sign-in cancelled.");
+                appendMessage("error", "Cancelled — " + providerLabel + " is not set up yet.");
                 return;
             }
-            setConnectedState(true);
+            await refreshConnectionState();
 
             history.push({ role: "user", content: text });
             saveHistory();
@@ -1740,15 +1808,24 @@
         const autoModeBtn = panel.querySelector("[data-copilot-automode]");
         const hintEl = panel.querySelector("[data-copilot-hint]");
         const modelSel = panel.querySelector("[data-copilot-model]");
+        const settingsBtn = panel.querySelector("[data-copilot-settings]");
         const stopBtn = panel.querySelector("[data-copilot-stop]");
 
         if (stopBtn) stopBtn.addEventListener("click", requestStop);
 
         if (modelSel) {
-            modelSel.value = model;
+            if (model) modelSel.value = model;
             modelSel.addEventListener("change", function () {
                 model = modelSel.value;
-                try { localStorage.setItem(MODEL_KEY, model); } catch (_) {}
+                // Persist against the active provider so the choice survives a
+                // reload and a round trip through another backend.
+                window.AIProvider.save({ model }).catch(function () {});
+            });
+        }
+
+        if (settingsBtn) {
+            settingsBtn.addEventListener("click", function () {
+                window.AIProvider.openSettings();
             });
         }
 
@@ -1776,19 +1853,21 @@
         if (clearBtn) clearBtn.addEventListener("click", () => openClearModal());
         if (signOutBtn) signOutBtn.addEventListener("click", async () => {
             try {
-                await CopilotAuth.logout();
-                // Clear the conversation on sign-out so the next user doesn't
-                // inherit the previous session's transcript.
+                // Clears the OAuth token for Copilot, or the stored API key
+                // for every other provider.
+                await window.AIProvider.forget();
+                // Clear the conversation too, so the next user doesn't inherit
+                // the previous session's transcript.
                 clearHistory();
-                appendMessage("error", "Signed out.");
-                setConnectedState(false);
-            } catch (e) { appendMessage("error", "Logout failed: " + e); }
+                appendMessage("error", "Signed out of " + providerLabel + ".");
+                await refreshConnectionState();
+            } catch (e) { appendMessage("error", "Sign-out failed: " + e); }
         });
         if (connectBtn) connectBtn.addEventListener("click", async function () {
-            const ok = await CopilotAuth.openLoginModal();
+            const ok = await window.AIProvider.ensureReady();
             if (ok) {
-                setConnectedState(true);
-                await populateModelSelect();
+                await refreshConnectionState();
+                await populateModelSelect(true);
             }
         });
 
@@ -1851,6 +1930,13 @@
         attachToolbarToggle();
         attachInputHandlers();
         renderHistoryAfterLoad();
+        // Switching provider changes the header, the credential prompt and the
+        // whole model catalogue, so re-render all three when it happens
+        // instead of waiting for the panel to be reopened.
+        window.AIProvider.onChange(function (s) {
+            if (s) applyProviderStatus(s);
+            populateModelSelect(true);
+        });
         let open = false;
         try { open = localStorage.getItem(OPEN_KEY) === "1"; } catch (_) {}
         if (open) setOpen(true);
@@ -1862,5 +1948,10 @@
         init();
     }
 
-    window.CopilotPanel = { open: () => setOpen(true), close: () => setOpen(false), clear: clearHistory };
+    window.CopilotPanel = {
+        open: () => setOpen(true),
+        close: () => setOpen(false),
+        clear: clearHistory,
+        settings: () => window.AIProvider.openSettings(),
+    };
 })();
