@@ -68,8 +68,8 @@ nav:
   - Keyboard and Controls: keyboard-and-controls.md
   - Screen Size and Model Guide: terminal-model-limits.md
   - REST API: rest-api.md
+  - Terminal Capabilities: terminal-capabilities.md
   - Feature Roadmap: feature-roadmap.md
-  - Enterprise Readiness Audit: enterprise-readiness.md
 
 plugins:
   - search
