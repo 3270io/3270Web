@@ -3,6 +3,7 @@
 package reqsec
 
 import (
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -48,4 +49,37 @@ func IsTLS(r *http.Request) bool {
 		proto = proto[:idx]
 	}
 	return strings.EqualFold(strings.TrimSpace(proto), "https")
+}
+
+// ClientIP returns the address the request came from.
+//
+// Behind a proxy every request appears to originate from the proxy, which
+// would make per-address rate limiting and session-to-address binding
+// meaningless — one bucket for the whole world, and one address for every
+// session. X-Forwarded-For carries the real one, but only where a proxy is
+// known to be rewriting it: the header is otherwise chosen by the client, and
+// believing it would let an attacker pick their own rate-limit bucket or
+// impersonate a bound address.
+func ClientIP(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if TrustProxyHeaders() {
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			// Left-most entry is the original client; proxies append.
+			if idx := strings.IndexByte(forwarded, ','); idx >= 0 {
+				forwarded = forwarded[:idx]
+			}
+			if ip := strings.TrimSpace(forwarded); ip != "" {
+				return ip
+			}
+		}
+	}
+
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
+		// RemoteAddr is not always host:port (httptest, unix sockets).
+		return strings.TrimSpace(r.RemoteAddr)
+	}
+	return host
 }

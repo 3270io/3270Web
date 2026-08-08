@@ -8,6 +8,8 @@ require (
 	github.com/mmcdole/gofeed v1.2.1
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/racingmars/go3270 v0.9.13
+	golang.org/x/crypto v0.48.0
+	golang.org/x/term v0.40.0
 )
 
 require (
@@ -42,7 +44,6 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect

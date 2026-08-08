@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3270Web - Sign in</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/favicon-32.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <script src="/static/theme.js?v=8" defer></script>
+</head>
+<body>
+    <script src="/static/early-theme-init.js"></script>
+    <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+    <div class="error-page">
+        <div class="error-card">
+            <h1 class="error-title">Sign in to 3270Web</h1>
+
+            {{ if .Error }}
+            <p class="error-message" role="alert" aria-live="assertive">{{ .Error }}</p>
+            {{ end }}
+
+            <form action="/login" method="post" class="login-form" autocomplete="on">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autocomplete="username"
+                       autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password"
+                       autocomplete="current-password" required>
+
+                <button type="submit">Sign in</button>
+            </form>
+
+            {{ if .ShowNoTLS }}
+            <p class="login-note">
+                This connection is not encrypted. Your password and session are
+                visible to anyone who can observe traffic on this network.
+            </p>
+            {{ end }}
+        </div>
+    </div>
+    <script src="/static/background.js" defer></script>
+</body>
+</html>

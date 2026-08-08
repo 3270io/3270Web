@@ -1,0 +1,363 @@
+package users
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/jnnngs/3270Web/internal/authz"
+)
+
+const testPassword = "correct-horse-battery-staple"
+
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	return NewStore(filepath.Join(t.TempDir(), "users.json"))
+}
+
+func TestAddAndAuthenticate(t *testing.T) {
+	s := newTestStore(t)
+
+	created, err := s.Add("alice", testPassword, authz.RoleAdmin, false)
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if created.PasswordHash != "" {
+		t.Error("Add returned a hash to its caller")
+	}
+	if created.ID == "" {
+		t.Error("Add did not assign an ID")
+	}
+	if created.ID == created.Username {
+		t.Error("ID must not be the username")
+	}
+
+	got, err := s.Authenticate("alice", testPassword)
+	if err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("authenticated ID = %q, want %q", got.ID, created.ID)
+	}
+	if got.PasswordHash != "" {
+		t.Error("Authenticate returned a hash to its caller")
+	}
+
+	// Usernames are matched case-insensitively so one person cannot end up
+	// with two accounts that look identical in a log.
+	if _, err := s.Authenticate("ALICE", testPassword); err != nil {
+		t.Errorf("case-insensitive login failed: %v", err)
+	}
+}
+
+// Both failure modes must be the same error, or the login form reports which
+// usernames exist.
+func TestAuthenticateIsIndistinguishable(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	_, wrongPassword := s.Authenticate("alice", "not-the-password-at-all")
+	_, noSuchUser := s.Authenticate("mallory", "not-the-password-at-all")
+
+	if wrongPassword != ErrInvalidCredentials {
+		t.Errorf("wrong password gave %v, want %v", wrongPassword, ErrInvalidCredentials)
+	}
+	if noSuchUser != ErrInvalidCredentials {
+		t.Errorf("unknown user gave %v, want %v", noSuchUser, ErrInvalidCredentials)
+	}
+}
+
+func TestAddRejectsDuplicateIgnoringCase(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add("ALICE", testPassword, authz.RoleUser, false); err != ErrUserExists {
+		t.Errorf("duplicate add gave %v, want %v", err, ErrUserExists)
+	}
+}
+
+func TestDisabledAccountCannotLogIn(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add("bob", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDisabled("bob", true); err != nil {
+		t.Fatalf("SetDisabled: %v", err)
+	}
+
+	if _, err := s.Authenticate("bob", testPassword); err != ErrUserDisabled {
+		t.Errorf("disabled login gave %v, want %v", err, ErrUserDisabled)
+	}
+	// A disabled account with the wrong password must still look like an
+	// ordinary credential failure.
+	if _, err := s.Authenticate("bob", "wrong-password-here"); err != ErrInvalidCredentials {
+		t.Errorf("disabled + wrong password gave %v, want %v", err, ErrInvalidCredentials)
+	}
+}
+
+// Locking out the last admin leaves an instance that can only be repaired by
+// hand-editing the store.
+func TestCannotDisableLastAdmin(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("root", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add("bob", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.SetDisabled("root", true); err == nil {
+		t.Fatal("disabling the only admin was allowed")
+	}
+
+	// With a second admin it becomes allowed.
+	if _, err := s.Add("root2", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDisabled("root", true); err != nil {
+		t.Errorf("disabling one of two admins failed: %v", err)
+	}
+}
+
+func TestSetPasswordClearsMustChange(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleAdmin, true); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Authenticate("alice", testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.MustChangePassword {
+		t.Error("system-issued account is not flagged for a password change")
+	}
+
+	const next = "a-brand-new-password"
+	if err := s.SetPassword("alice", next); err != nil {
+		t.Fatalf("SetPassword: %v", err)
+	}
+	if _, err := s.Authenticate("alice", testPassword); err != ErrInvalidCredentials {
+		t.Error("the old password still works")
+	}
+	got, err = s.Authenticate("alice", next)
+	if err != nil {
+		t.Fatalf("login with the new password: %v", err)
+	}
+	if got.MustChangePassword {
+		t.Error("MustChangePassword survived a password change")
+	}
+}
+
+func TestSetPasswordUnknownUser(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.SetPassword("nobody", testPassword); err != ErrUserNotFound {
+		t.Errorf("got %v, want %v", err, ErrUserNotFound)
+	}
+}
+
+func TestStoreFileIsPrivateAndHoldsNoPlaintext(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), testPassword) {
+		t.Fatal("the store contains the plaintext password")
+	}
+	if !strings.Contains(string(data), "$argon2id$") {
+		t.Error("the stored hash is not argon2id")
+	}
+
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(s.Path())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("store permissions = %04o, want 0600", perm)
+		}
+	}
+}
+
+func TestLoadMissingAndEmptyFile(t *testing.T) {
+	s := newTestStore(t)
+
+	// Missing file: an empty store, not an error. This is the state before
+	// the first account exists, which the bootstrap path depends on.
+	n, err := s.Count()
+	if err != nil {
+		t.Fatalf("Count on a missing file: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("Count = %d, want 0", n)
+	}
+
+	if err := os.WriteFile(s.Path(), []byte("   \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if n, err = s.Count(); err != nil || n != 0 {
+		t.Errorf("Count on a blank file = %d, %v; want 0, nil", n, err)
+	}
+}
+
+func TestCorruptStoreIsAnError(t *testing.T) {
+	s := newTestStore(t)
+	if err := os.WriteFile(s.Path(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Count(); err == nil {
+		t.Error("a corrupt store parsed without error")
+	}
+}
+
+func TestPersistenceAcrossStores(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "users.json")
+
+	first := NewStore(path)
+	created, err := first.Add("alice", testPassword, authz.RoleAdmin, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second := NewStore(path)
+	got, err := second.Authenticate("alice", testPassword)
+	if err != nil {
+		t.Fatalf("login against a reopened store: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("ID changed across reopen: %q vs %q", got.ID, created.ID)
+	}
+}
+
+func TestByID(t *testing.T) {
+	s := newTestStore(t)
+	created, err := s.Add("alice", testPassword, authz.RoleUser, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := s.ByID(created.ID)
+	if err != nil || !ok {
+		t.Fatalf("ByID(%q) = %v, %v", created.ID, ok, err)
+	}
+	if got.Username != "alice" {
+		t.Errorf("username = %q, want alice", got.Username)
+	}
+
+	if _, ok, _ = s.ByID("nope"); ok {
+		t.Error("ByID found an account that does not exist")
+	}
+}
+
+func TestPrincipalConversion(t *testing.T) {
+	u := User{ID: "abc", Role: authz.RoleAdmin}
+	p := u.Principal(authz.KindWeb)
+
+	if p.UserID != "abc" || !p.IsAdmin() || p.Kind != authz.KindWeb {
+		t.Errorf("Principal() = %+v, want the account's id, role and the given kind", p)
+	}
+	if !p.Owns("abc") || p.Owns("other") {
+		t.Error("principal ownership does not follow the account ID")
+	}
+}
+
+func TestValidateUsername(t *testing.T) {
+	for _, ok := range []string{"alice", "a", "A.b-c_1", strings.Repeat("a", maxUsernameLength)} {
+		if err := ValidateUsername(ok); err != nil {
+			t.Errorf("ValidateUsername(%q) = %v, want nil", ok, err)
+		}
+	}
+	for _, bad := range []string{
+		"", "   ", " alice", "alice ", "al ice", "alice/../root", "alice\\root",
+		"../etc", "alice\x00", "café", "alice@example.com",
+		strings.Repeat("a", maxUsernameLength+1),
+	} {
+		if err := ValidateUsername(bad); err == nil {
+			t.Errorf("ValidateUsername(%q) = nil, want an error", bad)
+		}
+	}
+}
+
+func TestValidatePassword(t *testing.T) {
+	if err := ValidatePassword(strings.Repeat("x", MinPasswordLength)); err != nil {
+		t.Errorf("minimum-length password rejected: %v", err)
+	}
+	for _, bad := range []string{
+		"", "short", strings.Repeat("x", MinPasswordLength-1),
+		"has\x00a-null-byte-in-it", "has\na-newline-in-it",
+		strings.Repeat("x", MaxPasswordLength+1),
+	} {
+		if err := ValidatePassword(bad); err == nil {
+			t.Errorf("ValidatePassword(%q) = nil, want an error", bad)
+		}
+	}
+}
+
+func TestGeneratePasswordIsUsableAndUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 25; i++ {
+		p, err := GeneratePassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidatePassword(p); err != nil {
+			t.Fatalf("generated password fails validation: %v", err)
+		}
+		if seen[p] {
+			t.Fatal("GeneratePassword repeated a value")
+		}
+		seen[p] = true
+	}
+}
+
+func TestRedactedStripsHash(t *testing.T) {
+	u := User{Username: "alice", PasswordHash: "$argon2id$secret"}
+	if u.Redacted().PasswordHash != "" {
+		t.Error("Redacted kept the hash")
+	}
+	if u.PasswordHash == "" {
+		t.Error("Redacted mutated its receiver")
+	}
+}
+
+// The on-disk shape is a compatibility surface: an operator may hand-edit it,
+// and a later version has to read what this one wrote.
+func TestFileFormatIsStable(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("alice", testPassword, authz.RoleAdmin, true); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed struct {
+		Users []map[string]any `json:"users"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("stored file is not the documented shape: %v", err)
+	}
+	if len(parsed.Users) != 1 {
+		t.Fatalf("users length = %d, want 1", len(parsed.Users))
+	}
+	for _, key := range []string{"id", "username", "role", "passwordHash", "createdAt"} {
+		if _, ok := parsed.Users[0][key]; !ok {
+			t.Errorf("stored user is missing %q", key)
+		}
+	}
+}

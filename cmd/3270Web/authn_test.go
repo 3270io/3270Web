@@ -73,13 +73,26 @@ func TestPrincipalFrom_HandlesNilAndWrongType(t *testing.T) {
 // authentication would leave the operator believing the instance is guarded.
 func TestBuildRouter_RejectsUnsupportedAuthMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv(authz.ModeEnv, "local")
 
-	app := newApp(t.TempDir())
-	if _, err := buildRouter(app); err == nil {
-		t.Fatal("buildRouter accepted an unsupported AUTH_MODE")
-	} else if !strings.Contains(err.Error(), authz.ModeEnv) {
-		t.Errorf("error %q does not name %s", err, authz.ModeEnv)
+	for _, mode := range []string{"oidc", "proxy", "yes"} {
+		t.Setenv(authz.ModeEnv, mode)
+
+		app := newApp(t.TempDir())
+		if _, err := buildRouter(app); err == nil {
+			t.Errorf("AUTH_MODE=%q was accepted", mode)
+		} else if !strings.Contains(err.Error(), authz.ModeEnv) {
+			t.Errorf("AUTH_MODE=%q: error %q does not name %s", mode, err, authz.ModeEnv)
+		}
+	}
+}
+
+func TestBuildRouter_RejectsUnsupportedBindIPSetting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv(authz.ModeEnv, "none")
+	t.Setenv("AUTH_BIND_SESSION_IP", "sometimes")
+
+	if _, err := buildRouter(newApp(t.TempDir())); err == nil {
+		t.Fatal("buildRouter accepted an unsupported AUTH_BIND_SESSION_IP")
 	}
 }
 

@@ -58,6 +58,7 @@ nav:
   - Home: index.md
   - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md
+  - User Accounts and Sign-In: authentication.md
   - Recordings and Playback: workflow.md
   - Guided Business Tasks: business-tasks.md
   - Chaos Mode: chaos-mode.md
