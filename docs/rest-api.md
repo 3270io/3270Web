@@ -67,6 +67,7 @@ cookie is never involved.
 | `POST` | `/api/v1/sessions/:id/screen-trace` | Start recording every screen the terminal draws |
 | `GET` | `/api/v1/sessions/:id/screen-trace` | Report the trace, or download it with `?download=1` |
 | `DELETE` | `/api/v1/sessions/:id/screen-trace` | Stop recording |
+| `POST` | `/api/v1/sessions/:id/hllapi` | Drive the terminal with HLLAPI-shaped calls: function numbers, one-based positions, return codes |
 | `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
 | `POST` | `/api/v1/tasks` | Add or replace a task |
 | `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
@@ -437,6 +438,117 @@ second concurrent start would silently redirect the first and is refused with
 
 Ending the session drops this server's record of where the trace went. The
 file stays on disk for whoever asked for it.
+
+### `POST /api/v1/sessions/:id/hllapi`
+
+A compatibility surface for screen-scrapers written against HLLAPI.
+
+There is a lot of working code that drives a terminal by calling numbered
+functions with a presentation-space position and branching on a return code.
+Porting it to the endpoints above is not hard, but it is a rewrite of every
+call site — and the reason those programs still exist is that nobody has time
+to rewrite them. This endpoint lets one be ported by changing *how* it calls
+rather than *what* it does.
+
+What it reproduces is the shape, because the shape is what the calling code is
+built around:
+
+- **Positions are one-based and linear.** Position 81 on a 24x80 screen is row
+  2, column 1. Every HLLAPI program does this arithmetic already.
+- **Every call answers with a return code.** The response is always HTTP 200
+  with an `rc` in the body — turning "string not found" into an HTTP error
+  would make it a different program.
+- **`SendKey` takes text with mnemonics embedded**, so `"SMITH@E"` still means
+  what it always meant.
+
+```sh
+curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"function":6,"text":"First Name"}' \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/hllapi
+```
+
+```json
+{ "rc": 0, "function": "SearchPresentationSpace", "number": 6, "position": 322 }
+```
+
+#### Functions
+
+| # | Name | Reads | Answers |
+|---|---|---|---|
+| 1 | `ConnectPresentationSpace` | — | `rc` 0. A no-op: the session is named in the path |
+| 2 | `DisconnectPresentationSpace` | — | `rc` 0. Also a no-op; `DELETE /sessions/:id` ends a session |
+| 3 | `SendKey` | `text` | Types the literal runs and presses the mnemonics, in order |
+| 4 | `Wait` | — | `rc` 0 when the keyboard is unlocked, 4 while the host is still working |
+| 5 | `CopyPresentationSpace` | — | `data` — the whole screen, plus `rows` and `cols` |
+| 6 | `SearchPresentationSpace` | `text`, `position` | `position` of the match, or `rc` 24 |
+| 7 | `QueryCursorLocation` | — | `position`, and `row`/`col` one-based |
+| 8 | `CopyPresentationSpaceToString` | `position`, `length` | `data` |
+| 15 | `CopyStringToPresentationSpace` | `position`, `text` | Writes at that position |
+| 31 | `FindFieldPosition` | `position` | `position` and `length` of the field there |
+| 32 | `FindFieldLength` | `position` | `length` |
+| 33 | `CopyStringToField` | `position`, `text` | Writes from the *start* of the field the position falls in |
+| 34 | `CopyFieldToString` | `position` | `data` — the field's contents |
+| 40 | `SetCursor` | `position` | Moves the cursor |
+
+`function` accepts the number or the name — the number for a mechanical port,
+the name for whoever reads it afterwards.
+
+A function that is not implemented is refused with `rc` 25 and the list of
+those that are. Answering 0 for something that did not happen is the one thing
+a compatibility layer must never do, so nothing is guessed at.
+
+A hidden field read through function 34 comes back redacted, with
+`"hidden": true` — the same treatment it gets everywhere else this application
+hands a screen out. This endpoint is not a way around that.
+
+#### Return codes
+
+| `rc` | Meaning |
+|---|---|
+| 0 | The call did what was asked |
+| 1 | There is no presentation space — the session is not connected |
+| 2 | A parameter was missing, malformed or untranslatable |
+| 4 | The keyboard is locked; the host has not finished |
+| 7 | The position is outside the presentation space |
+| 9 | The terminal could not carry the call out |
+| 24 | The string was not found |
+| 25 | This function is not implemented here |
+
+#### Mnemonics
+
+| Mnemonic | Key | | Mnemonic | Key |
+|---|---|---|---|---|
+| `@E` | Enter | | `@1`–`@9` | `PF1`–`PF9` |
+| `@C` | Clear | | `@a` `@b` `@c` | `PF10` `PF11` `PF12` |
+| `@T` | Tab | | `@x` `@y` `@z` | `PA1` `PA2` `PA3` |
+| `@B` | Back-tab | | `@@` | A literal `@` |
+| `@R` | Reset | | | |
+| `@F` | Erase EOF | | | |
+
+This is a subset on purpose. The mnemonic tables diverge between vendors past
+this common core, and a mnemonic mapped to the *wrong* key is worse than one
+that is not mapped at all: the wrong key reaches the host and the program
+carries on believing it did what it asked. Anything outside the table is
+refused with `rc` 2, and a key it does not cover can be named instead —
+`{"function":3,"text":"PF13"}` — since the rest of this application already
+understands key names.
+
+#### A worked port
+
+Typing a name into two fields and pressing Enter:
+
+```sh
+post() { curl -s -X POST -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" -d "$1" \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/hllapi; }
+
+post '{"function":6,"text":"First Name"}'                  # find the prompt
+post '{"function":33,"position":341,"text":"GRACE"}'       # fill its field
+post '{"function":33,"position":421,"text":"HOPPER"}'
+post '{"function":3,"text":"@E"}'                          # press Enter
+post '{"function":5}'                                      # read the result
+```
 
 ### `GET /api/v1/tasks` and `POST /api/v1/tasks`
 

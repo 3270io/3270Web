@@ -11,6 +11,10 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **A door in the shape of the old one** — an HLLAPI-shaped endpoint, so a
+  screen-scraper written against numbered functions and presentation-space
+  positions can be pointed at 3270Web without being rewritten. See
+  [REST API](rest-api.md#post-apiv1sessionsidhllapi).
 - **Touch** — a bar of terminal keys within a thumb's reach on a tablet or a
   phone, riding above the software keyboard rather than behind it, and a tap
   on protected text that places the cursor there. Without an AID key a device
@@ -171,6 +175,10 @@ proceed without them; procurement cannot.
 
 ## Web-native and integration
 
+Complete. The terminal can be framed by a named origin, driven from the page
+around it, called cross-origin as an API, used with a finger, and reached by a
+screen-scraper that still speaks HLLAPI.
+
 - [x] **Embed-in-iframe / SPA integration story** — *shipped: `EMBED_ORIGINS`
       names the origins that may frame the terminal or call the API from a
       page, `?embed=1` renders it without chrome, and a postMessage channel
@@ -180,9 +188,11 @@ proceed without them; procurement cannot.
       rides above the software keyboard, tap-to-place-cursor on protected
       text, and a screen that scrolls and zooms rather than reflowing. See
       [Keyboard and Controls](keyboard-and-controls.md#touch-devices)*
-- [ ] **HLLAPI-shape scripting endpoint** — partly solved by the REST API; a
-      thinner compatibility wrapper would ease migration of existing HLLAPI
-      screen-scrapers
+- [x] **HLLAPI-shape scripting endpoint** — *shipped: numbered functions,
+      one-based linear positions and return codes, so an existing
+      screen-scraper is ported by changing how it calls rather than what it
+      does. `"SMITH@E"` still means what it always meant. See
+      [REST API](rest-api.md#post-apiv1sessionsidhllapi)*
 
 ## AI-assisted use
 
