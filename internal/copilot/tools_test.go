@@ -43,8 +43,41 @@ func TestDefaultSystemPromptMentionsAllTools(t *testing.T) {
 			t.Fatalf("DefaultSystemPrompt does not mention tool %q", tool.Function.Name)
 		}
 	}
-	if !strings.Contains(DefaultSystemPrompt, "Business Understanding Skill") {
-		t.Fatal("DefaultSystemPrompt missing the Business Understanding Skill section")
+}
+
+// The procedures the assistant follows now live in skill files rather than in
+// this prompt, so what the prompt owes the model is the route to them. That
+// the individual playbooks still exist is asserted in internal/agent, where
+// they live.
+func TestDefaultSystemPromptRoutesToSkills(t *testing.T) {
+	for _, want := range []string{"list_skills", "load_skill", "load_instruction"} {
+		if !strings.Contains(DefaultSystemPrompt, want) {
+			t.Errorf("the prompt must tell the model how to reach its procedures; %q is missing", want)
+		}
+	}
+}
+
+// SystemPrompt composes the core prompt with a generated skill index. With no
+// provider installed it must still return something usable, because a caller
+// that never wired one up should get a working assistant rather than an empty
+// prompt.
+func TestSystemPromptComposition(t *testing.T) {
+	t.Cleanup(func() { SetSkillIndex(nil) })
+
+	SetSkillIndex(nil)
+	if got := SystemPrompt(); got != DefaultSystemPrompt {
+		t.Error("with no index provider, SystemPrompt should be the core prompt")
+	}
+
+	SetSkillIndex(func() string { return "   " })
+	if got := SystemPrompt(); got != DefaultSystemPrompt {
+		t.Error("an empty index should not add a trailing section")
+	}
+
+	SetSkillIndex(func() string { return "## Available skills\n\n- chaos-monkey — explore" })
+	got := SystemPrompt()
+	if !strings.Contains(got, DefaultSystemPrompt) || !strings.Contains(got, "chaos-monkey") {
+		t.Errorf("SystemPrompt should carry both the core prompt and the index, got:\n%s", got)
 	}
 }
 

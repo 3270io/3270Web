@@ -2,6 +2,13 @@
 
 AI Chat mode is a side panel that lets you drive a 3270 session through conversation. You type instructions in plain language; the AI reads the current screen, fills fields, presses keys, and runs chaos exploration — all with your approval before each action.
 
+!!! note "Driving 3270Web from outside the browser"
+
+    The same tools are available to any MCP client — Claude Desktop, VS Code,
+    Claude Code — through the [MCP Server](mcp.md). Everything on this page
+    about what the assistant can do applies there too; only the front end
+    differs.
+
 You choose which AI answers. GitHub Copilot, Claude, OpenAI, Google AI,
 Ollama (local or cloud) and any OpenAI-compatible endpoint are all
 supported, and everything on this page works the same way whichever one

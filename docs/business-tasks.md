@@ -312,3 +312,9 @@ edited by hand in version control cannot reach the runner malformed.
 - A run is abandoned after five minutes.
 - Parameter values are capped at 160 characters and may not contain CR, LF
   or TAB, which the 3270 data stream would read as actions rather than text.
+
+## Sharing tasks
+
+A saved task can be shipped to other installations inside an extension,
+alongside the skills and instructions that explain when to use it. See
+[Skills and Extensions](skills.md).

@@ -67,6 +67,9 @@ type App struct {
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.
 	aiConfigStore *aiprovider.ConfigStore
+	// catalogueFields holds the skills/instructions/extensions catalogue and
+	// the per-conversation load trackers. See skills.go.
+	catalogueFields
 }
 
 // connectionProfiles lazily opens the connection-profile store, which lives
@@ -127,21 +130,11 @@ const defaultSampleAppPort = 3270
 // go build -ldflags "-X main.appVersion=v1.2.3"
 var appVersion = "0.3.2"
 
-func main() {
-	baseDir := resolveBaseDir()
-	logFile, err := openStartupLog(baseDir)
-	if err == nil {
-		defer logFile.Close()
-		log.SetOutput(logFile)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			stack := debug.Stack()
-			msg := fmt.Sprintf("3270Web crashed during startup: %v", r)
-			log.Printf("%s\n%s", msg, stack)
-			showFatalError(msg)
-		}
-	}()
+// newApp loads configuration from baseDir and constructs the application
+// state. It is separate from main() so that other entry points into the same
+// binary — the `mcp` subcommand — can boot an identical App without
+// duplicating the .env, config-fallback and directory conventions.
+func newApp(baseDir string) *App {
 	envPath := filepath.Join(baseDir, ".env")
 	if err := config.EnsureDotEnv(envPath); err != nil {
 		log.Printf("Warning: could not ensure .env file: %v", err)
@@ -165,7 +158,7 @@ func main() {
 		cfg = &config.Config{ExecPath: "/usr/local/bin"}
 	}
 
-	app := &App{
+	return &App{
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
@@ -178,7 +171,13 @@ func main() {
 		chaosHintsPath: filepath.Join(baseDir, "chaos-hints.json"),
 		profiles:       newProfileCache(),
 	}
+}
 
+// buildRouter wires middleware, templates, static assets and every route
+// onto a fresh engine. Returning an error rather than calling showFatalError
+// keeps it usable from the `mcp` subcommand, where a modal dialog would be
+// the wrong way to fail.
+func buildRouter(app *App) (*gin.Engine, error) {
 	r := gin.Default()
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
@@ -186,28 +185,26 @@ func main() {
 	r.Use(MaxBodySizeMiddleware(maxRequestBodyBytes))
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(OriginRefererCheckMiddleware())
-	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
+	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
 	} else {
 		log.Printf("Warning: %v", tmplErr)
 		tmplFS, err := fs.Sub(webassets.FS, "web/templates")
 		if err != nil {
-			showFatalError(err.Error())
-			return
+			return nil, fmt.Errorf("load embedded templates: %w", err)
 		}
 		r.LoadHTMLFS(http.FS(tmplFS), "*")
 	}
 
-	staticDir, staticErr := resolveStaticDir(baseDir)
+	staticDir, staticErr := resolveStaticDir(app.baseDir)
 	if staticErr == nil {
 		r.Static("/static", staticDir)
 	} else {
 		log.Printf("Warning: %v", staticErr)
 		staticFS, err := fs.Sub(webassets.FS, "web/static")
 		if err != nil {
-			showFatalError(err.Error())
-			return
+			return nil, fmt.Errorf("load embedded static assets: %w", err)
 		}
 		r.StaticFS("/static", http.FS(staticFS))
 	}
@@ -315,12 +312,55 @@ func main() {
 	r.GET("/chaos/business/task-draft", app.ChaosBusinessToTaskHandler)
 	r.GET("/chaos/insights", app.ChaosInsightsHandler)
 
-	// GitHub Copilot side panel + screen JSON tool endpoint
+	// Skills, instructions and extensions. Registered before initCopilot so
+	// the skill index is available to the system prompt it serves.
+	app.registerSkillRoutes(r)
+	copilot.SetSkillIndex(app.skillIndexSection)
+
+	// AI chat side panel + screen JSON tool endpoints
 	app.initCopilot(r)
 
 	// Public REST/JSON API (gated by API_TOKEN env var)
 	app.registerAPIv1(r)
 
+	// MCP over HTTP, for clients that cannot launch a local process. The
+	// usual route is the stdio subcommand; see docs/mcp.md.
+	app.registerMCPHTTP(r)
+
+	return r, nil
+}
+
+func main() {
+	// The MCP subcommand owns stdout from its first statement, so it must be
+	// dispatched before the startup log, the config load, or the deferred
+	// recover below — which shows a modal dialog on Windows, in front of a
+	// process no one is looking at.
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		runMCP(os.Args[2:])
+		return
+	}
+
+	baseDir := resolveBaseDir()
+	logFile, err := openStartupLog(baseDir)
+	if err == nil {
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			msg := fmt.Sprintf("3270Web crashed during startup: %v", r)
+			log.Printf("%s\n%s", msg, stack)
+			showFatalError(msg)
+		}
+	}()
+	app := newApp(baseDir)
+
+	r, err := buildRouter(app)
+	if err != nil {
+		showFatalError(err.Error())
+		return
+	}
 	// Idle sessions (browser tab closed without disconnecting, network drop)
 	// otherwise live forever: their s3270 subprocess, chaos engine, and
 	// session-status poller keep running until the server restarts. Reap
@@ -745,6 +785,10 @@ func (app *App) cleanupSession(s *session.Session) {
 		app.taskRunStore.cancel(s.ID)
 		app.taskRunStore.forget(s.ID)
 	}
+	// Which skills a conversation has already been given is only meaningful
+	// while that conversation exists, and the map would otherwise grow by one
+	// entry per session for the life of the process.
+	app.forgetLoadSession(s.ID)
 	app.SessionManager.RemoveSession(s.ID)
 }
 
@@ -758,6 +802,11 @@ func (app *App) stopAllSessions() {
 		app.cleanupSession(s)
 	}
 }
+
+// sessionCookieName is the cookie app.getSession reads to identify the
+// active host session. The /api/v1 session-scoped routes set it from the
+// path parameter, so it is named once rather than spelled out per call.
+const sessionCookieName = "3270Web_session"
 
 const lastTargetCookieName = "3270Web_last_target"
 
@@ -1287,13 +1336,13 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	if closedID != "" {
 		remaining = app.forgetSession(c, closedID)
 	} else {
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 	}
 	if len(remaining) > 0 {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	setSessionCookie(c, "3270Web_session", "")
+	setSessionCookie(c, sessionCookieName, "")
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -1319,14 +1368,14 @@ func (app *App) ReconnectHandler(c *gin.Context) {
 		target = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
 	}
 	if target == "" {
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no previous host to reconnect to"})
 		return
 	}
 
 	if err := app.connectToHost(c, target); err != nil {
 		log.Printf("Reconnect failed for %q: %v", target, err)
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error":  connectErrorMessage(target, err),
 			"target": target,
@@ -1335,7 +1384,7 @@ func (app *App) ReconnectHandler(c *gin.Context) {
 	}
 	// Keep the reconnected session where it was on the tab bar.
 	if previousID != "" {
-		if newID := getCookieValue(c, "3270Web_session"); newID != "" {
+		if newID := getCookieValue(c, sessionCookieName); newID != "" {
 			app.replaceSessionInRoster(c, previousID, newID)
 		}
 	}
@@ -3329,7 +3378,7 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {
-	id, err := c.Cookie("3270Web_session")
+	id, err := c.Cookie(sessionCookieName)
 	if err != nil {
 		return nil
 	}
@@ -3345,7 +3394,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	if err != nil {
 		return err
 	}
-	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, sessionCookieName, sess.ID)
 	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
 	// Put it on the tab bar. Connecting from the front page is just opening
 	// the first tab.
@@ -3360,7 +3409,7 @@ func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) er
 	if err != nil {
 		return err
 	}
-	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, sessionCookieName, sess.ID)
 	setSessionCookie(c, lastTargetCookieName, profile.displayTarget())
 	app.rememberSession(c, sess.ID)
 	return nil

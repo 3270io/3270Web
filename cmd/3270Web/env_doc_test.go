@@ -23,14 +23,23 @@ func TestEnvDocumentationDrift(t *testing.T) {
 	}
 	content := string(contentBytes)
 
-	// Check for the drift
-	expectedComment := "# -noverifycert: Do not verify the TLS host certificate (default: false)"
-	expectedValue := "S3270_NO_VERIFY_CERT=false"
-
-	if !strings.Contains(content, expectedComment) {
-		t.Errorf("Drift check failed: Expected comment %q not found in content:\n%s", expectedComment, content)
+	// Every setting the template offers must arrive with a comment saying
+	// what it does. A value alone leaves the operator to guess, and the
+	// ones that gate a network surface are the worst to guess about.
+	cases := []struct{ comment, value string }{
+		{"# -noverifycert: Do not verify the TLS host certificate (default: false)", "S3270_NO_VERIFY_CERT=false"},
+		{"# Bearer token for /api/v1 and the MCP HTTP transport.", "API_TOKEN="},
+		{"# Allow the headless API to open sessions against the bundled sample apps", "ALLOW_SAMPLE_APPS=false"},
+		{"# Tool tier for the MCP server", "MCP_TOOLS=interactive"},
+		{"# Comma-separated glob list of hosts an AI client may connect to.", "MCP_ALLOWED_HOSTS="},
 	}
-	if !strings.Contains(content, expectedValue) {
-		t.Errorf("Drift check failed: Expected value %q not found in content:\n%s", expectedValue, content)
+
+	for _, tc := range cases {
+		if !strings.Contains(content, tc.comment) {
+			t.Errorf("Drift check failed: Expected comment %q not found in content:\n%s", tc.comment, content)
+		}
+		if !strings.Contains(content, tc.value) {
+			t.Errorf("Drift check failed: Expected value %q not found in content:\n%s", tc.value, content)
+		}
 	}
 }

@@ -104,11 +104,11 @@ func (app *App) forgetSession(c *gin.Context, id string) []string {
 	}
 	app.setSessionRoster(c, next)
 
-	if getCookieValue(c, "3270Web_session") != id {
+	if getCookieValue(c, sessionCookieName) != id {
 		return next
 	}
 	if len(next) == 0 {
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 		return next
 	}
 	fallback := removedAt - 1
@@ -118,7 +118,7 @@ func (app *App) forgetSession(c *gin.Context, id string) []string {
 	if fallback >= len(next) {
 		fallback = len(next) - 1
 	}
-	setSessionCookie(c, "3270Web_session", next[fallback])
+	setSessionCookie(c, sessionCookieName, next[fallback])
 	return next
 }
 
@@ -163,7 +163,7 @@ type sessionTab struct {
 
 // sessionTabs describes the browser's open sessions for the tab bar.
 func (app *App) sessionTabs(c *gin.Context) []sessionTab {
-	activeID := getCookieValue(c, "3270Web_session")
+	activeID := getCookieValue(c, sessionCookieName)
 	roster := app.sessionRoster(c)
 	tabs := make([]sessionTab, 0, len(roster))
 	for _, id := range roster {
@@ -289,7 +289,7 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": connectErrorMessage(hostname, err)})
 		return
 	}
-	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, sessionCookieName, sess.ID)
 	setSessionCookie(c, lastTargetCookieName, hostname)
 	app.rememberSession(c, sess.ID)
 
@@ -309,7 +309,7 @@ func (app *App) SessionsSwitchHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
-	setSessionCookie(c, "3270Web_session", id)
+	setSessionCookie(c, sessionCookieName, id)
 	if s, ok := app.SessionManager.PeekSession(id); ok {
 		if target := formatSessionTarget(s); target != "" {
 			setSessionCookie(c, lastTargetCookieName, target)
@@ -322,7 +322,7 @@ func (app *App) SessionsSwitchHandler(c *gin.Context) {
 func (app *App) SessionsCloseHandler(c *gin.Context) {
 	id := strings.TrimSpace(c.PostForm("id"))
 	if id == "" {
-		id = getCookieValue(c, "3270Web_session")
+		id = getCookieValue(c, sessionCookieName)
 	}
 	if id == "" || !containsString(app.sessionRoster(c), id) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})

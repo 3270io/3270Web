@@ -289,6 +289,39 @@
             if (!res.ok) return { error: res.error };
             return { workflow: res.data };
         },
+
+        // Skills, instructions and extensions. The server owns the catalogue
+        // and the per-conversation dedup, so these are thin: the "you already
+        // have this" reply comes back as an ordinary body.
+        async list_skills(_args) {
+            const res = await getJSON("/skills");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async load_skill(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            const res = await getJSON("/skills/load?name=" + encodeURIComponent(name));
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async list_instructions(_args) {
+            const res = await getJSON("/instructions");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async load_instruction(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            const res = await getJSON("/instructions/load?name=" + encodeURIComponent(name));
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async list_extensions(_args) {
+            const res = await getJSON("/extensions");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
     };
 
     async function runTool(name, args) {
