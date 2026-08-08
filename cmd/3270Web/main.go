@@ -70,11 +70,9 @@ type App struct {
 	// chaosSync counts the running chaos status goroutines so shutdown — and
 	// a test's cleanup — can wait for them rather than racing whatever they
 	// are still writing to. See startChaosSync.
-	chaosSync      sync.WaitGroup
-	chaosRunsDir   string
-	chaosHintsPath string
-	chaosHintsMu   sync.Mutex
-	profiles       *profileCache
+	chaosSync    sync.WaitGroup
+	chaosHintsMu sync.Mutex
+	profiles     *profileCache
 	// connProfiles holds named CONNECTION profiles (host, TLS, LU, model).
 	// Distinct from `profiles` above, which caches host COMPATIBILITY
 	// profiler results — unrelated feature, unfortunately similar word.
@@ -209,8 +207,6 @@ func newApp(baseDir string) *App {
 		envPath:             envPath,
 		baseDir:             baseDir,
 		chaosEngines:        newChaosEngineStore(),
-		chaosRunsDir:        filepath.Join(baseDir, "chaos-runs"),
-		chaosHintsPath:      filepath.Join(baseDir, "chaos-hints.json"),
 		profiles:            newProfileCache(),
 	}
 }

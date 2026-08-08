@@ -641,11 +641,18 @@ func (app *App) applyChaosBusinessWrite(sessionID string, onEngine func(*chaos.E
 	}
 	var encoded []byte
 	var runID string
+	// The run belongs to whoever owns the session it came from, so that is
+	// where it is written back — the request's principal would be the same
+	// person here, but the session is the thing the run is attached to.
+	runsDir := ""
+	if s, ok := app.SessionManager.PeekSession(sessionID); ok && s != nil {
+		runsDir = app.chaosRunsDirForSession(s.OwnerID)
+	}
 	mutateAndEncode := func(run *chaos.SavedRun) error {
 		if err := onRun(run); err != nil {
 			return err
 		}
-		if app.chaosRunsDir != "" {
+		if runsDir != "" {
 			data, err := chaos.EncodeRun(run)
 			if err != nil {
 				return err
@@ -659,7 +666,7 @@ func (app *App) applyChaosBusinessWrite(sessionID string, onEngine func(*chaos.E
 		if encoded == nil {
 			return nil
 		}
-		return chaos.WriteRunFile(app.chaosRunsDir, runID, encoded)
+		return chaos.WriteRunFile(runsDir, runID, encoded)
 	}
 	if found, err := app.chaosEngines.withLoadedRun(sessionID, mutateAndEncode); found {
 		if err != nil {

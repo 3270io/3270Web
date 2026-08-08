@@ -541,7 +541,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		applyChaosStartRequestToConfig(&cfg, req)
 	}
 	var savedHints chaosHintsPayload
-	if saved, err := app.loadChaosHintsPayload(); err == nil {
+	if saved, err := app.loadChaosHintsPayload(s.OwnerID); err == nil {
 		savedHints = saved
 		if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
 			cfg.Hints = saved.Hints
@@ -551,7 +551,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		}
 	}
 	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
-	app.confineChaosPaths(&cfg, loadedWorkflowName(s))
+	app.confineChaosPaths(&cfg, loadedWorkflowName(s), s.OwnerID)
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
 		cfg.ExportPort = s.TargetPort
@@ -945,7 +945,7 @@ func (app *App) chaosExportSuccessBalanceSetting() float64 {
 }
 
 func (app *App) loadSessionChaosRunFromDisk(s *session.Session) *chaos.SavedRun {
-	if app.chaosRunsDir == "" || s == nil || app.chaosEngines.isRemoved(s.ID) {
+	if app.baseDir == "" || s == nil || app.chaosEngines.isRemoved(s.ID) {
 		return nil
 	}
 	snapshot := chaosStateSnapshot(s)
@@ -953,7 +953,7 @@ func (app *App) loadSessionChaosRunFromDisk(s *session.Session) *chaos.SavedRun 
 		return nil
 	}
 	runID := strings.TrimSpace(snapshot.LoadedRunID)
-	run, err := chaos.LoadRun(app.chaosRunsDir, runID)
+	run, err := chaos.LoadRun(app.chaosRunsDirForSession(s.OwnerID), runID)
 	if err != nil {
 		return nil
 	}
@@ -1071,13 +1071,13 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-ch
 			// disk-fallback path used once a run has aged out of the
 			// in-memory cache — must not be able to observe the ID before
 			// the file it names actually exists on disk.
-			if app.chaosRunsDir != "" {
+			if runsDir := app.chaosRunsDirForSession(s.OwnerID); runsDir != "" {
 				if encodeErr != nil {
 					log.Printf("chaos: auto-save run %s failed: %v", runID, encodeErr)
-				} else if saveErr := chaos.WriteRunFile(app.chaosRunsDir, runID, encoded); saveErr != nil {
+				} else if saveErr := chaos.WriteRunFile(runsDir, runID, encoded); saveErr != nil {
 					// Non-fatal: log but do not interrupt teardown.
 					log.Printf("chaos: auto-save run %s failed: %v", runID, saveErr)
-				} else if pruned, pruneErr := chaos.PruneRuns(app.chaosRunsDir, maxSavedChaosRuns); pruneErr != nil {
+				} else if pruned, pruneErr := chaos.PruneRuns(runsDir, maxSavedChaosRuns); pruneErr != nil {
 					log.Printf("chaos: prune saved runs failed: %v", pruneErr)
 				} else if pruned > 0 {
 					log.Printf("chaos: pruned %d old saved run(s), keeping newest %d", pruned, maxSavedChaosRuns)
@@ -1109,7 +1109,7 @@ func (app *App) ChaosListRunsHandler(c *gin.Context) {
 		return
 	}
 
-	metas, err := chaos.ListRuns(app.chaosRunsDir)
+	metas, err := chaos.ListRuns(app.chaosRunsDirForSession(s.OwnerID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1143,7 +1143,7 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 		return
 	}
 
-	run, err := chaos.LoadRun(app.chaosRunsDir, req.RunID)
+	run, err := chaos.LoadRun(app.chaosRunsDirForSession(s.OwnerID), req.RunID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -1180,7 +1180,7 @@ func (app *App) ChaosDeleteRunHandler(c *gin.Context) {
 		return
 	}
 	runID := strings.TrimSpace(req.RunID)
-	if err := chaos.DeleteRun(app.chaosRunsDir, runID); err != nil {
+	if err := chaos.DeleteRun(app.chaosRunsDirForSession(s.OwnerID), runID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
@@ -1279,7 +1279,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		applyChaosStartRequestToConfig(&cfg, req)
 	}
 	var savedHints chaosHintsPayload
-	if saved, err := app.loadChaosHintsPayload(); err == nil {
+	if saved, err := app.loadChaosHintsPayload(s.OwnerID); err == nil {
 		savedHints = saved
 		if len(cfg.Hints) == 0 && len(saved.Hints) > 0 {
 			cfg.Hints = saved.Hints
@@ -1295,7 +1295,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		cfg.MaxSteps = loaded.StepsRun + cfg.MaxSteps
 	}
 	cfg.ScreenHints = app.resolveChaosScreenHints(s.ID, req, savedHints)
-	app.confineChaosPaths(&cfg, loadedWorkflowName(s))
+	app.confineChaosPaths(&cfg, loadedWorkflowName(s), s.OwnerID)
 	withSessionLock(s, func() {
 		cfg.ExportHost = s.TargetHost
 		cfg.ExportPort = s.TargetPort
@@ -1400,7 +1400,7 @@ func firstNonNilStrings(a, b []string) []string {
 
 // ChaosHintsGetHandler handles GET /chaos/hints – returns saved chaos hints.
 func (app *App) ChaosHintsGetHandler(c *gin.Context) {
-	payload, err := app.loadChaosHintsPayload()
+	payload, err := app.loadChaosHintsPayload(principalFrom(c).UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1424,7 +1424,7 @@ func (app *App) ChaosHintsSaveHandler(c *gin.Context) {
 		KeyBlacklist:    sanitizeChaosKeyBlacklist(req.KeyBlacklist),
 		FirstScreenHint: sanitizeChaosScreenHintPtr(req.FirstScreenHint),
 	}
-	if err := app.saveChaosHintsPayload(payload); err != nil {
+	if err := app.saveChaosHintsPayload(principalFrom(c).UserID, payload); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -1827,21 +1827,14 @@ func looksLikeTransactionCode(value string) bool {
 	return hasLetter
 }
 
-func (app *App) loadChaosHints() ([]chaos.Hint, error) {
-	payload, err := app.loadChaosHintsPayload()
-	if err != nil {
-		return nil, err
-	}
-	return payload.Hints, nil
-}
-
-func (app *App) loadChaosHintsPayload() (chaosHintsPayload, error) {
-	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
+func (app *App) loadChaosHintsPayload(ownerID string) (chaosHintsPayload, error) {
+	if app == nil || strings.TrimSpace(app.baseDir) == "" {
 		return chaosHintsPayload{Hints: []chaos.Hint{}, KeyBlacklist: []string{}}, nil
 	}
 	app.chaosHintsMu.Lock()
 	defer app.chaosHintsMu.Unlock()
-	data, err := os.ReadFile(app.chaosHintsPath)
+	hintsPath := app.dataScopeFor(ownerID).chaosHintsPath()
+	data, err := os.ReadFile(hintsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return chaosHintsPayload{Hints: []chaos.Hint{}, KeyBlacklist: []string{}}, nil
@@ -1867,17 +1860,14 @@ func (app *App) loadChaosHintsPayload() (chaosHintsPayload, error) {
 	}, nil
 }
 
-func (app *App) saveChaosHints(hints []chaos.Hint) error {
-	return app.saveChaosHintsPayload(chaosHintsPayload{Hints: hints})
-}
-
-func (app *App) saveChaosHintsPayload(payload chaosHintsPayload) error {
-	if app == nil || strings.TrimSpace(app.chaosHintsPath) == "" {
+func (app *App) saveChaosHintsPayload(ownerID string, payload chaosHintsPayload) error {
+	if app == nil || strings.TrimSpace(app.baseDir) == "" {
 		return fmt.Errorf("chaos hints path not configured")
 	}
 	app.chaosHintsMu.Lock()
 	defer app.chaosHintsMu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(app.chaosHintsPath), 0750); err != nil {
+	hintsPath := app.dataScopeFor(ownerID).chaosHintsPath()
+	if err := os.MkdirAll(filepath.Dir(hintsPath), 0750); err != nil {
 		return fmt.Errorf("create chaos hints directory: %w", err)
 	}
 	payload = chaosHintsPayload{
@@ -1889,7 +1879,7 @@ func (app *App) saveChaosHintsPayload(payload chaosHintsPayload) error {
 	if err != nil {
 		return fmt.Errorf("marshal chaos hints: %w", err)
 	}
-	if err := chaos.WriteFileAtomic(app.chaosHintsPath, data, 0600); err != nil {
+	if err := chaos.WriteFileAtomic(hintsPath, data, 0600); err != nil {
 		return fmt.Errorf("write chaos hints: %w", err)
 	}
 	return nil
@@ -2454,9 +2444,10 @@ const defaultChaosOutputName = "chaos-workflow.json"
 // transfer code follows. Operators who need the artefacts elsewhere should
 // mount the runs directory where they want it rather than pointing the app at
 // an arbitrary location.
-func (app *App) confineChaosPaths(cfg *chaos.Config, loadedWorkflowFileName string) {
-	cfg.OutputFile = confineChaosFilePath(app.chaosRunsDir, cfg.OutputFile, loadedWorkflowFileName)
-	cfg.TransitionLogPath = confineChaosFilePath(app.chaosRunsDir, cfg.TransitionLogPath, "")
+func (app *App) confineChaosPaths(cfg *chaos.Config, loadedWorkflowFileName, ownerID string) {
+	runsDir := app.chaosRunsDirForSession(ownerID)
+	cfg.OutputFile = confineChaosFilePath(runsDir, cfg.OutputFile, loadedWorkflowFileName)
+	cfg.TransitionLogPath = confineChaosFilePath(runsDir, cfg.TransitionLogPath, "")
 }
 
 // confineChaosFilePath resolves requested to a file inside baseDir.

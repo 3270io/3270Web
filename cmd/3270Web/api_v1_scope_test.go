@@ -26,8 +26,6 @@ func scopedTestApp(t *testing.T) (*App, *gin.Engine, *session.Session, string) {
 		chaosEngines:   newChaosEngineStore(),
 		baseDir:        t.TempDir(),
 	}
-	app.chaosRunsDir = app.baseDir
-	app.chaosHintsPath = app.baseDir + "/chaos-hints.json"
 
 	mock, err := host.NewMockHost("")
 	if err != nil {

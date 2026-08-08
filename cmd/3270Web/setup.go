@@ -122,6 +122,14 @@ func (app *App) beginSetupIfNeeded() error {
 	}
 	if count > 0 {
 		app.setup.complete()
+		// Accounts may have been created with the CLI, which never runs the
+		// setup handler, so the flat layout can still be sitting there. The
+		// marker file makes this a no-op on every start after the first.
+		if admin, ok, err := app.firstAdminID(); err == nil && ok {
+			if err := app.migrateFlatDataToOwner(admin); err != nil {
+				log.Printf("data: could not move pre-existing files: %v", err)
+			}
+		}
 		return nil
 	}
 
@@ -247,6 +255,13 @@ func (app *App) SetupHandler(c *gin.Context) {
 	app.setup.complete()
 	app.loginLimiter.Reset(limitKeys...)
 	log.Printf("auth: first administrator %q created from %s; setup is now closed", user.Username, clientIP)
+
+	// An instance that ran without accounts has files in the flat layout that
+	// nothing looks for once data is per-user. Attribute them to the account
+	// just created — the only one that exists, and the operator who made them.
+	if err := app.migrateFlatDataToOwner(user.ID); err != nil {
+		log.Printf("data: could not move pre-existing files to %q: %v", user.Username, err)
+	}
 
 	// Sign the new administrator straight in — making them retype the password
 	// they just chose proves nothing.
