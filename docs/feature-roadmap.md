@@ -22,9 +22,12 @@ For what 3270Web provides today, rather than what may come next, see
 - **IBM 3270 terminal fonts** — three bundled web fonts (Regular,
   Semi-Condensed, Condensed) selectable from the Settings modal.
   See [Terminal Fonts](terminal-fonts.md).
-- **AI Chat model selector** — dropdown in the side-panel header to
-  switch between Copilot models (default Claude Opus 4); choice
-  persists across page reloads.
+- **Choice of AI provider** — GitHub Copilot, Claude, OpenAI, Google AI,
+  Ollama (local or cloud), or any OpenAI-compatible endpoint, selected
+  from the chat panel. Each provider keeps its own model and credentials.
+  See [AI Providers](ai-providers.md).
+- **AI Chat model selector** — dropdown above the input box listing the
+  selected provider's models; the choice persists across page reloads.
 - **Chaos learned-value reuse bias controls** —
   `CHAOS_LEARNED_INPUT_REUSE_BIAS`, `CHAOS_LEARNED_KEY_REUSE_BIAS`, and
   `CHAOS_EXPORT_SUCCESS_BALANCE` let operators tune how aggressively
@@ -43,7 +46,7 @@ For what 3270Web provides today, rather than what may come next, see
 | Core terminal | TN3270 with TLS, themed rendering (IBM 3270 fonts, 7 themes), virtual keypad, browser copy/paste, settings modal with diagnostics, sample 3270 servers for testing. **New in this release:** print screen via s3270 `PrintText()`. |
 | s3270 exposure | All AID keys, navigation, `Connect`, `readbuffer ascii`, `Wait(Unlock,...)`, `movecursor`, `eraseeof`, `newline`. **New in this release:** field writes via s3270 `String()` (was per-character `key(0x..)`); `PrintText()` for print screen. |
 | Modernization / web-native | Cookie-session web UI, embedded s3270, Windows desktop wrapper, Docker image, MkDocs site. **New in this release:** public REST/JSON API at `/api/v1/*`. |
-| Automation / AI | Workflow recording/playback (3270Connect-compatible JSON), chaos exploration with hints, GitHub Copilot side panel driving the host via tool calls. |
+| Automation / AI | Workflow recording/playback (3270Connect-compatible JSON), chaos exploration with hints, an AI side panel driving the host via tool calls. **New in this release:** the panel works with GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint. |
 
 ## Table-stakes gaps
 

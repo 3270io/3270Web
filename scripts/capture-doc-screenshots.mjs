@@ -413,6 +413,20 @@ async function main() {
   await page.waitForSelector('#copilot-panel:not([hidden])', { timeout: 5000 });
   await settle(page, 900);
   await shotRegion(page, 'copilot-panel.png', '#copilot-panel', 0);
+
+  /* ---- AI provider dialog ------------------------------------------ */
+  // Shown on Claude rather than the Copilot default: Copilot's row is just a
+  // sign-in button, whereas a key-based provider exercises every field the
+  // dialog can show (endpoint, key, model).
+  await page.locator('[data-copilot-settings]').click();
+  await page.waitForSelector('[data-ai-modal]:not([hidden])', { timeout: 5000 });
+  await page.selectOption('[data-ai-provider]', 'anthropic');
+  await dismissTooltips(page);
+  await settle(page, 400);
+  await shotRegion(page, 'ai-provider-dialog.png', '.ai-provider-modal', 16);
+  await page.locator('[data-ai-cancel]').click();
+  await settle(page, 300);
+
   await page.locator('[data-copilot-close]').click();
   await settle(page, 400);
   await page.setViewportSize(VIEWPORT);
