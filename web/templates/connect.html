@@ -2,9 +2,14 @@
 <html>
 <head>
     <title>3270Web - Connect</title>
+    <!-- Without this, mobile browsers lay the page out at a ~980px virtual
+         viewport and scale it down: the desktop layout is rendered in
+         miniature and every max-width media query below is dead, because
+         the viewport reports 980px on a 412px phone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=12">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
     <!-- Shared design system layer; see the note in screen.html. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=13">
     <link rel="stylesheet" href="/static/lib/tippy.css">
