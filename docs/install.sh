@@ -585,7 +585,16 @@ success_binary() {
   printf '\n'
   panel "3270Web installed" "${RESOLVED_VERSION} ${GLYPH_SEP} binary"
   printf '\n'
-  step "start" "3270web"
+  # --bind/--port describe a published container port, which this method does
+  # not have: the native binary takes its listen address from WEBUI_BIND and
+  # WEBUI_PORT, defaulting to 127.0.0.1:8080. Show the env vars that actually
+  # apply them rather than printing a URL the binary would not be serving.
+  if [ "$PORT" != "8080" ] || [ "$BIND" != "127.0.0.1" ]; then
+    step "start" "WEBUI_BIND=${BIND} WEBUI_PORT=${PORT} 3270web"
+    note "Set them in $(short_path "$APP_DIR")/.env to drop the prefix."
+  else
+    step "start" "3270web"
+  fi
   step "open" "http://localhost:${PORT}"
   step "state" "$(short_path "$APP_DIR")/  (.env, 3270Web.log, chaos-runs/)"
   step "docs" "${DOCS_URL}/installation/"
@@ -657,11 +666,16 @@ install_docker() {
   fi
   spin_stop "pulled" "${IMAGE}:${tag}" "ok"
 
+  # Redundant with the image default, but stated explicitly so the container's
+  # listen address is visible in `docker inspect` next to the port mapping.
+  # Note this cannot rescue a --version pinned before WEBUI_BIND existed: those
+  # binaries bind 127.0.0.1 unconditionally and ignore the variable.
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p "${BIND}:${PORT}:8080" \
     -e GIN_MODE=release \
+    -e WEBUI_BIND=0.0.0.0 \
     -v 3270web-chaos:/app/chaos-runs \
     "${IMAGE}:${tag}" >/dev/null </dev/null
   step "started" "container ${CONTAINER_NAME}" "up"
@@ -741,6 +755,12 @@ services:
       - "${BIND}:${PORT}:8080"
     environment:
       - GIN_MODE=release
+      # Listen on all interfaces *inside* the container. A published port
+      # forwards to the container's external interface, so a loopback bind
+      # here would be unreachable however the ports are mapped. What the
+      # terminal is exposed to is decided by "ports:" above, not by this
+      # line -- do not change it to 127.0.0.1 to keep the terminal private.
+      - WEBUI_BIND=0.0.0.0
       # Any S3270_* option can be set here, for example:
       # - S3270_MODEL=3279-2-E
       # - S3270_CODE_PAGE=bracket

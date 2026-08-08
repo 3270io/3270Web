@@ -92,6 +92,33 @@ func TestDockerfileBindsAllInterfaces(t *testing.T) {
 	}
 }
 
+// The installer's container methods must set WEBUI_BIND too. They are how most
+// people get 3270Web running, and the compose file they generate is an artifact
+// users keep and edit, so the listen address has to be explicit and correct
+// there rather than relying on the reader to know the image default.
+func TestInstallScriptSetsBindForContainers(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "install.sh")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read install.sh: %v", err)
+	}
+	script := string(data)
+
+	// `docker run` (--method docker) and the generated compose file
+	// (--method compose) spell the same setting differently.
+	for _, want := range []string{"-e WEBUI_BIND=0.0.0.0", "- WEBUI_BIND=0.0.0.0"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("install.sh does not contain %q; containers it creates would bind loopback and be unreachable through the published port", want)
+		}
+	}
+
+	// A loopback value anywhere would reintroduce the bug. The port mapping is
+	// the only place the installer should restrict exposure.
+	if strings.Contains(script, "WEBUI_BIND=127.0.0.1") || strings.Contains(script, "WEBUI_BIND=localhost") {
+		t.Error("install.sh binds WEBUI_BIND to loopback for a container; restrict the host side of the port mapping instead")
+	}
+}
+
 // A non-loopback listener must actually accept connections addressed to a
 // non-loopback interface — that is the behaviour the published port depends on.
 func TestListenerOnAllInterfacesAcceptsNonLoopback(t *testing.T) {
