@@ -137,3 +137,61 @@ func TestManager_PeekSession_DoesNotUpdateLastAccess(t *testing.T) {
 		t.Fatalf("PeekSession updated LastAccess: got %v, want unchanged %v", retrieved.LastAccess, stale)
 	}
 }
+
+func TestCreateSessionFor_LabelsOwner(t *testing.T) {
+	m := NewManager()
+
+	owned := m.CreateSessionFor("alice", nil)
+	if owned.OwnerID != "alice" {
+		t.Errorf("OwnerID = %q, want %q", owned.OwnerID, "alice")
+	}
+
+	// The no-owner constructor stays available for callers with no principal
+	// to hand; it must produce an explicitly unowned session rather than
+	// inventing one.
+	unowned := m.CreateSession(nil)
+	if unowned.OwnerID != "" {
+		t.Errorf("CreateSession OwnerID = %q, want empty", unowned.OwnerID)
+	}
+}
+
+func TestListSessionsForAndCountFor(t *testing.T) {
+	m := NewManager()
+	a1 := m.CreateSessionFor("alice", nil)
+	a2 := m.CreateSessionFor("alice", nil)
+	b1 := m.CreateSessionFor("bob", nil)
+	m.CreateSession(nil) // unowned
+
+	if got := m.CountFor("alice"); got != 2 {
+		t.Errorf("CountFor(alice) = %d, want 2", got)
+	}
+	if got := m.CountFor("bob"); got != 1 {
+		t.Errorf("CountFor(bob) = %d, want 1", got)
+	}
+
+	ids := map[string]bool{}
+	for _, s := range m.ListSessionsFor("alice") {
+		ids[s.ID] = true
+	}
+	if len(ids) != 2 || !ids[a1.ID] || !ids[a2.ID] {
+		t.Errorf("ListSessionsFor(alice) = %v, want exactly %s and %s", ids, a1.ID, a2.ID)
+	}
+	if ids[b1.ID] {
+		t.Error("alice's listing included bob's session")
+	}
+}
+
+// An empty owner must match nothing. Answering "the sessions belonging to
+// nobody" with the full set is how enumeration bugs get introduced.
+func TestListSessionsFor_EmptyOwnerMatchesNothing(t *testing.T) {
+	m := NewManager()
+	m.CreateSessionFor("alice", nil)
+	m.CreateSession(nil)
+
+	if got := m.ListSessionsFor(""); len(got) != 0 {
+		t.Errorf("ListSessionsFor(\"\") returned %d sessions, want 0", len(got))
+	}
+	if got := m.CountFor(""); got != 0 {
+		t.Errorf("CountFor(\"\") = %d, want 0", got)
+	}
+}

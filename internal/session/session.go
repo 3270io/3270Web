@@ -14,8 +14,17 @@ import (
 
 // Session represents a user session.
 type Session struct {
-	mu                       sync.Mutex
-	ID                       string
+	mu sync.Mutex
+	ID string
+	// OwnerID names the account this session belongs to. It is set once at
+	// creation and never changes, so a session cannot be handed to another
+	// user after the fact.
+	//
+	// Empty means unowned, which is what sessions created before ownership
+	// existed look like. Unowned is deliberately not "owned by everyone":
+	// authz.Principal.Owns rejects it, so the fail-open reading is
+	// unavailable to callers.
+	OwnerID                  string
 	Host                     host.Host
 	LastAccess               time.Time
 	Prefs                    Preferences
@@ -275,10 +284,21 @@ func (m *Manager) GetSession(id string) (*Session, bool) {
 }
 
 // CreateSession creates a new session with the given host.
+// CreateSession starts an unowned session.
+//
+// Production code should call CreateSessionFor so the session is attributable
+// to a principal; this remains for callers that have no principal to hand,
+// which today means tests.
 func (m *Manager) CreateSession(h host.Host) *Session {
+	return m.CreateSessionFor("", h)
+}
+
+// CreateSessionFor starts a session owned by ownerID.
+func (m *Manager) CreateSessionFor(ownerID string, h host.Host) *Session {
 	id := generateID()
 	s := &Session{
 		ID:         id,
+		OwnerID:    ownerID,
 		Host:       h,
 		LastAccess: time.Now(),
 	}
@@ -287,6 +307,43 @@ func (m *Manager) CreateSession(h host.Host) *Session {
 	defer m.mu.Unlock()
 	m.sessions[id] = s
 	return s
+}
+
+// ListSessionsFor returns a snapshot of the sessions owned by ownerID.
+//
+// An empty ownerID matches nothing rather than everything: "show me the
+// sessions belonging to nobody in particular" is never a question a caller
+// legitimately asks, and answering it with the full set is how enumeration
+// bugs happen.
+func (m *Manager) ListSessionsFor(ownerID string) []*Session {
+	if ownerID == "" {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		if s.OwnerID == ownerID {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// CountFor reports how many sessions ownerID currently holds.
+func (m *Manager) CountFor(ownerID string) int {
+	if ownerID == "" {
+		return 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	n := 0
+	for _, s := range m.sessions {
+		if s.OwnerID == ownerID {
+			n++
+		}
+	}
+	return n
 }
 
 // ListSessions returns a snapshot of all active sessions. The slice is safe

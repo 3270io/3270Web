@@ -284,7 +284,7 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 		return
 	}
 
-	sess, err := app.startHostSessionWithProfile(hostname, profile)
+	sess, err := app.startHostSessionWithProfile(principalFrom(c).UserID, hostname, profile)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": connectErrorMessage(hostname, err)})
 		return

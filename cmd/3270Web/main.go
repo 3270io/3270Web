@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/aiprovider"
+	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
@@ -41,6 +42,9 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
+	// authMode selects how callers are identified. Validated at startup, so
+	// handlers can treat it as a known value.
+	authMode       authz.Mode
 	themeCache     map[string]string
 	themeCacheMu   sync.RWMutex
 	logFilePath    string
@@ -167,6 +171,9 @@ func newApp(baseDir string) *App {
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
+		// Overwritten by buildRouter once AUTH_MODE has been validated. The
+		// default matches the historical behaviour: a single local operator.
+		authMode:       authz.ModeNone,
 		themeCache:     make(map[string]string),
 		logFilePath:    filepath.Join(baseDir, "3270Web.log"),
 		envPath:        envPath,
@@ -183,6 +190,16 @@ func newApp(baseDir string) *App {
 // keeps it usable from the `mcp` subcommand, where a modal dialog would be
 // the wrong way to fail.
 func buildRouter(app *App) (*gin.Engine, error) {
+	// Validate before wiring anything. An AUTH_MODE this build cannot honour
+	// must stop startup rather than quietly fall back to no authentication —
+	// an operator who asked for a mode and got silence would reasonably
+	// believe the instance was protected.
+	mode, err := authz.ParseMode(os.Getenv(authz.ModeEnv))
+	if err != nil {
+		return nil, err
+	}
+	app.authMode = mode
+
 	r := gin.Default()
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
@@ -190,6 +207,9 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.Use(MaxBodySizeMiddleware(maxRequestBodyBytes))
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(OriginRefererCheckMiddleware())
+	// Resolve the caller before any handler runs, so every request has exactly
+	// one answer to "who is this".
+	r.Use(app.Authenticate())
 	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
@@ -3504,7 +3524,7 @@ func (app *App) getSession(c *gin.Context) *session.Session {
 }
 
 func (app *App) connectToHost(c *gin.Context, hostname string) error {
-	sess, err := app.startHostSession(hostname)
+	sess, err := app.startHostSession(principalFrom(c).UserID, hostname)
 	if err != nil {
 		return err
 	}
@@ -3519,7 +3539,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 // connectWithProfile opens a session using a named connection profile and
 // makes it the active one.
 func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) error {
-	sess, err := app.startHostSessionWithProfile(profile.displayTarget(), &profile)
+	sess, err := app.startHostSessionWithProfile(principalFrom(c).UserID, profile.displayTarget(), &profile)
 	if err != nil {
 		return err
 	}
@@ -3533,15 +3553,15 @@ func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) er
 // session for it, but does not associate the session with any browser cookie.
 // Used by both the cookie-based UI (via connectToHost) and the cookie-free
 // REST API.
-func (app *App) startHostSession(hostname string) (*session.Session, error) {
-	return app.startHostSessionWithProfile(hostname, nil)
+func (app *App) startHostSession(ownerID, hostname string) (*session.Session, error) {
+	return app.startHostSessionWithProfile(ownerID, hostname, nil)
 }
 
 // startHostSessionWithProfile starts a session, optionally applying a
 // connection profile's per-host overrides (TLS, LU, model, code page) on top
 // of the server-wide s3270 defaults. Passing nil reproduces the previous
 // behaviour exactly.
-func (app *App) startHostSessionWithProfile(hostname string, profile *ConnectionProfile) (*session.Session, error) {
+func (app *App) startHostSessionWithProfile(ownerID, hostname string, profile *ConnectionProfile) (*session.Session, error) {
 	if !isValidHostname(hostname) {
 		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
 	}
@@ -3584,7 +3604,7 @@ func (app *App) startHostSessionWithProfile(hostname string, profile *Connection
 		return nil, fmt.Errorf("failed to start host connection: %w", err)
 	}
 
-	sess := app.SessionManager.CreateSession(h)
+	sess := app.SessionManager.CreateSessionFor(ownerID, h)
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	if profile != nil {
 		sess.TargetHost = profile.Host
