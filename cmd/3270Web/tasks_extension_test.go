@@ -78,7 +78,7 @@ func TestExtensionTasksReachTheCatalogue(t *testing.T) {
 		"check-balance.json": extensionTaskDoc("ACME balance enquiry"),
 	})
 
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(nil)
 	if err != nil {
 		t.Fatalf("allTasks: %v", err)
 	}
@@ -91,10 +91,10 @@ func TestExtensionTasksReachTheCatalogue(t *testing.T) {
 
 	// And it is runnable by name, which is what the run handlers resolve
 	// through.
-	if _, ok := app.findTask("acme balance enquiry"); !ok {
+	if _, ok := app.findTask(nil, "acme balance enquiry"); !ok {
 		t.Error("a contributed task must resolve by name, case-insensitively like any other")
 	}
-	if !app.isExtensionTask("ACME balance enquiry") {
+	if !app.isExtensionTask(nil, "ACME balance enquiry") {
 		t.Error("the task should be recognised as coming from an extension")
 	}
 }
@@ -111,7 +111,7 @@ func TestExtensionTasksGoThroughTheSameGate(t *testing.T) {
 		"garbage.json": `not json at all`,
 	})
 
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(nil)
 	if err != nil {
 		t.Fatalf("allTasks: %v", err)
 	}
@@ -134,11 +134,11 @@ func TestSavedTaskWinsOverAnExtension(t *testing.T) {
 	if err := json.Unmarshal(encoded, &t2); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.taskStore().Upsert(t2); err != nil {
+	if _, err := app.taskStoreForRequest(nil).Upsert(t2); err != nil {
 		t.Fatalf("Upsert: %v", err)
 	}
 
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(nil)
 	if err != nil {
 		t.Fatalf("allTasks: %v", err)
 	}
@@ -148,12 +148,12 @@ func TestSavedTaskWinsOverAnExtension(t *testing.T) {
 	if tasks[0].Source == "extension:acme-pack" {
 		t.Error("the extension's version won; the operator's saved task must")
 	}
-	if app.isExtensionTask("Account balance enquiry") {
+	if app.isExtensionTask(nil, "Account balance enquiry") {
 		t.Error("a name the store holds is not an extension task")
 	}
 
 	// And the run path resolves to the same one the listing shows.
-	resolved, ok := app.findTask("Account balance enquiry")
+	resolved, ok := app.findTask(nil, "Account balance enquiry")
 	if !ok {
 		t.Fatal("the task should resolve")
 	}
@@ -179,7 +179,7 @@ func TestDeletingAnExtensionTaskIsRefused(t *testing.T) {
 		t.Errorf("the refusal should say where the task comes from, got %s", body)
 	}
 
-	if tasks, _ := app.allTasks(); len(tasks) != 1 {
+	if tasks, _ := app.allTasks(nil); len(tasks) != 1 {
 		t.Errorf("the task should still be there, got %+v", tasks)
 	}
 }

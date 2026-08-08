@@ -92,6 +92,18 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 		baseDir:        t.TempDir(),
 	}
 
+	// Cleanups run last-registered-first, so this runs before t.TempDir()
+	// removes the directory tree. A status goroutine still running when the
+	// test ends writes its saved run into the runs directory and races that
+	// removal, failing whichever test happened to be unlucky.
+	t.Cleanup(func() {
+		app.chaosEngines.stopAllSync()
+		if !app.waitForChaosSync(10 * time.Second) {
+			t.Error("chaos status goroutines were still running after the test; " +
+				"they write into t.TempDir() and will race its removal")
+		}
+	})
+
 	r := gin.New()
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
@@ -1518,6 +1530,18 @@ func TestChaosStart_RespectsEnvSettings(t *testing.T) {
 		baseDir:        dir,
 		envPath:        envPath,
 	}
+
+	// Cleanups run last-registered-first, so this runs before t.TempDir()
+	// removes the directory tree. A status goroutine still running when the
+	// test ends writes its saved run into the runs directory and races that
+	// removal, failing whichever test happened to be unlucky.
+	t.Cleanup(func() {
+		app.chaosEngines.stopAllSync()
+		if !app.waitForChaosSync(10 * time.Second) {
+			t.Error("chaos status goroutines were still running after the test; " +
+				"they write into t.TempDir() and will race its removal")
+		}
+	})
 
 	r := gin.New()
 	r.POST("/chaos/start", app.ChaosStartHandler)
