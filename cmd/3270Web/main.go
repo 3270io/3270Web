@@ -43,6 +43,7 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
+	// authMode selects how callers are identified. Validated at startup, so
 	// handlers can treat it as a known value.
 	authMode authz.Mode
 	// users holds local accounts; authSessions holds live logins. Both are
