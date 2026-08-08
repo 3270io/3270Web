@@ -9,7 +9,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=5">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -27,7 +27,7 @@
          preventDefault(), ui.js's listener sees event.defaultPrevented and
          skips entirely — so toolbar buttons never got the spinner/disabled
          state, allowing double-submits. -->
-    <script src="/static/ui.js?v=19" defer></script>
+    <script src="/static/ui.js?v=20" defer></script>
     <script src="/static/workflow.js?v=17" defer></script>
     <script src="/static/screen-live.js" defer></script>
     <script src="/static/screen-grid.js" defer></script>
@@ -35,6 +35,7 @@
     <script src="/static/hotspots.js" defer></script>
     <script src="/static/screen-find.js" defer></script>
     <script src="/static/screen-history.js" defer></script>
+    <script src="/static/session-tabs.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
@@ -100,8 +101,22 @@
                     </button>
                 </div>
             </div>
+            <!-- Session tabs. Hidden until a second session exists; see
+                 session-tabs.js. Rendered server-side so the bar does not
+                 pop in after load when several sessions are already open. -->
+            <div class="session-tab-bar" data-session-tabs {{ if lt (len .SessionTabs) 2 }}hidden{{ end }}>
+                {{ range .SessionTabs }}
+                <div class="session-tab{{ if .Active }} is-active{{ end }}" role="presentation">
+                    <button type="button" class="session-tab-label" title="{{ .Target }}" aria-current="{{ if .Active }}page{{ else }}false{{ end }}">{{ .Label }}</button>
+                    <button type="button" class="session-tab-close" aria-label="Close session {{ .Target }}">&times;</button>
+                </div>
+                {{ end }}
+            </div>
             <div class="toolbar" data-main-toolbar style="margin-bottom: 16px;">
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
+                <button type="button" class="icon-button" data-session-new data-tippy-content="Open another host session" aria-label="Open another host session">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                </button>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>

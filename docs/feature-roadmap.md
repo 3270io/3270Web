@@ -55,7 +55,7 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 
 - [ ] **IND$FILE file transfer** (s3270 `Transfer()`) — text and binary, ASCII/EBCDIC
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
-- [ ] **Multiple concurrent sessions / tabs in one browser** — today, one session per cookie
+- [x] **Multiple concurrent sessions / tabs in one browser** — *shipped: up to six live sessions with a tab bar; the active-session cookie is unchanged, so every existing handler was untouched*
 - [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
 - [x] **Scrollback / screen history navigation** — *shipped: last 50 screens per session, read-only viewer*
 - [x] **Find/search within current screen** — *shipped: Ctrl+F over the character grid, so it sees input values the browser's own find cannot*

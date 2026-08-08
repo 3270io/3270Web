@@ -4,6 +4,35 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 
 ## Toolbar Controls
 
+### Sessions and tabs
+
+You can keep up to six host sessions open at once. The **+** button on the
+toolbar opens another one and asks which host to connect to; a tab bar
+appears above the toolbar as soon as there is more than one.
+
+- Click a tab to switch to it.
+- The **×** on a tab closes that session; the others keep running.
+- **Disconnect** ends only the session you are looking at. If other tabs
+  are open you land on one of them rather than back at the connect page.
+
+Sessions are fully independent — each has its own host connection, screen,
+OIA, screen history and unsubmitted input. Switching tabs reloads the page,
+which is deliberate: a session owns more than the screen, and a reload is
+the one way to be certain none of the outgoing session's state is left
+pointing at the incoming one. The sessions themselves stay live on the
+server across it, so nothing is lost.
+
+Tabs are labelled by host. Two sessions to the same host are told apart by
+port, and two to the same host *and* port are numbered in the order you
+opened them.
+
+!!! note "Sessions are per browser"
+
+    The set of open sessions lives in a browser cookie. Opening 3270Web in
+    a different browser or a private window starts from nothing, and the
+    idle-session reaper still closes sessions you leave untouched for long
+    enough.
+
 ### Workspace modes
 
 The toolbar has two surfaces, chosen by the **Business / Engineering**
