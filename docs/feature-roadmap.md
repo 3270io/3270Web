@@ -1,173 +1,152 @@
 # Feature Roadmap
 
-This page tracks where 3270Web stands today against the s3270 binary's
-exposed action surface and against the capabilities an enterprise 3270
-terminal is generally expected to have. It is a menu, not a schedule —
-items in **Future candidates** are deliberately unprioritized.
+What may come next. This page is a **menu, not a schedule** — an unchecked
+item is a candidate, not a commitment, and the order is not a queue.
 
-For what 3270Web provides today, rather than what may come next, see
-[Terminal Capabilities](terminal-capabilities.md).
+For what 3270Web provides **today**, see
+[Terminal Capabilities](terminal-capabilities.md). That page is the one to
+read before an evaluation; this one is for deciding what to build.
 
 ## Recently shipped
 
-- **Host Compatibility Profiler** — `POST /profile` and
-  `POST /api/v1/sessions/:id/profile` produce a shared
-  `CompatibilityProfile` JSON document. Same schema as
-  `3270Connect -profile`, so the same JSON drops into either tool's
-  comparison workflow. See [Host Compatibility Profiler](host-profiler.md).
-- **Chaos Mind-Map Compare** — `POST /chaos/mindmap/compare` diffs two
-  exported mind maps and surfaces field and transition divergence
-  between hosts. JSON by default, HTML report on `Accept: text/html`.
-  See [Chaos Mind-Map Compare](chaos-compare.md).
-- **IBM 3270 terminal fonts** — three bundled web fonts (Regular,
-  Semi-Condensed, Condensed) selectable from the Settings modal.
-  See [Terminal Fonts](terminal-fonts.md).
+Newest first. Every item here is live and documented.
+
+- **Guided Business Tasks** — record a screen flow once, and anyone can run
+  it from a form and read the answer without navigating a green screen.
+  Named inputs, named outputs, and a run that stops at the first divergence
+  rather than typing into a screen nobody expected. See
+  [Guided Business Tasks](business-tasks.md).
 - **Choice of AI provider** — GitHub Copilot, Claude, OpenAI, Google AI,
-  Ollama (local or cloud), or any OpenAI-compatible endpoint, selected
-  from the chat panel. Each provider keeps its own model and credentials.
-  See [AI Providers](ai-providers.md).
-- **AI Chat model selector** — dropdown above the input box listing the
-  selected provider's models; the choice persists across page reloads.
-- **Chaos learned-value reuse bias controls** —
-  `CHAOS_LEARNED_INPUT_REUSE_BIAS`, `CHAOS_LEARNED_KEY_REUSE_BIAS`, and
-  `CHAOS_EXPORT_SUCCESS_BALANCE` let operators tune how aggressively
-  the engine reuses values, keys, and successful transitions in
-  exports.
-- **Accessibility & UX hardening** — destructive-action confirmation
-  modal for saved-host deletion, visual destructive tagging on
-  Disconnect, hostname input marked required with AT-announced
-  errors, collapsible toolbar sections, theme-aware toast
-  notifications.
+  Ollama (local or cloud), or any OpenAI-compatible endpoint, selected from
+  the chat panel. Each provider keeps its own model and credentials. See
+  [AI Providers](ai-providers.md).
+- **Customisable keyboard mapping** — rebind by pressing the key, with JSON
+  export/import and a `.KMP` keymap-file importer that reports what it could
+  not map. See [Keyboard and Controls](keyboard-and-controls.md).
+- **IND$FILE file transfer** — send and receive, text or binary, with TSO
+  dataset-creation options and PDS member names.
+- **Concurrent sessions with tabs** — up to six live host sessions in one
+  browser, fully independent.
+- **Server-side connection profiles** — per-host TLS, certificate
+  verification, LU name, terminal model and code page.
+- **Screen tools** — hotspots on the application's own key legends, find
+  over the character grid (so it matches typed values), screen history for
+  the last 50 screens, screen-accurate and rectangular block copy.
+- **Terminal fidelity** — local cursor movement with no host round-trip, a
+  real OIA (`X SYSTEM`, `X -f`, insert indicator), numeric-field
+  enforcement with an operator-error lock, insert/overtype, and type-ahead.
+- **Focus mode and workspace modes** — the terminal fills the display with
+  an auto-hiding toolbar rail; Business is the default surface and
+  Engineering is one click away.
+- **Chaos exploration hardening** — saturation detection, structural screen
+  dedup, smarter value generation, automatic exit-key blocking, a Markdown
+  discovery report, and mind-map export/import. See
+  [Chaos Mode](chaos-mode.md).
+- **Host Compatibility Profiler** and **Chaos Mind-Map Compare** — see
+  [Host Compatibility Profiler](host-profiler.md) and
+  [Chaos Mind-Map Compare](chaos-compare.md).
 
-## Where 3270Web stands today
+## Guided Business Tasks — what is left
 
-| Bucket | Current state |
-|---|---|
-| Core terminal | TN3270 with TLS, themed rendering (IBM 3270 fonts, 7 themes), virtual keypad, browser copy/paste, settings modal with diagnostics, sample 3270 servers for testing. **New in this release:** print screen via s3270 `PrintText()`. |
-| s3270 exposure | All AID keys, navigation, `Connect`, `readbuffer ascii`, `Wait(Unlock,...)`, `movecursor`, `eraseeof`, `newline`. **New in this release:** field writes via s3270 `String()` (was per-character `key(0x..)`); `PrintText()` for print screen. |
-| Modernization / web-native | Cookie-session web UI, embedded s3270, Windows desktop wrapper, Docker image, MkDocs site. **New in this release:** public REST/JSON API at `/api/v1/*`. |
-| Automation / AI | Workflow recording/playback (3270Connect-compatible JSON), chaos exploration with hints, an AI side panel driving the host via tool calls. **New in this release:** the panel works with GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint. |
+The flagship capability shipped, but not all of it. The gap that matters
+most is authoring: a task is a hand-written JSON document today, so only a
+developer can create one — the wrong audience for a feature aimed at the
+analyst who knows the business question.
 
-## Table-stakes gaps
-
-Capabilities an enterprise 3270 terminal is generally expected to have
-and that 3270Web did not.
-
-- [x] **IND$FILE file transfer** (s3270 `Transfer()`) — *shipped: send and receive, text and binary, with TSO dataset creation options*
-- [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
-- [x] **Multiple concurrent sessions / tabs in one browser** — *shipped: up to six live sessions with a tab bar; the active-session cookie is unchanged, so every existing handler was untouched*
-- [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
-- [x] **Scrollback / screen history navigation** — *shipped: last 50 screens per session, read-only viewer*
-- [x] **Find/search within current screen** — *shipped: Ctrl+F over the character grid, so it sees input values the browser's own find cannot*
-- [x] **Hotspots** (clickable PF labels and URLs detected on screen) — *shipped: never placed over an input field, only real key ranges*
-- [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
-- [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
-- [x] **Customizable keyboard mapping in the UI** — *shipped: rebind by
-  pressing the key, with JSON export/import and a `.KMP` keymap-file
-  importer that reports what it could not map*
+- [ ] **Authoring wizard** — after recording a flow, ask which typed values
+      are inputs and which regions of the final screen are the answer, then
+      save straight into the catalogue. This is what makes the feature
+      reachable for the people it was designed for.
+- [ ] **Export / import task definitions** — for moving a task between
+      deployments, and for keeping one in version control
+- [ ] **Task API** — `POST /api/v1/tasks/{name}/run`, token-authenticated,
+      for RPA and CI callers
+- [ ] **Chaos import** — convert a discovered `BusinessFunction` into a
+      task, so chaos becomes a way of *finding* tasks rather than a separate
+      tool
 
 ## Daily-use fidelity
 
-Behaviours an experienced 3270 operator expects from the terminal itself,
-tracked separately from feature parity because they are not features —
-they are whether the thing behaves like a terminal. See
-[Terminal Capabilities](terminal-capabilities.md) for what is shipping.
+Behaviours an experienced 3270 operator expects from the terminal itself.
+Tracked apart from features because they are not features — they are whether
+the thing behaves like a terminal. The rest of this list is shipping; see
+[Terminal Capabilities](terminal-capabilities.md).
 
-- [x] **Local cursor navigation** — *shipped: Tab, Back-Tab, arrows and Home move the caret in the browser instead of costing a host round-trip each*
-- [x] **Real OIA** — *shipped: `X SYSTEM`, `X -f`, online/application block, insert indicator*
-- [x] **Numeric field enforcement** — *shipped: the 3270 numeric attribute now reaches the browser and is enforced, with a real operator-error lock*
-- [x] **Insert / overtype toggle** — *shipped: local Insert key, `^` in the OIA*
-- [x] **Type-ahead** — *shipped: characters typed during a host wait are buffered, not dropped*
-- [x] **Business / Engineering workspace modes** — *shipped: the default surface is the terminal; automation is one click away*
-- [x] **Focus mode** — *shipped: Alt+Enter fills the screen (true fullscreen) with an auto-hiding rail carrying the real toolbar; the OIA always stays*
-- [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full *numeric* fields, which covers the common real case but is not the full field-attribute rule
-- [ ] **Cursor movement over protected areas** — the cursor can only rest in an input field, so all-protected rows are skipped
-- [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things and the keypad currently wins, leaving the terminal a tile in the corner of a full screen. Which should take priority is a product call, not a bug fix
+- [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full
+      *numeric* fields, which covers the common real case but is not the
+      full field-attribute rule
+- [ ] **Cursor movement over protected areas** — the cursor can only rest in
+      an input field, so rows of purely protected text are skipped
+- [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things
+      and the keypad currently wins, leaving the terminal a tile in the
+      corner of a full screen. Which should take priority is a product call,
+      not a bug fix
 
-## s3270 features not yet surfaced
+## s3270 actions not yet surfaced
 
 s3270 already supports these — wiring them up is mostly a wrapper job.
+`String()`, `Transfer()` and `PrintText()` are already done.
 
-- [x] **`String()` for batched field writes** — *shipped: replaces per-character `key(0x..)` loop*
-- [x] **`Transfer()`** — *shipped: IND$FILE send and receive*
-- [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and regression tests
-- [ ] **`Query(host|model|cursor|...)`** — richer status surface for the UI and API
-- [x] **`PrintText()`** — *shipped*
-- [ ] **`Toggle()` / `Set()`** — runtime resource changes (e.g. monocase, blink)
+- [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and
+      regression tests
+- [ ] **`Query(host|model|cursor|...)`** — richer status surface for the UI
+      and the API
+- [ ] **`Toggle()` / `Set()`** — runtime resource changes (monocase, blink)
 - [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting
-- [ ] **`ScreenTrace`** — event-driven screen-change capture for observability
-- [ ] **Explicit `Disconnect`** — today the subprocess is killed; a graceful Disconnect is friendlier to upstream proxies
+- [ ] **`ScreenTrace`** — event-driven screen-change capture for
+      observability
+- [ ] **Explicit `Disconnect`** — today the subprocess is killed; a graceful
+      disconnect is friendlier to upstream proxies
 
-## Modernization / web-native
+## Enterprise deployment
 
-- [x] **Public REST/JSON screen API** — *shipped at `/api/v1/*` (see [REST API](rest-api.md))*
-- [ ] **OAuth / SAML / OIDC SSO** — needed for BYOD and Azure AD orgs
-- [ ] **Audit logging** for compliance (who did what, when, against which host)
-- [ ] **WCAG 2.1 AA + screen-reader support** — rare in this category, and a large untapped differentiator
-- [ ] **Embed-in-iframe / SPA integration story** documented end-to-end
-- [ ] **Mobile / touch UI** — today the UI is desktop-first; touch-friendly keypad and hotspots would unlock tablet use
+These gate a production rollout rather than daily usability. A pilot can
+proceed without them; procurement cannot.
 
-## Automation / AI
+- [ ] **OAuth / SAML / OIDC SSO** — the entry ticket for BYOD and Azure AD
+      organisations. There is no identity model at all today.
+- [ ] **Attributable audit logging** — who accessed which host, when.
+      Session-scoped logs exist; attributable records do not.
+- [ ] **WCAG 2.1 AA conformance statement** — most of the work is done (see
+      the accessibility section of
+      [Terminal Capabilities](terminal-capabilities.md)); what is missing is
+      the audit and the statement
+- [ ] **Distributable task and profile libraries** — both are server-side
+      already; moving them between deployments is not solved
 
-Build on the existing Copilot + chaos + workflow plumbing.
+## Web-native and integration
 
-### Guided Business Tasks
+- [ ] **Embed-in-iframe / SPA integration story**, documented end to end
+- [ ] **Mobile / touch UI** — the UI is desktop-first; a touch-friendly
+      keypad and hotspots would unlock tablet use
+- [ ] **HLLAPI-shape scripting endpoint** — partly solved by the REST API; a
+      thinner compatibility wrapper would ease migration of existing HLLAPI
+      screen-scrapers
 
-The flagship item: record a business flow once, and everyone else runs it
-by filling in a form and reading the answer, without ever looking at a
-green screen.
+## AI-assisted use
 
-> **Account balance enquiry**
-> Retrieves the current cleared balance for a customer account.
->
-> Account number `[ 40218855 ]` — 8 digits, required
-> As-at date `[ 2026-08-08 ]` — optional, defaults to today
+Build on the existing AI panel, chaos and workflow plumbing.
 
-3270Web navigates the application, filling fields and pressing keys with
-the terminal visible throughout, and returns a result card rather than a
-screen. Where a step diverges from the recorded path it **stops at the
-divergence, reports which step failed and what it saw instead, and leaves
-the terminal exactly where it stopped** so the operator can take over.
-Silent failure or blind continuation would be worse than no automation.
+- [ ] **Natural-language → keystrokes** — "describe the screen action you
+      want" as a tool call
+- [ ] **One-click "Explain this screen"** — the panel already has
+      `get_screen`; a button can chain it with a fixed prompt
+- [ ] **AI-proposed task authoring** — let the assistant suggest the
+      parameters and outputs the wizard asks about, with a human confirming.
+      Nothing about Guided Business Tasks should *require* AI — that is the
+      difference between a differentiator and a dependency.
 
-- [x] **Output extraction** — *shipped: name a region of the final screen, with an optional regexp whose capture group pulls the value out of a labelled line*
-- [x] **Independence from chaos** — *shipped: a task is a standalone document; no mind-map or chaos run needed*
-- [x] **Run surface** — *shipped: Tasks menu, parameter form, live progress with Cancel, and a result card with copy and CSV export. See [Guided Business Tasks](business-tasks.md)*
-- [x] **Server-side catalogue** — *shipped: one library per deployment, so a task defined once is on everyone's menu*
-- [ ] **Authoring wizard** — after recording, ask which typed values are inputs and which final-screen regions are the answer. Tasks are defined as JSON until this lands.
-- [ ] **Export / import task definitions** — for moving a task between deployments
-- [ ] **Task API** — `POST /api/v1/tasks/{name}/run` for token-authenticated RPA and CI callers
-- [ ] **Chaos import** — convert a discovered `BusinessFunction` into a task
+## Where the leverage is
 
-### Other
+Three areas where 3270Web can lead rather than match:
 
-- [ ] **HLLAPI-shape scripting endpoint** for external bots — partially solved by the new REST API; a thinner "HLLAPI compatibility" wrapper would ease migration of existing HLLAPI screen-scrapers
-- [ ] **Macro recorder polish** — the workflow recorder exists; surface it as "macros" with named, parameterized re-runs
-- [ ] **Natural-language → keystrokes** — extend the Copilot tool surface with a "describe the screen action you want" action
-- [ ] **One-click "Explain this screen"** — Copilot already has `get_screen`; a button can chain it with a fixed prompt
-
-## Differentiator opportunities
-
-If 3270Web wants to lead rather than match, the standouts are:
-
-1. **Accessibility** — a documented WCAG/screen-reader story is rare in this category. A web emulator with ARIA labels, keyboard-only operation, and high-contrast themes is a strong fit for regulated-industry requirements.
-2. **AI-assisted use** — the Copilot side panel is unusual for a terminal; screen-aware Copilot actions, natural-language transactions, and AI explanations build on something no green screen has had before.
-3. **Public REST API + workflow JSON** — paired, these make 3270Web straightforward to adopt for RPA and CI integration, which is rarely a first-class capability in this category.
-
-## In-flight (this release)
-
-### Terminal / API
-- E1: [s3270 `String()` for field writes](#s3270-features-not-yet-surfaced) — performance and observability win; replaces the per-character `key(0x..)` loop noted as a `TODO` since the Java port.
-- E2: [Print screen](#table-stakes-gaps) — table-stakes terminal capability.
-- E3: [Public REST API](rest-api.md) — modernization differentiator; reuses the existing Copilot tool plumbing.
-
-### Chaos exploration
-- Bug fix: `chaos_save_screen_hint` and `chaos_start` now bind both snake_case (the public MCP form) and camelCase (the legacy UI form). Tool descriptors are unchanged.
-- Saturation detection: a run stops early with `terminationReason: "saturated"` once `saturation_steps` consecutive attempts produce no new screen, transition tuple, or value that caused a transition. `coverageStats` is surfaced in `chaos_status`.
-- Smarter value generation: built-in corpus expanded with real-looking transaction codes (`LOGON`, `IPL`, `IKJEFT01`, `TSO`, `CICS`, `ISPF`, …) and realistic names; per-field length-probe values (empty / short / half / exact / overflow) cycle through untried length classes.
-- Structural dedup as default: mind-map area keys now derive from the layout signature, so screens that differ only by echoed values (e.g. "first name is 1" vs "first name is 3") collapse into one area. Use `dedup_mode: "exact"` for the old raw-hash behaviour.
-- Auto-block exit keys: chaos scans the bottom-row PF legend for Exit/Quit/Cancel/Logoff labels and blocks those keys for the rest of the run. Navigation labels (Help/Menu/Next/Prev/Forward/Back) are auto-known.
-- `chaos_report` tool returns a Markdown report (ASCII screen graph, per-screen field/key stats, suggested next experiments). Backs the existing in-browser report modal.
-- `chaos_status` now supports `?verbose=true`; default response is a slim mind-map summary so polling is cheap.
-- Mind-map carry-across via `GET /chaos/mindmap/export` and `POST /chaos/mindmap/import`.
-- Optional JSONL transition log per run via `transition_log_path` for offline analysis.
+1. **Guided Business Tasks.** They change who can use the product.
+   Everything else here makes a terminal better for people who already use
+   terminals; this serves people who only know the business question.
+2. **Accessibility.** A documented WCAG and screen-reader story is rare in
+   this category, and most of the work is already done — deriving each
+   field's label from the screen's own text is the hard part, and it exists.
+3. **Public REST API plus workflow JSON.** Paired, they make 3270Web
+   straightforward to adopt for RPA and CI: a flow recorded by hand is the
+   same document an automated job replays, with no separate scripting
+   language in between.

@@ -748,10 +748,26 @@ body::after {
 .md-typeset ul li::marker { color: var(--accent); }
 .md-typeset ol li::marker { color: var(--text-3); font-family: var(--font-mono); }
 
-.md-typeset .task-list-control .task-list-indicator::before { background: var(--line-strong); }
-.md-typeset .task-list-control [type='checkbox']:checked + .task-list-indicator::before {
-  background: var(--accent);
+/* Task lists. A ticked box means shipped, so the tick is green in every
+   palette instead of following the accent (amber and ice would otherwise
+   render a shipped item in orange or blue). Unticked items get a hollow
+   ring rather than a dimmed tick, so the two states differ by shape and
+   not only by colour — which matters most in the phosphor palette, where
+   everything is already green. */
+.md-typeset .task-list-control .task-list-indicator::before {
+  background-color: var(--text-3);
+  opacity: 0.55;
+  -webkit-mask-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16"/></svg>');
+  mask-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16"/></svg>');
 }
+.md-typeset .task-list-control [type='checkbox']:checked + .task-list-indicator::before {
+  background-color: var(--ok);
+  opacity: 1;
+  -webkit-mask-image: var(--md-tasklist-icon--checked);
+  mask-image: var(--md-tasklist-icon--checked);
+}
+/* Fallback for the native control if the custom indicator is unavailable. */
+.md-typeset .task-list-item [type='checkbox'] { accent-color: var(--ok); }
 
 /* Footnotes */
 .md-typeset .footnote { color: var(--text-3); font-size: 0.72rem; }
