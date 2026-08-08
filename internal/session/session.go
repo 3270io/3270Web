@@ -131,6 +131,27 @@ type WorkflowRecording struct {
 	DelayMin       float64
 	DelayMax       float64
 	DelaySamples   int
+	// Screens records what the host had painted immediately before each
+	// submit, captured before the operator's own input is written back into
+	// the buffer. A recording's steps say which keys were pressed and which
+	// fields were filled, but not what the screen looked like — and without
+	// that, a business task built from a recording has nothing to guard its
+	// steps with. Kept beside Steps rather than inside them so the exported
+	// workflow JSON keeps its existing shape.
+	Screens []RecordedScreen
+}
+
+// RecordedScreen is one screen captured during recording, tied to the group
+// of steps that were performed on it.
+type RecordedScreen struct {
+	// StepIndex is len(Steps) at capture time, so it marks where this
+	// screen's step group BEGINS — the first FillString if any fields were
+	// filled, otherwise the key step itself. It is not the index of the key:
+	// the fills for this screen are appended between capture and the key.
+	StepIndex int    `json:"stepIndex"`
+	Text      string `json:"text"`
+	Rows      int    `json:"rows"`
+	Cols      int    `json:"cols"`
 }
 
 type WorkflowPlayback struct {
