@@ -2421,7 +2421,9 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .copilot-msg-assistant::before {
-  content: "Copilot";
+  /* Set by copilot-panel.js to whichever provider answered, so a reply is
+     never labelled with a backend the user didn't pick. */
+  content: var(--ai-provider-label, "Assistant");
   color: var(--fg-muted);
 }
 

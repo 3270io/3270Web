@@ -196,7 +196,14 @@
         }, intervalMs);
     }
 
+    // ensureLogin is kept for callers that predate multi-provider support.
+    // GitHub Copilot is now one backend among several, and the others are
+    // unblocked by an API key rather than a device-flow login, so delegate to
+    // the provider layer when it is present.
     async function ensureLogin() {
+        if (window.AIProvider && typeof window.AIProvider.ensureReady === "function") {
+            return window.AIProvider.ensureReady();
+        }
         const s = await status();
         if (s && s.logged_in) return true;
         return openLoginModal();
