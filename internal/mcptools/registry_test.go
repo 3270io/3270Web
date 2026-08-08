@@ -319,3 +319,135 @@ type invokerFunc func(context.Context, string, string, url.Values, any) (Respons
 func (f invokerFunc) Do(ctx context.Context, method, path string, q url.Values, body any) (Response, error) {
 	return f(ctx, method, path, q, body)
 }
+
+// TestHostAllowList covers the fence around what may be connected to.
+// isValidHostname already blocks loopback and link-local addresses; nothing
+// otherwise distinguishes the test LPAR from the one serving customers.
+func TestHostAllowList(t *testing.T) {
+	t.Run("unset allows everything", func(t *testing.T) {
+		t.Setenv("MCP_ALLOWED_HOSTS", "")
+		if !hostAllowed("prod.example.com:992") {
+			t.Error("with no allow-list configured, every host should be allowed")
+		}
+	})
+
+	t.Run("patterns match on the host part", func(t *testing.T) {
+		t.Setenv("MCP_ALLOWED_HOSTS", "*.test.example.com, 10.20.30.40")
+
+		for _, allowed := range []string{
+			"mvs.test.example.com",
+			"mvs.test.example.com:992", // the port must not defeat the pattern
+			"MVS.TEST.EXAMPLE.COM",
+			"10.20.30.40:23",
+		} {
+			if !hostAllowed(allowed) {
+				t.Errorf("hostAllowed(%q) = false, want true", allowed)
+			}
+		}
+		for _, refused := range []string{
+			"prod.example.com",
+			"mvs.test.example.com.evil.net",
+			"10.20.30.41",
+		} {
+			if hostAllowed(refused) {
+				t.Errorf("hostAllowed(%q) = true, want false", refused)
+			}
+		}
+	})
+
+	t.Run("connect_session refuses a fenced-off host", func(t *testing.T) {
+		t.Setenv("MCP_ALLOWED_HOSTS", "*.test.example.com")
+
+		tool, _ := Lookup("connect_session")
+		rec := &recorder{}
+		_, err := tool.Handle(Call{
+			Ctx: context.Background(), Inv: rec, SessionID: "S",
+			Args: map[string]any{"hostname": "prod.example.com:992"},
+		})
+		if err == nil {
+			t.Fatal("connecting to a host outside the allow-list should fail")
+		}
+		if !strings.Contains(err.Error(), "MCP_ALLOWED_HOSTS") {
+			t.Errorf("the refusal should name the setting, got %v", err)
+		}
+		if len(rec.calls) != 0 {
+			t.Errorf("nothing should have been sent to the server, got %v", rec.calls)
+		}
+	})
+}
+
+// TestChaosRequiresAKeyBlacklist makes the chaos-monkey skill's first phase a
+// precondition rather than advice. Exploration presses keys chosen partly at
+// random; on most applications one of them ends the session.
+func TestChaosRequiresAKeyBlacklist(t *testing.T) {
+	noHints := func() *recorder {
+		return &recorder{reply: func(method, path string) Response {
+			if strings.Contains(path, "hints") {
+				return jsonBody(`{"hints":[],"keyBlacklist":[]}`)
+			}
+			return jsonBody(`{"ok":true}`)
+		}}
+	}
+
+	t.Run("refused with nothing configured", func(t *testing.T) {
+		t.Setenv("MCP_ALLOW_UNGUARDED_CHAOS", "")
+		tool, _ := Lookup("chaos_start")
+		rec := noHints()
+		_, err := tool.Handle(Call{Ctx: context.Background(), Inv: rec, SessionID: "S", Args: map[string]any{}})
+		if err == nil {
+			t.Fatal("starting exploration with no blacklist should be refused")
+		}
+		// The refusal has to say what to do about it, or a model reads it as
+		// the host being broken and tries again.
+		for _, want := range []string{"chaos_update_hints", "chaos_save_screen_hint", "MCP_ALLOW_UNGUARDED_CHAOS"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the refusal should mention %q", want)
+			}
+		}
+		for _, call := range rec.calls {
+			if strings.Contains(call, "/chaos/start") {
+				t.Error("exploration must not have been started")
+			}
+		}
+	})
+
+	t.Run("allowed with a blacklist in the call", func(t *testing.T) {
+		t.Setenv("MCP_ALLOW_UNGUARDED_CHAOS", "")
+		tool, _ := Lookup("chaos_start")
+		rec := noHints()
+		_, err := tool.Handle(Call{Ctx: context.Background(), Inv: rec, SessionID: "S",
+			Args: map[string]any{"key_blacklist": []any{"PF3"}}})
+		if err != nil {
+			t.Fatalf("a blacklist supplied in the call should satisfy the guard: %v", err)
+		}
+	})
+
+	t.Run("allowed with a blacklist already saved", func(t *testing.T) {
+		t.Setenv("MCP_ALLOW_UNGUARDED_CHAOS", "")
+		rec := &recorder{reply: func(method, path string) Response {
+			if strings.Contains(path, "screen-hints") {
+				return jsonBody(`{"R1C1": {"blockedKeys": ["PF3"]}}`)
+			}
+			if strings.Contains(path, "hints") {
+				return jsonBody(`{"keyBlacklist":[]}`)
+			}
+			return jsonBody(`{"ok":true}`)
+		}}
+		tool, _ := Lookup("chaos_start")
+		if _, err := tool.Handle(Call{Ctx: context.Background(), Inv: rec, SessionID: "S", Args: map[string]any{}}); err != nil {
+			t.Fatalf("a saved per-screen blacklist should satisfy the guard: %v", err)
+		}
+	})
+
+	t.Run("override lets it through", func(t *testing.T) {
+		t.Setenv("MCP_ALLOW_UNGUARDED_CHAOS", "1")
+		tool, _ := Lookup("chaos_start")
+		if _, err := tool.Handle(Call{Ctx: context.Background(), Inv: noHints(), SessionID: "S", Args: map[string]any{}}); err != nil {
+			t.Fatalf("the override should allow an unguarded run: %v", err)
+		}
+	})
+}
+
+func jsonBody(body string) Response {
+	return Response{Status: 200, ContentType: "application/json", Body: []byte(body)}
+}

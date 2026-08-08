@@ -30,6 +30,8 @@ func TestEnvDocumentationDrift(t *testing.T) {
 		{"# -noverifycert: Do not verify the TLS host certificate (default: false)", "S3270_NO_VERIFY_CERT=false"},
 		{"# Bearer token for /api/v1 and the MCP HTTP transport.", "API_TOKEN="},
 		{"# Allow the headless API to open sessions against the bundled sample apps", "ALLOW_SAMPLE_APPS=false"},
+		{"# Tool tier for the MCP server", "MCP_TOOLS=interactive"},
+		{"# Comma-separated glob list of hosts an AI client may connect to.", "MCP_ALLOWED_HOSTS="},
 	}
 
 	for _, tc := range cases {

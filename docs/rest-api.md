@@ -267,3 +267,14 @@ in the [Feature Roadmap](feature-roadmap.md).
 - OAuth / OIDC / SAML auth
 - Multiple tokens, per-token scopes, rate limiting
 - API token rotation
+
+## MCP
+
+The [MCP Server](mcp.md) is built on this API. `3270Web mcp` speaks the Model
+Context Protocol on stdin and stdout and calls these routes underneath, and
+the running server also exposes MCP over HTTP at `POST /api/v1/mcp` behind the
+same `API_TOKEN`.
+
+The session-scoped routes above exist largely for it: naming the session in
+the path is what lets a client with no browser cookie drive chaos exploration
+and business understanding.

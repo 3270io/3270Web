@@ -624,6 +624,12 @@ func buildDotEnvContent() string {
 	buf.WriteString("# (sampleapp:app1, mock, demo). Off by default: a sample app is a listener\n")
 	buf.WriteString("# this process starts on your behalf.\n")
 	buf.WriteString("ALLOW_SAMPLE_APPS=false\n")
+	buf.WriteString("# Tool tier for the MCP server: readonly, interactive or full.\n")
+	buf.WriteString("# full adds chaos exploration, which presses keys unattended.\n")
+	buf.WriteString("MCP_TOOLS=interactive\n")
+	buf.WriteString("# Comma-separated glob list of hosts an AI client may connect to.\n")
+	buf.WriteString("# Empty means any host the usual validation allows.\n")
+	buf.WriteString("MCP_ALLOWED_HOSTS=\n")
 	return buf.String()
 }
 

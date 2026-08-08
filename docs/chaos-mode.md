@@ -193,3 +193,16 @@ Manual and AI-driven chaos use the same run state, so you can mix the two freely
 ## API Field Naming
 
 Chaos HTTP/MCP tools accept **both** snake_case (the documented public form) and camelCase (the legacy in-browser UI form) for every request body. For example, `chaos_save_screen_hint` accepts `{"screen_hash": "..."}` and `{"screenHash": "..."}` equivalently. Snake_case wins when both are present. New integrations should use snake_case.
+
+## Running chaos from an AI client
+
+Chaos exploration is available over the [MCP Server](mcp.md), so an assistant
+outside the browser can drive it. Two things differ from the toolbar:
+
+- The tools are in the `full` tier, which is not the default. Exploration
+  presses keys unattended, so it is opted into rather than out of.
+- `chaos_start` refuses to begin when no key blacklist is configured. The
+  first phase of the chaos playbook is to record which keys end the session,
+  and a run that presses one stops at step four from a screen you may not be
+  able to reach again. Set `MCP_ALLOW_UNGUARDED_CHAOS=1` if an application
+  genuinely has no such key.

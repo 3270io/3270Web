@@ -118,6 +118,9 @@ func bindings() map[string]Tool {
 				if hostname == "" {
 					return "", fmt.Errorf("hostname is required")
 				}
+				if !hostAllowed(hostname) {
+					return "", fmt.Errorf("%s is not in MCP_ALLOWED_HOSTS", hostname)
+				}
 				res, err := c.Inv.Do(c.Ctx, http.MethodPost,
 					sessionPath(c.SessionID, "/connect"), nil, map[string]any{"hostname": hostname})
 				if err != nil {
@@ -213,6 +216,12 @@ func bindings() map[string]Tool {
 		"chaos_start": {
 			Tier: TierChaos, Destructive: true, OpenWorld: true, NeedsSession: true,
 			Handle: func(c Call) (string, error) {
+				// The chaos-monkey skill's first phase is to record which
+				// keys must not be pressed. Checking it here is what makes
+				// that a precondition rather than advice.
+				if !unguardedChaosAllowed() && !chaosGuarded(c) {
+					return "", fmt.Errorf("%s", unguardedChaosMessage)
+				}
 				return passthrough(c, http.MethodPost, sessionPath(c.SessionID, "/chaos/start"), nil, c.Args)
 			},
 		},

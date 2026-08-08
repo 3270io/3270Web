@@ -319,6 +319,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// Public REST/JSON API (gated by API_TOKEN env var)
 	app.registerAPIv1(r)
 
+	// MCP over HTTP, for clients that cannot launch a local process. The
+	// usual route is the stdio subcommand; see docs/mcp.md.
+	app.registerMCPHTTP(r)
+
 	return r, nil
 }
 
