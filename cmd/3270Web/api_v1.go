@@ -28,6 +28,83 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/sessions/:id/submit", app.APISubmit)
 	g.POST("/sessions/:id/profile", app.APIProfileHandler)
 	g.GET("/sessions/:id/profile", app.APIProfileGetHandler)
+
+	app.registerAPIv1SessionScoped(r)
+}
+
+// APISessionScope resolves the :id path parameter and presents it to the
+// handler downstream as the session cookie those handlers already read.
+//
+// app.getSession reads exactly one thing — the 3270Web_session cookie — so
+// naming the session in the path is enough to serve the entire interactive
+// surface to token-authenticated, browser-free clients without forking a
+// second copy of every handler. SessionManager.GetSession also refreshes
+// LastAccess, so a conversation that stays busy keeps its session out of the
+// idle reaper's way for free.
+func (app *App) APISessionScope() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
+			return
+		}
+		if _, ok := app.SessionManager.GetSession(id); !ok {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			return
+		}
+		c.Request.AddCookie(&http.Cookie{Name: sessionCookieName, Value: id})
+		c.Next()
+	}
+}
+
+// registerAPIv1SessionScoped exposes the interactive surface — screen
+// control, chaos exploration and business understanding — under a session
+// named in the path instead of in a cookie.
+//
+// What is absent is deliberate. Log access, settings, theme writes, app
+// restart, file transfer, workflow playback and chaos-run deletion stay on
+// the browser surface only: they are administrative or filesystem-facing,
+// and nothing an automated client needs to drive an application requires
+// them. TestAPIv1DenyList pins that list.
+func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
+	g := r.Group("/api/v1/sessions/:id", app.RequireAPIToken(), app.APISessionScope())
+
+	// Screen control. Only what the flat surface above does not already
+	// cover: key and submit stay on their documented /sessions/:id/key and
+	// /sessions/:id/submit routes rather than being shadowed here, and
+	// /write exists alongside /field because it additionally accepts the
+	// 1-indexed R<row>C<col>L<len> field key that chaos and business
+	// functions quote, which /field does not.
+	g.GET("/screen.json", app.ScreenJSONHandler)
+	g.POST("/write", app.ScreenWriteHandler)
+	g.POST("/connect", app.ScreenConnectHandler)
+	g.POST("/cursor", app.ScreenCursorHandler)
+	g.POST("/wait", app.ScreenWaitHandler)
+	g.GET("/context", app.CopilotContextHandler)
+
+	// Chaos exploration.
+	g.POST("/chaos/start", app.ChaosStartHandler)
+	g.POST("/chaos/stop", app.ChaosStopHandler)
+	g.POST("/chaos/resume", app.ChaosResumeHandler)
+	g.POST("/chaos/remove", app.ChaosRemoveHandler)
+	g.POST("/chaos/export", app.ChaosExportHandler)
+	g.POST("/chaos/report", app.ChaosReportHandler)
+	g.POST("/chaos/load", app.ChaosLoadHandler)
+	g.GET("/chaos/status", app.ChaosStatusHandler)
+	g.GET("/chaos/runs", app.ChaosListRunsHandler)
+	g.GET("/chaos/hints", app.ChaosHintsGetHandler)
+	g.POST("/chaos/hints", app.ChaosHintsSaveHandler)
+	g.GET("/chaos/screen-hints", app.ChaosScreenHintsGetHandler)
+	g.POST("/chaos/screen-hints", app.ChaosScreenHintsSaveHandler)
+	g.GET("/chaos/screens", app.ChaosScreensListHandler)
+	g.POST("/chaos/screens/annotate", app.ChaosScreenAnnotateHandler)
+	g.GET("/chaos/insights", app.ChaosInsightsHandler)
+
+	// Business understanding.
+	g.GET("/chaos/business/functions", app.ChaosBusinessFunctionsListHandler)
+	g.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
+	g.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
+	g.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
 }
 
 // RequireAPIToken enforces Bearer-token auth against the API_TOKEN env var.
@@ -98,8 +175,34 @@ func (app *App) APIListSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sessions": out})
 }
 
-// APICreateSession starts a new host session and returns its id. The API
-// rejects sample-app pseudo-hostnames; UI users hit those via /connect.
+// isSampleAppHostname reports whether hostname names a bundled sample app
+// or the in-process mock rather than a real TN3270 host.
+func isSampleAppHostname(hostname string) bool {
+	if _, _, ok := parseSampleAppHost(hostname); ok {
+		return true
+	}
+	return hostname == "mock" || hostname == "demo"
+}
+
+// sampleAppsAllowed reports whether the headless API may open a session
+// against a bundled sample app.
+//
+// The sample apps are how someone evaluates 3270Web — or drives it from an
+// AI client — without a mainframe to point at, so a flat refusal here means
+// the only way to try the API is against production. It stays opt-in, in
+// the same shape as ALLOW_LOG_ACCESS, because a sample app is still a
+// listener this process starts on the user's behalf.
+func sampleAppsAllowed() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ALLOW_SAMPLE_APPS"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+// APICreateSession starts a new host session and returns its id. Sample-app
+// pseudo-hostnames require ALLOW_SAMPLE_APPS; UI users hit those via
+// /connect.
 func (app *App) APICreateSession(c *gin.Context) {
 	var body struct {
 		Host string `json:"host"`
@@ -113,12 +216,19 @@ func (app *App) APICreateSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "host is required"})
 		return
 	}
-	if _, _, ok := parseSampleAppHost(hostname); ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sample-app hostnames are not allowed via the API"})
-		return
-	}
-	if hostname == "mock" || hostname == "demo" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sample-app hostnames are not allowed via the API"})
+	if isSampleAppHostname(hostname) {
+		if !sampleAppsAllowed() {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "sample-app hostnames require ALLOW_SAMPLE_APPS=1",
+			})
+			return
+		}
+		s, err := app.startHostSession(hostname)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"id": s.ID, "host": s.TargetHost, "port": s.TargetPort})
 		return
 	}
 	if !isValidHostname(hostname) {

@@ -774,6 +774,11 @@ func (app *App) stopAllSessions() {
 	}
 }
 
+// sessionCookieName is the cookie app.getSession reads to identify the
+// active host session. The /api/v1 session-scoped routes set it from the
+// path parameter, so it is named once rather than spelled out per call.
+const sessionCookieName = "3270Web_session"
+
 const lastTargetCookieName = "3270Web_last_target"
 
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
@@ -1297,13 +1302,13 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	if closedID != "" {
 		remaining = app.forgetSession(c, closedID)
 	} else {
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 	}
 	if len(remaining) > 0 {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
-	setSessionCookie(c, "3270Web_session", "")
+	setSessionCookie(c, sessionCookieName, "")
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -1329,14 +1334,14 @@ func (app *App) ReconnectHandler(c *gin.Context) {
 		target = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
 	}
 	if target == "" {
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no previous host to reconnect to"})
 		return
 	}
 
 	if err := app.connectToHost(c, target); err != nil {
 		log.Printf("Reconnect failed for %q: %v", target, err)
-		setSessionCookie(c, "3270Web_session", "")
+		setSessionCookie(c, sessionCookieName, "")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error":  connectErrorMessage(target, err),
 			"target": target,
@@ -1345,7 +1350,7 @@ func (app *App) ReconnectHandler(c *gin.Context) {
 	}
 	// Keep the reconnected session where it was on the tab bar.
 	if previousID != "" {
-		if newID := getCookieValue(c, "3270Web_session"); newID != "" {
+		if newID := getCookieValue(c, sessionCookieName); newID != "" {
 			app.replaceSessionInRoster(c, previousID, newID)
 		}
 	}
@@ -3306,7 +3311,7 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 }
 
 func (app *App) getSession(c *gin.Context) *session.Session {
-	id, err := c.Cookie("3270Web_session")
+	id, err := c.Cookie(sessionCookieName)
 	if err != nil {
 		return nil
 	}
@@ -3322,7 +3327,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	if err != nil {
 		return err
 	}
-	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, sessionCookieName, sess.ID)
 	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
 	// Put it on the tab bar. Connecting from the front page is just opening
 	// the first tab.
@@ -3337,7 +3342,7 @@ func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) er
 	if err != nil {
 		return err
 	}
-	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, sessionCookieName, sess.ID)
 	setSessionCookie(c, lastTargetCookieName, profile.displayTarget())
 	app.rememberSession(c, sess.ID)
 	return nil

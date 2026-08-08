@@ -616,6 +616,14 @@ func buildDotEnvContent() string {
 	buf.WriteString("CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS=true\n")
 	buf.WriteString("# Exclude no-progress chaos events (no screen transition) from chaos event history.\n")
 	buf.WriteString("CHAOS_EXCLUDE_NO_PROGRESS_EVENTS=true\n")
+	buf.WriteString("\n# Headless API and MCP server.\n")
+	buf.WriteString("# Bearer token for /api/v1 and the MCP HTTP transport. The whole surface\n")
+	buf.WriteString("# returns 503 while this is empty, so it cannot be exposed by accident.\n")
+	buf.WriteString("API_TOKEN=\n")
+	buf.WriteString("# Allow the headless API to open sessions against the bundled sample apps\n")
+	buf.WriteString("# (sampleapp:app1, mock, demo). Off by default: a sample app is a listener\n")
+	buf.WriteString("# this process starts on your behalf.\n")
+	buf.WriteString("ALLOW_SAMPLE_APPS=false\n")
 	return buf.String()
 }
 
