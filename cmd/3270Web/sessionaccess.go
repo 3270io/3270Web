@@ -58,16 +58,12 @@ func (app *App) mayUseSession(c *gin.Context, s *session.Session) bool {
 		return true
 	}
 
-	// The instance-wide API token is instance-wide by definition: it is one
-	// shared credential, so there is no "its own" session to confine it to.
-	// Narrowing this needs per-user tokens, which is a separate change; until
-	// then, treating it as unconfined is at least honest about what the
-	// credential is. It is still a credential — an anonymous caller never
-	// reaches here.
-	if principal.Kind == authz.KindAPIToken && !principal.IsAnonymous() {
-		return true
-	}
-
+	// There is deliberately no exemption for API tokens. A token is issued to
+	// an account and carries that account's UserID, so the clause above is the
+	// whole of its reach — the same reach the person has in a browser. Where
+	// there is a single operator the shared token resolves to that operator,
+	// so it matches there too; see authz.Service.
+	//
 	// A session with no owner predates ownership. Where there is a single
 	// operator there is nobody to separate them from, so an unowned session is
 	// theirs. Where users are separated this is not reachable — every creation

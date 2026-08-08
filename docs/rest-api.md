@@ -36,6 +36,26 @@ curl -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:8080/api/v1/sessions
 ```
 
+### On an instance with accounts
+
+`API_TOKEN` is one shared credential, which is all there is to say about who
+is calling when there is one operator. Where [accounts](authentication.md) are
+enabled (`AUTH_MODE=local`) it is refused at startup, and clients present a
+token issued to an account instead:
+
+```bash
+3270Web token add alice "ci pipeline"
+```
+
+Such a token reaches exactly what its owner reaches. `GET /api/v1/sessions`
+lists that account's sessions, and naming somebody else's session in a path
+answers `404` — the same answer as an ID that does not exist. A token issued
+`--read-only` may only make `GET`, `HEAD` and `OPTIONS` requests; anything
+else answers `403`.
+
+See [API tokens](authentication.md#api-tokens) for issuing, scoping and
+revoking them.
+
 ### Calling from a browser
 
 A page on another origin cannot reach this surface unless its origin is named

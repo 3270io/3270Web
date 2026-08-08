@@ -94,6 +94,26 @@ To attach to an instance elsewhere:
 The target must have the same `API_TOKEN` set. See the [REST API](rest-api.md)
 for that surface.
 
+### If the instance has accounts
+
+An MCP client cannot sign in, so on an instance with
+[accounts](authentication.md) (`AUTH_MODE=local`) it presents a token issued
+to one:
+
+```bash
+3270Web token add alice mcp
+3270Web mcp --url http://127.0.0.1:8080 --token "$MY_TOKEN"
+```
+
+Every tool call then acts as that account — `list_sessions` shows its
+sessions, `use_session` reaches its sessions only. Launching `3270Web mcp`
+with no `--url` will refuse rather than start a second instance with the
+authentication turned off over the same files.
+
+A `--read-only` token will not work over MCP: every tool call is a `POST`,
+including the ones that only read. Use the `readonly` tool tier below to limit
+what a client can do.
+
 ## Tool tiers
 
 The tools are grouped by what they can do, set with the `MCP_TOOLS`
@@ -248,6 +268,11 @@ There is no separate switch for MCP: `API_TOKEN` turns on `/api/v1`, and MCP
 is part of it. With the variable unset the endpoint answers **503**, not 401 —
 if a client reports the server as unreachable rather than unauthorised, the
 token is not reaching the container.
+
+On a stack with `AUTH_MODE=local`, drop `API_TOKEN` — it is refused at startup
+— and give each client a token of its own with
+[`3270Web token add`](authentication.md#api-tokens). Each connection's tool
+calls are authorized as the account whose token opened it.
 
 ### Check the endpoint before configuring a client
 

@@ -145,6 +145,37 @@ func (app *App) beginSetupIfNeeded() error {
 	return nil
 }
 
+// setupStillPending reports whether the instance is waiting for its first
+// administrator, re-reading the account store if it thinks so.
+//
+// The check at startup is a snapshot, and an account can appear afterwards:
+// `3270Web user add` edits the same file while the server runs, which is the
+// documented way to create one without a browser. Without this re-read the
+// instance would go on funnelling every request into setup — showing a code
+// that no longer works — until somebody restarted it.
+//
+// The extra read costs nothing in the state that matters: it happens only
+// while setup is pending, and pending ends the moment an account exists.
+func (app *App) setupStillPending() bool {
+	if !app.setup.pending() {
+		return false
+	}
+	count, err := app.userStore().Count()
+	if err != nil || count == 0 {
+		return true
+	}
+	app.setup.complete()
+	// Same tidying the startup path does when it finds accounts already
+	// there; the marker file makes it a no-op after the first time.
+	if admin, ok, err := app.firstAdminID(); err == nil && ok {
+		if err := app.migrateFlatDataToOwner(admin); err != nil {
+			log.Printf("data: could not move pre-existing files: %v", err)
+		}
+	}
+	log.Printf("auth: an account now exists; first-run setup is closed")
+	return false
+}
+
 // RequireSetup funnels every request to the setup page until an administrator
 // exists.
 //
@@ -153,7 +184,7 @@ func (app *App) beginSetupIfNeeded() error {
 // configured.
 func (app *App) RequireSetup() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		pending := app.setup.pending()
+		pending := app.setupStillPending()
 		path := c.Request.URL.Path
 
 		if !pending {

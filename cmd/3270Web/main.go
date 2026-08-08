@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/aiprovider"
+	"github.com/jnnngs/3270Web/internal/apitoken"
 	"github.com/jnnngs/3270Web/internal/authsession"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/config"
@@ -52,7 +53,11 @@ type App struct {
 	usersOnce    sync.Once
 	usersPath    string
 	authSessions *authsession.Store
-	loginLimiter *loginLimiter
+	// apiTokens holds the credentials automated clients present. Consulted
+	// only where users are separated; see authenticateAPIToken.
+	apiTokens     *apitoken.Store
+	apiTokensOnce sync.Once
+	loginLimiter  *loginLimiter
 	// authBindIP is "auto", "true" or "false"; see App.bindSessionIP.
 	authBindIP          string
 	authIdleTimeout     time.Duration
@@ -425,6 +430,9 @@ func main() {
 	// start a server or raise a window, so it is dispatched here too.
 	if len(os.Args) > 1 && os.Args[1] == "user" {
 		os.Exit(runUserCLI(os.Args[2:], os.Stdout, os.Stderr, os.Stdin))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "token" {
+		os.Exit(runTokenCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 
 	baseDir := resolveBaseDir()
@@ -2637,27 +2645,36 @@ const settingsExtraOptionsPrefix = "APP_SETTINGS_OPTIONS_"
 // before this list existed a caller could name their own API token, restart the
 // app, and come back holding the instance-wide API credential.
 var settingsDeniedKeys = map[string]bool{
-	"API_TOKEN":          true,
-	"COPILOT_AUTH_PATH":  true,
-	"MCP_TOOLS":          true,
-	"MCP_ALLOWED_HOSTS":  true,
-	"WEBUI_BIND":         true,
-	"WEBUI_PORT":         true,
-	"PATH":               true,
-	"LD_PRELOAD":         true,
-	"LD_LIBRARY_PATH":    true,
-	"GIN_MODE":           true,
-	"ALLOW_SAMPLE_APPS":  true,
-	"CHAOS_RUNS_DIR":     true,
-	"XDG_CONFIG_HOME":    true,
-	"HOME":               true,
-	"TMPDIR":             true,
-	"GOTRACEBACK":        true,
-	"S3270_EXEC_PATH":    true,
-	"S3270_TRACE_FILE":   true,
-	"S3270_SCRIPT_PORT":  true,
-	"S3270_HTTPD":        true,
-	"S3270_CHILD_SCRIPT": true,
+	"API_TOKEN":         true,
+	"COPILOT_AUTH_PATH": true,
+	// The authentication settings themselves. Naming a different account
+	// store, or turning the mode off, would be a way to walk out through the
+	// gate using a page that sits behind it.
+	"AUTH_MODE":            true,
+	"USERS_PATH":           true,
+	"API_TOKENS_PATH":      true,
+	"AUTH_BIND_SESSION_IP": true,
+	"AUTH_SESSION_IDLE":    true,
+	"AUTH_SESSION_MAX":     true,
+	"MCP_TOOLS":            true,
+	"MCP_ALLOWED_HOSTS":    true,
+	"WEBUI_BIND":           true,
+	"WEBUI_PORT":           true,
+	"PATH":                 true,
+	"LD_PRELOAD":           true,
+	"LD_LIBRARY_PATH":      true,
+	"GIN_MODE":             true,
+	"ALLOW_SAMPLE_APPS":    true,
+	"CHAOS_RUNS_DIR":       true,
+	"XDG_CONFIG_HOME":      true,
+	"HOME":                 true,
+	"TMPDIR":               true,
+	"GOTRACEBACK":          true,
+	"S3270_EXEC_PATH":      true,
+	"S3270_TRACE_FILE":     true,
+	"S3270_SCRIPT_PORT":    true,
+	"S3270_HTTPD":          true,
+	"S3270_CHILD_SCRIPT":   true,
 }
 
 // settingsWritableKeys is the allowlist for POST /api/settings.
@@ -4139,6 +4156,17 @@ func (app *App) configureAuth() error {
 	}
 	if app.authMode == authz.ModeNone {
 		return nil
+	}
+
+	// A single shared token would undo the mode that was just asked for: one
+	// credential, held by every automated client, reaching every account's
+	// sessions. Starting anyway would leave an operator believing users were
+	// separated while one environment variable said otherwise, so say it
+	// plainly and point at what to do instead.
+	if strings.TrimSpace(os.Getenv("API_TOKEN")) != "" {
+		return fmt.Errorf("API_TOKEN cannot be used with %s=%s: a single shared token would reach every "+
+			"account's sessions. Unset it and issue a token per account with `3270Web token add <username> <name>`",
+			authz.ModeEnv, authz.ModeLocal)
 	}
 
 	// From here on the instance requires accounts, so refuse to start without

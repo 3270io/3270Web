@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/mcptools"
 )
 
@@ -51,7 +52,7 @@ func runMCP(args []string) {
 	var (
 		listTools = fs.Bool("list-tools", false, "print the enabled tool catalogue as JSON and exit")
 		targetURL = fs.String("url", "", "drive a running 3270Web at this base URL instead of starting one")
-		token     = fs.String("token", "", "API_TOKEN for --url (defaults to the API_TOKEN environment variable)")
+		token     = fs.String("token", "", "token for --url (defaults to the API_TOKEN environment variable)")
 		toolsTier = fs.String("tools", "", "tool tier: readonly, interactive (default) or full")
 	)
 	fs.Usage = func() {
@@ -157,7 +158,8 @@ func resolveTarget(explicitURL, explicitToken, conversation string) (target, fun
 		if tok == "" {
 			return target{}, nil, fmt.Errorf(
 				"--url needs a token: set API_TOKEN in the environment, or pass --token.\n" +
-					"The instance you are pointing at must have the same API_TOKEN set")
+					"For an instance with accounts, issue one with `3270Web token add <username> mcp`;\n" +
+					"otherwise it is the API_TOKEN that instance was started with")
 		}
 		return target{baseURL: url, invoker: newHTTPInvoker(url, tok, conversation)}, nil, nil
 	}
@@ -171,8 +173,12 @@ func resolveTarget(explicitURL, explicitToken, conversation string) (target, fun
 }
 
 // findRunningInstance looks for a local 3270Web that this process is allowed
-// to drive. Without a shared API_TOKEN there is nothing to attach with, so an
-// unauthenticated instance is left alone rather than probed further.
+// to drive. Without a token in the environment there is nothing to attach
+// with, so an instance is left alone rather than probed further.
+//
+// The token may be either kind: the shared API_TOKEN of a single-operator
+// instance, or one issued to an account on an instance that has them. Here it
+// is simply the credential to present.
 func findRunningInstance() (string, string) {
 	tok := strings.TrimSpace(os.Getenv("API_TOKEN"))
 	if tok == "" {
@@ -203,6 +209,19 @@ func findRunningInstance() (string, string) {
 // that sees it.
 func startOwnInstance(conversation string) (target, func(), error) {
 	baseDir := resolveBaseDir()
+
+	// A generated token speaks for the single operator, so it cannot be used
+	// on an instance where users are separated — there is nobody it could be.
+	// An MCP client has no way to sign in, so the answer is a token issued to
+	// an account and an explicit --url, rather than quietly starting a second
+	// instance with the authentication turned off over the same files.
+	if mode, err := authz.ParseMode(os.Getenv(authz.ModeEnv)); err == nil && mode != authz.ModeNone {
+		return target{}, nil, fmt.Errorf(
+			"%s=%s is set, so this instance requires an account and cannot be started with a generated token.\n"+
+				"Issue one with `3270Web token add <username> mcp`, then run:\n"+
+				"  3270Web mcp --url http://127.0.0.1:8080 --token <token>",
+			authz.ModeEnv, mode)
+	}
 
 	tok, err := randomToken()
 	if err != nil {

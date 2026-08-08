@@ -235,11 +235,94 @@ follows the same reasoning: connection profiles and themes become the
 published set so nobody loses the host list they were using, while chaos runs,
 hints and saved tasks go to the first administrator.
 
-**One thing is still shared that should not be.** The `/api/v1` token is a
-single instance-wide credential rather than a per-user one. A client holding
-it can list and drive **any** session, including one opened in somebody's
-browser. That is what the token has always been; it is called out here because
-everything else is separated now, and the token is the remaining exception.
+**API tokens belong to accounts too** — see below. A token reaches exactly
+what its owner reaches and nothing else, so an automated client is no way
+around any of the above.
 
 For genuine separation between people who should not see each other's work at
 all, run one container and one volume per user.
+
+---
+
+## API tokens
+
+Automated clients — CI jobs, RPA bots, AI clients over
+[MCP](mcp.md) — authenticate with a Bearer token rather than a password.
+
+Which token depends on whether the instance has accounts:
+
+| | Credential | Reaches |
+|---|---|---|
+| Single operator (`AUTH_MODE=none`) | the `API_TOKEN` environment variable | everything, because there is one person |
+| Accounts (`AUTH_MODE=local`) | a token issued to an account | exactly what that account reaches |
+
+With accounts on, `API_TOKEN` is **refused at startup**. One credential held
+by every client would reach every account's sessions, which is the thing the
+mode was turned on to prevent; starting anyway would leave you believing users
+were separated while one environment variable said otherwise.
+
+### Issuing one
+
+```bash
+3270Web token add alice "ci pipeline"
+3270Web token add alice scraper --read-only
+3270Web token add alice deploy --expires 720h
+3270Web token list
+3270Web token list alice
+3270Web token revoke 3f1c8a24b90de7c5
+3270Web token revoke-all alice
+```
+
+Inside a container:
+
+```bash
+docker compose exec 3270Web /app/3270Web token add alice "ci pipeline"
+```
+
+The token is printed once, when it is issued:
+
+```
+issued 3f1c8a24b90de7c5 for alice (read+write)
+
+  3270w_3f1c8a24b90de7c5_kzq4…
+
+This is the only time the token is shown.
+```
+
+Only a hash is stored, so a copy of the token file yields nothing usable — and
+a lost token is replaced rather than recovered. The `3270w_` prefix is there so
+a leaked credential is recognisable to a secret scanner.
+
+### Scopes
+
+`--read-only` issues a token that can read but not change anything: it may
+fetch screens, list sessions and read catalogues, but not type into a field,
+press a key, or open or close a session. Anything that changes state is
+refused with `403`.
+
+Scope follows the HTTP method — `GET`, `HEAD` and `OPTIONS` are reads,
+everything else is a write. [MCP over HTTP](mcp.md) is a `POST` for every tool
+call, including read-only ones, so an MCP client needs a full token.
+
+### Lifetime
+
+A token works until it is revoked, until `--expires` passes, or until its
+account is disabled or deleted — the owner is looked up on every call, so
+disabling somebody stops their automated clients at the same moment it stops
+them signing in. Re-enabling the account brings its tokens back rather than
+making everything be reissued.
+
+Refusals are deliberately identical whether a token is unknown, revoked or
+expired. Saying which would confirm that a presented token is real.
+
+### With MCP
+
+An AI client that launches `3270Web mcp` itself cannot sign in, so on an
+instance with accounts it needs a token and an explicit URL:
+
+```bash
+3270Web mcp --url http://127.0.0.1:8080 --token "$MY_TOKEN"
+```
+
+Tool calls then act as that account: `list_sessions` shows its sessions, and
+`use_session` reaches its sessions only.

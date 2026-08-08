@@ -467,8 +467,12 @@ func TestNoAccountIsCreatedAutomatically(t *testing.T) {
 // session; if the login gate judged it too, an operator enabling AUTH_MODE
 // would silently take every API and MCP client offline at the same moment.
 func TestTokenAPIIsNotGatedByLogin(t *testing.T) {
-	t.Setenv("API_TOKEN", "a-test-api-token")
-	_, r := newAuthTestApp(t, "local")
+	app, r := newAuthTestApp(t, "local")
+	alice := addUser(t, app, "alice", authz.RoleUser, false)
+	_, secret, err := app.tokenStore().Issue(alice.ID, "ci", nil, nil)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
 
 	get := func(path, token string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -480,7 +484,7 @@ func TestTokenAPIIsNotGatedByLogin(t *testing.T) {
 		return w
 	}
 
-	if w := get("/api/v1/sessions", "a-test-api-token"); w.Code != http.StatusOK {
+	if w := get("/api/v1/sessions", secret); w.Code != http.StatusOK {
 		t.Errorf("valid token = %d, want 200 (body=%s)", w.Code, w.Body.String())
 	}
 
@@ -503,11 +507,10 @@ func TestTokenAPIIsNotGatedByLogin(t *testing.T) {
 // The same applies during first-run setup: a token client cannot complete
 // setup, so it must get a machine-readable answer rather than a redirect.
 func TestTokenAPIDuringSetupAnswersJSON(t *testing.T) {
-	t.Setenv("API_TOKEN", "a-test-api-token")
 	_, r := newSetupTestApp(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
-	req.Header.Set("Authorization", "Bearer a-test-api-token")
+	req.Header.Set("Authorization", "Bearer 3270w_abcd1234_notarealtoken")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

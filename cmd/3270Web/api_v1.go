@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,17 +10,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jnnngs/3270Web/internal/authz"
-
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
 )
 
-// registerAPIv1 wires the public /api/v1/* surface used by RPA bots, CI
-// jobs, and other non-browser clients. All routes require the
-// API_TOKEN environment variable to be set and an Authorization: Bearer
-// header that matches it.
+// registerAPIv1 wires the public /api/v1/* surface used by RPA bots, CI jobs,
+// and other non-browser clients. Every route requires an Authorization:
+// Bearer header carrying a token the instance recognises — see
+// authenticateAPIToken for which token that is in which deployment shape.
 func (app *App) registerAPIv1(r *gin.Engine) {
 	// CORS runs ahead of the token check so that a preflight — which a browser
 	// sends without the Authorization header, by specification — is answered
@@ -207,42 +204,6 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
 }
 
-// RequireAPIToken enforces Bearer-token auth against the API_TOKEN env var.
-// When API_TOKEN is unset or empty, the entire /api/v1 surface returns
-// 503 so it can't be accidentally exposed without explicit opt-in.
-func (app *App) RequireAPIToken() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token := strings.TrimSpace(os.Getenv("API_TOKEN"))
-		if token == "" {
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-				"error": "API disabled: API_TOKEN not configured",
-			})
-			return
-		}
-		header := c.GetHeader("Authorization")
-		const prefix = "Bearer "
-		if !strings.HasPrefix(header, prefix) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "missing Bearer token",
-			})
-			return
-		}
-		got := strings.TrimSpace(header[len(prefix):])
-		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid token",
-			})
-			return
-		}
-		// Replace whatever Authenticate resolved with the service principal.
-		// A token holder is not a browser: under AUTH_MODE=local it carries no
-		// login cookie, so it would otherwise still be anonymous here and the
-		// ownership check would refuse every session it named.
-		c.Set(principalContextKey, authz.Service())
-		c.Next()
-	}
-}
-
 // apiSessionFromPath resolves the session referenced by the :id path
 // parameter and writes a 404 if it doesn't exist. Returns ok=false when
 // the request has already been answered with an error.
@@ -376,7 +337,22 @@ func (app *App) APIDeleteSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
 		return
 	}
-	app.SessionManager.RemoveSession(id)
+
+	// Closing a session is as much a use of it as typing into one, so it is
+	// resolved through the same ownership check. This route did not have one,
+	// because it has nothing to do with the session afterwards — which is how
+	// it became a way to end somebody else's work by guessing an ID.
+	//
+	// Unlike every other route the refusal is a silent success rather than a
+	// 404. DELETE has to be idempotent: a client retrying after a dropped
+	// response must not be told its own completed delete failed, and "already
+	// gone" is indistinguishable from "never existed". Answering 200 in both
+	// cases keeps that true and still tells a caller nothing — what matters is
+	// the line below, which only runs for a session that is theirs.
+	s, found := app.SessionManager.GetSession(id)
+	if found && app.mayUseSession(c, s) {
+		app.SessionManager.RemoveSession(id)
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

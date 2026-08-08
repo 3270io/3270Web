@@ -189,7 +189,7 @@ where the rest of the deployment is described.
 
 | Variable | Default | What it enables |
 |---|---|---|
-| `API_TOKEN` | unset | The whole of [`/api/v1`](rest-api.md). Unset, every route on it answers 503 |
+| `API_TOKEN` | unset | The whole of [`/api/v1`](rest-api.md). Unset, every route on it answers 503. One shared credential for one operator: with `AUTH_MODE=local` the instance refuses to start with it set, and clients use [a token per account](authentication.md#api-tokens) instead |
 | `ALLOW_SAMPLE_APPS` | off | Letting the headless API start a bundled sample app. It is a listener this process opens on your behalf |
 | `ALLOW_SCREEN_TRACE` | off | [Screen tracing](rest-api.md#apiv1sessionsidscreen-trace), which writes every screen the terminal draws to a file on the server — including whatever was typed into a field the host did not mark hidden |
 | `EMBED_ORIGINS` | unset | Framing the terminal in a page on another origin, and calling the API from one. Names the exact origins; there is no wildcard. See [Embedding 3270Web](embedding.md) |
