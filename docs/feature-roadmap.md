@@ -74,9 +74,10 @@ Tracked apart from features because they are not features — they are whether
 the thing behaves like a terminal. The rest of this list is shipping; see
 [Terminal Capabilities](terminal-capabilities.md).
 
-- [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full
-      *numeric* fields, which covers the common real case but is not the
-      full field-attribute rule
+- [x] **Strict auto-skip semantics** — *shipped: auto-skip now follows the
+      field-attribute rule rather than approximating it as "the field is
+      numeric". See
+      [Keyboard and Controls](keyboard-and-controls.md#auto-skip)*
 - [ ] **Cursor movement over protected areas** — the cursor can only rest in
       an input field, so rows of purely protected text are skipped
 - [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things

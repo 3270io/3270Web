@@ -345,6 +345,27 @@ characters are stripped and the digits land. Copying an account number
 that arrived with spaces or dashes in it is routine, and refusing the
 whole paste over one stray character would be the wrong answer.
 
+### Auto-skip
+
+Fill the last position of a field and the cursor sometimes jumps to the
+next field on its own. Whether it does is the application's decision, not
+the terminal's, and 3270Web reads that decision the way a 3270 does.
+
+Auto-skip is not an attribute a field carries about itself. It is the
+protected+numeric attribute on the field **after** an input, and what it
+controls is whether filling that input advances the cursor. So an
+application can say "this field runs straight into the next one" for a date
+split across three boxes, and "stop here" for a password the operator may
+want to correct — using the same field-attribute byte it already sends.
+
+The browser cannot work this out on its own: a protected field arrives as
+plain text with no attributes attached to it. 3270Web resolves the rule
+server-side, where the field list and its attribute bytes are, and marks
+each input accordingly.
+
+Auto-skip is independent of numeric enforcement. A numeric field is not
+automatically an auto-skip one, and an alphanumeric field can be.
+
 ### Type-ahead
 
 Keystrokes typed while the host holds the keyboard are buffered and

@@ -1422,12 +1422,18 @@
     }
     target.dispatchEvent(new Event("input", { bubbles: true }));
 
-    // Auto-skip out of a filled numeric field. Restricting this to numeric
-    // fields matches where real terminals set the auto-skip attribute (date
-    // parts, account digits); firing it on every full alphanumeric field
-    // used to yank the caret away just as an operator went to fix the last
-    // character they typed.
-    if (target.dataset.numeric === "1" && next.length >= max && caret >= max) {
+    // Auto-skip out of a filled field, but only where the application asked
+    // for it.
+    //
+    // On a 3270 auto-skip is the protected+numeric attribute on the field that
+    // FOLLOWS this one, and the renderer resolves that into data-autoskip
+    // because the browser cannot see a protected field's attributes. This used
+    // to approximate the rule as "the field is numeric", which caught the
+    // common case — date parts, account digits — and got the rest wrong in
+    // both directions: it yanked the caret out of a full numeric field the
+    // application wanted you to stay in, and sat still in a full alphanumeric
+    // one it wanted you to leave.
+    if (target.dataset.autoskip === "1" && next.length >= max && caret >= max) {
       focusNextScreenInput(target, findForm(null));
     }
     return true;

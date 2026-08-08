@@ -22,6 +22,7 @@ terminal.
 | Operator Information Area — online/application block, `X SYSTEM`, `X -f` operator error, insert indicator | ✅ |
 | Local cursor movement — Tab, Back-Tab, arrows and Home resolve in the client, with no host round-trip | ✅ |
 | Numeric field enforcement, with a real operator-error lock | ✅ |
+| Auto-skip driven by the field attributes the application sends, not by guesswork | ✅ |
 | Insert / overtype toggle | ✅ |
 | Type-ahead while the host holds the keyboard | ✅ |
 | Selectable terminal models and screen sizes | ✅ |
