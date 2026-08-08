@@ -21,7 +21,10 @@ exposed.
 
 The 3270Web server binds to `127.0.0.1:8080` by default, so the API is
 only reachable from the local host. The Bearer token is additional
-defense-in-depth for any deployment that changes the bind address.
+defense-in-depth for any deployment that changes the bind address via
+`WEBUI_BIND` — including the Docker image, which sets `WEBUI_BIND=0.0.0.0`
+so that published ports work at all. In a container, what the API is
+reachable from is decided by the port mapping, not the bind address.
 
 ## Authentication
 

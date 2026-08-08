@@ -262,6 +262,29 @@ docker run --rm -p 8080:8080 \
     of `/app` — the binary and embedded `web/` assets live there, and a mount over
     `/app` would shadow them.
 
+### Listen address
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `WEBUI_BIND` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Interface to listen on |
+| `WEBUI_PORT` | `8080` | Port to listen on |
+
+Outside a container the server binds to loopback, so the UI — which has no
+password of its own — is not published to your local network by default.
+
+The image overrides this with `WEBUI_BIND=0.0.0.0`, and it has to. A published
+port forwards to the container's **external** interface, so a loopback-only
+listener inside the container refuses every connection from the host — while the
+container still reports healthy, because its `HEALTHCHECK` curls `127.0.0.1`
+from *inside* the container. Control exposure with the port mapping instead.
+
+!!! warning
+    Do not set `WEBUI_BIND=127.0.0.1` in a container. The container will start and
+    pass its healthcheck, but the browser will get a connection refused / "empty
+    response" no matter how the ports are mapped. To keep the terminal off your
+    network, restrict the **host** side of the mapping — `"127.0.0.1:8080:8080"` —
+    not the bind address inside the container.
+
 ---
 
 ## Run with Docker Compose
@@ -316,7 +339,8 @@ docker compose up -d
 
 ### Customising
 
-- **Expose beyond localhost** — change the port mapping to `"8080:8080"`.
+- **Expose beyond localhost** — change the port mapping to `"8080:8080"`. Change
+  the *host* side of the mapping only; leave `WEBUI_BIND` at the image default.
 - **Add options** — list more `S3270_*` variables under `environment:`.
 - **Persist chaos runs** — add a volume:
 
