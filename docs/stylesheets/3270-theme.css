@@ -426,22 +426,24 @@ body::after {
    both: the accent becomes a mid-tone and the ground goes white, so the
    receding planes fade out and the specular sweep washes the front face.
    Lift the planes and drop the highlight to hold the same read. */
-html[data-theme='daylight'] .md-logo .t3270-plane-1 { fill-opacity: 0.55; }
-html[data-theme='daylight'] .md-logo .t3270-plane-2 { fill-opacity: 0.32; }
-html[data-theme='daylight'] .md-logo .t3270-spec { opacity: 0.35; }
+html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-plane-1 { fill-opacity: 0.55; }
+html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-plane-2 { fill-opacity: 0.32; }
+html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-spec { opacity: 0.35; }
 
-/* The product mark above the home page hero. Sized in the markup so it does
-   not reflow while the stylesheet loads. */
+/* The product mark above the home page hero. index.md carries an empty
+   placeholder and overrides/main.html splices the header's SVG partial into
+   it — see the comment there for why it cannot be written inline. The partial
+   sizes itself for the header, so the hero size is set here. */
 .hero-mark {
   margin: 0 0 1.1rem;
   line-height: 0;
 }
 
-/* The framing in "Images" below is for screenshots. A logo on a transparent
-   ground must not pick up a border, a tile and a shadow — hence `.plain` on
-   the markup, and this rule to outrank the same framing in extra.css. */
-.md-typeset .hero-mark img,
-.hero-mark img {
+/* The framing in "Images" below is for screenshots. A mark on a transparent
+   ground must not pick up a border, a tile and a shadow, so this rule
+   outranks the same framing in extra.css. */
+.md-typeset .hero-mark :is(img, svg),
+.hero-mark :is(img, svg) {
   width: 72px;
   height: 72px;
   border: 0;
