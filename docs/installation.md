@@ -1,6 +1,102 @@
 # Install and Run
 
-There are three supported ways to run 3270Web on Linux/Unix:
+## One-line install
+
+```bash
+curl -fsSL https://3270Web.3270.io/install.sh | bash
+```
+
+That is the whole thing. The installer asks which of the three methods below you
+want, checks the host for what it needs, installs it, and waits for the health
+endpoint before reporting success.
+
+```
+  ╭────────────────────────────────────────────────────────────────╮
+  │  ● 3270Web installer                            linux · x86_64 │
+  ╰────────────────────────────────────────────────────────────────╯
+
+  ▌ PREFLIGHT
+
+  › host       Linux x86_64                        [ok]
+  › docker     Docker version 27.3.1               [ok]
+  › compose    docker compose                      [ok]
+  › release    v0.3.2                              [ok]
+
+  ▌ PICK A DOOR
+
+   [1]  Binary         self-contained, no runtime deps
+         ─ s3270 bundled · installs to ~/.local/share/3270web
+
+   [2]  Docker         one container, multi-arch image
+         ─ docker detected · ghcr.io/3270io/3270web
+
+   [3]  Compose        a stack you can edit and re-up
+         ─ docker compose · writes ./3270web/docker-compose.yml
+
+  › Select 1-3 [1]
+```
+
+### Skip the questions
+
+```bash
+curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--method <binary\|docker\|compose>` | ask | Installation method |
+| `--version <tag>` | `latest` | Release tag, for example `v0.3.2` |
+| `--port <port>` | `8080` | Host port to serve on |
+| `--bind <address>` | `127.0.0.1` | Host interface to publish on |
+| `--dir <path>` | `./3270web` | Compose project directory |
+| `--system` | off | Binary install to `/opt` + `/usr/local/bin` |
+| `--user` | on | Binary install under `$HOME` |
+| `--theme <grn\|amb\|ice\|day>` | `grn` | Installer palette, matching the docs themes |
+| `--no-color` / `--color` | auto | Force colour off or on |
+| `--yes`, `-y` | off | Accept every prompt — use in CI |
+| `--dry-run` | off | Report what would happen, change nothing |
+| `--help`, `-h` | | Usage |
+
+Non-interactive by design: with no TTY (a CI job, a provisioning script) the
+installer stops asking and picks the binary on `amd64`, Docker elsewhere.
+
+!!! tip "Read before you pipe"
+    Piping a script from the internet into a shell deserves a look first:
+
+    ```bash
+    curl -fsSL https://3270Web.3270.io/install.sh -o install.sh
+    less install.sh && bash install.sh
+    ```
+
+    The script downloads only from `github.com/3270io/3270Web` releases and
+    `ghcr.io/3270io/3270web`, verifies the release checksum when GitHub
+    publishes one, and writes only to the directories it prints.
+
+### What the binary method installs where
+
+3270Web keeps its runtime state in the directory holding the executable, so the
+installer gives the binary a directory of its own and links it onto `PATH`:
+
+| Path | What |
+|---|---|
+| `~/.local/share/3270web/3270Web` | The executable |
+| `~/.local/share/3270web/.env` | Generated configuration |
+| `~/.local/share/3270web/3270Web.log` | Application log |
+| `~/.local/share/3270web/chaos-runs/` | Chaos exploration output |
+| `~/.local/bin/3270web` | Symlink you actually run |
+
+With `--system` those become `/opt/3270web/…` and `/usr/local/bin/3270web`.
+Re-running the installer upgrades in place: the new build is renamed over the
+old one, so an upgrade works even while 3270Web is serving. Restart it to pick
+up the new build.
+
+To remove a binary install, delete those two paths. To remove a container
+install, `docker rm -f 3270web`; for Compose, `docker compose down` in the
+project directory.
+
+---
+
+## The three methods
 
 | Method | Best for | s3270 needed? |
 |---|---|---|
@@ -11,6 +107,9 @@ There are three supported ways to run 3270Web on Linux/Unix:
 Whichever you choose, 3270Web listens on **port 8080** by default. Open
 [http://localhost:8080](http://localhost:8080) once it is up and continue with
 [Connect and Use 3270Web](configuration.md).
+
+The rest of this page is what the installer does, by hand — useful when you want
+a different layout, are packaging 3270Web yourself, or are working offline.
 
 !!! note "Windows"
     Windows ships as a signed `3270Web.exe` built with

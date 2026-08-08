@@ -34,12 +34,12 @@ workflow recording do the heavy lifting.
     <span>session · tn3270</span>
     <span class="right">model 2 · 24×80</span>
   </div>
-  <pre class="term-body"><span class="sig">$</span> docker run -p 8080:8080 \
-    <span class="cmt">ghcr.io/3270io/3270web</span>
-<span class="sig">›</span> listening  http://localhost:8080  <span class="tag">[up]</span>
-<span class="sig">›</span> connect    mvs.example.com:992    <span class="tag">[ok]</span>
-<span class="sig">›</span> negotiate  IBM-3278-2-E          <span class="tag info">[tn3270e]</span>
-<span class="sig">›</span> recording  12 actions captured   <span class="tag info">[rec]</span>
+  <pre class="term-body"><span class="sig">$</span> curl -fsSL <span class="cmt">https://3270Web.3270.io/install.sh</span> | bash
+<span class="sig">›</span> method     binary · docker · compose  <span class="tag">[ask]</span>
+<span class="sig">›</span> listening  http://localhost:8080      <span class="tag">[up]</span>
+<span class="sig">›</span> connect    mvs.example.com:992        <span class="tag">[ok]</span>
+<span class="sig">›</span> negotiate  IBM-3278-2-E              <span class="tag info">[tn3270e]</span>
+<span class="sig">›</span> recording  12 actions captured       <span class="tag info">[rec]</span>
 <span class="sig">›</span> <span class="caret"></span></pre>
 </div>
 

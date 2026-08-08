@@ -84,6 +84,31 @@ async function ready(page) {
   await settle(page, 400);
 }
 
+/**
+ * Business mode is the default surface and hides the recording and chaos
+ * groups, so the automation screenshots have to ask for Engineering mode
+ * first — otherwise every toolbar callout resolves to a zero-size node.
+ * The connect and session shots are deliberately left in Business mode:
+ * that is what a new user actually opens.
+ */
+async function setWorkspaceMode(page, mode) {
+  await page.evaluate((next) => {
+    const ws = window.ThreeSeventyWeb && window.ThreeSeventyWeb.workspace;
+    if (ws && typeof ws.setMode === 'function') ws.setMode(next);
+  }, mode);
+  await settle(page, 500);
+}
+
+/** Expand a collapsible toolbar group if it is not already open. */
+async function expandGroup(page, selector) {
+  const toggle = page.locator(selector).first();
+  if (!(await toggle.count())) return;
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') {
+    await toggle.click();
+    await settle(page, 400);
+  }
+}
+
 async function ensureScreen(page) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await settle(page, 800);
@@ -205,6 +230,11 @@ async function shotRegion(page, name, selectors, pad = 28) {
     if (b) boxes.push(b);
   }
   if (!boxes.length) {
+    // Every selector missed. Silently writing a full-page shot here is how a
+    // renamed class quietly replaces a tight crop with a whole browser window,
+    // so say so loudly instead — the image still gets written, but the run
+    // makes it obvious which selector needs updating.
+    console.warn(`  ! ${name}: no selector matched (${list.join(', ')}) — writing full-page fallback`);
     await page.screenshot({ path: path.join(outDir, name) });
     return;
   }
@@ -242,11 +272,25 @@ async function main() {
   await suppressToasts(page);
 
   /* ---- Session screen (default Yorkshire theme) ------------------ */
+  // Engineering mode for the session shot: README and the 3270.io gallery
+  // both caption this image as showing the recording and chaos controls, and
+  // Business mode hides those groups entirely.
+  await setWorkspaceMode(page, 'engineering');
+  await dismissTooltips(page);
   await shotRegion(page, 'yorkshire_image.png', '.card', 24);
   await shotRegion(page, 'sampleapp1_image.png', '.terminal-shell', 24);
 
   /* ---- Terminal status bar (OIA) --------------------------------- */
-  await shotRegion(page, 'terminal-status-bar.png', '.screen-status-line', 14);
+  // The OIA sits at the bottom of a card that is already about as tall as the
+  // viewport, so at the default height it falls below the fold and the clip
+  // gets clamped to a sliver. Give this one shot room instead.
+  await page.setViewportSize({ width: VIEWPORT.width, height: 1120 });
+  await settle(page, 400);
+  await page.locator('[data-screen-oia]').first().scrollIntoViewIfNeeded();
+  await settle(page, 300);
+  await shotRegion(page, 'terminal-status-bar.png', '[data-screen-oia]', 14);
+  await page.setViewportSize(VIEWPORT);
+  await settle(page, 400);
 
   /* ---- Command palette ------------------------------------------- */
   await page.keyboard.press('Control+k');
@@ -258,25 +302,26 @@ async function main() {
   await settle(page, 400);
 
   /* ---- Toolbar callouts ------------------------------------------ */
+  // The recording and chaos groups only exist on the Engineering surface.
+  await setWorkspaceMode(page, 'engineering');
   // Expand both collapsible groups so every control is visible.
-  for (const sel of ['[data-recording-toggle]', '[data-chaos-toggle]']) {
-    const t = page.locator(sel).first();
-    if ((await t.count()) && (await t.getAttribute('aria-expanded')) === 'false') {
-      await t.click();
-    }
-  }
+  await expandGroup(page, '[data-recording-toggle]');
+  await expandGroup(page, '[data-chaos-toggle]');
   await settle(page, 600);
   await dismissTooltips(page);
   await setDistractionsHidden(page, true);
   await annotate(page, [
     { selector: '[data-disconnect-open]', label: 1, place: 'above' },
-    { selector: '[data-logs-open]', label: 2 },
-    { selector: '[data-print-screen]', label: 3, place: 'above' },
+    // Above, not below: the sample-app chip sits under this row in
+    // Engineering mode and a downward badge lands on top of its label.
+    { selector: '[data-logs-open]', label: 2, place: 'above' },
+    { selector: '[data-print-screen]', label: 3, place: 'above', gap: 44 },
     { selector: '[data-recording-toggle]', label: 4 },
     { selector: '[data-chaos-toggle]', label: 5, place: 'above' },
     { selector: '[data-command-palette-open]', label: 6 },
     { selector: '[data-copilot-toggle]', label: 7, place: 'above' },
     { selector: '[data-settings-open]', label: 8 },
+    { selector: '[data-workspace-toggle]', label: 9, place: 'above' },
   ]);
   await shotRegion(page, 'toolbar-real.png', ['.card-header', '[data-main-toolbar]'], 24);
   await clearAnnotations(page);
@@ -290,13 +335,23 @@ async function main() {
     await page.waitForSelector('[data-modal-open]', { timeout: 15000 });
     await ready(page);
     // Loading a recording navigates, which drops the injected style tag.
+    // The workspace mode survives (it is stored per browser), but re-assert
+    // it so the shot does not depend on that.
     await suppressToasts(page);
-    const rec = page.locator('[data-recording-toggle]').first();
-    if ((await rec.count()) && (await rec.getAttribute('aria-expanded')) === 'false') {
-      await rec.click();
-      await settle(page, 500);
-    }
+    await setWorkspaceMode(page, 'engineering');
+    await expandGroup(page, '[data-recording-toggle]');
   }
+  // workflow.js shows the status widget only while a run is live, so callout 6
+  // would point at nothing. Reveal it for the shot rather than starting a
+  // playback: this recording ends in Disconnect, which would tear down the
+  // session every later screenshot still needs.
+  await page.evaluate(() => {
+    const widget = document.querySelector('[data-status-widget]');
+    if (!widget) return;
+    widget.hidden = false;
+    widget.classList.remove('is-minimized');
+  });
+  await settle(page, 400);
   await dismissTooltips(page);
   await annotate(page, [
     { selector: '[data-recording-start] button[type=submit]', label: 1, place: 'above' },
