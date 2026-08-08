@@ -215,6 +215,60 @@ While the terminal has focus it captures ++tab++ so field navigation
 reaches the host instead of moving browser focus. To get out to the rest
 of the page, press ++ctrl+tab++ (or ++ctrl+shift+tab++).
 
+## Hotspots
+
+Most mainframe screens print a key legend — `F1=Help  F3=Exit  F7=Bkwd`.
+With hotspots on (the default), those are clickable: click `F3` on the
+screen and 3270Web sends PF3. URLs printed on a screen are clickable too
+and open in a new tab.
+
+Toggle them from the toolbar or the command palette; the choice is
+remembered per browser.
+
+Two rules keep hotspots from doing anything surprising:
+
+- **Never over an input field.** `PF3` sitting inside a value someone
+  typed is data, not a control, so it does not become clickable.
+- **Only real keys.** `PF1`–`PF24` and `PA1`–`PA3` are recognised;
+  anything outside those ranges (`F30`, `PA9`) is ignored, so a screen
+  full of numbers does not sprout dead hotspots.
+
+## Find on screen
+
+++ctrl+f++ (or the toolbar's magnifier) opens a find bar over the
+terminal. ++enter++ moves to the next match, ++shift+enter++ the
+previous, ++esc++ closes.
+
+This searches the screen, not the page. The browser's own ++ctrl+f++
+cannot see values inside input fields — which is where the account
+numbers and names actually are — and cannot match text that straddles a
+field boundary. Both work here.
+
+Stepping onto a match that sits in an input field also moves the 3270
+cursor there, since someone who searched for a field is usually about to
+type in it.
+
+Outside the terminal — in the Copilot panel, in a settings field —
+++ctrl+f++ is left alone and the browser's own find still works.
+
+## Screen history
+
+A 3270 screen is repainted in place, so once the host moves on, whatever
+was there is gone. The **Screen history** toolbar button (also in the
+command palette) opens a read-only view of recent screens.
+
+- ++left++ / ++right++ or the Older / Newer buttons move between screens.
+- **Copy** puts the displayed screen on the clipboard.
+- ++esc++ closes.
+
+The last 50 screens are kept per session, as plain text. Consecutive
+identical screens are recorded once, so the history is a record of what
+you saw rather than of how often the browser polled.
+
+It is deliberately read-only: you cannot type into a screen from five
+minutes ago, and pretending otherwise would be worse than not offering
+it. History is per session and does not survive a disconnect.
+
 ## Copying from the screen
 
 The screen is rendered as text with input fields spliced into it, so

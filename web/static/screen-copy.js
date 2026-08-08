@@ -7,93 +7,14 @@
 // screen and into a spreadsheet is routine work in a 3270 shop, and every
 // desktop emulator ships rectangular block copy for exactly this.
 //
-// The approach: the renderer emits the host's character grid on the form as
-// data-screen-text. We overlay the live (possibly not-yet-submitted) input
-// values on top of it to get what is actually on screen right now, then copy
-// either the whole grid or a marked rectangle out of it.
+// The grid and geometry come from screen-grid.js.
 (function () {
   "use strict";
 
   var MARK_HINT_ID = "screen-copy-hint";
 
-  function getForm() {
-    return document.querySelector("form.renderer-form");
-  }
-
-  function gridDimensions(form) {
-    var rows = parseInt(form.getAttribute("data-rows"), 10);
-    var cols = parseInt(form.getAttribute("data-cols"), 10);
-    return {
-      rows: isNaN(rows) || rows <= 0 ? 24 : rows,
-      cols: isNaN(cols) || cols <= 0 ? 80 : cols
-    };
-  }
-
-  // buildGrid returns the screen as an array of equal-length row strings.
-  function buildGrid() {
-    var form = getForm();
-    if (!form) {
-      return null;
-    }
-    var dims = gridDimensions(form);
-    var raw = form.getAttribute("data-screen-text") || "";
-    var lines = raw.split("\n");
-    var grid = [];
-    var r;
-    for (r = 0; r < dims.rows; r++) {
-      var line = lines[r] || "";
-      if (line.length < dims.cols) {
-        line += new Array(dims.cols - line.length + 1).join(" ");
-      }
-      grid.push(line.slice(0, dims.cols).split(""));
-    }
-
-    // Overlay what the operator has typed but not yet submitted. Without
-    // this, copying a screen mid-entry returns the host's stale values and
-    // quietly disagrees with what is on the display.
-    var inputs = form.querySelectorAll("input[data-x][data-y]");
-    for (var i = 0; i < inputs.length; i++) {
-      var input = inputs[i];
-      var x = parseInt(input.dataset.x, 10);
-      var y = parseInt(input.dataset.y, 10);
-      var w = parseInt(input.dataset.w, 10);
-      if (isNaN(x) || isNaN(y) || y < 0 || y >= dims.rows) {
-        continue;
-      }
-      if (isNaN(w) || w <= 0) {
-        w = input.maxLength > 0 ? input.maxLength : 0;
-      }
-      // A hidden (password) field shows nothing on screen, so copying its
-      // value would leak a secret that was never displayed.
-      var hidden = input.classList.contains("color-input-hidden");
-      var value = hidden ? "" : input.value || "";
-      for (var c = 0; c < w; c++) {
-        var col = x + c;
-        if (col < 0 || col >= dims.cols) {
-          continue;
-        }
-        grid[y][col] = c < value.length ? value.charAt(c) : " ";
-      }
-    }
-
-    return { rows: dims.rows, cols: dims.cols, cells: grid };
-  }
-
-  function gridToText(grid, rect) {
-    if (!grid) {
-      return "";
-    }
-    var top = rect ? rect.top : 0;
-    var left = rect ? rect.left : 0;
-    var bottom = rect ? rect.bottom : grid.rows - 1;
-    var right = rect ? rect.right : grid.cols - 1;
-    var out = [];
-    for (var r = top; r <= bottom && r < grid.rows; r++) {
-      var line = grid.cells[r].slice(left, right + 1).join("");
-      // Trailing padding is an artefact of a fixed-width grid, not content.
-      out.push(line.replace(/\s+$/, ""));
-    }
-    return out.join("\n");
+  function grid() {
+    return window.ThreeSeventyWeb.screenGrid;
   }
 
   function toast(message, type) {
@@ -148,7 +69,8 @@
   }
 
   function copyWholeScreen() {
-    copyText(gridToText(buildGrid(), null), "Screen");
+    var g = grid();
+    copyText(g.toText(g.build(), null), "Screen");
   }
 
   /* ------------------------------------------------------------------ */
@@ -160,64 +82,27 @@
   var markRect = null;
   var overlay = null;
 
-  function getScreenContainer() {
-    return document.querySelector(".screen-container");
-  }
-
-  // cellMetrics derives the character cell size from the rendered <pre>. The
-  // grid is uniform monospace, so dividing the box by the row/column count is
-  // exact and survives the zoom slider without needing to be told about it.
-  function cellMetrics() {
-    var form = getForm();
-    var pre = form && form.querySelector("pre");
-    if (!pre) {
-      return null;
-    }
-    var dims = gridDimensions(form);
-    var rect = pre.getBoundingClientRect();
-    if (!rect.width || !rect.height) {
-      return null;
-    }
-    return {
-      rect: rect,
-      cellW: rect.width / dims.cols,
-      cellH: rect.height / dims.rows,
-      rows: dims.rows,
-      cols: dims.cols
-    };
-  }
-
-  function pointToCell(metrics, clientX, clientY) {
-    var col = Math.floor((clientX - metrics.rect.left) / metrics.cellW);
-    var row = Math.floor((clientY - metrics.rect.top) / metrics.cellH);
-    return {
-      row: Math.max(0, Math.min(metrics.rows - 1, row)),
-      col: Math.max(0, Math.min(metrics.cols - 1, col))
-    };
-  }
-
-  function ensureOverlay(container) {
+  function ensureOverlay() {
     if (overlay && overlay.parentNode) {
       return overlay;
+    }
+    var layer = grid().overlayLayer();
+    if (!layer) {
+      return null;
     }
     overlay = document.createElement("div");
     overlay.className = "screen-block-selection";
     overlay.setAttribute("aria-hidden", "true");
-    container.appendChild(overlay);
+    layer.appendChild(overlay);
     return overlay;
   }
 
   function paintOverlay(metrics, rect) {
-    var container = getScreenContainer();
-    if (!container) {
+    var el = ensureOverlay();
+    if (!el) {
       return;
     }
-    var el = ensureOverlay(container);
-    var containerRect = container.getBoundingClientRect();
-    el.style.left = metrics.rect.left - containerRect.left + rect.left * metrics.cellW + "px";
-    el.style.top = metrics.rect.top - containerRect.top + rect.top * metrics.cellH + "px";
-    el.style.width = (rect.right - rect.left + 1) * metrics.cellW + "px";
-    el.style.height = (rect.bottom - rect.top + 1) * metrics.cellH + "px";
+    grid().positionOverCells(el, metrics, rect);
     el.hidden = false;
   }
 
@@ -250,7 +135,7 @@
   }
 
   function initBlockSelection() {
-    var container = getScreenContainer();
+    var container = grid().container();
     if (!container) {
       return;
     }
@@ -262,14 +147,14 @@
       if (!event.altKey || event.button !== 0) {
         return;
       }
-      var metrics = cellMetrics();
+      var metrics = grid().metrics();
       if (!metrics) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
       marking = true;
-      markAnchor = pointToCell(metrics, event.clientX, event.clientY);
+      markAnchor = grid().pointToCell(metrics, event.clientX, event.clientY);
       markRect = rectFrom(markAnchor, markAnchor);
       paintOverlay(metrics, markRect);
       if (container.setPointerCapture && event.pointerId != null) {
@@ -283,12 +168,12 @@
       if (!marking || !markAnchor) {
         return;
       }
-      var metrics = cellMetrics();
+      var metrics = grid().metrics();
       if (!metrics) {
         return;
       }
       event.preventDefault();
-      markRect = rectFrom(markAnchor, pointToCell(metrics, event.clientX, event.clientY));
+      markRect = rectFrom(markAnchor, grid().pointToCell(metrics, event.clientX, event.clientY));
       paintOverlay(metrics, markRect);
     }, true);
 
@@ -323,10 +208,15 @@
       if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
         event.preventDefault();
         event.stopPropagation();
-        copyText(gridToText(buildGrid(), markRect), "Block");
+        var g = grid();
+        copyText(g.toText(g.build(), markRect), "Block");
         clearMark();
       }
     }, true);
+
+    // A screen refresh replaces the container's contents, so a mark drawn
+    // against the old screen no longer means anything.
+    grid().onScreenReplaced(clearMark);
   }
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -348,11 +238,13 @@
         toast("Alt+drag over the screen to mark a block first", "info");
         return;
       }
-      copyText(gridToText(buildGrid(), markRect), "Block");
+      var g = grid();
+      copyText(g.toText(g.build(), markRect), "Block");
       clearMark();
     },
     screenText: function () {
-      return gridToText(buildGrid(), null);
+      var g = grid();
+      return g.toText(g.build(), null);
     },
     clearMark: clearMark
   };
