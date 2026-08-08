@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/users"
@@ -222,6 +223,16 @@ func (app *App) LoginHandler(c *gin.Context) {
 	if ok, retryIn := app.loginLimiter.Allow(keys...); !ok {
 		log.Printf("auth: login throttled for %q from %s (%s remaining)",
 			username, clientIP, retryIn.Round(time.Second))
+		// Recorded separately from a plain failure: a run of these is the
+		// shape of somebody working through a password list, and it reads
+		// differently from one person mistyping.
+		app.auditRecorder().Log(audit.Entry{
+			Event:    audit.EventLoginLockedOut,
+			Outcome:  audit.Denied,
+			ClientIP: clientIP,
+			Target:   username,
+			Detail:   map[string]string{"retryIn": retryIn.Round(time.Second).String()},
+		})
 		app.failLogin(c, "Too many failed attempts. Try again shortly.", http.StatusTooManyRequests)
 		return
 	}
@@ -237,6 +248,16 @@ func (app *App) LoginHandler(c *gin.Context) {
 		default:
 			log.Printf("auth: login error for %q from %s: %v", username, clientIP, err)
 		}
+		// The trail may say why, even though the reply must not: it is read
+		// by an administrator who is entitled to know the account was
+		// disabled rather than the password wrong.
+		app.auditRecorder().Log(audit.Entry{
+			Event:    audit.EventLoginFailed,
+			Outcome:  audit.Failure,
+			ClientIP: clientIP,
+			Target:   username,
+			Detail:   map[string]string{"reason": loginFailureReason(err)},
+		})
 		// One message for every failure. Distinguishing them would report
 		// which usernames exist and which accounts are disabled.
 		app.failLogin(c, "Incorrect username or password.", http.StatusUnauthorized)
@@ -259,6 +280,11 @@ func (app *App) LoginHandler(c *gin.Context) {
 	app.loginLimiter.Reset(keys...)
 	app.setAuthCookie(c, sess.ID)
 	log.Printf("auth: %s logged in from %s", user.Username, clientIP)
+	app.auditRecorder().Log(audit.Entry{
+		Event:    audit.EventLoginSucceeded,
+		Actor:    audit.Actor{UserID: user.ID, Username: user.Username, Role: string(user.Role), Kind: string(authz.KindWeb)},
+		ClientIP: clientIP,
+	})
 
 	if user.MustChangePassword {
 		c.Redirect(http.StatusFound, changePasswordPath)
@@ -279,6 +305,8 @@ func (app *App) failLogin(c *gin.Context, message string, status int) {
 // LogoutHandler ends the login session and clears the cookie.
 func (app *App) LogoutHandler(c *gin.Context) {
 	if id := getCookieValue(c, authCookieName); id != "" {
+		// Before the delete, while the principal is still resolvable.
+		app.auditRequest(c, audit.EventLogout, audit.Success, "", nil)
 		app.authSessions.Delete(id)
 	}
 	app.setAuthCookie(c, "")
@@ -355,6 +383,8 @@ func (app *App) ChangePasswordHandler(c *gin.Context) {
 
 	app.authSessions.DeleteAllFor(user.ID)
 	log.Printf("auth: %s changed their password; other sessions ended", user.Username)
+	app.auditRequest(c, audit.EventPasswordChanged, audit.Success, user.Username,
+		map[string]string{"otherSessions": "ended"})
 
 	// Issue a fresh login so the person who just changed it stays signed in.
 	sess, err := app.authSessions.Create(user.ID, user.Username, user.Role, reqsec.ClientIP(c.Request), false)
@@ -434,5 +464,19 @@ func (app *App) authView(c *gin.Context) authView {
 		Enabled:  true,
 		Username: usernameFrom(c),
 		IsAdmin:  principal.IsAdmin(),
+	}
+}
+
+// loginFailureReason names why a sign-in was refused, for the audit trail
+// only. The reply to the browser stays the same either way; an administrator
+// reading the trail is entitled to the distinction the caller is not.
+func loginFailureReason(err error) string {
+	switch {
+	case errors.Is(err, users.ErrUserDisabled):
+		return "account disabled"
+	case errors.Is(err, users.ErrInvalidCredentials):
+		return "bad credentials"
+	default:
+		return "store error"
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/host"
 )
 
@@ -127,6 +128,10 @@ func (app *App) TransferSendHandler(c *gin.Context) {
 	opts.LocalFile = localPath
 
 	message, err := t.Transfer(opts)
+	// Both outcomes are recorded: moving data onto a mainframe is the kind of
+	// act somebody asks about afterwards, and an attempt that failed is still
+	// an attempt. The host-side name is the target; the contents are not.
+	app.auditTransfer(c, host.TransferSend, opts.HostFile, err)
 	if err != nil {
 		log.Printf("IND$FILE send failed: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -165,7 +170,9 @@ func (app *App) TransferReceiveHandler(c *gin.Context) {
 	localPath := filepath.Join(dir, "download.bin")
 	opts.LocalFile = localPath
 
-	if _, err := t.Transfer(opts); err != nil {
+	_, err = t.Transfer(opts)
+	app.auditTransfer(c, host.TransferReceive, opts.HostFile, err)
+	if err != nil {
 		log.Printf("IND$FILE receive failed: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -223,4 +230,18 @@ func contentDisposition(name string) string {
 		return r
 	}, name)
 	return fmt.Sprintf("attachment; filename=%q", safe)
+}
+
+// auditTransfer records a file moving between the browser and the mainframe.
+//
+// The host-side dataset name goes in because that is what the act was about.
+// The bytes never do: this is a trail of what happened, not a copy of what
+// was moved.
+func (app *App) auditTransfer(c *gin.Context, direction host.TransferDirection, hostFile string, err error) {
+	outcome := audit.Success
+	detail := map[string]string{"direction": string(direction)}
+	if err != nil {
+		outcome = audit.Failure
+	}
+	app.auditRequest(c, audit.EventFileTransfer, outcome, strings.TrimSpace(hostFile), detail)
 }

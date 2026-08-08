@@ -4,10 +4,12 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/users"
 )
@@ -147,6 +149,8 @@ func (app *App) AdminCreateUserHandler(c *gin.Context) {
 	}
 
 	log.Printf("auth: %s created account %q (%s)", adminActor(c), user.Username, user.Role)
+	app.auditRequest(c, audit.EventAccountCreated, audit.Success, user.Username,
+		map[string]string{"role": string(user.Role)})
 	c.JSON(http.StatusCreated, gin.H{"user": toAdminUserView(user, principalFrom(c).UserID)})
 }
 
@@ -193,6 +197,8 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 			return
 		}
 		log.Printf("auth: %s set %q role to %s", adminActor(c), target.Username, role)
+		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
+			map[string]string{"change": "role", "role": string(role)})
 	}
 
 	if req.Disabled != nil {
@@ -210,6 +216,8 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 			app.authSessions.DeleteAllFor(target.ID)
 		}
 		log.Printf("auth: %s set %q disabled=%v", adminActor(c), target.Username, *req.Disabled)
+		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
+			map[string]string{"change": "disabled", "disabled": strconv.FormatBool(*req.Disabled)})
 	}
 
 	if req.Password != nil {
@@ -230,6 +238,8 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 			app.authSessions.DeleteAllFor(target.ID)
 		}
 		log.Printf("auth: %s reset the password for %q", adminActor(c), target.Username)
+		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
+			map[string]string{"change": "password reset"})
 	}
 
 	updated, found, err := app.userStore().ByID(target.ID)
@@ -271,8 +281,11 @@ func (app *App) AdminDeleteUserHandler(c *gin.Context) {
 		log.Printf("auth: could not revoke tokens for %q: %v", target.Username, err)
 	} else if n > 0 {
 		log.Printf("auth: revoked %d API token(s) belonging to %q", n, target.Username)
+		app.auditRequest(c, audit.EventTokenRevoked, audit.Success, target.Username,
+			map[string]string{"count": strconv.Itoa(n), "reason": "account deleted"})
 	}
 	log.Printf("auth: %s deleted account %q", adminActor(c), target.Username)
+	app.auditRequest(c, audit.EventAccountDeleted, audit.Success, target.Username, nil)
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 

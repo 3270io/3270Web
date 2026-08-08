@@ -13,7 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/apitoken"
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
 // tokenStore lazily opens the issued-token database.
@@ -157,6 +159,19 @@ func (app *App) RequireAPIToken() gin.HandlerFunc {
 		presented, _ := bearerToken(c)
 		principal, err := app.authenticateAPIToken(presented)
 		if err != nil {
+			// A refused credential is the event worth having: a run of them is
+			// what probing looks like. Successful calls are not recorded — the
+			// API is the busy surface, and a line per request would bury
+			// everything else in the file. "The API is switched off" is a
+			// configuration state rather than an attempt, so it is left out.
+			if !errors.Is(err, errAPIDisabled) {
+				app.auditRecorder().Log(audit.Entry{
+					Event:    audit.EventTokenRefused,
+					Outcome:  audit.Denied,
+					ClientIP: reqsec.ClientIP(c.Request),
+					Detail:   map[string]string{"path": c.Request.URL.Path},
+				})
+			}
 			var answer apiAuthError
 			if !errors.As(err, &answer) {
 				answer = apiAuthError{http.StatusUnauthorized, "invalid token"}

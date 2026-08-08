@@ -29,6 +29,7 @@ import (
 	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/aiprovider"
 	"github.com/jnnngs/3270Web/internal/apitoken"
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authsession"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/config"
@@ -57,7 +58,11 @@ type App struct {
 	// only where users are separated; see authenticateAPIToken.
 	apiTokens     *apitoken.Store
 	apiTokensOnce sync.Once
-	loginLimiter  *loginLimiter
+	// audit is the security trail, kept apart from the debug log; see
+	// internal/audit.
+	audit        *audit.Recorder
+	auditOnce    sync.Once
+	loginLimiter *loginLimiter
 	// authBindIP is "auto", "true" or "false"; see App.bindSessionIP.
 	authBindIP          string
 	authIdleTimeout     time.Duration
@@ -333,6 +338,14 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	adminOnly.POST("/logs/toggle", app.LogsToggleHandler)
 	adminOnly.POST("/logs/clear", app.LogsClearHandler)
 	adminOnly.GET("/logs/download", app.LogsDownloadHandler)
+
+	// The audit trail. Admin-only for the same reason the debug log is: it
+	// names accounts, the addresses they came from and the hosts they reached.
+	// Unlike the debug log it has no on/off switch — a trail somebody can turn
+	// off before acting is not a trail.
+	adminOnly.GET("/admin/audit", app.AdminAuditPageHandler)
+	adminOnly.GET("/api/admin/audit", app.AdminAuditHandler)
+	adminOnly.GET("/api/admin/audit/download", app.AdminAuditDownloadHandler)
 
 	// Disconnect handler
 	r.POST("/disconnect", app.DisconnectHandler)
@@ -2273,6 +2286,7 @@ func (app *App) updateSettings(c *gin.Context) {
 		return
 	}
 
+	changed := make([]string, 0, len(settings))
 	for key, value := range settings {
 		// The client echoes back the placeholder it was served for a secret it
 		// did not change. Writing it would replace the secret with the mask.
@@ -2284,7 +2298,14 @@ func (app *App) updateSettings(c *gin.Context) {
 			return
 		}
 		app.applyRuntimeSetting(key, value)
+		changed = append(changed, key)
 	}
+
+	// The keys, never the values: a setting can hold a proxy string or a
+	// keyfile password, and the trail is read by every administrator.
+	sort.Strings(changed)
+	app.auditRequest(c, audit.EventSettingsSaved, audit.Success, "",
+		map[string]string{"keys": strings.Join(changed, ",")})
 
 	app.writeSettingsResponse(c)
 }
@@ -2298,6 +2319,9 @@ func (app *App) RestartHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to restart: %v", err)})
 		return
 	}
+	// Recorded before the process goes: a restart ends every other account's
+	// live mainframe sessions, so who asked for it is worth knowing.
+	app.auditRequest(c, audit.EventAppRestarted, audit.Success, "", nil)
 	c.JSON(http.StatusOK, gin.H{"restarting": true})
 
 	go func() {
@@ -2653,6 +2677,7 @@ var settingsDeniedKeys = map[string]bool{
 	"AUTH_MODE":            true,
 	"USERS_PATH":           true,
 	"API_TOKENS_PATH":      true,
+	"AUDIT_LOG_PATH":       true,
 	"AUTH_BIND_SESSION_IP": true,
 	"AUTH_SESSION_IDLE":    true,
 	"AUTH_SESSION_MAX":     true,
@@ -2894,6 +2919,10 @@ func (app *App) LogsAccessHandler(c *gin.Context) {
 		} else {
 			_ = os.Unsetenv("ALLOW_LOG_ACCESS")
 		}
+		// The debug log holds every account's activity, so turning access to
+		// it on is itself a security-relevant act.
+		app.auditRequest(c, audit.EventLogAccessSet, audit.Success, "",
+			map[string]string{"enabled": strconv.FormatBool(enabled)})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -3715,7 +3744,7 @@ func (app *App) getSession(c *gin.Context) *session.Session {
 }
 
 func (app *App) connectToHost(c *gin.Context, hostname string) error {
-	sess, err := app.startHostSession(principalFrom(c).UserID, hostname)
+	sess, err := app.startHostSession(c, hostname)
 	if err != nil {
 		return err
 	}
@@ -3730,7 +3759,7 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 // connectWithProfile opens a session using a named connection profile and
 // makes it the active one.
 func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) error {
-	sess, err := app.startHostSessionWithProfile(principalFrom(c).UserID, profile.displayTarget(), &profile)
+	sess, err := app.startHostSessionWithProfile(c, profile.displayTarget(), &profile)
 	if err != nil {
 		return err
 	}
@@ -3744,21 +3773,32 @@ func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) er
 // session for it, but does not associate the session with any browser cookie.
 // Used by both the cookie-based UI (via connectToHost) and the cookie-free
 // REST API.
-func (app *App) startHostSession(ownerID, hostname string) (*session.Session, error) {
-	return app.startHostSessionWithProfile(ownerID, hostname, nil)
+// startHostSession opens a session owned by whoever made the request.
+//
+// The context rather than a bare owner ID, because every caller derived the
+// owner from it the same way — and because the audit line for "somebody
+// connected to that host" wants the address it came from as well as the
+// account. Tests that have no request pass nil, which is the unowned case.
+func (app *App) startHostSession(c *gin.Context, hostname string) (*session.Session, error) {
+	return app.startHostSessionWithProfile(c, hostname, nil)
 }
 
 // startHostSessionWithProfile starts a session, optionally applying a
 // connection profile's per-host overrides (TLS, LU, model, code page) on top
 // of the server-wide s3270 defaults. Passing nil reproduces the previous
 // behaviour exactly.
-func (app *App) startHostSessionWithProfile(ownerID, hostname string, profile *ConnectionProfile) (*session.Session, error) {
+func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, profile *ConnectionProfile) (*session.Session, error) {
+	ownerID := principalFrom(c).UserID
 	if !isValidHostname(hostname) {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "invalid hostname"})
 		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
 	}
 	// Checked before anything is started, so a refused request costs nothing
 	// and cannot leave a subprocess behind.
 	if err := app.checkSessionCaps(ownerID); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "session limit"})
 		return nil, err
 	}
 
@@ -3807,6 +3847,14 @@ func (app *App) startHostSessionWithProfile(ownerID, hostname string, profile *C
 		sess.TargetPort = profile.Port
 	}
 	app.applyDefaultPrefs(sess)
+
+	// Every creation path — the connect form, the tab bar and the REST API —
+	// funnels through here, so recording it once covers all of them and a
+	// path added later is covered without anyone remembering.
+	app.auditRequest(c, audit.EventSessionOpened, audit.Success,
+		net.JoinHostPort(sess.TargetHost, strconv.Itoa(sess.TargetPort)),
+		map[string]string{"sessionId": sess.ID})
+
 	return sess, nil
 }
 

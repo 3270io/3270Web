@@ -659,3 +659,100 @@ table.admin-table {
     flex-wrap: wrap;
   }
 }
+
+/* ---------------------------------------------------------------------
+   7. Audit trail
+   --------------------------------------------------------------------- */
+
+/* Six columns rather than the accounts table's five, and every one of them
+   can hold something long — a hostname, a comma-separated detail list. */
+.admin-page--wide {
+  max-width: 1320px;
+}
+
+.audit-filters {
+  gap: 8px;
+}
+
+.audit-filters input[type="search"] {
+  min-width: 240px;
+}
+
+/* Six text columns with nothing wide in them — no buttons, no long usernames
+   — so at a phone width the table would happily squeeze itself into unreadable
+   slivers rather than overflow. A floor makes it overflow instead, which is
+   what the scrolling container is there for. The accounts table needs none of
+   this: its action buttons already push it past any narrow viewport.
+
+   The accounts table also reserves its first column for a username and its
+   fourth for a date. Neither is true here, so both are reset. */
+.audit-table {
+  min-width: 780px;
+}
+
+.audit-table th:first-child,
+.audit-table td:first-child {
+  min-width: 0;
+}
+
+.audit-table td:nth-child(4) {
+  white-space: normal;
+}
+
+.audit-table .audit-when {
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-table .audit-ip,
+.audit-table .audit-detail {
+  color: var(--fg-muted);
+}
+
+/* Addresses and detail lists have no spaces to break at, so they are told
+   where they may break rather than being allowed to widen the table. */
+.audit-table .audit-ip {
+  white-space: nowrap;
+}
+
+.audit-table .audit-detail {
+  overflow-wrap: anywhere;
+  max-width: 30ch;
+}
+
+.audit-table td:nth-child(5) {
+  overflow-wrap: anywhere;
+  max-width: 26ch;
+}
+
+.audit-event {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+/* A refusal is the row somebody is scanning for, so it is the one that
+   carries colour. Success is the background state and stays quiet. */
+.audit-event[data-outcome="denied"],
+.audit-event[data-outcome="failure"] {
+  border-color: color-mix(in srgb, #e5534b 55%, var(--border));
+  color: color-mix(in srgb, #e5534b 75%, var(--fg));
+  background: color-mix(in srgb, #e5534b 12%, transparent);
+}
+
+.audit-table tr[data-outcome] td {
+  background: color-mix(in srgb, #e5534b 5%, transparent);
+}
+
+.audit-note {
+  margin: 18px 0 0;
+  font-size: 0.8rem;
+}
+
+.audit-note code {
+  overflow-wrap: anywhere;
+}

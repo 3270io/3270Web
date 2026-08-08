@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/jnnngs/3270Web/internal/apitoken"
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/users"
 )
 
@@ -43,16 +45,20 @@ func runTokenCLI(args []string, stdout, stderr io.Writer) int {
 
 	tokens := apitoken.NewStore(resolveTokensPath())
 	accounts := users.NewStore(resolveUsersPath())
+	// The CLI writes to the same trail the server does. Issuing a credential
+	// from a container shell is exactly the act somebody would want a record
+	// of, and it leaves no other trace.
+	trail := audit.NewRecorder(resolveAuditPath())
 
 	switch args[0] {
 	case "add", "create":
-		return tokenAdd(tokens, accounts, args[1:], stdout, stderr)
+		return tokenAdd(tokens, accounts, trail, args[1:], stdout, stderr)
 	case "list", "ls":
 		return tokenList(tokens, accounts, args[1:], stdout, stderr)
 	case "revoke":
-		return tokenRevoke(tokens, args[1:], stdout, stderr)
+		return tokenRevoke(tokens, trail, args[1:], stdout, stderr)
 	case "revoke-all":
-		return tokenRevokeAll(tokens, accounts, args[1:], stdout, stderr)
+		return tokenRevokeAll(tokens, accounts, trail, args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, tokenUsage)
 		return 0
@@ -62,7 +68,7 @@ func runTokenCLI(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func tokenAdd(tokens *apitoken.Store, accounts *users.Store, args []string, stdout, stderr io.Writer) int {
+func tokenAdd(tokens *apitoken.Store, accounts *users.Store, trail *audit.Recorder, args []string, stdout, stderr io.Writer) int {
 	var positional []string
 	scopes := []string{apitoken.ScopeRead, apitoken.ScopeWrite}
 	var expiresAt *time.Time
@@ -109,6 +115,17 @@ func tokenAdd(tokens *apitoken.Store, accounts *users.Store, args []string, stdo
 		fmt.Fprintf(stderr, "%v\n", err)
 		return 1
 	}
+
+	trail.Log(audit.Entry{
+		Event:  audit.EventTokenIssued,
+		Actor:  audit.Actor{Username: "console"},
+		Target: record.ID,
+		Detail: map[string]string{
+			"account": owner.Username,
+			"name":    record.Name,
+			"scopes":  strings.Join(record.Scopes, "+"),
+		},
+	})
 
 	fmt.Fprintf(stdout, "issued %s for %s (%s)\n", record.ID, owner.Username, strings.Join(record.Scopes, "+"))
 	if record.ExpiresAt != nil {
@@ -188,7 +205,7 @@ func tokenStatus(tok apitoken.Token, now time.Time) string {
 	}
 }
 
-func tokenRevoke(tokens *apitoken.Store, args []string, stdout, stderr io.Writer) int {
+func tokenRevoke(tokens *apitoken.Store, trail *audit.Recorder, args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprint(stderr, "a token id is required\n\n"+tokenUsage)
 		return 2
@@ -201,11 +218,14 @@ func tokenRevoke(tokens *apitoken.Store, args []string, stdout, stderr io.Writer
 		fmt.Fprintf(stderr, "%v\n", err)
 		return 1
 	}
+	trail.Log(audit.Entry{
+		Event: audit.EventTokenRevoked, Actor: audit.Actor{Username: "console"}, Target: args[0],
+	})
 	fmt.Fprintf(stdout, "revoked %s\n", args[0])
 	return 0
 }
 
-func tokenRevokeAll(tokens *apitoken.Store, accounts *users.Store, args []string, stdout, stderr io.Writer) int {
+func tokenRevokeAll(tokens *apitoken.Store, accounts *users.Store, trail *audit.Recorder, args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprint(stderr, "a username is required\n\n"+tokenUsage)
 		return 2
@@ -218,6 +238,12 @@ func tokenRevokeAll(tokens *apitoken.Store, accounts *users.Store, args []string
 	if err != nil {
 		fmt.Fprintf(stderr, "%v\n", err)
 		return 1
+	}
+	if n > 0 {
+		trail.Log(audit.Entry{
+			Event: audit.EventTokenRevoked, Actor: audit.Actor{Username: "console"},
+			Target: owner.Username, Detail: map[string]string{"count": strconv.Itoa(n)},
+		})
 	}
 	fmt.Fprintf(stdout, "revoked %d token(s) for %s\n", n, owner.Username)
 	return 0
