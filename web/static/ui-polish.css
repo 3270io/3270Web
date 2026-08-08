@@ -633,15 +633,6 @@ body.copilot-open .copilot-toggle-button[data-copilot-toggle] {
   animation: polish-record-pulse 1.8s var(--ease-out) infinite;
 }
 
-/* Sample-app banner gets an accent rail. */
-.sample-status {
-  border-radius: var(--r-md);
-  border: 1px solid var(--hairline-soft);
-  border-left: 3px solid var(--accent);
-  background: linear-gradient(96deg, var(--accent-softer), transparent 60%);
-  box-shadow: var(--elev-1);
-}
-
 /* ---------------------------------------------------------------------
    6. Terminal shell — CRT bezel + OIA status bar
    --------------------------------------------------------------------- */
@@ -844,6 +835,262 @@ body.theme-authentic .screen-container::after {
 .workspace-toggle[aria-pressed="true"] {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+/* ================================================================== */
+/* Focus mode                                                         */
+/* ================================================================== */
+/* The terminal, filling the screen, and almost nothing else.
+   Everything here works by relocating the REAL controls rather than
+   duplicating them, so tooltips, event handlers and command-palette
+   entries all keep working. See focus-mode.js. */
+
+body[data-focus="on"] {
+  overflow: hidden;
+  /* The rail overlays the page, so the terminal reserves its height rather
+     than sliding under it. Overlaying transiently would hide row 1 — which
+     on a 3270 is the title and message line — every time someone reached
+     for the toolbar. Reserving costs a fixed 44px of terminal height and is
+     never wrong; the alternative is briefly wrong at the worst moment. */
+  --focus-rail-h: 44px;
+}
+
+/* The decorative layer earns its keep on the connect page and the normal
+   layout. In focus mode it is just noise behind a terminal. */
+body[data-focus="on"] .bg-overlay {
+  display: none;
+}
+
+/* Collapse every layer of framing between the viewport and the screen:
+   page padding, the card, its border, its shadow. */
+body[data-focus="on"] .page-wrap {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+}
+
+body[data-focus="on"] .card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+  box-shadow: none;
+}
+
+body[data-focus="on"] .card > .stack,
+body[data-focus="on"] .terminal-width-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0;
+  width: 100%;
+  max-width: none;
+}
+
+/* The terminal takes the space the chrome gave up, and stays centred so a
+   24x80 screen on a wide display does not sit awkwardly against one edge. */
+body[data-focus="on"] .terminal-shell {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin: 0;
+  padding: clamp(8px, 1.5vh, 20px);
+  /* Space for the rail, so it never covers the terminal's top row. */
+  padding-top: calc(var(--focus-rail-h) + clamp(8px, 1.5vh, 20px));
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+body[data-focus="on"] .screen-container {
+  margin-inline: auto;
+}
+
+/* The OIA is the operator's instrument panel — it stays, always. Hiding it
+   would be hiding X SYSTEM, which is the one thing they need. */
+body[data-focus="on"] .screen-oia {
+  width: 100%;
+  max-width: var(--terminal-width, 100%);
+  margin-inline: auto;
+}
+
+/* ---- the auto-hiding rail --------------------------------------- */
+
+body[data-focus="on"] [data-focus-rail-zone] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--focus-rail-h);
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--panel-2) 92%, var(--bg));
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 70%, transparent);
+  transform: translateY(-100%);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+body[data-focus="on"][data-focus-rail="shown"] [data-focus-rail-zone] {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-focus="on"] [data-focus-rail-zone] {
+    transition: none;
+  }
+}
+
+/* A hairline at the very top edge, always visible: without it the rail is
+   undiscoverable, and a mode with no visible way out is a trap. */
+body[data-focus="on"] [data-focus-rail-zone]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 1;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+body[data-focus="on"][data-focus-rail="shown"] [data-focus-rail-zone]::after {
+  opacity: 0;
+}
+
+/* Inside the rail everything sits on one line: header actions, tabs and
+   toolbar, in that reading order. */
+body[data-focus="on"] [data-focus-rail-zone] .card-header {
+  order: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  flex: 0 0 auto;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .session-tab-bar {
+  order: 2;
+  margin: 0;
+  border-bottom: none;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] [data-main-toolbar] {
+  order: 3;
+  margin: 0 !important;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  flex: 0 0 auto;
+}
+
+/* The wordmark is the first thing to go — you know which application you
+   are in when it is the only thing on screen. */
+body[data-focus="on"] [data-chrome-title] {
+  display: none;
+}
+
+body[data-focus="on"] .session-tab {
+  margin-bottom: 0;
+}
+
+/* Floating widgets have to clear the rail when it is out. */
+body[data-focus="on"][data-focus-rail="shown"] .terminal-tools-widget {
+  transform: translateY(52px);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+/* Scale the rail's controls down to fit its height without cramping. */
+body[data-focus="on"] [data-focus-rail-zone] .icon-button,
+body[data-focus="on"] [data-focus-rail-zone] button,
+body[data-focus="on"] [data-focus-rail-zone] a {
+  padding-block: 4px;
+  font-size: 0.74rem;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .icon-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .session-tab-label {
+  padding-block: 3px;
+}
+
+/* Toasts stack in the bottom-right, which in focus mode is where the OIA
+   now reaches. Lift them clear so a notification never sits on top of the
+   inhibit indicator. */
+body[data-focus="on"] #h3270-notification-container {
+  bottom: 96px;
+}
+
+body[data-focus="on"] .focus-toggle-button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+/* ---------------------------------------------------------------- */
+/* Sample-app provenance chip                                         */
+/* ---------------------------------------------------------------- */
+/* Was a full-width banner reading "Sample App 1 — Running on port 3274"
+   above the terminal. That is which local test server is running, which
+   is a development detail; it is a compact chip now, and workspace-mode
+   keeps it out of the business surface entirely. */
+.sample-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  align-self: flex-start;
+  margin: 0 0 8px;
+  padding: 3px 10px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.sample-status[hidden] {
+  display: none;
+}
+
+.sample-status .sample-app-title {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.02em;
+}
+
+.sample-status .subtle {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-focus="on"] .sample-status {
+  display: none;
 }
 
 /* ---------------------------------------------------------------- */

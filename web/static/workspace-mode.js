@@ -21,7 +21,14 @@
   // live and hides it otherwise, which is the right rule in both modes — an
   // operator in Business mode still needs to see what is driving their
   // terminal when Copilot starts a run.
-  var AUTOMATION_SELECTORS = ["[data-recording-controls]", "[data-chaos-controls]"];
+  // The sample-app chip is here for the same reason: which local test server
+  // is running and on which port is a development detail, not something a
+  // business user reads.
+  var AUTOMATION_SELECTORS = [
+    "[data-recording-controls]",
+    "[data-chaos-controls]",
+    "[data-sample-status]"
+  ];
 
   function readMode() {
     try {
