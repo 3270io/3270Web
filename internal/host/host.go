@@ -1,6 +1,7 @@
 package host
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -38,6 +39,20 @@ type MockHost struct {
 	QueryResponses map[string]string
 	// QueryErr, if set, is returned from Query() for every argument.
 	QueryErr error
+	// SnapErr, if set, is returned from Snap().
+	SnapErr error
+	// ToggleValues is the display-toggle state the mock reports and updates.
+	ToggleValues map[string]bool
+	// ToggleErr, if set, is returned from Toggles() and SetToggle().
+	ToggleErr error
+	// TracePath, TraceFormat and TraceRunning record what the last screen
+	// trace was asked to do, so a test can assert on the destination the
+	// server chose rather than only on the status code.
+	TracePath    string
+	TraceFormat  ScreenTraceFormat
+	TraceRunning bool
+	// ScreenTraceErr, if set, is returned from both screen-trace calls.
+	ScreenTraceErr error
 }
 
 func NewMockHost(dumpFile string) (*MockHost, error) {
@@ -193,4 +208,86 @@ func (m *MockHost) Query(arg string) (string, error) {
 		return "", nil
 	}
 	return m.QueryResponses[arg], nil
+}
+
+// Snap freezes the mock's current screen. Unlike the real thing there is no
+// separate buffer to freeze into — nothing is racing this screen — so it
+// simply reports what is on it, which is what a caller comparing two
+// snapshots is testing against anyway.
+func (m *MockHost) Snap() (*Snapshot, error) {
+	m.Commands = append(m.Commands, "snap")
+	if m.SnapErr != nil {
+		return nil, m.SnapErr
+	}
+	if m.Screen == nil {
+		return &Snapshot{}, nil
+	}
+	return &Snapshot{
+		Rows:   m.Screen.Height,
+		Cols:   m.Screen.Width,
+		Status: m.Screen.Status,
+		Text:   m.Screen.Text(),
+	}, nil
+}
+
+// Toggles reports the mock's display toggles. An unset ToggleValues map
+// answers with every allowlisted toggle off, so a test that only cares that
+// the list comes back does not have to populate one.
+func (m *MockHost) Toggles() ([]Toggle, error) {
+	m.Commands = append(m.Commands, "toggles")
+	if m.ToggleErr != nil {
+		return nil, m.ToggleErr
+	}
+	out := make([]Toggle, 0, len(safeToggles))
+	for _, name := range SafeToggleNames() {
+		out = append(out, Toggle{Name: name, Value: m.ToggleValues[name], Description: safeToggles[name]})
+	}
+	return out, nil
+}
+
+// SetToggle applies one display toggle, refusing names outside the allowlist
+// exactly as the real wrapper does — that refusal is the security-relevant
+// behaviour, so the double must not be more permissive than the thing.
+func (m *MockHost) SetToggle(name string, value bool) (*Toggle, error) {
+	m.Commands = append(m.Commands, "settoggle:"+name)
+	if m.ToggleErr != nil {
+		return nil, m.ToggleErr
+	}
+	canonical, ok := canonicalToggleName(name)
+	if !ok {
+		return nil, fmt.Errorf("%q is not a settable display toggle", name)
+	}
+	if m.ToggleValues == nil {
+		m.ToggleValues = make(map[string]bool)
+	}
+	m.ToggleValues[canonical] = value
+	return &Toggle{Name: canonical, Value: value, Description: safeToggles[canonical]}, nil
+}
+
+// StartScreenTrace records where a trace was asked to go. It writes the file
+// too, empty, so that a test covering the download path has something to
+// read where the server said it would be.
+func (m *MockHost) StartScreenTrace(path string, format ScreenTraceFormat) error {
+	m.Commands = append(m.Commands, "screentrace:on:"+path)
+	if m.ScreenTraceErr != nil {
+		return m.ScreenTraceErr
+	}
+	if err := validScreenTracePath(path); err != nil {
+		return err
+	}
+	m.TracePath = path
+	m.TraceFormat = format
+	m.TraceRunning = true
+	return os.WriteFile(path, nil, 0o600)
+}
+
+// StopScreenTrace ends a capture. Stopping one that was never started
+// succeeds, matching the real wrapper.
+func (m *MockHost) StopScreenTrace() error {
+	m.Commands = append(m.Commands, "screentrace:off")
+	if m.ScreenTraceErr != nil {
+		return m.ScreenTraceErr
+	}
+	m.TraceRunning = false
+	return nil
 }

@@ -50,6 +50,7 @@ h3270-web.exe
 # Chaos runtime artifacts (not source). The broader chaos* pattern that
 # previously lived here also blocked new source files like chaos_binding_test.go.
 chaos-runs/
+screen-traces/
 chaos-hints.json
 chaos-workflow*.json
 chaos-output*.json

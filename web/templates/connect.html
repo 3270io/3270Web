@@ -12,6 +12,11 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
     <!-- Shared design system layer; see the note in screen.html. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
+         The connect page needs it too: a fresh frame lands here first, and a
+         chrome-less terminal behind a full-chrome connect form is worse than
+         either on its own. See docs/embedding.md. -->
+    <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
@@ -20,7 +25,7 @@
     <script src="/static/ui.js?v=20" defer></script>
     <script src="/static/connection-profiles.js" defer></script>
 </head>
-<body>
+<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-embed-origins="{{ .EmbedOrigins }}">
     <script src="/static/early-theme-init.js"></script>
     <!-- Custom themes, inlined because /api/themes needs a session and this
          page runs before one exists. See renderConnectPage. -->

@@ -179,6 +179,24 @@ variables before starting 3270Web:
 Use the tracing variables when troubleshooting host interaction issues,
 and the startup variables for scripted launch flows.
 
+## Opt-in capabilities
+
+Four capabilities are off until an environment variable turns them on. Each
+one either opens a door to something outside this process or writes something
+that outlives the session, which is why none of them has a checkbox in the
+Settings modal — turning one on should be a deployment decision, made once,
+where the rest of the deployment is described.
+
+| Variable | Default | What it enables |
+|---|---|---|
+| `API_TOKEN` | unset | The whole of [`/api/v1`](rest-api.md). Unset, every route on it answers 503 |
+| `ALLOW_SAMPLE_APPS` | off | Letting the headless API start a bundled sample app. It is a listener this process opens on your behalf |
+| `ALLOW_SCREEN_TRACE` | off | [Screen tracing](rest-api.md#apiv1sessionsidscreen-trace), which writes every screen the terminal draws to a file on the server — including whatever was typed into a field the host did not mark hidden |
+| `EMBED_ORIGINS` | unset | Framing the terminal in a page on another origin, and calling the API from one. Names the exact origins; there is no wildcard. See [Embedding 3270Web](embedding.md) |
+
+`ALLOW_LOG_ACCESS` is the fifth, and it does have a Settings field — see
+[Log Access](#log-access) below.
+
 ## UI Conveniences
 
 A few quality-of-life behaviours worth knowing about:

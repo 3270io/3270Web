@@ -76,6 +76,13 @@ type App struct {
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.
 	aiConfigStore *aiprovider.ConfigStore
+	// snapshotStore holds the named point-in-time screen copies a session has
+	// taken; screenTraceStore holds its running or finished screen capture.
+	// See snapshots.go and screen_trace.go.
+	snapshotStore     *snapshotStore
+	snapshotStoreOnce sync.Once
+	screenTraceStore  *screenTraceStore
+	screenTraceOnce   sync.Once
 	// catalogueFields holds the skills/instructions/extensions catalogue and
 	// the per-conversation load trackers. See skills.go.
 	catalogueFields
@@ -303,7 +310,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
+	r.GET("/embed/config", app.EmbedConfigHandler)
 	r.GET("/host/query", app.HostQueryHandler)
+	r.GET("/host/toggles", app.HostTogglesHandler)
+	r.POST("/host/toggles", app.HostToggleSetHandler)
 
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)
@@ -810,6 +820,17 @@ func (app *App) cleanupSession(s *session.Session) {
 		app.taskRunStore.cancel(s.ID)
 		app.taskRunStore.forget(s.ID)
 	}
+	// Snapshots are a working note taken during a run, so they end with the
+	// run. A screen trace holds a file handle inside the terminal, which the
+	// subprocess exiting closes for us; what is dropped here is only this
+	// server's record of where the file went — the file itself stays on disk
+	// for whoever asked for it.
+	if app.snapshotStore != nil {
+		app.snapshotStore.forget(s.ID)
+	}
+	if app.screenTraceStore != nil {
+		app.screenTraceStore.forget(s.ID)
+	}
 	// Which skills a conversation has already been given is only meaningful
 	// while that conversation exists, and the map would otherwise grow by one
 	// entry per session for the life of the process.
@@ -859,7 +880,10 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 	} else {
 		themesJSON = string(encoded)
 	}
+	rememberEmbedMode(c)
 	c.HTML(status, "connect.html", gin.H{
+		"Embedded":     embedRequested(c),
+		"EmbedOrigins": embedOriginsAttr(),
 		"DefaultHost":  defaultHost,
 		"SampleApps":   availableSampleApps(),
 		"SamplePorts":  samplePorts,
@@ -1104,7 +1128,10 @@ func (app *App) ScreenHandler(c *gin.Context) {
 			}
 		}
 	}
+	rememberEmbedMode(c)
 	c.HTML(http.StatusOK, "screen.html", gin.H{
+		"Embedded":                embedRequested(c),
+		"EmbedOrigins":            embedOriginsAttr(),
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
 		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
@@ -3895,10 +3922,18 @@ func MaxBodySizeMiddleware(maxBytes int64) gin.HandlerFunc {
 
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Frame-Options", "SAMEORIGIN")
+		// X-Frame-Options cannot express "these three origins" — it has
+		// SAMEORIGIN and nothing else — and a browser that honours both headers
+		// applies whichever refuses. So when embedding is configured the
+		// allowlist is stated once, in frame-ancestors, and X-Frame-Options is
+		// left off rather than set to something that would contradict it.
+		// Without embedding, both are sent, exactly as before.
+		if !embeddingEnabled() {
+			c.Header("X-Frame-Options", "SAMEORIGIN")
+		}
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;")
+		c.Header("Content-Security-Policy", baseCSP+" "+frameAncestors())
 		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		c.Next()
 	}

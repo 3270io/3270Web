@@ -58,6 +58,14 @@
     if (typeof window.sizeScreenContainer === "function") {
       window.sizeScreenContainer();
     }
+
+    // Announced rather than acted on: an unsolicited host repaint is exactly
+    // the screen a caller polling after its own commands would never see, and
+    // the embed bridge forwards this to a parent page. Fired after the DOM is
+    // updated so a listener that reads the screen back gets the new one.
+    document.dispatchEvent(
+      new CustomEvent("3270web:screen-updated", { detail: payload })
+    );
   }
 
   document.addEventListener("DOMContentLoaded", function () {

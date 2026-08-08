@@ -21,7 +21,12 @@ import (
 // API_TOKEN environment variable to be set and an Authorization: Bearer
 // header that matches it.
 func (app *App) registerAPIv1(r *gin.Engine) {
-	g := r.Group("/api/v1", app.RequireAPIToken())
+	// CORS runs ahead of the token check so that a preflight — which a browser
+	// sends without the Authorization header, by specification — is answered
+	// rather than rejected as unauthenticated. Nothing is granted by it: the
+	// real request that follows still has to carry the token. See
+	// embedding.go.
+	g := r.Group("/api/v1", EmbedCORSMiddleware(), app.RequireAPIToken())
 	g.GET("/sessions", app.APIListSessions)
 	g.POST("/sessions", app.APICreateSession)
 	g.DELETE("/sessions/:id", app.APIDeleteSession)
@@ -49,6 +54,42 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.GET("/extensions", app.ExtensionsListHandler)
 
 	app.registerAPIv1SessionScoped(r)
+	registerAPIv1Preflight(r)
+}
+
+// registerAPIv1Preflight gives every API path an OPTIONS route.
+//
+// A browser preflights a cross-origin call with OPTIONS to the same path, and
+// a router matches methods before paths — so without this the preflight 404s
+// before any middleware runs, and the console reports a CORS failure on a
+// surface that is configured correctly. The routes are derived from what was
+// just registered rather than listed again here, because a hand-maintained
+// second list is a list that goes stale the first time somebody adds an
+// endpoint.
+//
+// A single wildcard would have been shorter and is wrong: it claims the whole
+// subtree, and the MCP endpoint mounted under /api/v1 later serves its own
+// OPTIONS. Path by path, nothing is claimed that was not already ours.
+func registerAPIv1Preflight(r *gin.Engine) {
+	existing := r.Routes()
+	seen := make(map[string]bool, len(existing))
+	for _, route := range existing {
+		if route.Method == http.MethodOptions {
+			seen[route.Path] = true
+		}
+	}
+	for _, route := range existing {
+		if !strings.HasPrefix(route.Path, "/api/v1/") || seen[route.Path] {
+			continue
+		}
+		seen[route.Path] = true
+		r.OPTIONS(route.Path, EmbedCORSMiddleware(), func(c *gin.Context) {
+			// Unreachable in practice: the CORS middleware answers a preflight
+			// and aborts either way. This is what gives the router something to
+			// match so that it runs at all.
+			c.Status(http.StatusNoContent)
+		})
+	}
 }
 
 // APISessionScope resolves the :id path parameter and presents it to the
@@ -86,7 +127,7 @@ func (app *App) APISessionScope() gin.HandlerFunc {
 // and nothing an automated client needs to drive an application requires
 // them. TestAPIv1DenyList pins that list.
 func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
-	g := r.Group("/api/v1/sessions/:id", app.RequireAPIToken(), app.APISessionScope())
+	g := r.Group("/api/v1/sessions/:id", EmbedCORSMiddleware(), app.RequireAPIToken(), app.APISessionScope())
 
 	// Screen control. Only what the flat surface above does not already
 	// cover: key and submit stay on their documented /sessions/:id/key and
@@ -100,6 +141,32 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.POST("/cursor", app.ScreenCursorHandler)
 	g.POST("/wait", app.ScreenWaitHandler)
 	g.GET("/context", app.CopilotContextHandler)
+
+	// Point-in-time screen copies, and the comparison between two of them.
+	// This is the regression-testing surface: capture the screen a flow is
+	// meant to land on, run it again later, ask what moved. See snapshots.go.
+	g.POST("/snapshots", app.APITakeSnapshot)
+	g.GET("/snapshots", app.APIListSnapshots)
+	g.DELETE("/snapshots", app.APIDeleteSnapshot)
+	g.POST("/snapshots/diff", app.APIDiffSnapshots)
+
+	// The terminal's own display toggles — monocase, crosshair, cursor blink.
+	// A narrow allowlist; see internal/host/toggles.go for why it is narrow.
+	g.GET("/toggles", app.APIToggles)
+	g.POST("/toggles", app.APISetToggle)
+
+	// Screen tracing. Unlike everything else here this writes a file on the
+	// server, so it is behind ALLOW_SCREEN_TRACE as well as the token. See
+	// screen_trace.go.
+	// The HLLAPI-shaped door onto the same terminal: numbered functions,
+	// one-based linear positions, return codes. For porting an existing
+	// screen-scraper by changing how it calls rather than what it does. See
+	// hllapi.go.
+	g.POST("/hllapi", app.APIHLLAPI)
+
+	g.POST("/screen-trace", app.APIStartScreenTrace)
+	g.DELETE("/screen-trace", app.APIStopScreenTrace)
+	g.GET("/screen-trace", app.APIScreenTraceStatus)
 
 	// Chaos exploration.
 	g.POST("/chaos/start", app.ChaosStartHandler)
