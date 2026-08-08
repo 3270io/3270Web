@@ -164,6 +164,8 @@ func (app *App) RequireSetup() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		// A token client cannot complete setup and should not be redirected
+		// into it; the 503 below already says the instance is not ready.
 		if wantsJSON(c) {
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 				"error": "3270Web is not set up yet",

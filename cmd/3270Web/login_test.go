@@ -461,3 +461,63 @@ func TestNoAccountIsCreatedAutomatically(t *testing.T) {
 		t.Error("a user store was written before any account was created")
 	}
 }
+
+// Turning authentication on must not break the token surface. /api/v1 — and
+// MCP over HTTP inside it — authenticates a bearer token, not a browser
+// session; if the login gate judged it too, an operator enabling AUTH_MODE
+// would silently take every API and MCP client offline at the same moment.
+func TestTokenAPIIsNotGatedByLogin(t *testing.T) {
+	t.Setenv("API_TOKEN", "a-test-api-token")
+	_, r := newAuthTestApp(t, "local")
+
+	get := func(path, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	if w := get("/api/v1/sessions", "a-test-api-token"); w.Code != http.StatusOK {
+		t.Errorf("valid token = %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+
+	// The API's own gate must still be the one refusing bad tokens, and it
+	// must not fall back to the login page.
+	for _, tc := range []struct{ name, token string }{
+		{"no token", ""},
+		{"wrong token", "not-the-token"},
+	} {
+		w := get("/api/v1/sessions", tc.token)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s = %d, want %d", tc.name, w.Code, http.StatusUnauthorized)
+		}
+		if strings.Contains(w.Body.String(), "authentication required") {
+			t.Errorf("%s was answered by the login gate, not RequireAPIToken: %s", tc.name, w.Body.String())
+		}
+	}
+}
+
+// The same applies during first-run setup: a token client cannot complete
+// setup, so it must get a machine-readable answer rather than a redirect.
+func TestTokenAPIDuringSetupAnswersJSON(t *testing.T) {
+	t.Setenv("API_TOKEN", "a-test-api-token")
+	_, r := newSetupTestApp(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.Header.Set("Authorization", "Bearer a-test-api-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code == http.StatusFound {
+		t.Fatalf("a token client was redirected to a web page: %q", w.Header().Get("Location"))
+	}
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+	if !strings.Contains(w.Body.String(), "not set up yet") {
+		t.Errorf("body = %q", w.Body.String())
+	}
+}

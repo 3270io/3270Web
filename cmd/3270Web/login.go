@@ -42,6 +42,28 @@ var publicPaths = map[string]bool{
 // login page is not unstyled.
 var publicPrefixes = []string{"/static/", "/assets/", "/favicon"}
 
+// tokenAuthPrefixes carry their own authentication and must not be sent to a
+// login page.
+//
+// These are not public. /api/v1 — and MCP over HTTP inside it — is gated by
+// RequireAPIToken, which authenticates a bearer token rather than a browser
+// session. Letting the login gate run first would turn on authentication and
+// silently break every API and MCP client at the same time: they present a
+// valid token, hold no cookie, and would be answered with "authentication
+// required" by a check that was never meant to judge them.
+var tokenAuthPrefixes = []string{"/api/v1/", "/api/v1"}
+
+// hasOwnAuth reports whether a path is authenticated by something other than
+// the login session.
+func hasOwnAuth(path string) bool {
+	for _, prefix := range tokenAuthPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // isStaticAssetPath reports whether a path serves page furniture that must
 // load before any gate, so the login and setup pages are not unstyled.
 func isStaticAssetPath(path string) bool {
@@ -66,13 +88,17 @@ func isPublicPath(path string) bool {
 }
 
 // setAuthCookie writes (or clears, when value is empty) the login cookie.
+// Scoped by the same rule as the session cookie, for the same reason: a framed
+// terminal is a cross-site context, so a Lax login cookie is never sent and an
+// embedded deployment with authentication on would show the sign-in page
+// forever. See sessionCookieSameSite in embedding.go.
 func (app *App) setAuthCookie(c *gin.Context, value string) {
-	secure := reqsec.IsTLS(c.Request)
+	sameSite, secure := sessionCookieSameSite(c)
 	maxAge := int(app.authAbsoluteTimeout.Seconds())
 	if value == "" {
 		maxAge = -1
 	}
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(sameSite)
 	c.SetCookie(authCookieName, value, maxAge, "/", "", secure, true)
 }
 
@@ -103,7 +129,8 @@ func (app *App) bindSessionIP(c *gin.Context) bool {
 // single-operator deployment is unaffected.
 func (app *App) RequireLogin() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if app.authMode == authz.ModeNone || isPublicPath(c.Request.URL.Path) {
+		path := c.Request.URL.Path
+		if app.authMode == authz.ModeNone || isPublicPath(path) || hasOwnAuth(path) {
 			c.Next()
 			return
 		}
