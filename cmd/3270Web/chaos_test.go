@@ -566,6 +566,20 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
 	}
 
+	// Cleanups run last-registered-first, and t.TempDir() registered its
+	// RemoveAll on the lines above — so this one runs before the directories
+	// are removed, which is the whole point. A status goroutine still running
+	// when a test ends writes its saved run into chaosRunsDir, and racing
+	// RemoveAll for it fails the test with "directory not empty" in whichever
+	// test happened to be unlucky.
+	t.Cleanup(func() {
+		app.chaosEngines.stopAllSync()
+		if !app.waitForChaosSync(10 * time.Second) {
+			t.Error("chaos status goroutines were still running after the test; " +
+				"they write into t.TempDir() and will race its removal")
+		}
+	})
+
 	r := gin.New()
 	r.POST("/chaos/start", app.ChaosStartHandler)
 	r.POST("/chaos/stop", app.ChaosStopHandler)
