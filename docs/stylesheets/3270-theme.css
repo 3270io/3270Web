@@ -422,21 +422,36 @@ body::after {
   height: 1.75rem;
 }
 
-/* The mark is tuned for a bright accent on a dark ground. Daylight inverts
-   both: the accent becomes a mid-tone and the ground goes white, so the
-   receding planes fade out and the specular sweep washes the front face.
-   Lift the planes and drop the highlight to hold the same read. */
-html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-plane-1 { fill-opacity: 0.55; }
-html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-plane-2 { fill-opacity: 0.32; }
-html[data-theme='daylight'] :is(.md-logo, .hero-mark) .t3270-spec { opacity: 0.35; }
+/* Daylight deliberately carries no per-palette tweaks to the mark. It used to
+   lift the receding planes and dim the specular sweep, which backfired: the
+   glyph is knocked *out* of the front face, so raising the plane directly
+   behind it filled that hole back in with a dull mid-green and the mark lost
+   its edge. 3270.io ships the drawing unmodified, which is why the same mark
+   reads sharper there. Don't reintroduce the overrides. */
 
 /* The product mark above the home page hero. index.md carries an empty
    placeholder and overrides/main.html splices the header's SVG partial into
    it — see the comment there for why it cannot be written inline. The partial
    sizes itself for the header, so the hero size is set here. */
 .hero-mark {
-  margin: 0 0 1.1rem;
+  margin: 0;
   line-height: 0;
+}
+
+/* Mark and provenance chip on one row — the lockup used at the top of
+   3270.io. It wraps on narrow viewports, where the chip drops under the mark
+   rather than squeezing the hero. The children's own margins are cleared so
+   the lockup owns the spacing below it. */
+.md-typeset .hero-lockup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 1.4rem;
+}
+
+.md-typeset .hero-lockup > * {
+  margin: 0;
 }
 
 /* The framing in "Images" below is for screenshots. A mark on a transparent
