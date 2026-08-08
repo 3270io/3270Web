@@ -884,6 +884,13 @@ body[data-focus="on"] .card {
   border-radius: 0;
   background: var(--bg);
   box-shadow: none;
+  /* The normal layout caps the card at 100vw - 40px so it floats inside the
+     page gutter. Focus mode has no gutter to sit in: leaving the cap on left
+     the terminal bezel 20px short of each edge, which is where its side
+     lines used to disappear to. */
+  width: 100%;
+  min-width: 0;
+  max-width: none;
 }
 
 body[data-focus="on"] .card > .stack,
@@ -906,13 +913,22 @@ body[data-focus="on"] .terminal-shell {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  margin: 0;
+  /* Horizontal margin stays auto. The bezel is width: fit-content — which is
+     also what lets terminal-controls.js size the terminal, since it fits by
+     measuring the shell's own box against the viewport — so zeroing the
+     margin does not widen it, it just parks it against the left edge with
+     dead space to its right. */
+  margin: 0 auto;
   padding: clamp(8px, 1.5vh, 20px);
   /* Space for the rail, so it never covers the terminal's top row. */
   padding-top: calc(var(--focus-rail-h) + clamp(8px, 1.5vh, 20px));
   border-radius: 0;
-  border-left: none;
-  border-right: none;
+  /* All four sides of the bezel stay drawn. A frame that is open on the left
+     and right does not read as a terminal bezel, it reads as a rendering
+     fault — and the focus-within accent, which is how the operator sees the
+     screen has the keyboard, only tracks round a closed frame. */
+  border-width: 1px;
+  border-style: solid;
 }
 
 body[data-focus="on"] .screen-container {
@@ -1610,6 +1626,168 @@ body[data-focus="on"] .sample-status {
 .task-card-note { margin: 0 0 10px; font-size: 0.72rem; }
 
 /* ---------------------------------------------------------------- */
+/* Task authoring wizard                                              */
+/* ---------------------------------------------------------------- */
+.wizard-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.wizard-modal[hidden] { display: none; }
+
+.wizard-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.wizard-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(96vw, 860px);
+  max-height: 90vh;
+  padding: 18px 20px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.wizard-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wizard-modal-header h3 { margin: 0; font-size: 1.02rem; }
+
+.wizard-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.wizard-section { display: flex; flex-direction: column; gap: 8px; }
+.wizard-section h4 { margin: 0; font-size: 0.86rem; }
+.wizard-section > .subtle { margin: 0; font-size: 0.76rem; line-height: 1.45; }
+
+/* The server's assumptions, shown rather than buried. This is the difference
+   between a wizard that asks and one that quietly guesses. */
+.wizard-notes {
+  border: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--panel-2) 40%, transparent);
+}
+
+.wizard-notes summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.wizard-notes ul { margin: 8px 0 0; padding-left: 18px; }
+.wizard-notes li { font-size: 0.74rem; line-height: 1.5; margin-bottom: 4px; }
+
+.wizard-param,
+.wizard-output {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(110px, auto) minmax(90px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 30%, transparent);
+}
+
+.wizard-param input,
+.wizard-param select,
+.wizard-output input { width: 100%; box-sizing: border-box; font-size: 0.78rem; }
+
+.wizard-param-where,
+.wizard-output .subtle { font-size: 0.7rem; white-space: nowrap; }
+
+.wizard-output-sample {
+  font-family: var(--mono, monospace);
+  font-size: 0.74rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+
+/* The screen the flow ended on, as a static picking surface. Rendered as a
+   plain <pre> so the same cell arithmetic the live terminal uses applies
+   here — see screenGrid.metricsFor. */
+.wizard-screen {
+  position: relative;
+  overflow: auto;
+  max-height: 42vh;
+  padding: 8px;
+  background: var(--term-bg, #000);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  cursor: crosshair;
+  /* Text selection would fight the drag gesture for the same pointer. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.wizard-screen pre {
+  margin: 0;
+  font-family: var(--term-font, monospace);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  white-space: pre;
+  color: var(--term-fg, #33ff66);
+}
+
+.wizard-marquee {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 2px;
+}
+
+.wizard-marquee[hidden] { display: none; }
+
+.wizard-outputs { display: flex; flex-direction: column; gap: 6px; }
+.wizard-outputs > .subtle { margin: 0; font-size: 0.76rem; }
+
+.wizard-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 620px) {
+  .wizard-param,
+  .wizard-output { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------------------------------------------------------------- */
 /* Keyboard mapping                                                   */
 /* ---------------------------------------------------------------- */
 .keymap-modal {
@@ -2200,6 +2378,42 @@ body[data-hotspots="off"] .screen-hotspot {
 
 .screen-overlay-layer > .screen-hotspot {
   pointer-events: auto;
+}
+
+/* The cursor when it is resting on protected text — see the "Cursor over
+   protected text" section of keyboard.js. It is drawn as an underscore rather
+   than a block so the character underneath stays readable, which is what a
+   3270's own cursor does. */
+.screen-free-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  border-bottom: 2px solid var(--accent, currentColor);
+  animation: screen-free-cursor-blink 1.06s steps(1, end) infinite;
+}
+
+.screen-free-cursor[hidden] {
+  display: none;
+}
+
+@keyframes screen-free-cursor-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.15; }
+}
+
+/* An operator with reduced-motion set still needs to see the cursor; what they
+   do not need is it flashing at them. */
+@media (prefers-reduced-motion: reduce) {
+  .screen-free-cursor {
+    animation: none;
+  }
+}
+
+/* Two visible carets would be worse than none. While the cursor is out on
+   protected text the fields' own carets are hidden, so there is exactly one
+   place on the screen that looks like the cursor. */
+.terminal-shell[data-free-cursor] .screen-container input {
+  caret-color: transparent;
 }
 
 .screen-block-selection {

@@ -144,11 +144,21 @@ func (h *GoSampleAppHost) PrintText(format string) (string, error) {
 	return h.client.PrintText(format)
 }
 
-// Query satisfies the Host interface. The in-process sample app does not
-// implement s3270 Query actions, so it returns an empty string. The profiler
-// treats empty responses as "unknown" capabilities and degrades gracefully.
+// Query satisfies the Host interface by asking the same s3270 every other
+// method here goes through.
+//
+// It used to return an empty string unconditionally, on the stated grounds that
+// "the in-process sample app does not implement s3270 Query actions". That was
+// wrong about its own plumbing: a sample-app session is a real s3270 subprocess
+// connected to a local go3270 server, so the queries are answerable and were
+// simply being thrown away. The visible cost was that the compatibility
+// profiler reported every capability as unknown when pointed at a sample app —
+// the one target anyone can run — and the Query API surface answered nothing.
 func (h *GoSampleAppHost) Query(arg string) (string, error) {
-	return "", nil
+	if h.client == nil {
+		return "", fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.Query(arg)
 }
 
 // SetVerboseLogging enables or disables verbose logging for the underlying client.

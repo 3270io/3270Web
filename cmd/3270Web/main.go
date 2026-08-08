@@ -267,6 +267,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/tasks/delete", app.TasksDeleteHandler)
 	r.POST("/tasks/run", app.TasksRunHandler)
 	r.GET("/tasks/status", app.TasksStatusHandler)
+	r.GET("/tasks/draft", app.TasksDraftHandler)
 	r.POST("/tasks/cancel", app.TasksCancelHandler)
 
 	r.GET("/sessions", app.SessionsListHandler)
@@ -306,6 +307,8 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
 	r.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
 	r.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
+	// Convert a discovered function into a business task draft.
+	r.GET("/chaos/business/task-draft", app.ChaosBusinessToTaskHandler)
 	r.GET("/chaos/insights", app.ChaosInsightsHandler)
 
 	// Skills, instructions and extensions. Registered before initCopilot so
@@ -1267,6 +1270,11 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))
 
 	h := app.sessionHost(s)
+	// Capture the screen for the recording BEFORE updateFields writes the
+	// operator's input into the buffer. A guard derived from this has to
+	// match the screen as the host paints it, not as it looks once someone
+	// has typed into it.
+	recordScreenForStep(s, h)
 	if h.GetScreen().IsFormatted {
 		// 1. Update fields from form data
 		app.updateFields(c, h)
@@ -2735,6 +2743,39 @@ func fieldWithinBounds(f *host.Field, maxRows, maxCols int) bool {
 		return false
 	}
 	return true
+}
+
+// recordScreenForStep stores the screen the operator is looking at, tagged
+// with the index where this screen's group of steps begins. Capped so a long
+// recording session cannot grow without bound.
+const maxRecordedScreens = 200
+
+func recordScreenForStep(s *session.Session, h host.Host) {
+	if s == nil || h == nil {
+		return
+	}
+	screen := h.GetScreen()
+	if screen == nil {
+		return
+	}
+	text := screen.Text()
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	withSessionLock(s, func() {
+		if s.Recording == nil || !s.Recording.Active {
+			return
+		}
+		if len(s.Recording.Screens) >= maxRecordedScreens {
+			return
+		}
+		s.Recording.Screens = append(s.Recording.Screens, session.RecordedScreen{
+			StepIndex: len(s.Recording.Steps),
+			Text:      text,
+			Rows:      screen.Height,
+			Cols:      screen.Width,
+		})
+	})
 }
 
 func recordFieldUpdates(s *session.Session, h host.Host) {

@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
+	"github.com/jnnngs/3270Web/internal/task"
 )
 
 // registerAPIv1 wires the public /api/v1/* surface used by RPA bots, CI
@@ -28,10 +31,17 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/sessions/:id/submit", app.APISubmit)
 	g.POST("/sessions/:id/profile", app.APIProfileHandler)
 	g.GET("/sessions/:id/profile", app.APIProfileGetHandler)
+	g.GET("/sessions/:id/query", app.APIQuery)
 
-	// Skills and instructions are not session-scoped — the catalogue is the
-	// same whichever host you are connected to, and a client will usually
-	// want to read it before opening a session at all.
+	// Guided Business Tasks. The catalogue is deployment-wide, so it is not
+	// under /sessions; running one needs a connected session, so that is.
+	g.GET("/tasks", app.APIListTasks)
+	g.POST("/tasks", app.APISaveTask)
+	g.POST("/sessions/:id/tasks/run", app.APIRunTask)
+
+	// Skills and instructions are not session-scoped either — the catalogue
+	// is the same whichever host you are connected to, and a client will
+	// usually want to read it before opening a session at all.
 	g.GET("/skills", app.SkillsListHandler)
 	g.GET("/skills/load", app.SkillLoadHandler)
 	g.GET("/instructions", app.InstructionsListHandler)
@@ -293,6 +303,119 @@ func (app *App) APIGetScreen(c *gin.Context) {
 	c.JSON(http.StatusOK, screenToPublicJSON(screen))
 }
 
+// elidedQueryValue is what s3270 puts in the bare Query() response in place of
+// its longest fields (Copyright, Proxies, Tasks), meaning "ask for this one by
+// name".
+const elidedQueryValue = "..."
+
+// parseQueryFields splits s3270's bare Query() response into its fields. The
+// response is one "Name: value" per line; a line without a colon is kept under
+// its own name with an empty value rather than dropped, so an s3270 that reports
+// something in a shape we did not expect still shows up.
+//
+// It returns the map and the names in the order s3270 gave them, because that
+// order is s3270's own grouping and is more useful to read than alphabetical.
+func parseQueryFields(raw string) (map[string]string, []string) {
+	fields := make(map[string]string)
+	order := make([]string, 0, 24)
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		name, value, found := strings.Cut(line, ":")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if !found {
+			value = ""
+		}
+		if _, seen := fields[name]; !seen {
+			order = append(order, name)
+		}
+		fields[name] = strings.TrimSpace(value)
+	}
+	return fields, order
+}
+
+// APIQuery surfaces s3270's own Query action: the connection's account of
+// itself.
+//
+// None of it is derivable from the screen, which is the point. A session that
+// renders perfectly may still have failed to negotiate TN3270E, or bound a
+// different LU from the one that was asked for, and the only place that shows is
+// here. It is the difference between "the app looks fine" and "the connection is
+// what we specified".
+//
+// It always issues the *bare* Query, which returns every field the running
+// s3270 knows in one command, and answers ?name= out of that response rather
+// than by sending the name on. That is not a shortcut, it is the safe design: a
+// query keyword this s3270 does not handle can block instead of erroring —
+// Tn3270eFunctions does exactly that against a plain TN3270 server — and a
+// blocked command on the s3270 pipe is unrecoverable, so the wrapper's only
+// answer is to kill the subprocess. One unknown name would take the session with
+// it. Deriving the valid names from s3270 itself means no name we did not get
+// from s3270 is ever sent to it, and an unknown one can be refused with the list
+// of names that would have worked.
+func (app *App) APIQuery(c *gin.Context) {
+	s, ok := app.apiSessionFromPath(c)
+	if !ok {
+		return
+	}
+	h := app.sessionHost(s)
+	if h == nil || !h.IsConnected() {
+		c.JSON(http.StatusConflict, gin.H{"error": "session is not connected"})
+		return
+	}
+
+	raw, err := h.Query("")
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	fields, order := parseQueryFields(raw)
+
+	if name := strings.TrimSpace(c.Query("name")); name != "" {
+		for _, known := range order {
+			if !strings.EqualFold(known, name) {
+				continue
+			}
+			value := fields[known]
+			if value == elidedQueryValue {
+				// s3270 abbreviates its longest fields to "..." in the bare
+				// response and expects them to be asked for by name. Forwarding
+				// the name is safe here in a way that forwarding an arbitrary one
+				// is not: this name came out of s3270's own list, so it is a
+				// keyword by construction.
+				full, err := h.Query(known)
+				if err != nil {
+					c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+					return
+				}
+				value = full
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"session": s.ID,
+				"name":    known,
+				"value":   value,
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":     "unknown query " + name,
+			"available": order,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session":   s.ID,
+		"queries":   fields,
+		"available": order,
+	})
+}
+
 // APISendKey sends one AID or navigation key without first submitting any
 // pending field writes.
 func (app *App) APISendKey(c *gin.Context) {
@@ -439,4 +562,102 @@ func screenToPublicJSON(s *host.Screen) gin.H {
 		out["cursor"] = gin.H{"row": row, "col": col}
 	}
 	return out
+}
+
+/* ---------------------------------------------------------------- */
+/* Guided Business Tasks                                             */
+/* ---------------------------------------------------------------- */
+
+// APIListTasks returns the task catalogue. This doubles as export: the
+// response is exactly the document /tasks/save accepts, so a catalogue can be
+// version-controlled and moved between deployments with two curl calls.
+func (app *App) APIListTasks(c *gin.Context) {
+	tasks, err := app.taskStore().List()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks})
+}
+
+// APISaveTask adds or replaces a task. Validated by the same gate the browser
+// and the runner go through, so an imported task cannot be malformed.
+func (app *App) APISaveTask(c *gin.Context) {
+	var t task.Task
+	if err := c.ShouldBindJSON(&t); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	if _, err := app.taskStore().Upsert(t); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "task": t.Name})
+}
+
+// APIRunTask runs a task in the named session and returns the result.
+//
+// Synchronous, unlike the browser's /tasks/run. The two callers want opposite
+// things: a browser needs to show progress and offer Cancel while a
+// transaction takes its seconds, so it polls; a bot or a CI job wants the
+// answer in the response and would otherwise have to implement a poll loop to
+// get it. The run is bounded by the same five-minute ceiling either way.
+//
+// The task name travels in the body rather than the path. Task names are
+// prose — "Account balance enquiry" — and a name containing a slash would
+// silently become two path segments.
+func (app *App) APIRunTask(c *gin.Context) {
+	s, ok := app.apiSessionFromPath(c)
+	if !ok {
+		return
+	}
+	h := app.sessionHost(s)
+	if h == nil || !h.IsConnected() {
+		c.JSON(http.StatusConflict, gin.H{"error": "the session is not connected to a host"})
+		return
+	}
+
+	var payload struct {
+		Name       string            `json:"name"`
+		Parameters map[string]string `json:"parameters"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	t, found := app.taskStore().Find(payload.Name)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("there is no task called %q", payload.Name)})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), maxTaskRunDuration)
+	defer cancel()
+
+	// Registered in the same per-session store the browser uses. A task drives
+	// the one terminal that session owns, so an API run and a browser run must
+	// not overlap on it — and this is what makes the two paths mutually
+	// exclusive rather than merely unlikely to collide.
+	run := &taskRun{Task: t.Name, StartedAt: time.Now(), Total: len(t.Steps), cancel: cancel}
+	if err := app.taskRuns().begin(s.ID, run); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	defer app.taskRuns().update(s.ID, func(r *taskRun) { r.done = true })
+
+	runner := &task.Runner{Terminal: h}
+	result, err := runner.Run(ctx, t, payload.Parameters)
+	if err != nil {
+		// A parameter the task rejects is the caller's error, not a failure of
+		// the run — nothing was sent to the host.
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	app.taskRuns().update(s.ID, func(r *taskRun) { r.result = result })
+
+	// A task that stopped early is a 200 carrying completed:false, not an HTTP
+	// error: the request succeeded, and the body says what the host did. An
+	// HTTP status cannot express "step 3 saw the wrong screen", and collapsing
+	// it into 500 would throw away the only useful part of the answer.
+	c.JSON(http.StatusOK, result)
 }

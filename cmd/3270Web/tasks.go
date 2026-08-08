@@ -175,6 +175,77 @@ func (app *App) TasksDeleteHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "tasks": tasks})
 }
 
+// TasksDraftHandler turns the session's recording into a proposed task.
+//
+// It proposes and explains; it does not decide. Which recorded values are
+// inputs rather than fixed choices, and which part of the final screen is the
+// answer, are judgements about the business — so the draft comes back with
+// every assumption listed as a note and with no outputs at all, for a human to
+// complete before saving.
+func (app *App) TasksDraftHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+
+	var steps []task.RecordedStep
+	var screens []task.RecordedScreen
+	var recordingActive bool
+	withSessionLock(s, func() {
+		if s.Recording == nil {
+			return
+		}
+		recordingActive = s.Recording.Active
+		for _, step := range s.Recording.Steps {
+			rec := task.RecordedStep{Type: step.Type, Text: step.Text}
+			if step.Coordinates != nil {
+				rec.Row = step.Coordinates.Row
+				rec.Column = step.Coordinates.Column
+				rec.Length = step.Coordinates.Length
+			}
+			steps = append(steps, rec)
+		}
+		for _, screen := range s.Recording.Screens {
+			screens = append(screens, task.RecordedScreen{StepIndex: screen.StepIndex, Text: screen.Text})
+		}
+	})
+
+	if len(steps) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "there is no recording to build a task from — record a flow first",
+		})
+		return
+	}
+
+	name := strings.TrimSpace(c.Query("name"))
+	if name == "" {
+		name = "New task"
+	}
+	// The screen the flow ended on comes from the live session, not the
+	// recording: the recorder captures each screen before its submit, so the
+	// screen the last key produced — the one holding the answer — is never in
+	// it. This is the screen the wizard offers for picking outputs.
+	finalScreen := ""
+	if h := app.sessionHost(s); h != nil {
+		if screen := h.GetScreen(); screen != nil {
+			finalScreen = screen.Text()
+		}
+	}
+	draft, err := task.DraftFromRecording(name, steps, screens, finalScreen)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if recordingActive {
+		// A draft from a running recording is a snapshot of a flow that is
+		// still being performed, which is rarely what someone means.
+		draft.Notes = append(draft.Notes,
+			"Recording is still running, so this draft covers only what has been done so far. Stop the recording for the complete flow.")
+	}
+	c.JSON(http.StatusOK, draft)
+}
+
 /* ---------------------------------------------------------------- */
 /* Running                                                           */
 /* ---------------------------------------------------------------- */

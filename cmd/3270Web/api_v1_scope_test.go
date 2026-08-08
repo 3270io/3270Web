@@ -100,8 +100,15 @@ func TestAPIv1DenyList(t *testing.T) {
 		{http.MethodGet, "/api/settings"},
 		{http.MethodPost, "/api/themes/save"},
 		{http.MethodPost, "/workflow/play"},
-		{http.MethodPost, "/tasks/run"},
 		{http.MethodPost, "/chaos/runs/delete"},
+	}
+
+	// Running a Guided Business Task is deliberately *on* the token surface —
+	// see registerAPIv1 — so it is not in the list above. It is named here so
+	// that removing it from the API reads as a decision rather than as a
+	// route quietly going missing.
+	if w := doScoped(r, http.MethodPost, "/api/v1/sessions/"+sess.ID+"/tasks/run", token); w.Code == http.StatusNotFound {
+		t.Error("POST /api/v1/sessions/:id/tasks/run should be part of the token API")
 	}
 
 	for _, d := range denied {
