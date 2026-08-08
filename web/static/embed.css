@@ -1,0 +1,66 @@
+/* Embedded mode: the terminal inside somebody else's page.
+ *
+ * The host page already has a header, a nav and a card around this frame, so
+ * everything here is about not drawing a second one. What is removed is
+ * chrome only — the screen, its status line and the keyboard handling are
+ * untouched, because a terminal that cannot be typed into is not a smaller
+ * terminal, it is a picture of one.
+ *
+ * Nothing in this file applies unless the page rendered with ?embed=1, so a
+ * deployment that never embeds pays only for the request. */
+
+body.embedded {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* The animated background belongs to a page that owns its whole viewport. */
+body.embedded .bg-overlay {
+  display: none !important;
+}
+
+/* The card is the frame's own border, and the frame already has one. */
+body.embedded .page-wrap {
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  min-height: 0;
+}
+
+body.embedded .card {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 8px;
+  margin: 0;
+  background: transparent;
+}
+
+/* The title block and the session tab bar are both about a page; a frame
+ * shows one session and the page around it says whose it is. */
+body.embedded .card-header,
+body.embedded [data-chrome-title],
+body.embedded [data-session-tabs] {
+  display: none !important;
+}
+
+/* The toolbar stays available but starts collapsed: an integrator who wants
+ * the controls can show them with the class below from their own page, and
+ * the common case — a read-only or task-driven frame — gets the screen and
+ * nothing else. */
+body.embedded:not(.embedded-toolbar) [data-main-toolbar] {
+  display: none !important;
+}
+
+/* The operator information area stays: X SYSTEM, the insert flag and the
+ * cursor position are part of reading the screen, not decoration around it. */
+body.embedded .screen-oia {
+  display: flex;
+}
+
+/* Let the screen use the frame's full height rather than centring itself in a
+ * viewport it does not own. */
+body.embedded .stack {
+  gap: 8px;
+}

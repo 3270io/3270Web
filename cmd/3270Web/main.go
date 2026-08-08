@@ -34,7 +34,6 @@ import (
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
-	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
 	"github.com/jnnngs/3270Web/internal/users"
@@ -44,7 +43,6 @@ type App struct {
 	SessionManager *session.Manager
 	Renderer       render.Renderer
 	Config         *config.Config
-	// authMode selects how callers are identified. Validated at startup, so
 	// handlers can treat it as a known value.
 	authMode authz.Mode
 	// users holds local accounts; authSessions holds live logins. Both are
@@ -61,13 +59,17 @@ type App struct {
 	// setup tracks whether the instance still needs its first administrator.
 	setup setupState
 
-	themeCache     map[string]string
-	themeCacheMu   sync.RWMutex
-	logFilePath    string
-	envPath        string
-	baseDir        string
-	shutdown       func()
-	chaosEngines   *chaosEngineStore
+	themeCache   map[string]string
+	themeCacheMu sync.RWMutex
+	logFilePath  string
+	envPath      string
+	baseDir      string
+	shutdown     func()
+	chaosEngines *chaosEngineStore
+	// chaosSync counts the running chaos status goroutines so shutdown — and
+	// a test's cleanup — can wait for them rather than racing whatever they
+	// are still writing to. See startChaosSync.
+	chaosSync      sync.WaitGroup
 	chaosRunsDir   string
 	chaosHintsPath string
 	chaosHintsMu   sync.Mutex
@@ -92,6 +94,13 @@ type App struct {
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.
 	aiConfigStore *aiprovider.ConfigStore
+	// snapshotStore holds the named point-in-time screen copies a session has
+	// taken; screenTraceStore holds its running or finished screen capture.
+	// See snapshots.go and screen_trace.go.
+	snapshotStore     *snapshotStore
+	snapshotStoreOnce sync.Once
+	screenTraceStore  *screenTraceStore
+	screenTraceOnce   sync.Once
 	// catalogueFields holds the skills/instructions/extensions catalogue and
 	// the per-conversation load trackers. See skills.go.
 	catalogueFields
@@ -341,7 +350,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
+	r.GET("/embed/config", app.EmbedConfigHandler)
 	r.GET("/host/query", app.HostQueryHandler)
+	r.GET("/host/toggles", app.HostTogglesHandler)
+	r.POST("/host/toggles", app.HostToggleSetHandler)
 
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)
@@ -840,6 +852,12 @@ func (app *App) cleanupSession(s *session.Session) {
 		return
 	}
 	cleanupRecordingFile(s)
+	// Told to stop before the engine is unregistered and the removed mark is
+	// cleared below. Those two together used to leave the status goroutine
+	// with no exit condition at all: it polled a detached engine, and wrote
+	// the run file whenever it eventually finished — by which time the
+	// session, and in tests the directory it wrote into, had gone.
+	app.chaosEngines.stopSync(s.ID)
 	app.chaosEngines.delete(s.ID)
 	app.chaosEngines.deleteLoadedRun(s.ID)
 	app.chaosEngines.clearRemoved(s.ID)
@@ -853,6 +871,17 @@ func (app *App) cleanupSession(s *session.Session) {
 	if app.taskRunStore != nil {
 		app.taskRunStore.cancel(s.ID)
 		app.taskRunStore.forget(s.ID)
+	}
+	// Snapshots are a working note taken during a run, so they end with the
+	// run. A screen trace holds a file handle inside the terminal, which the
+	// subprocess exiting closes for us; what is dropped here is only this
+	// server's record of where the file went — the file itself stays on disk
+	// for whoever asked for it.
+	if app.snapshotStore != nil {
+		app.snapshotStore.forget(s.ID)
+	}
+	if app.screenTraceStore != nil {
+		app.screenTraceStore.forget(s.ID)
 	}
 	// Which skills a conversation has already been given is only meaningful
 	// while that conversation exists, and the map would otherwise grow by one
@@ -870,7 +899,22 @@ func (app *App) stopAllSessions() {
 	for _, s := range app.SessionManager.ListSessions() {
 		app.cleanupSession(s)
 	}
+	// cleanupSession has told each status goroutine to stop; this is where we
+	// wait for them. Without it a chaos run's saved-run file could still be
+	// half-written when the process exits, which is a truncated file on disk
+	// rather than a missing one.
+	if app.chaosEngines != nil {
+		app.chaosEngines.stopAllSync()
+	}
+	if !app.waitForChaosSync(chaosSyncShutdownTimeout) {
+		log.Printf("Warning: chaos status goroutines did not finish within %s", chaosSyncShutdownTimeout)
+	}
 }
+
+// chaosSyncShutdownTimeout bounds how long a shutdown waits for the chaos
+// status goroutines. They stop within one poll interval of being told to, so
+// this is a backstop rather than a budget.
+const chaosSyncShutdownTimeout = 5 * time.Second
 
 // sessionCookieName is the cookie app.getSession reads to identify the
 // active host session. The /api/v1 session-scoped routes set it from the
@@ -903,7 +947,10 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 	} else {
 		themesJSON = string(encoded)
 	}
+	rememberEmbedMode(c)
 	c.HTML(status, "connect.html", gin.H{
+		"Embedded":     embedRequested(c),
+		"EmbedOrigins": embedOriginsAttr(),
 		"DefaultHost":  defaultHost,
 		"SampleApps":   availableSampleApps(),
 		"SamplePorts":  samplePorts,
@@ -1149,7 +1196,10 @@ func (app *App) ScreenHandler(c *gin.Context) {
 			}
 		}
 	}
+	rememberEmbedMode(c)
 	c.HTML(http.StatusOK, "screen.html", gin.H{
+		"Embedded":                embedRequested(c),
+		"EmbedOrigins":            embedOriginsAttr(),
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
 		"Auth":                    app.authView(c),
@@ -3735,11 +3785,17 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func setSessionCookie(c *gin.Context, name, value string) {
-	// Behind a TLS-terminating proxy the hop into this process is plain HTTP,
-	// so r.TLS alone would drop the Secure flag on a site the browser is
-	// reaching over HTTPS. See reqsec.IsTLS.
-	secure := reqsec.IsTLS(c.Request)
-	c.SetSameSite(http.SameSiteLaxMode)
+	// Both halves come from sessionCookieSameSite: Lax unless this deployment
+	// embeds the terminal, and Secure whenever the browser reached the edge
+	// over TLS — including through a proxy that terminated it, which is
+	// reqsec.IsTLS's job.
+	//
+	// Setting Lax here directly is the tempting shortcut and it silently
+	// disables embedding: a framed terminal is a cross-site context, so a Lax
+	// cookie is never sent and the frame shows the connect page forever, with
+	// nothing in any log to say why. See sessionCookieSameSite in embedding.go.
+	sameSite, secure := sessionCookieSameSite(c)
+	c.SetSameSite(sameSite)
 	maxAge := 3600
 	if value == "" {
 		maxAge = -1
@@ -3941,10 +3997,18 @@ func MaxBodySizeMiddleware(maxBytes int64) gin.HandlerFunc {
 
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Frame-Options", "SAMEORIGIN")
+		// X-Frame-Options cannot express "these three origins" — it has
+		// SAMEORIGIN and nothing else — and a browser that honours both headers
+		// applies whichever refuses. So when embedding is configured the
+		// allowlist is stated once, in frame-ancestors, and X-Frame-Options is
+		// left off rather than set to something that would contradict it.
+		// Without embedding, both are sent, exactly as before.
+		if !embeddingEnabled() {
+			c.Header("X-Frame-Options", "SAMEORIGIN")
+		}
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;")
+		c.Header("Content-Security-Policy", baseCSP+" "+frameAncestors())
 		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		c.Next()
 	}

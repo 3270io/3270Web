@@ -161,6 +161,62 @@ func (h *GoSampleAppHost) Query(arg string) (string, error) {
 	return h.client.Query(arg)
 }
 
+// Snap, Toggles, SetToggle and the screen-trace pair are delegated for the
+// same reason Query is: a sample-app session is a real s3270 subprocess
+// talking to a local go3270 server, so every one of these is answerable here.
+// Leaving them off would make the one target anybody can run without a
+// mainframe the one target where these features do not work — which is
+// exactly the target somebody evaluating them will reach for first.
+
+// Snap freezes the display and reads it back.
+func (h *GoSampleAppHost) Snap() (*Snapshot, error) {
+	if h.client == nil {
+		return nil, fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.Snap()
+}
+
+// Toggles reports the terminal's display toggles.
+func (h *GoSampleAppHost) Toggles() ([]Toggle, error) {
+	if h.client == nil {
+		return nil, fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.Toggles()
+}
+
+// SetToggle changes one allowlisted display toggle.
+func (h *GoSampleAppHost) SetToggle(name string, value bool) (*Toggle, error) {
+	if h.client == nil {
+		return nil, fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.SetToggle(name, value)
+}
+
+// StartScreenTrace begins capturing every screen the terminal draws.
+func (h *GoSampleAppHost) StartScreenTrace(path string, format ScreenTraceFormat) error {
+	if h.client == nil {
+		return fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.StartScreenTrace(path, format)
+}
+
+// StopScreenTrace ends a capture.
+func (h *GoSampleAppHost) StopScreenTrace() error {
+	if h.client == nil {
+		return fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.StopScreenTrace()
+}
+
+// GetScreenSnapshot returns a deep copy of the current screen, so a caller
+// reading it is not racing the parser that fills it in.
+func (h *GoSampleAppHost) GetScreenSnapshot() *Screen {
+	if h.client == nil {
+		return nil
+	}
+	return h.client.GetScreenSnapshot()
+}
+
 // SetVerboseLogging enables or disables verbose logging for the underlying client.
 func (h *GoSampleAppHost) SetVerboseLogging(enabled bool) {
 	h.verboseLogging = enabled

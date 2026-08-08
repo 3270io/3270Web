@@ -71,6 +71,7 @@ nav:
   - Keyboard and Controls: keyboard-and-controls.md
   - Screen Size and Model Guide: terminal-model-limits.md
   - REST API: rest-api.md
+  - Embedding 3270Web: embedding.md
   - MCP Server: mcp.md
   - Skills and Extensions: skills.md
   - Terminal Capabilities: terminal-capabilities.md

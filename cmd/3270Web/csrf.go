@@ -30,6 +30,13 @@ func OriginRefererCheckMiddleware() gin.HandlerFunc {
 		// Check Origin header first (preferred)
 		origin := c.Request.Header.Get("Origin")
 		if origin != "" {
+			// Note for anyone adding embedding support here: a framed terminal
+			// does not need an exemption. The document inside the frame is
+			// served by this origin, so its own requests are same-origin and
+			// this check passes unchanged. What a page on another origin gets
+			// is the /api/v1 surface with CORS (see embedding.go), which is
+			// bearer-authenticated and carries no cookie — so widening this
+			// check would buy nothing and cost the guarantee it exists for.
 			u, err := url.Parse(origin)
 			if err != nil {
 				log.Printf("CSRF protection: Invalid Origin header: %q", origin)

@@ -82,6 +82,45 @@ func jsonResponse(body string) mcptools.Response {
 	return mcptools.Response{Status: 200, ContentType: "application/json", Body: []byte(body)}
 }
 
+// serveMCP runs an MCP server on transport for the rest of the test and
+// returns a function that shuts it down and waits for it.
+//
+// The waiting and the announcement are both load-bearing. Closing the
+// transport is *how* a session ends, so `Run` returning "read/write on closed
+// pipe" during teardown is the expected outcome and not a failure — but the
+// only thing distinguishing it from a real failure used to be `ctx.Err() != nil`,
+// and cleanups run last-registered-first, so the client session's Close ran
+// before the context was cancelled. Whether the goroutine observed the
+// cancellation first was a coin toss, which is why this failed roughly one run
+// in three under load and never in isolation.
+//
+// Waiting matters separately: a t.Errorf from a goroutine that outlives its
+// test is a panic, not a failure, so the report would have taken the whole
+// package down rather than naming a test.
+func serveMCP(t *testing.T, server *mcp.Server, transport mcp.Transport, ctx context.Context) func() {
+	t.Helper()
+
+	stopping := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err := server.Run(ctx, transport)
+		select {
+		case <-stopping:
+			return
+		default:
+		}
+		if err != nil && ctx.Err() == nil {
+			t.Errorf("server.Run: %v", err)
+		}
+	}()
+
+	return func() {
+		close(stopping)
+		<-done
+	}
+}
+
 // connectMCP stands the server up on an in-memory transport and returns a
 // connected client session. This is the real JSON-RPC path — initialize,
 // tools/list, tools/call — without a subprocess to make it flaky.
@@ -92,20 +131,25 @@ func connectMCP(t *testing.T, inv mcptools.Invoker, tier mcptools.Tier) *mcp.Cli
 	server := buildMCPServer(inv, tier)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// A backstop for the Connect failure below, which returns before the
+	// ordered teardown is registered. cancel is idempotent, so the two do not
+	// conflict.
 	t.Cleanup(cancel)
 
-	go func() {
-		if err := server.Run(ctx, serverTransport); err != nil && ctx.Err() == nil {
-			t.Errorf("server.Run: %v", err)
-		}
-	}()
+	stopServer := serveMCP(t, server, serverTransport, ctx)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
 	session, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	t.Cleanup(func() { _ = session.Close() })
+	// One cleanup doing the whole teardown in order, rather than several whose
+	// relative order is an accident of where they were registered.
+	t.Cleanup(func() {
+		_ = session.Close()
+		cancel()
+		stopServer()
+	})
 	return session
 }
 
