@@ -7,6 +7,11 @@ Viewer+, z/Scope, Mocha, Flynet, Virtel, Glink, ZOC, x3270). It is a
 menu, not a schedule — items in **Future candidates** are deliberately
 unprioritized.
 
+For a prioritized view of the same ground from the perspective of a
+business user running 3270Web as their everyday terminal — including the
+daily-use defects that outrank most of the items below — see the
+[Enterprise Readiness Audit](enterprise-readiness.md).
+
 ## Recently shipped
 
 - **Host Compatibility Profiler** — `POST /profile` and
