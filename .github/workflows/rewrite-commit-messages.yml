@@ -1,0 +1,160 @@
+name: Rewrite commit messages
+
+# A one-shot, manually-dispatched history rewrite. Six commits in this
+# repository describe the work in terms of rival products; CLAUDE.md forbids
+# that anywhere publicly readable, and commit messages are as public as the
+# code. The files and docs were cleaned long ago — only `git log` still carries
+# it, and no amount of new commits can fix a message that is already written.
+#
+# This exists as a workflow because a history rewrite needs a force-push, and
+# there is no way to force-push from the GitHub web UI. Dispatching a workflow
+# is. It also means the verification and the push happen in the same job, so it
+# is not possible to push a history that has not just been checked.
+#
+# It defaults to a dry run: the first click reports what it would do and pushes
+# nothing. A real push additionally requires typing the branch name into the
+# confirm box, because there is no undoing this from the web UI either.
+#
+# DELETE this workflow and scripts/rewrite-commit-messages.py once the rewrite
+# has landed. A standing button that force-pushes the default branch is not
+# something a repository should keep.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report only — push nothing"
+        type: boolean
+        default: true
+      confirm:
+        description: 'To actually push, type: main'
+        type: string
+        default: ""
+
+# The push needs write access. Everything up to the push is read-only work on a
+# throwaway clone.
+permissions:
+  contents: write
+
+concurrency:
+  group: rewrite-commit-messages
+  cancel-in-progress: false
+
+jobs:
+  rewrite:
+    name: Rewrite and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # The full history, and the credentials the push will use. PAT_TOKEN is
+      # preferred where it exists so the push is attributable to a person
+      # rather than to the Actions bot; GITHUB_TOKEN is a working fallback.
+      - name: Checkout the original history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: original
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Record where main is now
+        id: before
+        working-directory: original
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "main is at $sha with $(git rev-list --count HEAD) commits"
+
+      - name: Install git-filter-repo
+        # filter-branch is not a substitute here. Over a commit range it prunes
+        # merge parents that sit outside the range, which silently linearises
+        # history — it produced an identical tip tree while dropping eleven
+        # commits when this was first attempted by hand.
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet git-filter-repo
+          git filter-repo --version
+
+      - name: Show the replacement table
+        working-directory: original
+        run: python3 scripts/rewrite-commit-messages.py --show-table
+
+      - name: Rewrite the messages on a throwaway clone
+        run: |
+          git clone --quiet --no-hardlinks --single-branch --branch main \
+            "file://$GITHUB_WORKSPACE/original" rewritten
+          cd rewritten
+          # filter-repo's callback runs in its own namespace, so the module is
+          # imported by path rather than relied upon to be importable.
+          cp "$GITHUB_WORKSPACE/original/scripts/rewrite-commit-messages.py" \
+             rewrite_commit_messages.py
+          git filter-repo --refs refs/heads/main --force --message-callback '
+            import importlib, sys
+            sys.path.insert(0, ".")
+            m = importlib.import_module("rewrite_commit_messages")
+            return m.rewrite(message)
+          '
+          rm -f rewrite_commit_messages.py
+          echo "rewritten tip: $(git rev-parse main)"
+
+      - name: Verify the rewrite changed messages and nothing else
+        # The gate. Every original must map to a commit; every mapped pair must
+        # keep its tree, author, committer and parent count; the set of trees in
+        # history must be unchanged; exactly the six messages that named a
+        # product may differ, and none may still name one.
+        #
+        # The commit COUNT does drop, from 240 to 229, and that is expected
+        # rather than tolerated: main carries a duplicated subgraph left behind
+        # when an earlier attempt at this same rewrite was merged into main
+        # instead of replacing it. Those duplicates differ from their twins only
+        # in the messages being rewritten, so once both say the same thing they
+        # become byte-identical and git stores one object. Every such collapse is
+        # checked to be between commits that were already duplicates.
+        run: |
+          python3 original/scripts/rewrite-commit-messages.py \
+            --verify "$GITHUB_WORKSPACE/original" "$GITHUB_WORKSPACE/rewritten"
+
+      - name: Summarise
+        run: |
+          a="$(git -C original rev-list --count main)"
+          b="$(git -C rewritten rev-list --count main)"
+          {
+            echo "### Rewrite result"
+            echo
+            echo "| | reachable commits |"
+            echo "|---|---|"
+            echo "| before | $a |"
+            echo "| after | $b |"
+            echo
+            echo "Old tip: \`${{ steps.before.outputs.sha }}\`"
+            echo "New tip: \`$(git -C rewritten rev-parse main)\`"
+            echo
+            # The drop is the duplicated subgraph collapsing; the gate has
+            # already proved each collapse was between commits that were
+            # already identical apart from the messages being rewritten.
+            echo "Difference of $((a - b)) is the duplicated subgraph collapsing."
+            echo
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "**Dry run — nothing was pushed.**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Refuse an unconfirmed push
+        if: inputs.dry_run != true && inputs.confirm != 'main'
+        run: |
+          echo "::error::A real push needs 'main' typed into the confirm box."
+          exit 1
+
+      - name: Force-push the rewritten history
+        if: inputs.dry_run != true && inputs.confirm == 'main'
+        working-directory: rewritten
+        env:
+          TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
+        run: |
+          # --force-with-lease pinned to the SHA read at the start of this job,
+          # so a push that landed on main meanwhile aborts this instead of
+          # silently discarding it.
+          git remote remove origin 2>/dev/null || true
+          git remote add origin \
+            "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force-with-lease=main:${{ steps.before.outputs.sha }} \
+            origin main:main
+          echo "Pushed $(git rev-parse main) to main." >> "$GITHUB_STEP_SUMMARY"
