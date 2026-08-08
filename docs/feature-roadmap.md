@@ -61,7 +61,7 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 - [x] **Find/search within current screen** — *shipped: Ctrl+F over the character grid, so it sees input values the browser's own find cannot*
 - [x] **Hotspots** (clickable PF labels and URLs detected on screen) — *shipped: never placed over an input field, only real key ranges*
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
-- [ ] **Named saved sessions / connection profiles** — saved hosts exist but are browser-local and hostname-only
+- [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
 - [ ] **Customizable keyboard mapping in the UI** (multiple profiles)
 
 ## Daily-use fidelity

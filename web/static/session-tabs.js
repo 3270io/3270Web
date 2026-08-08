@@ -186,14 +186,52 @@
     );
   }
 
-  // openNew asks for a host rather than assuming the current one. Opening a
-  // second window onto the same host is a real use case, but so is opening a
-  // different one, and defaulting silently to the current host would make the
-  // second case invisible.
+  function connect(params, label) {
+    busy = true;
+    notify("Connecting to " + label + "…", "info", { duration: 2000 });
+    post("/sessions/new", params).then(
+      function () {
+        window.location.href = "/screen";
+      },
+      function (err) {
+        busy = false;
+        notify((err && err.message) || "Could not open a session to " + label + ".", "error");
+        load();
+      }
+    );
+  }
+
+  // openNew asks where to connect rather than assuming the current host —
+  // opening a second window onto the same host is a real use case, but so is
+  // opening a different one, and silently defaulting would hide the second.
+  //
+  // Where connection profiles exist, they are the answer: a profile carries
+  // TLS, LU, model and code page, none of which a typed hostname can express.
+  // The prompt is the fallback for a deployment that has not set any up.
   function openNew() {
     if (busy) {
       return;
     }
+    var picker = window.ThreeSeventyWeb && window.ThreeSeventyWeb.connectionProfiles;
+    if (picker) {
+      picker
+        .load()
+        .then(function (available) {
+          if (available && available.length) {
+            picker.pick(function (profile) {
+              connect({ profile: profile.name }, profile.name);
+            });
+            return;
+          }
+          promptForHost();
+        })
+        .catch(promptForHost);
+      return;
+    }
+    promptForHost();
+  }
+
+  function promptForHost() {
     var suggestion = "";
     for (var i = 0; i < sessions.length; i++) {
       if (sessions[i].active) {
@@ -209,18 +247,7 @@
     if (!hostname) {
       return;
     }
-    busy = true;
-    notify("Connecting to " + hostname + "…", "info", { duration: 2000 });
-    post("/sessions/new", { hostname: hostname }).then(
-      function () {
-        window.location.href = "/screen";
-      },
-      function (err) {
-        busy = false;
-        notify((err && err.message) || "Could not open a session to " + hostname + ".", "error");
-        load();
-      }
-    );
+    connect({ hostname: hostname }, hostname);
   }
 
   document.addEventListener("DOMContentLoaded", function () {

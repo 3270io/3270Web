@@ -35,21 +35,39 @@ import (
 )
 
 type App struct {
-	SessionManager   *session.Manager
-	Renderer         render.Renderer
-	Config           *config.Config
-	themeCache       map[string]string
-	themeCacheMu     sync.RWMutex
-	logFilePath      string
-	envPath          string
-	baseDir          string
-	shutdown         func()
-	chaosEngines     *chaosEngineStore
-	chaosRunsDir     string
-	chaosHintsPath   string
-	chaosHintsMu     sync.Mutex
-	profiles         *profileCache
+	SessionManager *session.Manager
+	Renderer       render.Renderer
+	Config         *config.Config
+	themeCache     map[string]string
+	themeCacheMu   sync.RWMutex
+	logFilePath    string
+	envPath        string
+	baseDir        string
+	shutdown       func()
+	chaosEngines   *chaosEngineStore
+	chaosRunsDir   string
+	chaosHintsPath string
+	chaosHintsMu   sync.Mutex
+	profiles       *profileCache
+	// connProfiles holds named CONNECTION profiles (host, TLS, LU, model).
+	// Distinct from `profiles` above, which caches host COMPATIBILITY
+	// profiler results — unrelated feature, unfortunately similar word.
+	connProfiles     *connectionProfileStore
+	connProfilesOnce sync.Once
 	copilotAuthStore *copilot.Store
+}
+
+// connectionProfiles lazily opens the connection-profile store, which lives
+// beside the themes directory under the app's base directory.
+func (app *App) connectionProfiles() *connectionProfileStore {
+	app.connProfilesOnce.Do(func() {
+		base := strings.TrimSpace(app.baseDir)
+		if base == "" {
+			base = resolveBaseDir()
+		}
+		app.connProfiles = newConnectionProfileStore(base)
+	})
+	return app.connProfiles
 }
 
 type WorkflowConfig struct {
@@ -225,6 +243,11 @@ func main() {
 	r.POST("/reconnect", app.ReconnectHandler)
 
 	// Concurrent sessions (tab bar). See sessions.go.
+	// Connection profiles (host, TLS, LU, model, code page). See profiles.go.
+	r.GET("/api/profiles", app.ProfilesListHandler)
+	r.POST("/api/profiles", app.ProfilesSaveHandler)
+	r.POST("/api/profiles/delete", app.ProfilesDeleteHandler)
+
 	r.GET("/sessions", app.SessionsListHandler)
 	r.POST("/sessions/new", app.SessionsNewHandler)
 	r.POST("/sessions/switch", app.SessionsSwitchHandler)
@@ -725,6 +748,24 @@ func (app *App) HomeHandler(c *gin.Context) {
 }
 
 func (app *App) ConnectHandler(c *gin.Context) {
+	// A named connection profile carries TLS, LU, model and code page, which
+	// a bare "hostname:port" cannot express.
+	if name := strings.TrimSpace(c.PostForm("profile")); name != "" {
+		profile, ok := app.connectionProfiles().find(name)
+		if !ok {
+			app.renderConnectPage(c, http.StatusBadRequest, "", fmt.Sprintf("Connection profile %q no longer exists.", name))
+			return
+		}
+		if err := app.connectWithProfile(c, profile); err != nil {
+			log.Printf("Connect failed for profile %q: %v", name, err)
+			app.renderConnectPage(c, http.StatusServiceUnavailable, profile.displayTarget(),
+				connectErrorMessage(profile.displayTarget(), err))
+			return
+		}
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+
 	hostname := c.PostForm("hostname")
 	if app.Config.TargetHost.Value != "" {
 		hostname = strings.TrimSpace(app.Config.TargetHost.Value)
@@ -951,18 +992,18 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		// The run-status widget is only rendered when something is actually
 		// running, so a page load with no run in progress does not flash a
 		// 360x320 panel saying "Playback has not started yet".
-		"ShowRunStatus":           snap.RecordingActive || snap.PlaybackActive || chaosRunActive,
-		"SessionTabs":             app.sessionTabs(c),
-		"MaxSessions":             maxConcurrentSessions,
-		"OIAOnline":               oia["oiaOnline"],
-		"OIAIndicator":            oia["oiaIndicator"],
-		"OIAExplanation":          oia["oiaExplanation"],
-		"OIAPeer":                 oia["oiaPeer"],
-		"SampleAppName":           sampleAppName,
-		"SampleAppPort":           sampleAppPort,
-		"TargetHost":              snap.TargetHost,
-		"TargetPort":              snap.TargetPort,
-		"Version":                 appVersion,
+		"ShowRunStatus":  snap.RecordingActive || snap.PlaybackActive || chaosRunActive,
+		"SessionTabs":    app.sessionTabs(c),
+		"MaxSessions":    maxConcurrentSessions,
+		"OIAOnline":      oia["oiaOnline"],
+		"OIAIndicator":   oia["oiaIndicator"],
+		"OIAExplanation": oia["oiaExplanation"],
+		"OIAPeer":        oia["oiaPeer"],
+		"SampleAppName":  sampleAppName,
+		"SampleAppPort":  sampleAppPort,
+		"TargetHost":     snap.TargetHost,
+		"TargetPort":     snap.TargetPort,
+		"Version":        appVersion,
 	})
 }
 
@@ -3198,11 +3239,32 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	return nil
 }
 
+// connectWithProfile opens a session using a named connection profile and
+// makes it the active one.
+func (app *App) connectWithProfile(c *gin.Context, profile ConnectionProfile) error {
+	sess, err := app.startHostSessionWithProfile(profile.displayTarget(), &profile)
+	if err != nil {
+		return err
+	}
+	setSessionCookie(c, "3270Web_session", sess.ID)
+	setSessionCookie(c, lastTargetCookieName, profile.displayTarget())
+	app.rememberSession(c, sess.ID)
+	return nil
+}
+
 // startHostSession creates and starts a host connection and registers a
 // session for it, but does not associate the session with any browser cookie.
 // Used by both the cookie-based UI (via connectToHost) and the cookie-free
 // REST API.
 func (app *App) startHostSession(hostname string) (*session.Session, error) {
+	return app.startHostSessionWithProfile(hostname, nil)
+}
+
+// startHostSessionWithProfile starts a session, optionally applying a
+// connection profile's per-host overrides (TLS, LU, model, code page) on top
+// of the server-wide s3270 defaults. Passing nil reproduces the previous
+// behaviour exactly.
+func (app *App) startHostSessionWithProfile(hostname string, profile *ConnectionProfile) (*session.Session, error) {
 	if !isValidHostname(hostname) {
 		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
 	}
@@ -3221,7 +3283,20 @@ func (app *App) startHostSession(hostname string) (*session.Session, error) {
 		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
-		args := buildS3270Args(app.Config.S3270Options, hostname)
+		// A profile's target carries its own TLS ("L:"), skip-verify ("Y:")
+		// and LU prefixes, and its overrides are appended after the global
+		// flags so the profile's value is the one s3270 ends up using.
+		target := hostname
+		var overrides []string
+		if profile != nil {
+			target = profile.s3270Target()
+			overrides = profile.overrideArgs()
+		}
+		args := buildS3270Args(app.Config.S3270Options, "")
+		args = append(args, overrides...)
+		if strings.TrimSpace(target) != "" {
+			args = append(args, target)
+		}
 		h = host.NewS3270(execPath, args...)
 	}
 
@@ -3234,6 +3309,10 @@ func (app *App) startHostSession(hostname string) (*session.Session, error) {
 
 	sess := app.SessionManager.CreateSession(h)
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
+	if profile != nil {
+		sess.TargetHost = profile.Host
+		sess.TargetPort = profile.Port
+	}
 	app.applyDefaultPrefs(sess)
 	return sess, nil
 }

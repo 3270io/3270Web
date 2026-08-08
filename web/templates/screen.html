@@ -9,7 +9,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=9">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=10">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -37,6 +37,7 @@
     <script src="/static/screen-history.js" defer></script>
     <script src="/static/session-tabs.js" defer></script>
     <script src="/static/focus-mode.js" defer></script>
+    <script src="/static/connection-profiles.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
@@ -108,6 +109,7 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5zm0 7.6L4.8 6 12 4.2 19.2 6 12 9.6zM2 17l10 5 10-5-2.1-1.1L12 19.8 4.1 15.9 2 17zm0-5 10 5 10-5-2.1-1.1L12 14.8 4.1 10.9 2 12z"/></svg>
                         <span data-workspace-label>Business</span>
                     </button>
+                    <button type="button" data-profiles-open data-tippy-content="Connection profiles">Profiles</button>
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
