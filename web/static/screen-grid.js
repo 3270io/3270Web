@@ -123,16 +123,28 @@
       return null;
     }
     var dims = dimensions(form);
+    return metricsFor(pre, dims.rows, dims.cols);
+  }
+
+  // metricsFor computes cell geometry for any monospaced block of a known
+  // size, not only the live terminal. The task authoring wizard needs exactly
+  // the same "which cell is under the pointer" arithmetic over a *static*
+  // screen — the one a recording ended on — and reusing this is what keeps
+  // one definition of a cell in the codebase instead of two that drift.
+  function metricsFor(pre, rows, cols) {
+    if (!pre || rows <= 0 || cols <= 0) {
+      return null;
+    }
     var rect = pre.getBoundingClientRect();
     if (!rect.width || !rect.height) {
       return null;
     }
     return {
       rect: rect,
-      cellW: rect.width / dims.cols,
-      cellH: rect.height / dims.rows,
-      rows: dims.rows,
-      cols: dims.cols
+      cellW: rect.width / cols,
+      cellH: rect.height / rows,
+      rows: rows,
+      cols: cols
     };
   }
 
@@ -247,6 +259,7 @@
     toText: gridToText,
     rowText: rowText,
     metrics: cellMetrics,
+    metricsFor: metricsFor,
     pointToCell: pointToCell,
     positionOverCells: positionOverCells,
     overlayLayer: overlayLayer,

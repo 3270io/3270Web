@@ -86,6 +86,7 @@
     // Tasks — the business-user surface, so it leads its own group rather
     // than sitting among the terminal tools.
     { label: "Run a business task", group: "Tasks", sel: "[data-tasks-open]", icon: "play", hint: "Fill in a form, get an answer" },
+    { label: "Save recording as a task", group: "Tasks", sel: "[data-wizard-open]", icon: "record", hint: "Turn the flow you just recorded into a task" },
 
     // Terminal
     { label: "Focus mode — fill the screen", group: "Terminal", sel: "[data-focus-toggle]", icon: "eye", hint: "Alt+Enter" },
