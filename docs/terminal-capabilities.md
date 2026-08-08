@@ -115,6 +115,7 @@ rather than merely tolerate it.
 | Public REST/JSON API for RPA and CI integration | ✅ |
 | Workflow recording and playback, with pause, step and debug | ✅ |
 | Guided Business Tasks — run a recorded flow from a form and get an answer, no green screen | ✅ |
+| Task authoring from a recording — record once, mark the answer, save to a shared catalogue | ✅ |
 | Chaos exploration — automated discovery of an application's screens and transitions | ✅ |
 | Screen mind-map, exportable and diffable between hosts | ✅ |
 | Host compatibility profiler | ✅ |

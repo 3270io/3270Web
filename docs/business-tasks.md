@@ -68,9 +68,40 @@ result card showing a blank balance is worse than an honest error.
 
 ## Defining a task
 
-The authoring wizard is not built yet, so tasks are defined as JSON and
-posted to the catalogue. The catalogue is **server-side**, so one person
-defines a task and everyone else picks it off the menu.
+### From a recording (the wizard)
+
+Record the flow once, then press **Save recording as a task** on the
+recording controls — or find it in the command palette.
+
+1. **Record.** Start recording, work through the screens exactly as the task
+   should run, then stop.
+2. **Confirm the inputs.** Everything typed during the recording arrives as
+   an input the operator will be asked for, labelled with the text the screen
+   itself uses. Switch any that should always be the same to **Always this
+   value**; that removes the input from the form and bakes the value into the
+   step.
+3. **Mark the answer.** Drag across the screen the flow ended on to mark each
+   value the task should report back. This is the one thing a recording
+   cannot work out for itself.
+4. **Name it and save.**
+
+Above the form is **What was assumed** — every guess the draft made, listed
+rather than buried. Read it: a guard that could not be derived, a field with
+no label, or a value that was cleared rather than typed all show up there.
+
+!!! note "Marked regions extend to the next text on the row"
+
+    If you mark `ADA` you get a region as wide as the *slot* the value sits
+    in, not as wide as those three characters. That is deliberate — a region
+    sized to the recorded value would silently truncate a longer one, so
+    `GRACE` would come back as `GRA`. Trailing spaces are trimmed from the
+    result.
+
+### By hand
+
+The catalogue is **server-side**, so one person defines a task and everyone
+else picks it off the menu. A task can also be written directly and posted to
+`/tasks/save`:
 
 ```json
 {

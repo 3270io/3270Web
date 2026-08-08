@@ -48,15 +48,12 @@ Newest first. Every item here is live and documented.
 
 ## Guided Business Tasks — what is left
 
-The flagship capability shipped, but not all of it. The gap that matters
-most is authoring: a task is a hand-written JSON document today, so only a
-developer can create one — the wrong audience for a feature aimed at the
-analyst who knows the business question.
+The flagship capability and its authoring wizard are both shipping. What is
+left is distribution and integration rather than the core experience.
 
-- [ ] **Authoring wizard** — after recording a flow, ask which typed values
-      are inputs and which regions of the final screen are the answer, then
-      save straight into the catalogue. This is what makes the feature
-      reachable for the people it was designed for.
+- [x] **Authoring wizard** — *shipped: record a flow, confirm the derived
+      inputs, mark the answer by dragging on the final screen, save. See
+      [Guided Business Tasks](business-tasks.md)*
 - [ ] **Export / import task definitions** — for moving a task between
       deployments, and for keeping one in version control
 - [ ] **Task API** — `POST /api/v1/tasks/{name}/run`, token-authenticated,
