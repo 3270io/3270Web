@@ -5,10 +5,8 @@ exposed action surface and against the capabilities an enterprise 3270
 terminal is generally expected to have. It is a menu, not a schedule —
 items in **Future candidates** are deliberately unprioritized.
 
-For a prioritized view of the same ground from the perspective of a
-business user running 3270Web as their everyday terminal — including the
-daily-use defects that outrank most of the items below — see the
-[Enterprise Readiness Audit](enterprise-readiness.md).
+For what 3270Web provides today, rather than what may come next, see
+[Terminal Capabilities](terminal-capabilities.md).
 
 ## Recently shipped
 
@@ -69,8 +67,8 @@ and that 3270Web did not.
 
 Behaviours an experienced 3270 operator expects from the terminal itself,
 tracked separately from feature parity because they are not features —
-they are whether the thing behaves like a terminal. See the
-[Enterprise Readiness Audit](enterprise-readiness.md) for the full case.
+they are whether the thing behaves like a terminal. See
+[Terminal Capabilities](terminal-capabilities.md) for what is shipping.
 
 - [x] **Local cursor navigation** — *shipped: Tab, Back-Tab, arrows and Home move the caret in the browser instead of costing a host round-trip each*
 - [x] **Real OIA** — *shipped: `X SYSTEM`, `X -f`, online/application block, insert indicator*
@@ -109,6 +107,34 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 ## Automation / AI
 
 Build on the existing Copilot + chaos + workflow plumbing.
+
+### Guided Business Tasks
+
+The flagship item: record a business flow once, and everyone else runs it
+by filling in a form and reading the answer, without ever looking at a
+green screen.
+
+> **Account balance enquiry**
+> Retrieves the current cleared balance for a customer account.
+>
+> Account number `[ 40218855 ]` — 8 digits, required
+> As-at date `[ 2026-08-08 ]` — optional, defaults to today
+
+3270Web navigates the application, filling fields and pressing keys with
+the terminal visible throughout, and returns a result card rather than a
+screen. Where a step diverges from the recorded path it **stops at the
+divergence, reports which step failed and what it saw instead, and leaves
+the terminal exactly where it stopped** so the operator can take over.
+Silent failure or blind continuation would be worse than no automation.
+
+- [ ] **Output extraction** — name regions of the final screen as the answer. Everything else depends on it.
+- [ ] **Independence from chaos** — build a task from a plain recording, not only from a discovered mind-map, so an analyst does not need a chaos run first.
+- [ ] **Run surface** — a Tasks menu, a parameter form, live progress, a cancel, and a result card with copy and CSV export.
+- [ ] **Authoring wizard** — after recording, ask which typed values are inputs and which final-screen regions are the answer.
+- [ ] **Sharing** — a server-side task catalogue so a team shares one library, plus export/import of task definitions.
+- [ ] **Task API** — `POST /api/v1/tasks/{name}/run` for RPA and CI callers.
+
+### Other
 
 - [ ] **HLLAPI-shape scripting endpoint** for external bots — partially solved by the new REST API; a thinner "HLLAPI compatibility" wrapper would ease migration of existing HLLAPI screen-scrapers
 - [ ] **Macro recorder polish** — the workflow recorder exists; surface it as "macros" with named, parameterized re-runs
