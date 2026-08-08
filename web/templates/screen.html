@@ -9,13 +9,17 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=12">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=13">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
-    <script src="/static/keyboard.js?v=10" defer></script>
+    <!-- keymap.js must load before keyboard.js: keyboard.js consults it on
+         every keystroke to see whether the operator has rebound that key.
+         Both are `defer`, so this order is their execution order. -->
+    <script src="/static/keymap.js?v=1" defer></script>
+    <script src="/static/keyboard.js?v=11" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
@@ -39,6 +43,7 @@
     <script src="/static/focus-mode.js" defer></script>
     <script src="/static/connection-profiles.js" defer></script>
     <script src="/static/file-transfer.js" defer></script>
+    <script src="/static/keymap-editor.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
@@ -49,7 +54,7 @@
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=3" defer></script>
-    <script src="/static/ui-polish.js?v=5" defer></script>
+    <script src="/static/ui-polish.js?v=6" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -114,6 +119,12 @@
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                    </button>
+                    <!-- Keyboard mapping sits beside Settings and Profiles
+                         because it is configuration an operator sets once,
+                         not a per-screen action like Find or Copy. -->
+                    <button type="button" class="icon-button" data-keymap-open data-tippy-content="Keyboard mapping" aria-label="Keyboard mapping">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
                     </button>
                     <button type="button" class="icon-button" data-settings-open data-tippy-content="Open settings" aria-label="Open settings">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.01 7.01 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.41l-.36 2.54c-.59.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.47a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.41h3.8a.5.5 0 0 0 .49-.41l.36-2.54c.59-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>

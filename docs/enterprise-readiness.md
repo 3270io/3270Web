@@ -14,19 +14,21 @@ they produce a different priority order.
     This is an analysis document. Every claim below is traceable to a
     specific file and line in the repository as of the audit date.
 
-!!! success "Phase 1 is shipped; Phase 2 is under way"
+!!! success "Phase 1 and Phase 2 are shipped"
     All six Phase 1 items are implemented — local cursor navigation, a
     real OIA, reconnect, screen and block copy, workspace modes, and
-    3270 field semantics. Five Phase 2 items have followed: concurrent
-    session tabs, connection profiles, IND$FILE file transfer, hotspots,
-    find on screen, and screen history — plus a focus mode that gives the
-    terminal the whole screen.
+    3270 field semantics. All seven Phase 2 items have followed:
+    concurrent session tabs, connection profiles, IND$FILE file transfer,
+    hotspots, find on screen, screen history and a keyboard remapping UI
+    with PCOMM keymap import — plus a focus mode that gives the terminal
+    the whole screen.
 
-    Section 3 and section 5 describe the state that motivated the work
-    and are kept as the rationale; each finding carries a note on how it
-    was resolved. See [Keyboard and Controls](keyboard-and-controls.md)
-    for the resulting behaviour, and [Phase 1 outcome](#9-phase-1-outcome)
-    below.
+    Sections 3, 4 and 5 describe the state that motivated the work and
+    are kept as the rationale — their ❌ marks are the audit-date
+    snapshot, not the state of the code today. Each finding carries a
+    note on how it was resolved. See
+    [Keyboard and Controls](keyboard-and-controls.md) for the resulting
+    behaviour, and [Phase 1 outcome](#9-phase-1-outcome) below.
 
 ---
 
@@ -467,7 +469,7 @@ Rough sizing; sequence matters more than the estimates.
 | 10 | Hotspots — clickable PF labels and URLs | S | ✅ |
 | 11 | Screen history / scrollback | M | ✅ |
 | 12 | Find on screen | S | ✅ |
-| 13 | Keyboard remapping UI, with PCOMM keymap import | M | |
+| 13 | Keyboard remapping UI, with PCOMM keymap import | M | ✅ |
 
 ### Phase 3 — Guided Business Tasks (~6 weeks)
 
@@ -521,9 +523,9 @@ Neither was in scope; both were real.
   screen reader announced row and column on every keystroke. Only the
   inhibit explanation is announced now.
 
-### Phase 2 so far
+### Phase 2 outcome
 
-Six of the seven Phase 2 items are done:
+All seven Phase 2 items are done:
 
 | # | Item | Outcome |
 |---|---|---|
@@ -533,11 +535,10 @@ Six of the seven Phase 2 items are done:
 | 10 | Hotspots | PF/PA labels and URLs on screen are clickable. Never placed over an input field, and only real key ranges are recognised, so a screen full of numbers does not sprout dead controls. |
 | 11 | Screen history | Last 50 screens per session, kept as text, browsable read-only. Consecutive duplicates collapse, so it records what was seen rather than how often the client polled. |
 | 12 | Find on screen | Ctrl+F over the character grid, so it matches input values and text straddling field boundaries — both invisible to the browser's own find. Stepping onto a match in a field moves the 3270 cursor there. |
+| 13 | Keyboard remapping | Rebind by pressing the key, not by picking a name from a list of key codes nobody recognises. Custom bindings layer over the built-ins rather than replacing them, so remapping one key does not unbind the other forty. JSON export/import moves a layout between machines; a PCOMM `.KMP` importer covers the migration case Quick3270 uses as a selling point. |
 
-The three share a new `screen-grid.js` that owns the character grid and
+Items 10–12 share a new `screen-grid.js` that owns the character grid and
 the cell geometry; whole-screen and block copy were moved onto it too.
-
-**Still open in Phase 2:** the keyboard remapping UI.
 
 A note on the concurrent-sessions item, since this document previously
 called it a refactor that would touch every handler: it did not. The
