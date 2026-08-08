@@ -1,0 +1,151 @@
+name: CI
+
+# Until this existed, nothing ran on a pull request: docker-publish.yml and
+# docs-gh-pages.yml both trigger on push to main, so a broken build, a failing
+# test, a JS syntax error or a dead docs link was only discovered after merge.
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        # internal/assets/bindata.go is go-bindata output and has never been
+        # gofmt-clean. Regenerating it is not something a pull request should
+        # be asked to do, so it is excluded rather than left to fail forever.
+        run: |
+          unformatted="$(gofmt -l . | grep -v '^internal/assets/bindata\.go$' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+  race:
+    name: Go (race detector, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Advisory, not a merge gate. The chaos tests coordinate goroutines with
+    # short fixed sleeps (10-50ms), which the ~10x slowdown of race
+    # instrumentation can push past on a loaded runner. A genuine data race
+    # still shows up here; promote this to a required check once those tests
+    # wait on conditions instead of clocks.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test with the race detector
+        run: go test -race ./...
+
+  web-assets:
+    name: Browser scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax-check browser scripts
+        # web/static has no bundler or build step, so a syntax error in a panel
+        # script reaches the browser intact and only surfaces when someone
+        # opens the page. Parsing each file catches that in seconds.
+        # web/static/lib holds vendored third-party bundles and is skipped.
+        run: |
+          status=0
+          for f in web/static/*.js; do
+            if ! node --check "$f"; then
+              echo "::error file=$f::JavaScript syntax error"
+              status=1
+            fi
+          done
+          exit $status
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-docs.txt
+
+      - name: Build docs
+        # Same --strict build the publish workflow runs, so a broken link or a
+        # page missing from the nav fails here instead of on main.
+        run: mkdocs build --strict
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        # Build only, and only for the runner's own architecture: this is a
+        # "does the Dockerfile still work" check, not a release. The multi-arch
+        # push lives in docker-publish.yml.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
