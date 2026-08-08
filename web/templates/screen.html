@@ -9,7 +9,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=1">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=2">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -51,9 +51,12 @@
             <div class="stack">
                 <div class="terminal-width-column">
             <div class="card-header">
-                <div data-chrome-title>
-                    <h2>3270Web</h2>
-                    <div class="subtle">Connected session</div>
+                <div data-chrome-title class="brand-lockup">
+                    {{ template "brand-mark" }}
+                    <div>
+                        <h2>3270Web</h2>
+                        <div class="subtle">Connected session</div>
+                    </div>
                 </div>
                 <div class="toolbar header-chrome-actions" data-header-chrome-actions>
                     <button

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 17 96 96" fill="none" role="img" aria-label="3270Web">
+  <defs>
+    <linearGradient id="3270web-icon-face" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#7cff3b"/>
+      <stop offset="1" stop-color="#39ff14"/>
+    </linearGradient>
+    <linearGradient id="3270web-icon-spec" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.26"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="3270web-icon-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <!-- flood-color ignores var() as an attribute but honours it as CSS. -->
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-opacity="0.45" style="flood-color:#39ff14"/>
+    </filter>
+    <mask id="3270web-icon-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="#fff"/>
+      <g fill="#000">
+      <path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z"
+            stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </g>
+    </mask>
+    <clipPath id="3270web-icon-face-clip">
+      <rect x="30" y="46" width="70" height="46" rx="11"/>
+    </clipPath>
+  </defs>
+
+  <!-- Receding planes: the sessions behind the one in front. -->
+  <rect x="52" y="32" width="54" height="46" rx="9" fill="#39ff14" fill-opacity="0.2"/>
+  <rect x="41" y="39" width="62" height="46" rx="10" fill="#39ff14" fill-opacity="0.38"/>
+
+  <g filter="url(#3270web-icon-glow)">
+    <rect x="30" y="46" width="70" height="46" rx="11"
+          fill="url(#3270web-icon-face)" mask="url(#3270web-icon-cut)"/>
+  </g>
+
+  <!-- Specular sweep, clipped to the front face. -->
+  <g clip-path="url(#3270web-icon-face-clip)">
+    <path d="M30 46h70v20L30 84Z" fill="url(#3270web-icon-spec)"/>
+  </g>
+</svg>

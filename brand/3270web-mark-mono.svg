@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" fill="none" role="img" aria-label="3270Web">
+  <defs>
+    <mask id="3270web-mono-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="#fff"/>
+      <g fill="#000">
+      <path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z"
+            stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      </g>
+    </mask>
+  </defs>
+  <rect x="52" y="32" width="54" height="46" rx="9" fill="currentColor" fill-opacity="0.3"/>
+  <rect x="41" y="39" width="62" height="46" rx="10" fill="currentColor" fill-opacity="0.55"/>
+  <rect x="30" y="46" width="70" height="46" rx="11"
+        fill="currentColor" mask="url(#3270web-mono-cut)"/>
+</svg>
