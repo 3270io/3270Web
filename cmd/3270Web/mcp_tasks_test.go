@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -340,5 +341,56 @@ func drain(ch chan struct{}) {
 		default:
 			return
 		}
+	}
+}
+
+// TestListToolsMatchesWhatTheServerOffers ties `3270Web mcp --list-tools` to
+// tools/list.
+//
+// The check runs with no target, so it cannot build a server and has to read
+// the descriptors — which is how it came to report 25 tools while the server
+// offered 29, the four missing ones being exactly the session and task tools
+// a first-run check most needs to see. Dynamic task_* tools are excluded on
+// both sides: there is no catalogue to read without a target.
+func TestListToolsMatchesWhatTheServerOffers(t *testing.T) {
+	for _, tier := range []mcptools.Tier{mcptools.TierRead, mcptools.TierInteract, mcptools.TierChaos} {
+		t.Run(tier.String(), func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := writeToolCatalogue(&buf, tier); err != nil {
+				t.Fatalf("writeToolCatalogue: %v", err)
+			}
+			var listed []struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &listed); err != nil {
+				t.Fatalf("--list-tools did not produce JSON: %v", err)
+			}
+			fromCatalogue := map[string]bool{}
+			for _, entry := range listed {
+				fromCatalogue[entry.Name] = true
+			}
+
+			// twoTaskCatalogue so the server has dynamic tools to exclude,
+			// proving the exclusion rather than assuming there are none.
+			session := connectMCP(t, taskInvoker(twoTaskCatalogue), tier)
+			fromServer := map[string]bool{}
+			for name := range listToolNames(t, session) {
+				if strings.HasPrefix(name, "task_") {
+					continue
+				}
+				fromServer[name] = true
+			}
+
+			for name := range fromServer {
+				if !fromCatalogue[name] {
+					t.Errorf("the server offers %q but --list-tools does not report it", name)
+				}
+			}
+			for name := range fromCatalogue {
+				if !fromServer[name] {
+					t.Errorf("--list-tools reports %q but the server does not offer it", name)
+				}
+			}
+		})
 	}
 }

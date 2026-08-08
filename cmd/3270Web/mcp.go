@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -277,6 +278,30 @@ func writeToolCatalogue(w io.Writer, tier mcptools.Tier) error {
 			InputSchema: t.InputSchema,
 		})
 	}
+
+	// The tools MCP adds on top of the shared catalogue. Without these the
+	// check would report a catalogue the server does not actually offer, and
+	// the missing four would be the session and task tools — the ones a
+	// first-run check most needs to see.
+	for _, only := range mcpOnlyTools() {
+		if only.Tier > tier {
+			continue
+		}
+		schema, _ := only.Tool.InputSchema.(map[string]any)
+		readOnly := only.Tool.Annotations != nil && only.Tool.Annotations.ReadOnlyHint
+		destructive := only.Tool.Annotations != nil &&
+			only.Tool.Annotations.DestructiveHint != nil && *only.Tool.Annotations.DestructiveHint
+		out = append(out, entry{
+			Name:        only.Tool.Name,
+			Description: only.Tool.Description,
+			Tier:        only.Tier.String(),
+			ReadOnly:    readOnly,
+			Destructive: destructive,
+			InputSchema: schema,
+		})
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

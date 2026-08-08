@@ -97,8 +97,8 @@ environment variable. **The default is `interactive`.**
 
 | `MCP_TOOLS` | Adds | For |
 |---|---|---|
-| `readonly` | `get_screen`, `wait_for_unlock`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_sessions` | Reading and reporting on a session someone else is driving |
-| `interactive` *(default)* | + `send_key`, `write_field`, `submit_screen`, `move_cursor`, `connect_session`, `use_session`, the hint and annotation writes | Driving a session the way a person at the keyboard would |
+| `readonly` | `get_screen`, `wait_for_unlock`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_tasks`, `list_sessions` | Reading and reporting on a session someone else is driving |
+| `interactive` *(default)* | + `send_key`, `write_field`, `submit_screen`, `move_cursor`, `connect_session`, `use_session`, the hint and annotation writes, `run_task` and the generated `task_*` tools | Driving a session the way a person at the keyboard would |
 | `full` | + `chaos_start`, `chaos_stop`, `chaos_resume` | Automated chaos exploration |
 
 Each tier includes the ones below it.
@@ -106,6 +106,12 @@ Each tier includes the ones below it.
 Chaos is a tier of its own not because a single key press is safer than
 another, but because a person pressing keys is watching and an unattended
 exploration run is not.
+
+Two keys stop and ask whatever the tier: **PF3** commonly logs the session
+off and **Clear** discards what is on the screen. The AI Chat panel will not
+press either in Auto Mode without someone clicking Run, and `send_key`'s own
+description says so, so a model knows before it builds a plan around one. Over
+MCP the equivalent is your client's tool-approval prompt — leave it on.
 
 Set it in the client's config:
 
@@ -134,6 +140,33 @@ has no tab, so sessions are explicit:
   the next call.
 
 Any other tool called with no session refuses and says which of these to use.
+
+## Guided Business Tasks
+
+A [Guided Business Task](business-tasks.md) is a recorded flow with named
+inputs and named outputs — "check a balance", "look up an order" — that stops
+rather than continuing when a screen is not the one it expected.
+
+Each saved task is offered as **its own tool**, `task_<name>`, with a schema
+built from the parameters it declares:
+
+```
+task_account_balance_enquiry(account_number: string, ...)
+```
+
+So a model sees that checking a balance is a thing this application does, and
+what it needs, in the same list as every other tool — rather than having to
+know to go looking for a catalogue. Prefer one over driving the screens by
+hand: a task guards every step, and a model typing an account number into
+whatever field is under the cursor is the failure the guards exist to prevent.
+
+`list_tasks` describes the catalogue, and `run_task` runs one by name for
+clients that do not act on `tools/list_changed`. A task saved in the browser
+mid-conversation becomes callable without restarting the server.
+
+The generated `task_*` tools are the one thing `3270Web mcp --list-tools` does
+not report: that check runs without a target, so there is no catalogue to read.
+Everything else it prints is exactly what the server offers.
 
 ## What the model sees
 
@@ -165,7 +198,8 @@ set covers chaos exploration, business understanding, whole-application
 overview and performing a catalogued business function.
 
 You can add your own, or replace a built-in with one that knows your
-application. See [Skills and Extensions](skills.md).
+application — and an extension can contribute saved tasks as well as skills.
+See [Skills and Extensions](skills.md).
 
 ## Remote clients
 

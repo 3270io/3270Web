@@ -140,7 +140,16 @@ extensions/
 ```
 
 Contributed tasks are [Guided Business Tasks](business-tasks.md) and go
-through the same validation as one recorded in the browser.
+through the same validation as one recorded in the browser. They appear on the
+Tasks menu and, over MCP, as their own `task_<name>` tool, with the extension
+named as the source.
+
+A task you saved yourself wins a name collision — the catalogue you can edit
+takes precedence over content that arrived with a folder, and the extension's
+version is dropped rather than listed twice. For the same reason, deleting a
+contributed task is refused: it is not in the file the delete rewrites, so it
+would report success and be back after a refresh. Disable the extension
+instead.
 
 Install by unzipping into `extensions/` and restarting. Disable one without
 deleting it by listing its name in `extensions/.disabled`, one per line.

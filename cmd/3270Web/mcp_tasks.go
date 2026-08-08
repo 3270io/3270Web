@@ -60,17 +60,7 @@ func addTaskTools(server *mcp.Server, inv mcptools.Invoker, held *sessionHolder,
 		skipped: map[string]string{},
 	}
 
-	server.AddTool(&mcp.Tool{
-		Name: "list_tasks",
-		Description: "List the Guided Business Tasks saved on this server: named, recorded operations " +
-			"such as a balance enquiry, each with the values it needs and the answer it returns. " +
-			"Prefer running one of these over driving the screens by hand — a task checks it is on the " +
-			"screen it expects before typing, and stops rather than continuing against an unexpected one.",
-		InputSchema: map[string]any{
-			"type": "object", "properties": map[string]any{}, "additionalProperties": false,
-		},
-		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-	}, func(ctx context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	addMCPOnlyTool(server, tier, "list_tasks", func(ctx context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		tasks, err := tt.refresh(ctx)
 		if err != nil {
 			return errorResult(err.Error()), nil
@@ -78,48 +68,21 @@ func addTaskTools(server *mcp.Server, inv mcptools.Invoker, held *sessionHolder,
 		return textResult(tt.describe(tasks)), nil
 	})
 
-	if tier >= mcptools.TierInteract {
-		server.AddTool(&mcp.Tool{
-			Name: "run_task",
-			Description: "Run a saved Guided Business Task by name against the current 3270 session. " +
-				"Each task is also offered as its own tool (task_<name>) with the parameters it declares; " +
-				"use this when your client does not show those, or when the name came from list_tasks.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Task name exactly as list_tasks reports it.",
-					},
-					"parameters": map[string]any{
-						"type":                 "object",
-						"description":          "Values for the task's declared parameters, as name/value pairs of strings.",
-						"additionalProperties": map[string]any{"type": "string"},
-					},
-				},
-				"required":             []string{"name"},
-				"additionalProperties": false,
-			},
-			Annotations: &mcp.ToolAnnotations{
-				DestructiveHint: boolPtr(true),
-				OpenWorldHint:   boolPtr(true),
-			},
-		}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var args struct {
-				Name       string            `json:"name"`
-				Parameters map[string]string `json:"parameters"`
+	addMCPOnlyTool(server, tier, "run_task", func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var args struct {
+			Name       string            `json:"name"`
+			Parameters map[string]string `json:"parameters"`
+		}
+		if len(req.Params.Arguments) > 0 {
+			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+				return errorResult(fmt.Sprintf("arguments are not valid JSON: %v", err)), nil
 			}
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return errorResult(fmt.Sprintf("arguments are not valid JSON: %v", err)), nil
-				}
-			}
-			if strings.TrimSpace(args.Name) == "" {
-				return errorResult("name is required — call list_tasks to see what is saved"), nil
-			}
-			return tt.run(ctx, args.Name, args.Parameters), nil
-		})
-	}
+		}
+		if strings.TrimSpace(args.Name) == "" {
+			return errorResult("name is required — call list_tasks to see what is saved"), nil
+		}
+		return tt.run(ctx, args.Name, args.Parameters), nil
+	})
 
 	// A first read at build time, so the tools are in the very first
 	// tools/list rather than appearing only after something asks. A failure
