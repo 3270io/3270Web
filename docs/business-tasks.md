@@ -221,8 +221,68 @@ background; poll `/tasks/status` for progress and the result. One run per
 session — a task drives the single terminal that session owns, and two at
 once would interleave keystrokes into the same screen buffer.
 
-A token-authenticated equivalent under `/api/v1/` is on the
-[roadmap](feature-roadmap.md), for RPA and CI callers.
+### For bots and CI
+
+The same capability is on the token-authenticated
+[REST API](rest-api.md), which needs `API_TOKEN` set.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/tasks` | The catalogue — this is also **export** |
+| `POST` | `/api/v1/tasks` | Add or replace a task — this is also **import** |
+| `POST` | `/api/v1/sessions/{id}/tasks/run` | Run a task in a session and return the result |
+
+```bash
+curl -H "Authorization: Bearer $API_TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Account balance enquiry","parameters":{"account_number":"40218855"}}' \
+     https://3270web.example/api/v1/sessions/$SID/tasks/run
+```
+
+```json
+{
+  "task": "Account balance enquiry",
+  "durationMs": 152,
+  "completed": true,
+  "steps": [{ "index": 1, "description": "Enter the account number", "status": "ok" }],
+  "outputs": [{ "name": "cleared_balance", "label": "Cleared balance",
+                "value": "1,240.55", "found": true }]
+}
+```
+
+The API run is **synchronous**, unlike the browser's. The two callers want
+opposite things: a browser has to show progress and offer Cancel while a
+transaction takes its seconds, so it polls; a bot wants the answer in the
+response and would otherwise have to implement a poll loop to get it. Both are
+bounded by the same five-minute ceiling, and both register in the same
+per-session slot — so an API run and a browser run cannot overlap on one
+terminal.
+
+A task that stopped early returns **200 with `completed: false`** and the
+failure detail, not an HTTP error. The request succeeded; the body says what
+the host did. An HTTP status cannot express "step 3 saw the wrong screen", and
+collapsing it into a 500 would discard the only useful part of the answer.
+
+### Export and import
+
+`GET /api/v1/tasks` returns exactly the documents `POST /api/v1/tasks`
+accepts, so moving a catalogue between deployments — or keeping it in version
+control — needs no separate format:
+
+```bash
+# Export
+curl -H "Authorization: Bearer $API_TOKEN" \
+     https://source.example/api/v1/tasks | jq '.tasks' > tasks.json
+
+# Import, one task at a time
+jq -c '.[]' tasks.json | while read -r t; do
+  curl -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
+       -d "$t" https://target.example/api/v1/tasks
+done
+```
+
+Imported tasks go through the same validation as everything else, so a task
+edited by hand in version control cannot reach the runner malformed.
 
 ## Limits
 
