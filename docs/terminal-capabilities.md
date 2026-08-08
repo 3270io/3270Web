@@ -114,11 +114,17 @@ rather than merely tolerate it.
 | Runs in a browser tab — no emulator install, no thick client | ✅ |
 | Public REST/JSON API for RPA and CI integration | ✅ |
 | Workflow recording and playback, with pause, step and debug | ✅ |
+| Guided Business Tasks — run a recorded flow from a form and get an answer, no green screen | ✅ |
 | Chaos exploration — automated discovery of an application's screens and transitions | ✅ |
 | Screen mind-map, exportable and diffable between hosts | ✅ |
 | Host compatibility profiler | ✅ |
 | AI Chat driving the host through a documented tool surface | ✅ |
 | Docker image and a one-line installer | ✅ |
+
+Guided Business Tasks are the one that changes who can use the product: a
+task has named inputs and a named answer, so the person running it needs to
+know the business question rather than the application. See
+[Guided Business Tasks](business-tasks.md).
 
 The REST API and the workflow JSON are paired deliberately: a flow recorded
 by hand in the browser is the same document an automated job replays, so

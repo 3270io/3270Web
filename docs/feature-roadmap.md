@@ -100,7 +100,7 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 - [x] **Public REST/JSON screen API** — *shipped at `/api/v1/*` (see [REST API](rest-api.md))*
 - [ ] **OAuth / SAML / OIDC SSO** — needed for BYOD and Azure AD orgs
 - [ ] **Audit logging** for compliance (who did what, when, against which host)
-- [ ] **WCAG 2.1 AA + screen-reader support** — near-zero in the competition, large untapped differentiator
+- [ ] **WCAG 2.1 AA + screen-reader support** — rare in this category, and a large untapped differentiator
 - [ ] **Embed-in-iframe / SPA integration story** documented end-to-end
 - [ ] **Mobile / touch UI** — today the UI is desktop-first; touch-friendly keypad and hotspots would unlock tablet use
 
@@ -127,12 +127,14 @@ divergence, reports which step failed and what it saw instead, and leaves
 the terminal exactly where it stopped** so the operator can take over.
 Silent failure or blind continuation would be worse than no automation.
 
-- [ ] **Output extraction** — name regions of the final screen as the answer. Everything else depends on it.
-- [ ] **Independence from chaos** — build a task from a plain recording, not only from a discovered mind-map, so an analyst does not need a chaos run first.
-- [ ] **Run surface** — a Tasks menu, a parameter form, live progress, a cancel, and a result card with copy and CSV export.
-- [ ] **Authoring wizard** — after recording, ask which typed values are inputs and which final-screen regions are the answer.
-- [ ] **Sharing** — a server-side task catalogue so a team shares one library, plus export/import of task definitions.
-- [ ] **Task API** — `POST /api/v1/tasks/{name}/run` for RPA and CI callers.
+- [x] **Output extraction** — *shipped: name a region of the final screen, with an optional regexp whose capture group pulls the value out of a labelled line*
+- [x] **Independence from chaos** — *shipped: a task is a standalone document; no mind-map or chaos run needed*
+- [x] **Run surface** — *shipped: Tasks menu, parameter form, live progress with Cancel, and a result card with copy and CSV export. See [Guided Business Tasks](business-tasks.md)*
+- [x] **Server-side catalogue** — *shipped: one library per deployment, so a task defined once is on everyone's menu*
+- [ ] **Authoring wizard** — after recording, ask which typed values are inputs and which final-screen regions are the answer. Tasks are defined as JSON until this lands.
+- [ ] **Export / import task definitions** — for moving a task between deployments
+- [ ] **Task API** — `POST /api/v1/tasks/{name}/run` for token-authenticated RPA and CI callers
+- [ ] **Chaos import** — convert a discovered `BusinessFunction` into a task
 
 ### Other
 
