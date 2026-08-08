@@ -59,6 +59,7 @@ nav:
   - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md
   - Recordings and Playback: workflow.md
+  - Guided Business Tasks: business-tasks.md
   - Chaos Mode: chaos-mode.md
   - Chaos Mind-Map Compare: chaos-compare.md
   - Host Compatibility Profiler: host-profiler.md
