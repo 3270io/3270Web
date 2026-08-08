@@ -1,4 +1,7 @@
-<img src="brand/3270web-lockup-600.png" alt="3270Web" width="320">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/3270web-lockup-600.png">
+  <img alt="3270Web" src="brand/3270web-lockup-light-600.png" width="320">
+</picture>
 
 **An enterprise-grade IBM 3270 terminal that runs in the browser — and understands
 the application behind it.**
@@ -269,7 +272,8 @@ mkdocs serve
 ## Brand
 
 The 3270Web mark and its lockups live in [`brand/`](brand/) — SVG, PNG and
-`.ico`, plus a themable SVG that re-tints with the active palette. They are
+`.ico`, in a dark-ground and a light-ground pair, plus a themable SVG that
+re-tints with the active palette. They are
 generated from the shared kit in the
 [3270io](https://github.com/3270io/3270io) repo (`brand/build.mjs`); regenerate
 there rather than editing these by hand. The in-app mark is inlined in
