@@ -291,12 +291,12 @@ administrator sets once.
 - **Export** writes the bindings to a JSON file; **Import JSON** reads one
   back. This is how you move a layout to another machine or browser, and
   how a team shares a house standard.
-- **Import PCOMM** reads a PCOMM `.KMP` keyboard file directly, so a
-  migration from Personal Communications does not start by rebuilding
+- **Import keymap file** reads a `.KMP` keyboard file from another
+  emulator directly, so a migration does not start by rebuilding
   everyone's layout by hand.
 
-The PCOMM dialect varies between versions, and the importer is deliberately
-tolerant. It maps what it recognises and **reports the number of lines it
+The `.KMP` dialect varies between the versions that produce these files, so
+the importer is deliberately tolerant. It maps what it recognises and **reports the number of lines it
 could not** rather than dropping them silently — a partial import that
 tells you what is missing beats one that looks complete and is not. Check
 the reported count, and rebind anything it skipped by hand.
