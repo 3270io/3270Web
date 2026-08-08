@@ -29,7 +29,15 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	r.writeInt(&sb, rows)
 	sb.WriteString(`" data-cols="`)
 	r.writeInt(&sb, cols)
-	sb.WriteString(`" autocomplete="off" data-form-type="other">`)
+	sb.WriteString(`" autocomplete="off" data-form-type="other" data-screen-text="`)
+	// The plain character grid backing this screen. Browser selection across
+	// the rendered form is unusable for copying — the screen is a <pre> with
+	// <input> elements spliced into it, so a selection silently drops every
+	// input's value. Carrying the grid lets the client reconstruct exactly
+	// what is on screen (overlaying live, not-yet-submitted input values on
+	// top) for whole-screen and rectangular block copy.
+	r.writeEscapedAttrLines(&sb, screenGridText(s, rows, cols))
+	sb.WriteString(`">`)
 	sb.WriteString("\n")
 
 	if s.IsFormatted {
@@ -51,6 +59,32 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 
 	r.appendFocus(s, id, &sb)
 
+	return sb.String()
+}
+
+// screenGridText renders the screen buffer as exactly rows lines of cols
+// characters, padding short rows and substituting spaces for NULs. Unlike
+// host.Screen.Text() the result is guaranteed rectangular, which is what a
+// client doing rectangular block copy needs — a ragged grid would make
+// column arithmetic wrong on any row the host left short.
+func screenGridText(s *host.Screen, rows, cols int) string {
+	if s == nil || rows <= 0 || cols <= 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.Grow(rows * (cols + 1))
+	for y := 0; y < rows; y++ {
+		if y > 0 {
+			sb.WriteByte('\n')
+		}
+		for x := 0; x < cols; x++ {
+			ch := s.CharAt(x, y)
+			if ch == 0 {
+				ch = ' '
+			}
+			sb.WriteRune(ch)
+		}
+	}
 	return sb.String()
 }
 
@@ -223,7 +257,17 @@ func (r *HtmlRenderer) createHtmlInput(sb *strings.Builder, f *host.Field, id, v
 		sb.WriteString(`"`)
 	}
 	r.writeFieldDebugDataAttrs(sb, f)
-	sb.WriteString(` autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />`)
+	// The 3270 numeric attribute was parsed but never reached the browser, so
+	// numeric-only fields accepted letters and the host had to reject them a
+	// round-trip later. data-numeric lets the client enforce it the way a real
+	// emulator does (inhibit input, raise an operator error); inputmode gets
+	// touch keyboards to open on digits.
+	if f.IsNumeric() {
+		sb.WriteString(` data-numeric="1" inputmode="numeric"`)
+	} else {
+		sb.WriteString(` inputmode="text"`)
+	}
+	sb.WriteString(` autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />`)
 }
 
 func (r *HtmlRenderer) writeEscaped(sb *strings.Builder, s string) {
@@ -258,6 +302,19 @@ func (r *HtmlRenderer) writeEscaped(sb *strings.Builder, s string) {
 	}
 	if start < len(s) {
 		sb.WriteString(s[start:])
+	}
+}
+
+// writeEscapedAttrLines escapes s for an attribute value, additionally
+// encoding newlines as &#10;. A raw newline inside an attribute survives
+// most parsers, but the HTML spec permits normalizing whitespace there, and
+// a grid whose row boundaries can silently vanish is not worth the risk.
+func (r *HtmlRenderer) writeEscapedAttrLines(sb *strings.Builder, s string) {
+	for i, line := range strings.Split(s, "\n") {
+		if i > 0 {
+			sb.WriteString("&#10;")
+		}
+		r.writeEscaped(sb, line)
 	}
 }
 

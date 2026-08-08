@@ -77,8 +77,60 @@
     { label: "Open chaos map", group: "Chaos", sel: "[data-chaos-map-open]", icon: "map" },
     { label: "View chaos discovery report", group: "Chaos", sel: "[data-chaos-report]", icon: "doc" },
     { label: "Export chaos workflow JSON", group: "Chaos", sel: "[data-chaos-export]", icon: "download" },
-    { label: "Remove chaos run", group: "Chaos", sel: "[data-chaos-remove]", icon: "trash" }
+    { label: "Remove chaos run", group: "Chaos", sel: "[data-chaos-remove]", icon: "trash" },
+
+    // Terminal
+    { label: "Copy screen", group: "Terminal", sel: "[data-copy-screen]", icon: "doc", hint: "Whole screen as text" },
+    { label: "Copy marked block", group: "Terminal", icon: "doc", hint: "Alt+drag marks a rectangle", run: () => runTerminal("copyBlock") },
+    { label: "Reconnect to host", group: "Terminal", icon: "power", hint: "Re-dial the current host", run: () => runTerminal("reconnect") },
+    { label: "Toggle insert mode", group: "Terminal", icon: "gear", hint: "Insert vs overtype", run: () => runTerminal("toggleInsertMode") },
+    { label: "Reset keyboard", group: "Terminal", icon: "power", hint: "Clear an X -f operator error", run: () => runTerminal("reset") },
+    { label: "Toggle virtual keypad", group: "Terminal", sel: "[data-keypad-toggle]", icon: "gear" },
+    { label: "Switch workspace mode", group: "Terminal", sel: "[data-workspace-toggle]", icon: "gear", hint: "Business ↔ Engineering" }
   ];
+
+  /* Host keys, as palette entries. There is no reasonable way to show
+     twenty-four PF keys in a default list, so these are search-only: typing
+     "pf3" or "attn" finds them instantly and nothing is crowded out for
+     someone who came to the palette for something else. */
+  const KEY_COMMANDS = (() => {
+    const keys = [
+      ["Enter", "Enter"],
+      ["Clear", "Clear"],
+      ["Reset", "Reset"],
+      ["Attn", "Attn"],
+      ["SysReq", "SysReq"],
+      ["Erase EOF", "EraseEOF"],
+      ["Erase input", "EraseInput"],
+      ["Dup", "Dup"],
+      ["Field mark", "FieldMark"],
+      ["PA1", "PA1"],
+      ["PA2", "PA2"],
+      ["PA3", "PA3"]
+    ];
+    for (let n = 1; n <= 24; n++) keys.push([`PF${n}`, `PF${n}`]);
+    return keys.map(([label, key]) => ({
+      label: `Send ${label}`,
+      group: "Host keys",
+      icon: "play",
+      searchOnly: true,
+      run: () => {
+        if (typeof window.sendKey === "function") window.sendKey(key, null);
+      }
+    }));
+  })();
+
+  /* Terminal actions live on window.ThreeSeventyWeb rather than behind a
+     visible control, so the palette calls them directly. */
+  function runTerminal(action) {
+    const api = window.ThreeSeventyWeb || {};
+    if (action === "copyBlock" && api.screenCopy) return api.screenCopy.copyBlock();
+    if (action === "reconnect" && typeof api.reconnect === "function") return api.reconnect();
+    if (api.terminal && typeof api.terminal[action] === "function") {
+      return api.terminal[action](null);
+    }
+    return undefined;
+  }
 
   const svg = (path) =>
     `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
@@ -179,9 +231,15 @@
     }));
   }
 
-  function collect() {
+  function collect(includeSearchOnly) {
     const out = [];
-    COMMANDS.forEach((cmd) => {
+    COMMANDS.concat(KEY_COMMANDS).forEach((cmd) => {
+      if (cmd.searchOnly && !includeSearchOnly) return;
+      // Entries that drive an API directly rather than clicking a control.
+      if (!cmd.sel) {
+        out.push(cmd);
+        return;
+      }
       const el = document.querySelector(cmd.sel);
       if (!isRunnable(el)) return;
       out.push(Object.assign({}, cmd, {
@@ -248,7 +306,7 @@
 
   function render() {
     const query = input.value.trim();
-    const all = collect();
+    const all = collect(query.length > 0);
     let matched;
 
     if (!query) {
@@ -500,23 +558,24 @@
   /* ---------------------------------------------------------------- */
   /* Terminal bezel reflects the OIA keyboard state                     */
   /* ---------------------------------------------------------------- */
+  /* Mirrors the OIA's own resolved state rather than re-deriving one from
+     the host's keyboard label. keyboard.js already reconciles three inputs
+     into that state — the host's lock, a client-side operator error, and the
+     optimistic wait shown the moment an AID key is sent — and a second
+     opinion here would clobber the two the host does not know about. */
   function initKeyboardStateMirror() {
     const shell = document.querySelector(".terminal-shell");
-    const field = document.querySelector("[data-status-keyboard]");
-    if (!shell || !field) return;
+    const indicator = document.querySelector("[data-oia-indicator]");
+    if (!shell || !indicator) return;
 
     const sync = () => {
-      const state = (field.textContent || "").trim().toUpperCase();
-      shell.setAttribute("data-kb-locked", String(state === "LOCKED" || state === "ERROR"));
-      shell.setAttribute("data-kb-state", state.toLowerCase());
+      const state = indicator.getAttribute("data-oia-state") || "ready";
+      shell.setAttribute("data-kb-locked", String(state === "wait" || state === "error"));
+      shell.setAttribute("data-kb-state", state);
     };
 
     sync();
-    new MutationObserver(sync).observe(field, {
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
+    new MutationObserver(sync).observe(indicator, { attributes: true, attributeFilter: ["data-oia-state"] });
   }
 
   /* ---------------------------------------------------------------- */
