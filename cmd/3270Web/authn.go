@@ -4,12 +4,20 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
 // principalContextKey names the resolved principal on the Gin context.
 // Unexported and typed as a plain string because Gin's Keys map is
 // string-keyed; the value is only ever read through principalFrom.
 const principalContextKey = "3270web.principal"
+
+// mustChangePasswordContextKey and usernameContextKey carry login details that
+// accompany the principal but are not part of its identity.
+const (
+	mustChangePasswordContextKey = "3270web.mustChangePassword"
+	usernameContextKey           = "3270web.username"
+)
 
 // Authenticate resolves who is making the request and records it on the
 // context. It enforces nothing — that is the job of the handlers and of the
@@ -36,12 +44,57 @@ func (app *App) resolvePrincipal(c *gin.Context) authz.Principal {
 	switch app.authMode {
 	case authz.ModeNone:
 		return authz.Local()
+
+	case authz.ModeLocal:
+		id := getCookieValue(c, authCookieName)
+		if id == "" {
+			return authz.Anonymous()
+		}
+		sess, ok := app.authSessions.Get(id, reqsec.ClientIP(c.Request), app.bindSessionIP(c))
+		if !ok {
+			return authz.Anonymous()
+		}
+		// Carried alongside the principal because the forced-change gate is a
+		// property of the login, not of the identity, and re-reading the
+		// account store on every request to learn it would be wasteful.
+		c.Set(mustChangePasswordContextKey, sess.MustChangePassword)
+		c.Set(usernameContextKey, sess.Username)
+		return sess.Principal()
+
 	default:
 		// Unreachable: the mode is validated at startup and startup fails on
 		// anything unsupported. Denying is the right answer to a mode this
 		// build does not understand.
 		return authz.Anonymous()
 	}
+}
+
+// mustChangePasswordFrom reports whether the current login is pinned to the
+// password-change page.
+func mustChangePasswordFrom(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, ok := c.Get(mustChangePasswordContextKey)
+	if !ok {
+		return false
+	}
+	flag, _ := value.(bool)
+	return flag
+}
+
+// usernameFrom returns the logged-in account's name, for display and logging.
+// Empty when there is no login, or when the mode has no names.
+func usernameFrom(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	value, ok := c.Get(usernameContextKey)
+	if !ok {
+		return ""
+	}
+	name, _ := value.(string)
+	return name
 }
 
 // principalFrom returns the principal resolved for this request.

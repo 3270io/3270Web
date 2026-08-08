@@ -260,6 +260,12 @@ Ensure the proxy sets the header on the way through, for example in nginx:
 proxy_set_header X-Forwarded-Proto $scheme;
 ```
 
+## User Accounts
+
+3270Web has no sign-in by default. Set `AUTH_MODE=local` to require one — see
+[User Accounts and Sign-In](authentication.md) for first-run setup, the
+account CLI and session lifetimes.
+
 ## Secret Settings
 
 Values 3270Web treats as secrets — currently `S3270_KEY_PASSWORD` and

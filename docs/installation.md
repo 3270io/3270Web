@@ -430,6 +430,13 @@ docker compose up -d
 
 - **Expose beyond localhost** — change the port mapping to `"8080:8080"`. Change
   the *host* side of the mapping only; leave `WEBUI_BIND` at the image default.
+
+    !!! warning "Require a sign-in before you do this"
+        The UI has no password of its own until you set `AUTH_MODE=local`.
+        Publishing the port without it puts an unauthenticated terminal — and
+        whatever hosts it can reach — on your network. See
+        [User Accounts and Sign-In](authentication.md).
+
 - **Add options** — list more `S3270_*` variables under `environment:`.
 - **Persist chaos runs** — add a volume:
 

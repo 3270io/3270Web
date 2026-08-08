@@ -12,6 +12,7 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
     <!-- Shared design system layer; see the note in screen.html. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=1">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -46,6 +47,14 @@
                 <div class="toolbar">
                     {{ if .SampleApps }}
                     <button type="button" data-open-sample-modal>Start sample app</button>
+                    {{ end }}
+                    {{ if .Auth.Enabled }}
+                    <span class="user-chip">
+                        <span class="admin-avatar" aria-hidden="true">{{ slice .Auth.Username 0 1 }}</span>
+                        <span class="user-chip-name" title="Signed in as {{ .Auth.Username }}">{{ .Auth.Username }}</span>
+                        {{ if .Auth.IsAdmin }}<a href="/admin/users"><button type="button">Accounts</button></a>{{ end }}
+                        <form action="/logout" method="post"><button type="submit">Sign out</button></form>
+                    </span>
                     {{ end }}
                     <button type="button" data-about-open>About</button>
                     <button type="button" data-settings-open>Settings</button>

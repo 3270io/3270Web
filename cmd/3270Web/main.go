@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
 	"github.com/jnnngs/3270Web/internal/aiprovider"
+	"github.com/jnnngs/3270Web/internal/authsession"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/copilot"
@@ -35,6 +36,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
+	"github.com/jnnngs/3270Web/internal/users"
 )
 
 type App struct {
@@ -43,7 +45,21 @@ type App struct {
 	Config         *config.Config
 	// authMode selects how callers are identified. Validated at startup, so
 	// handlers can treat it as a known value.
-	authMode     authz.Mode
+	authMode authz.Mode
+	// users holds local accounts; authSessions holds live logins. Both are
+	// only consulted when authMode requires authentication.
+	users        *users.Store
+	usersOnce    sync.Once
+	usersPath    string
+	authSessions *authsession.Store
+	loginLimiter *loginLimiter
+	// authBindIP is "auto", "true" or "false"; see App.bindSessionIP.
+	authBindIP          string
+	authIdleTimeout     time.Duration
+	authAbsoluteTimeout time.Duration
+	// setup tracks whether the instance still needs its first administrator.
+	setup setupState
+
 	themeCache   map[string]string
 	themeCacheMu sync.RWMutex
 	logFilePath  string
@@ -183,15 +199,19 @@ func newApp(baseDir string) *App {
 		Config:         cfg,
 		// Overwritten by buildRouter once AUTH_MODE has been validated. The
 		// default matches the historical behaviour: a single local operator.
-		authMode:       authz.ModeNone,
-		themeCache:     make(map[string]string),
-		logFilePath:    filepath.Join(baseDir, "3270Web.log"),
-		envPath:        envPath,
-		baseDir:        baseDir,
-		chaosEngines:   newChaosEngineStore(),
-		chaosRunsDir:   filepath.Join(baseDir, "chaos-runs"),
-		chaosHintsPath: filepath.Join(baseDir, "chaos-hints.json"),
-		profiles:       newProfileCache(),
+		authMode:            authz.ModeNone,
+		usersPath:           filepath.Join(baseDir, "users.json"),
+		loginLimiter:        newLoginLimiter(),
+		authIdleTimeout:     authsession.DefaultIdleTimeout,
+		authAbsoluteTimeout: authsession.DefaultAbsoluteTimeout,
+		themeCache:          make(map[string]string),
+		logFilePath:         filepath.Join(baseDir, "3270Web.log"),
+		envPath:             envPath,
+		baseDir:             baseDir,
+		chaosEngines:        newChaosEngineStore(),
+		chaosRunsDir:        filepath.Join(baseDir, "chaos-runs"),
+		chaosHintsPath:      filepath.Join(baseDir, "chaos-hints.json"),
+		profiles:            newProfileCache(),
 	}
 }
 
@@ -204,11 +224,9 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// must stop startup rather than quietly fall back to no authentication —
 	// an operator who asked for a mode and got silence would reasonably
 	// believe the instance was protected.
-	mode, err := authz.ParseMode(os.Getenv(authz.ModeEnv))
-	if err != nil {
+	if err := app.configureAuth(); err != nil {
 		return nil, err
 	}
-	app.authMode = mode
 
 	r := gin.Default()
 	if err := r.SetTrustedProxies(nil); err != nil {
@@ -218,8 +236,11 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(OriginRefererCheckMiddleware())
 	// Resolve the caller before any handler runs, so every request has exactly
-	// one answer to "who is this".
+	// one answer to "who is this", then refuse anonymous callers when the mode
+	// requires a login. RequireLogin is a no-op under AUTH_MODE=none.
 	r.Use(app.Authenticate())
+	r.Use(app.RequireSetup())
+	r.Use(app.RequireLogin())
 	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
@@ -246,6 +267,23 @@ func buildRouter(app *App) (*gin.Engine, error) {
 
 	r.GET("/", app.HomeHandler)
 	r.GET("/healthz", app.HealthHandler)
+	r.GET(loginPath, app.LoginPageHandler)
+	r.POST(loginPath, app.LoginHandler)
+	r.POST(logoutPath, app.LogoutHandler)
+	r.GET(logoutPath, app.LogoutHandler)
+	r.GET(changePasswordPath, app.ChangePasswordPageHandler)
+	r.POST(changePasswordPath, app.ChangePasswordHandler)
+	r.GET("/api/whoami", app.WhoAmIHandler)
+	r.GET(setupPath, app.SetupPageHandler)
+	r.POST(setupPath, app.SetupHandler)
+
+	// Account administration.
+	admin := r.Group("", app.RequireAdmin())
+	admin.GET(adminUsersPath, app.AdminUsersPageHandler)
+	admin.GET("/api/admin/users", app.AdminListUsersHandler)
+	admin.POST("/api/admin/users", app.AdminCreateUserHandler)
+	admin.PATCH("/api/admin/users/:id", app.AdminUpdateUserHandler)
+	admin.DELETE("/api/admin/users/:id", app.AdminDeleteUserHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
@@ -376,6 +414,12 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "mcp" {
 		runMCP(os.Args[2:])
 		return
+	}
+
+	// Account management is a console tool: it writes to stdout and must not
+	// start a server or raise a window, so it is dispatched here too.
+	if len(os.Args) > 1 && os.Args[1] == "user" {
+		os.Exit(runUserCLI(os.Args[2:], os.Stdout, os.Stderr, os.Stdin))
 	}
 
 	baseDir := resolveBaseDir()
@@ -918,6 +962,7 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		// escapes attribute values for us, so a name containing markup
 		// cannot break out.
 		"ThemesJSON": themesJSON,
+		"Auth":       app.authView(c),
 	})
 }
 
@@ -1158,6 +1203,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"EmbedOrigins":            embedOriginsAttr(),
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
+		"Auth":                    app.authView(c),
 		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
 		"Fonts":                   app.Config.Fonts.Fonts,
 		"SelectedColorScheme":     snap.Prefs.ColorScheme,
@@ -3967,4 +4013,67 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		c.Next()
 	}
+}
+
+// userStore lazily opens the local account database.
+func (app *App) userStore() *users.Store {
+	app.usersOnce.Do(func() {
+		if app.users == nil {
+			path := app.usersPath
+			if path == "" {
+				path = filepath.Join(app.baseDir, "users.json")
+			}
+			app.users = users.NewStore(path)
+		}
+	})
+	return app.users
+}
+
+// configureAuth validates the authentication settings and prepares the stores.
+//
+// Called from buildRouter so both entry points get the same checks, and so a
+// misconfiguration stops startup instead of surfacing at the first login.
+func (app *App) configureAuth() error {
+	mode, err := authz.ParseMode(os.Getenv(authz.ModeEnv))
+	if err != nil {
+		return err
+	}
+	app.authMode = mode
+
+	app.authIdleTimeout = envDuration("AUTH_SESSION_IDLE", authsession.DefaultIdleTimeout)
+	app.authAbsoluteTimeout = envDuration("AUTH_SESSION_MAX", authsession.DefaultAbsoluteTimeout)
+	app.authBindIP = strings.TrimSpace(os.Getenv("AUTH_BIND_SESSION_IP"))
+	switch strings.ToLower(app.authBindIP) {
+	case "", "auto", "true", "false":
+	default:
+		return fmt.Errorf("unsupported AUTH_BIND_SESSION_IP %q (supported: auto, true, false)", app.authBindIP)
+	}
+
+	if app.loginLimiter == nil {
+		app.loginLimiter = newLoginLimiter()
+	}
+	if app.authSessions == nil {
+		app.authSessions = authsession.NewStore(app.authIdleTimeout, app.authAbsoluteTimeout)
+	}
+	if app.authMode == authz.ModeNone {
+		return nil
+	}
+
+	// From here on the instance requires accounts, so refuse to start without
+	// a usable store rather than presenting a login nobody can pass.
+	return app.beginSetupIfNeeded()
+}
+
+// envDuration reads a duration setting, falling back when unset or unparseable.
+func envDuration(name string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		log.Printf("Warning: ignoring %s=%q: %v", name, raw, err)
+		return fallback
+	}
+	return d
 }

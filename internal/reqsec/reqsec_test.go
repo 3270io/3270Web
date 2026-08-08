@@ -76,3 +76,64 @@ func TestTrustProxyHeaders(t *testing.T) {
 		t.Error("only an explicit true should trust")
 	}
 }
+
+func TestClientIP_DirectConnection(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "203.0.113.7:54321"
+
+	if got := ClientIP(req); got != "203.0.113.7" {
+		t.Errorf("ClientIP = %q, want %q", got, "203.0.113.7")
+	}
+}
+
+// Without the opt-in the header is just something the client said.
+func TestClientIP_IgnoresForwardedForByDefault(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "203.0.113.7:54321"
+	req.Header.Set("X-Forwarded-For", "10.9.9.9")
+
+	if got := ClientIP(req); got != "203.0.113.7" {
+		t.Errorf("ClientIP = %q, want the peer address %q", got, "203.0.113.7")
+	}
+}
+
+func TestClientIP_HonoursForwardedForWhenTrusted(t *testing.T) {
+	t.Setenv(TrustProxyHeadersEnv, "true")
+
+	tests := map[string]string{
+		"10.9.9.9":                    "10.9.9.9",
+		"10.9.9.9, 172.16.0.1":        "10.9.9.9",
+		"  10.9.9.9  ,  172.16.0.1  ": "10.9.9.9",
+		"":                            "203.0.113.7",
+		"   ":                         "203.0.113.7",
+	}
+
+	for header, want := range tests {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = "203.0.113.7:54321"
+		if header != "" {
+			req.Header.Set("X-Forwarded-For", header)
+		}
+		if got := ClientIP(req); got != want {
+			t.Errorf("X-Forwarded-For=%q: ClientIP = %q, want %q", header, got, want)
+		}
+	}
+}
+
+func TestClientIP_IPv6AndOddRemoteAddr(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "[2001:db8::1]:443"
+	if got := ClientIP(req); got != "2001:db8::1" {
+		t.Errorf("IPv6 ClientIP = %q, want %q", got, "2001:db8::1")
+	}
+
+	req = httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "not-host-port"
+	if got := ClientIP(req); got != "not-host-port" {
+		t.Errorf("odd RemoteAddr ClientIP = %q, want it passed through", got)
+	}
+
+	if got := ClientIP(nil); got != "" {
+		t.Errorf("ClientIP(nil) = %q, want empty", got)
+	}
+}

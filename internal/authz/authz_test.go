@@ -126,14 +126,23 @@ func TestIsAdminRequiresIdentity(t *testing.T) {
 }
 
 func TestParseMode(t *testing.T) {
-	for _, in := range []string{"", "none", "NONE", "  none  "} {
+	cases := map[string]Mode{
+		"":         ModeNone,
+		"none":     ModeNone,
+		"NONE":     ModeNone,
+		"  none  ": ModeNone,
+		"local":    ModeLocal,
+		"LOCAL":    ModeLocal,
+		"  local ": ModeLocal,
+	}
+	for in, want := range cases {
 		got, err := ParseMode(in)
 		if err != nil {
 			t.Errorf("ParseMode(%q) returned %v", in, err)
 			continue
 		}
-		if got != ModeNone {
-			t.Errorf("ParseMode(%q) = %q, want %q", in, got, ModeNone)
+		if got != want {
+			t.Errorf("ParseMode(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -141,7 +150,7 @@ func TestParseMode(t *testing.T) {
 // A mode this build cannot implement must stop startup. Accepting it would
 // leave an operator believing the instance is authenticated when it is not.
 func TestParseModeRejectsUnsupported(t *testing.T) {
-	for _, in := range []string{"local", "oidc", "proxy", "true", "off"} {
+	for _, in := range []string{"oidc", "proxy", "true", "off", "ldap", "yes"} {
 		if got, err := ParseMode(in); err == nil {
 			t.Errorf("ParseMode(%q) = %q, want an error", in, got)
 		}

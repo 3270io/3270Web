@@ -137,6 +137,8 @@ const (
 	// local operator. This is the historical behaviour and remains the
 	// default.
 	ModeNone Mode = "none"
+	// ModeLocal authenticates against the server's own account store.
+	ModeLocal Mode = "local"
 )
 
 // ModeEnv names the environment variable that selects the mode.
@@ -152,7 +154,9 @@ func ParseMode(value string) (Mode, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", string(ModeNone):
 		return ModeNone, nil
+	case string(ModeLocal):
+		return ModeLocal, nil
 	default:
-		return "", fmt.Errorf("unsupported %s %q (supported: %s)", ModeEnv, value, ModeNone)
+		return "", fmt.Errorf("unsupported %s %q (supported: %s, %s)", ModeEnv, value, ModeNone, ModeLocal)
 	}
 }
