@@ -2077,6 +2077,76 @@ pre, pre input, textarea {
   }
 }
 
+/* Phone widths.
+
+   Two separate things broke the layout here. The header action row is nowrap
+   and about 500px wide, which pushed the document 150px past a 412px viewport
+   — and since a position:fixed box is sized from the initial containing block,
+   that stretched the fixed tools widget and background canvas along with it.
+   The tools widget itself then sat on a single nowrap row of controls wider
+   than the screen, hanging off the edge where, being fixed, nothing could
+   scroll to reach it. */
+@media (max-width: 560px) {
+  /* Let the title keep its own row rather than being overlapped: brand-lockup
+     carries min-width:0, so without wrapping it shrinks below its text and the
+     translucent action group rides over the wordmark. */
+  .card-header {
+    flex-wrap: wrap;
+  }
+
+  .header-chrome-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-left: 0;
+    min-width: 0;
+  }
+
+  /* Only the expanded widget spans the screen. Collapsed it must stay a bare
+     toggle in the corner — stretching it there turns it into a full-width
+     empty panel, and letting its hidden controls wrap inside a zero-width box
+     makes that panel hundreds of pixels tall. */
+  .terminal-tools-widget:not(.is-collapsed) {
+    left: 10px;
+    right: 10px;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+
+  /* Flex items default to min-width:auto — never narrower than their
+     min-content width. That is what kept the widget 545px wide despite being
+     pinned to both edges of a 412px viewport: the controls inside set a floor
+     the box could not go below. Release the floor down the whole chain so the
+     pinning decides the width and the rows wrap instead. */
+  .terminal-tools-widget:not(.is-collapsed),
+  .terminal-tools-widget:not(.is-collapsed) .terminal-tools-panel,
+  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-floating,
+  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-group,
+  .terminal-tools-widget:not(.is-collapsed) .terminal-size-control {
+    min-width: 0;
+  }
+
+  .terminal-tools-widget:not(.is-collapsed) .terminal-tools-panel {
+    flex: 1 1 auto;
+  }
+
+  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-floating,
+  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-group {
+    flex-wrap: wrap;
+  }
+
+  /* The slider is the only elastic control; give it its own row and let it
+     take whatever width is left rather than forcing the row over-wide. */
+  .terminal-tools-widget:not(.is-collapsed) .terminal-size-control {
+    flex: 1 1 100%;
+  }
+
+  .terminal-tools-widget:not(.is-collapsed) .terminal-size-slider {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+
 .connect-row {
   display: flex;
   align-items: center;
