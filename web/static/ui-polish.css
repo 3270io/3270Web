@@ -884,6 +884,13 @@ body[data-focus="on"] .card {
   border-radius: 0;
   background: var(--bg);
   box-shadow: none;
+  /* The normal layout caps the card at 100vw - 40px so it floats inside the
+     page gutter. Focus mode has no gutter to sit in: leaving the cap on left
+     the terminal bezel 20px short of each edge, which is where its side
+     lines used to disappear to. */
+  width: 100%;
+  min-width: 0;
+  max-width: none;
 }
 
 body[data-focus="on"] .card > .stack,
@@ -906,13 +913,22 @@ body[data-focus="on"] .terminal-shell {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  margin: 0;
+  /* Horizontal margin stays auto. The bezel is width: fit-content — which is
+     also what lets terminal-controls.js size the terminal, since it fits by
+     measuring the shell's own box against the viewport — so zeroing the
+     margin does not widen it, it just parks it against the left edge with
+     dead space to its right. */
+  margin: 0 auto;
   padding: clamp(8px, 1.5vh, 20px);
   /* Space for the rail, so it never covers the terminal's top row. */
   padding-top: calc(var(--focus-rail-h) + clamp(8px, 1.5vh, 20px));
   border-radius: 0;
-  border-left: none;
-  border-right: none;
+  /* All four sides of the bezel stay drawn. A frame that is open on the left
+     and right does not read as a terminal bezel, it reads as a rendering
+     fault — and the focus-within accent, which is how the operator sees the
+     screen has the keyboard, only tracks round a closed frame. */
+  border-width: 1px;
+  border-style: solid;
 }
 
 body[data-focus="on"] .screen-container {
