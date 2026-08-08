@@ -1457,6 +1457,15 @@
       return;
     }
 
+    // Alt+Enter belongs to focus mode, not the host — it is the full-screen
+    // shortcut PCOMM and Quick3270 have used for decades. This handler is on
+    // window and so runs before focus-mode.js's document listener, which
+    // means declining it has to happen here or the host gets a stray Enter
+    // every time someone maximises.
+    if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === "Enter") {
+      return;
+    }
+
     var isEscapeKey = event.key === "Escape" || (event.keyCode || event.which) === 27;
     if (clearConfirmArmed && !isEscapeKey) {
       disarmClearConfirmation();

@@ -5531,7 +5531,12 @@
         hintsDirty = false;
     };
 
-    const loadHints = async () => {
+    // quiet suppresses the toast. Hints load on every page init, so
+    // announcing the result there put a chaos-mode message ("No saved hints
+    // yet.") in front of every user on every screen load, including business
+    // users who never open chaos. The modal's own status line still updates,
+    // which is where someone who asked for hints is looking.
+    const loadHints = async ({ quiet = false } = {}) => {
         try {
             const resp = await fetch('/chaos/hints');
             if (!resp.ok) {
@@ -5554,12 +5559,18 @@
             {
                 const msg = chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.';
                 setHintsStatus(msg);
-                notifyUi(msg, 'info');
+                if (!quiet) {
+                    notifyUi(msg, 'info');
+                }
             }
             return chaosHints;
         } catch (_err) {
             setHintsStatus('Failed to load hints.', true);
-            notifyUi('Failed to load hints.', 'error');
+            // A failure IS worth surfacing even on a quiet load — but only
+            // once chaos is actually in use, not on every page init.
+            if (!quiet) {
+                notifyUi('Failed to load hints.', 'error');
+            }
             return chaosHints;
         }
     };
@@ -6194,7 +6205,7 @@
                 renderHints(chaosHints);
             }
             renderChaosKeyBlacklist(chaosKeyBlacklist);
-            await loadHints();
+            await loadHints({ quiet: true });
             focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
         });
     }
@@ -6741,7 +6752,7 @@
     }
     setReportRawToggleState(false);
     syncChaosSectionLayout();
-    loadHints();
+    loadHints({ quiet: true });
     pollStatus();
 
     if (startBtn) {

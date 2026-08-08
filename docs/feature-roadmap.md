@@ -55,13 +55,13 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 
 - [ ] **IND$FILE file transfer** (s3270 `Transfer()`) — text and binary, ASCII/EBCDIC
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
-- [ ] **Multiple concurrent sessions / tabs in one browser** — today, one session per cookie
+- [x] **Multiple concurrent sessions / tabs in one browser** — *shipped: up to six live sessions with a tab bar; the active-session cookie is unchanged, so every existing handler was untouched*
 - [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
 - [x] **Scrollback / screen history navigation** — *shipped: last 50 screens per session, read-only viewer*
 - [x] **Find/search within current screen** — *shipped: Ctrl+F over the character grid, so it sees input values the browser's own find cannot*
 - [x] **Hotspots** (clickable PF labels and URLs detected on screen) — *shipped: never placed over an input field, only real key ranges*
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
-- [ ] **Named saved sessions / connection profiles** — saved hosts exist but are browser-local and hostname-only
+- [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
 - [ ] **Customizable keyboard mapping in the UI** (multiple profiles)
 
 ## Daily-use fidelity
@@ -77,6 +77,7 @@ they are whether the thing behaves like a terminal. See the
 - [x] **Insert / overtype toggle** — *shipped: local Insert key, `^` in the OIA*
 - [x] **Type-ahead** — *shipped: characters typed during a host wait are buffered, not dropped*
 - [x] **Business / Engineering workspace modes** — *shipped: the default surface is the terminal; automation is one click away*
+- [x] **Focus mode** — *shipped: Alt+Enter fills the screen (true fullscreen) with an auto-hiding rail carrying the real toolbar; the OIA always stays*
 - [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full *numeric* fields, which covers the common real case but is not the full field-attribute rule
 - [ ] **Cursor movement over protected areas** — the cursor can only rest in an input field, so all-protected rows are skipped
 

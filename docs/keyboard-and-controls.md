@@ -4,6 +4,91 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 
 ## Toolbar Controls
 
+### Focus mode
+
+++alt+enter++ (or the expand icon in the header, or the command palette)
+gives the terminal the whole screen. It is the same shortcut PCOMM and
+Quick3270 have used for full screen for decades.
+
+- The page header, card framing, background and application chip all go.
+- The toolbar and session tabs move into a slim rail at the top that stays
+  hidden until you move the pointer to the top edge or tab into it. A small
+  accent mark at the top centre shows where it is.
+- The terminal grows to fill the space, and the browser goes true
+  fullscreen — so it fills the *display*, not just a window.
+- The OIA always stays. It is the operator's instrument panel, and hiding
+  `X SYSTEM` would defeat the point of having it.
+
+Leave with ++alt+enter++ again, the toggle in the rail, or by leaving
+fullscreen (++esc++ or ++f11++). The choice is remembered per browser.
+
+The rail overlays nothing: the terminal reserves its height, so the top row
+of the screen — which on a 3270 is the title and message line — is never
+covered when the rail slides out.
+
+### Connection profiles
+
+TLS, the LU name, the terminal model and the code page used to be
+server-wide environment variables, so every session in a deployment shared
+them. A **connection profile** makes them per-host, which is what lets one
+host run on TLS while another runs in the clear, or a model 2 against one
+application and a model 4 against another.
+
+A profile holds a name, host, port, optional TLS (with or without
+certificate verification), optional LU name, terminal model and code page,
+and a description.
+
+- **Profiles** on the connect page picks one and connects.
+- **Profiles** in the terminal header manages the list.
+- The **+** button on the toolbar offers your profiles when opening another
+  session, and falls back to asking for a hostname if none are set up.
+
+Each profile shows the target exactly as s3270 will see it — for example
+`L:Y:LU01@mainframe:992` — so what you check is what actually gets dialled.
+`L:` is TLS, `Y:` means certificate verification is off, and `LU01@` pins
+the logical unit.
+
+!!! warning "Skip certificate verification is weaker than TLS"
+
+    It encrypts the connection but accepts any certificate, so it does not
+    protect against an impostor host. It is badged differently for that
+    reason, and cannot be set on a profile that is not using TLS.
+
+!!! note "Profiles are server-side"
+
+    Unlike the browser's saved-hosts list, profiles live on the server, so
+    they are shared by everyone using that deployment and survive a cleared
+    cache. They are stored in `profiles.json` beside the app.
+
+### Sessions and tabs
+
+You can keep up to six host sessions open at once. The **+** button on the
+toolbar opens another one and asks which host to connect to; a tab bar
+appears above the toolbar as soon as there is more than one.
+
+- Click a tab to switch to it.
+- The **×** on a tab closes that session; the others keep running.
+- **Disconnect** ends only the session you are looking at. If other tabs
+  are open you land on one of them rather than back at the connect page.
+
+Sessions are fully independent — each has its own host connection, screen,
+OIA, screen history and unsubmitted input. Switching tabs reloads the page,
+which is deliberate: a session owns more than the screen, and a reload is
+the one way to be certain none of the outgoing session's state is left
+pointing at the incoming one. The sessions themselves stay live on the
+server across it, so nothing is lost.
+
+Tabs are labelled by host. Two sessions to the same host are told apart by
+port, and two to the same host *and* port are numbered in the order you
+opened them.
+
+!!! note "Sessions are per browser"
+
+    The set of open sessions lives in a browser cookie. Opening 3270Web in
+    a different browser or a private window starts from nothing, and the
+    idle-session reaper still closes sessions you leave untouched for long
+    enough.
+
 ### Workspace modes
 
 The toolbar has two surfaces, chosen by the **Business / Engineering**
