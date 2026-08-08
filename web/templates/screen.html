@@ -2,9 +2,14 @@
 <html>
 <head>
     <title>3270Web</title>
+    <!-- Without this, mobile browsers lay the page out at a ~980px virtual
+         viewport and scale it down: the desktop layout is rendered in
+         miniature and every max-width media query below is dead, because
+         the viewport reports 980px on a 412px phone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=12">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
@@ -46,7 +51,7 @@
     <script src="/static/keymap-editor.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
-    <script src="/static/terminal-controls.js" defer></script>
+    <script src="/static/terminal-controls.js?v=2" defer></script>
     <script src="/static/terminal-tools-widget.js" defer></script>
     <script src="/static/toolbar-section-toggle.js" defer></script>
     <script src="/static/print-screen.js" defer></script>

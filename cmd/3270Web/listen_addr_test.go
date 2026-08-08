@@ -92,6 +92,67 @@ func TestDockerfileBindsAllInterfaces(t *testing.T) {
 	}
 }
 
+// The installer's container methods must set WEBUI_BIND too. They are how most
+// people get 3270Web running, and the compose file they generate is an artifact
+// users keep and edit, so the listen address has to be explicit and correct
+// there rather than relying on the reader to know the image default.
+func TestInstallScriptSetsBindForContainers(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "install.sh")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read install.sh: %v", err)
+	}
+	script := string(data)
+
+	// `docker run` (--method docker) and the generated compose file
+	// (--method compose) spell the same setting differently.
+	for _, want := range []string{"-e WEBUI_BIND=0.0.0.0", "- WEBUI_BIND=0.0.0.0"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("install.sh does not contain %q; containers it creates would bind loopback and be unreachable through the published port", want)
+		}
+	}
+
+	// A loopback value anywhere would reintroduce the bug. The port mapping is
+	// the only place the installer should restrict exposure.
+	if strings.Contains(script, "WEBUI_BIND=127.0.0.1") || strings.Contains(script, "WEBUI_BIND=localhost") {
+		t.Error("install.sh binds WEBUI_BIND to loopback for a container; restrict the host side of the port mapping instead")
+	}
+}
+
+// Every page must declare a viewport, or a mobile browser lays it out at a
+// ~980px virtual viewport and scales the result down: the desktop layout
+// rendered in miniature, and — worse — every max-width media query in the
+// stylesheets silently dead, because the viewport reports 980px on a 412px
+// phone. The responsive rules exist; without this tag none of them can match.
+func TestTemplatesDeclareViewport(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "..", "web", "templates", "*.html"))
+	if err != nil {
+		t.Fatalf("glob templates: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("no templates found")
+	}
+
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		body := string(data)
+		// Partials (brand.html) define template fragments and have no <head>.
+		if !strings.Contains(body, "<head>") {
+			continue
+		}
+		if !strings.Contains(body, `name="viewport"`) {
+			t.Errorf("%s has a <head> but no viewport meta; mobile browsers would render it at ~980px and scale down", filepath.Base(path))
+			continue
+		}
+		if !strings.Contains(body, "width=device-width") {
+			t.Errorf("%s declares a viewport without width=device-width, so the layout viewport stays at the desktop default", filepath.Base(path))
+		}
+	}
+}
+
 // A non-loopback listener must actually accept connections addressed to a
 // non-loopback interface — that is the behaviour the published port depends on.
 func TestListenerOnAllInterfacesAcceptsNonLoopback(t *testing.T) {
