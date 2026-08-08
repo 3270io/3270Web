@@ -117,6 +117,7 @@ func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) (
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
+	recordScreenHistory(s, screen)
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	oia := screenOIA(screen)
 	// Dedup on the OIA as well as the HTML: a host that locks the keyboard or

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,50 @@ type Session struct {
 	LastPlaybackStepTotal    int
 	LastPlaybackDelayRange   string
 	LastPlaybackDelayApplied string
+	ScreenHistory            []ScreenHistoryEntry
+}
+
+// RecordScreen appends a screen to the session's history, ignoring a repeat of
+// the screen already at the top. Every display path calls this and several can
+// fire for the same screen (a submit's refresh, then the idle SSE poll), so
+// deduplicating here is what keeps the history a record of screens the
+// operator saw rather than of how often the client asked for them.
+//
+// Caller must NOT hold the session lock.
+func (s *Session) RecordScreen(entry ScreenHistoryEntry) {
+	if s == nil || strings.TrimSpace(entry.Text) == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n := len(s.ScreenHistory); n > 0 && s.ScreenHistory[n-1].Text == entry.Text {
+		return
+	}
+	s.ScreenHistory = append(s.ScreenHistory, entry)
+	if over := len(s.ScreenHistory) - ScreenHistoryLimit; over > 0 {
+		// Reslice into a fresh backing array rather than just advancing the
+		// slice header: keeping the old array alive would pin every evicted
+		// screen's string for as long as the session lives.
+		trimmed := make([]ScreenHistoryEntry, ScreenHistoryLimit)
+		copy(trimmed, s.ScreenHistory[over:])
+		s.ScreenHistory = trimmed
+	}
+}
+
+// ScreenHistorySnapshot returns a copy of the session's screen history,
+// oldest first.
+func (s *Session) ScreenHistorySnapshot() []ScreenHistoryEntry {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.ScreenHistory) == 0 {
+		return nil
+	}
+	out := make([]ScreenHistoryEntry, len(s.ScreenHistory))
+	copy(out, s.ScreenHistory)
+	return out
 }
 
 type Preferences struct {
@@ -107,6 +152,25 @@ type WorkflowPlayback struct {
 type WorkflowEvent struct {
 	Time    time.Time
 	Message string
+}
+
+// ScreenHistoryLimit is how many past screens a session keeps. A screen is
+// stored as plain text (~2KB at 24x80, ~7KB at 43x132), so 50 costs at most a
+// few hundred KB per session — cheap against being unable to answer "what did
+// the previous screen say?", which is otherwise unanswerable once the host has
+// repainted.
+const ScreenHistoryLimit = 50
+
+// ScreenHistoryEntry is one past screen, kept as text rather than rendered
+// HTML. History is read-only by definition — you cannot type into last
+// Tuesday's screen — so storing the interactive form would cost an order of
+// magnitude more memory for markup that must be inert anyway.
+type ScreenHistoryEntry struct {
+	Text   string    `json:"text"`
+	Rows   int       `json:"rows"`
+	Cols   int       `json:"cols"`
+	Cursor string    `json:"cursor,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type LoadedWorkflow struct {
