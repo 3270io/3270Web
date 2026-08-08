@@ -676,9 +676,9 @@ func TestSecurityHeaders(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	headers := map[string]string{
-		"X-Frame-Options":         "SAMEORIGIN",
-		"X-Content-Type-Options":  "nosniff",
-		"Referrer-Policy":         "strict-origin-when-cross-origin",
+		"X-Frame-Options":        "SAMEORIGIN",
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy":        "strict-origin-when-cross-origin",
 		// frame-ancestors says the same thing as X-Frame-Options above, in the
 		// header modern browsers actually consult. With no EMBED_ORIGINS
 		// configured it is 'self' — the default deployment frames nowhere but
