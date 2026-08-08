@@ -372,3 +372,97 @@ func TestCompareVersions(t *testing.T) {
 		}
 	}
 }
+
+// TestExtensionContributesTask covers the documents an extension declares for
+// the product to interpret. The manifest has always had the field; nothing
+// read it, so a pack could declare tasks and silently contribute none.
+func TestExtensionContributesTask(t *testing.T) {
+	dirs := emptyDirs(t)
+
+	m := sampleManifest("acme-pack")
+	m.Contributes.Tasks = append(m.Contributes.Tasks, struct {
+		File string `json:"file"`
+	}{File: "tasks/check-balance.json"})
+	dir := writeExtension(t, dirs.Extensions, "acme-pack", m)
+
+	tasksDir := filepath.Join(dir, "tasks")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const doc = `{"name":"ACME balance"}`
+	if err := os.WriteFile(filepath.Join(tasksDir, "check-balance.json"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	c := Load(dirs, "1.0.0")
+
+	docs := c.Tasks()
+	if len(docs) != 1 {
+		t.Fatalf("Tasks() returned %d documents, want 1; problems: %v", len(docs), c.Problems())
+	}
+	if string(docs[0].Data) != doc {
+		t.Errorf("the bytes are handed over unchanged; got %q", docs[0].Data)
+	}
+	if docs[0].Source.Kind != SourceExtension || docs[0].Source.Extension != "acme-pack" {
+		t.Errorf("source = %q, want extension:acme-pack", docs[0].Source)
+	}
+	if !strings.HasSuffix(docs[0].File, "check-balance.json") {
+		t.Errorf("File = %q, want the path it was read from so an error can name it", docs[0].File)
+	}
+}
+
+// TestExtensionTaskCannotEscapeItsDirectory: the same containment rule as
+// skills, checked separately because it is a separate call site and the
+// consequence here is a document from anywhere on disk being run against a
+// mainframe.
+func TestExtensionTaskCannotEscapeItsDirectory(t *testing.T) {
+	dirs := emptyDirs(t)
+
+	outside := filepath.Join(filepath.Dir(dirs.Extensions), "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "stolen.json"), []byte(`{"name":"stolen"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := sampleManifest("escaper")
+	m.Contributes.Tasks = append(m.Contributes.Tasks, struct {
+		File string `json:"file"`
+	}{File: "../../outside/stolen.json"})
+	writeExtension(t, dirs.Extensions, "escaper", m)
+
+	c := Load(dirs, "1.0.0")
+
+	if len(c.Tasks()) != 0 {
+		t.Fatal("an extension loaded a task document from outside its own directory")
+	}
+	if !strings.Contains(strings.Join(c.Problems(), "\n"), "outside the extension directory") {
+		t.Errorf("the traversal should be reported; problems were %v", c.Problems())
+	}
+}
+
+// TestDisabledExtensionContributesNoTasks — a pack in .disabled must not slip
+// a task in by the back door.
+func TestDisabledExtensionContributesNoTasks(t *testing.T) {
+	dirs := emptyDirs(t)
+
+	m := sampleManifest("acme-pack")
+	m.Contributes.Tasks = append(m.Contributes.Tasks, struct {
+		File string `json:"file"`
+	}{File: "tasks/t.json"})
+	dir := writeExtension(t, dirs.Extensions, "acme-pack", m)
+	if err := os.MkdirAll(filepath.Join(dir, "tasks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tasks", "t.json"), []byte(`{"name":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dirs.Extensions, DisabledFileName), []byte("acme-pack\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := len(Load(dirs, "1.0.0").Tasks()); got != 0 {
+		t.Errorf("a disabled extension contributed %d task document(s)", got)
+	}
+}

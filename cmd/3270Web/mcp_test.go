@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,25 +18,52 @@ import (
 // a listening socket, so these tests exercise the protocol rather than the
 // terminal.
 type fakeInvoker struct {
+	mu     sync.Mutex
 	calls  []string
 	routes map[string]mcptools.Response
 	fail   map[string]mcptools.Response
+	// bodies keeps the last request body sent to each route, so a test can
+	// assert what was asked of the server and not only what came back.
+	bodies map[string]any
 }
 
 func newFakeInvoker() *fakeInvoker {
 	return &fakeInvoker{
 		routes: map[string]mcptools.Response{},
 		fail:   map[string]mcptools.Response{},
+		bodies: map[string]any{},
 	}
 }
 
-func (f *fakeInvoker) Do(_ context.Context, method, path string, q url.Values, _ any) (mcptools.Response, error) {
+// route sets a canned reply. Safe to call while the server is connected,
+// which is how a test moves the task catalogue underneath a live session.
+func (f *fakeInvoker) route(key string, res mcptools.Response) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.routes[key] = res
+}
+
+// body returns the last request body sent to a route.
+func (f *fakeInvoker) body(key string) any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bodies[key]
+}
+
+func (f *fakeInvoker) Do(_ context.Context, method, path string, q url.Values, body any) (mcptools.Response, error) {
 	key := method + " " + path
+
+	f.mu.Lock()
 	f.calls = append(f.calls, key)
-	if res, ok := f.fail[key]; ok {
-		return res, nil
+	if body != nil {
+		f.bodies[key] = body
 	}
-	if res, ok := f.routes[key]; ok {
+	res, failing := f.fail[key]
+	if !failing {
+		res, failing = f.routes[key]
+	}
+	f.mu.Unlock()
+	if failing {
 		return res, nil
 	}
 	switch {

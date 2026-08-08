@@ -135,6 +135,9 @@ func (h *Handlers) Tools(c *gin.Context) {
 		"tools":         DefaultTools(),
 		"model":         DefaultModel,
 		"system_prompt": SystemPrompt(),
+		// See approval.go: the classification is the server's, so the browser
+		// panel and an MCP client apply the same rule.
+		"dangerous_send_keys": DangerousSendKeys(),
 	})
 }
 

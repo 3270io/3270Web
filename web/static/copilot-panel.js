@@ -1502,12 +1502,28 @@
     }
 
     // AID keys that end a session or destroy in-progress work if pressed
-    // without confirmation. Matches the dangerous-key set 3270Web's own
-    // chaos engine requires explicit opt-in for (see DefaultConfig's
-    // AIDKeyWeights, which excludes exactly these two by default) — Auto
-    // Mode running send_key unattended shouldn't be any less careful about
-    // them than chaos exploration is.
-    const DANGEROUS_SEND_KEYS = [/^pf\(?\s*3\s*\)?$/i, /^clear$/i];
+    // without confirmation. The list comes from the server (see
+    // internal/copilot/approval.go) rather than living here: an MCP client
+    // runs the same tools with no panel in front of them, so a rule that
+    // only existed in this file applied to one of the two ways the tools
+    // get called.
+    //
+    // dangerousSendKeys is populated from /api/ai/tools. Null means the
+    // answer has not arrived, which is treated as "everything needs
+    // approval" — an older server that does not send the list should make
+    // Auto Mode more cautious, never less.
+    let dangerousSendKeys = null;
+
+    // canonicalKeyName mirrors copilot.CanonicalKeyName so "pf3", "PF(3)"
+    // and "PF 3" compare equal. It is a comparison aid only; the server
+    // still rejects a key it does not recognise.
+    function canonicalKeyName(key) {
+        const compact = String(key || "").replace(/\s+/g, "").replace(/[()]/g, "").toUpperCase();
+        const fn = compact.match(/^(PF|PA)(\d+)$/);
+        if (fn) return fn[1] + "(" + String(parseInt(fn[2], 10)) + ")";
+        if (!compact) return "";
+        return compact.charAt(0) + compact.slice(1).toLowerCase();
+    }
 
     // requiresManualApproval returns the matched dangerous key name (a
     // truthy string) if this tool call needs a human to click Run even in
@@ -1518,8 +1534,10 @@
         try { key = String((JSON.parse(argsJSON || "{}") || {}).key || ""); } catch (_) { return ""; }
         const trimmed = key.trim();
         if (!trimmed) return "";
-        for (const pattern of DANGEROUS_SEND_KEYS) {
-            if (pattern.test(trimmed)) return trimmed;
+        if (!Array.isArray(dangerousSendKeys)) return trimmed; // fail towards asking
+        const canonical = canonicalKeyName(trimmed);
+        for (const dangerous of dangerousSendKeys) {
+            if (canonicalKeyName(dangerous) === canonical) return trimmed;
         }
         return "";
     }
@@ -1650,7 +1668,7 @@
         if (autoMode) {
             (async () => {
                 for (const entry of entries) {
-                    // A dangerous send_key (see DANGEROUS_SEND_KEYS) always
+                    // A dangerous send_key (see requiresManualApproval) always
                     // waits for a manual Run/Skip click, even in Auto Mode —
                     // its card is left as-is, still resolvable by the user.
                     if (entry.run && !entry.requiresApproval) {
@@ -1740,6 +1758,9 @@
                     const data = await resp.json();
                     toolSchema = data.tools || [];
                     systemPrompt = data.system_prompt || systemPrompt;
+                    if (Array.isArray(data.dangerous_send_keys)) {
+                        dangerousSendKeys = data.dangerous_send_keys;
+                    }
                     // The model the provider is saved with is the server's to
                     // know; only fill in from here if nothing has set it yet
                     // (populateModelSelect, which reflects the real current
