@@ -29,6 +29,7 @@ func taskRouter(app *App) *gin.Engine {
 	r.POST("/tasks/run", app.TasksRunHandler)
 	r.GET("/tasks/status", app.TasksStatusHandler)
 	r.POST("/tasks/cancel", app.TasksCancelHandler)
+	r.GET("/tasks/draft", app.TasksDraftHandler)
 	return r
 }
 
@@ -246,5 +247,15 @@ func TestTaskRunStoreIsConcurrencySafe(t *testing.T) {
 	snap, _ := store.snapshot("s1")
 	if snap.Step != 20 {
 		t.Errorf("Step = %d, want 20", snap.Step)
+	}
+}
+
+func TestTasksDraftRequiresASession(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/tasks/draft", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
 	}
 }
