@@ -193,7 +193,7 @@ func TestLoadRecordingIfInactiveRejectsWhenEngineActive(t *testing.T) {
 
 	eng.Stop()
 	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && eng.Status().Active {
+	for time.Now().Before(deadline) && eng.Active() {
 		time.Sleep(10 * time.Millisecond)
 	}
 

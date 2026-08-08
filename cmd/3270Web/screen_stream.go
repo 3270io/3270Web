@@ -98,7 +98,7 @@ func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) (
 		return nil, false
 	}
 	if app.chaosEngines != nil {
-		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil && eng.Status().Active {
+		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil && eng.Active() {
 			return nil, false
 		}
 	}

@@ -32,6 +32,8 @@ func TestEnvDocumentationDrift(t *testing.T) {
 		{"# Allow the headless API to open sessions against the bundled sample apps", "ALLOW_SAMPLE_APPS=false"},
 		{"# Tool tier for the MCP server", "MCP_TOOLS=interactive"},
 		{"# Comma-separated glob list of hosts an AI client may connect to.", "MCP_ALLOWED_HOSTS="},
+		{"# Comma-separated glob list of hosts this instance may connect to at all,", "ALLOWED_HOSTS="},
+		{"# Requests a minute per account on the routes that cost the instance", "RATE_LIMIT_CONNECT=20"},
 	}
 
 	for _, tc := range cases {

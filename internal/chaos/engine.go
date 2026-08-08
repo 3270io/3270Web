@@ -446,6 +446,20 @@ func (e *Engine) Stop() {
 }
 
 // Status returns a snapshot of the current engine state.
+// Active reports whether exploration is still running.
+//
+// Separate from Status because Status clones the entire mind map — right when
+// serving a status page, absurd when the caller wants one boolean. Several
+// callers poll exactly that: the store checks it before starting a second run
+// on a session, shutdown checks it per session, and a test helper checks it
+// every few milliseconds. On a run that has explored a few hundred screens,
+// each of those was copying the whole graph to read a flag.
+func (e *Engine) Active() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.active
+}
+
 func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()

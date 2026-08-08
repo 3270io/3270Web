@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -304,7 +305,7 @@ func (app *App) APICreateSession(c *gin.Context) {
 		}
 		s, err := app.startHostSession(c, hostname)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			c.JSON(connectFailureStatus(err), gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusCreated, gin.H{"id": s.ID, "host": s.TargetHost, "port": s.TargetPort})
@@ -316,7 +317,7 @@ func (app *App) APICreateSession(c *gin.Context) {
 	}
 	s, err := app.startHostSession(c, hostname)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(connectFailureStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
@@ -622,4 +623,22 @@ func (app *App) APIRunTask(c *gin.Context) {
 	// HTTP status cannot express "step 3 saw the wrong screen", and collapsing
 	// it into 500 would throw away the only useful part of the answer.
 	c.JSON(http.StatusOK, result)
+}
+
+// connectFailureStatus separates "this connection did not work" from "this
+// connection is not allowed".
+//
+// Everything used to answer 502, which tells a client the far end failed and
+// the request is worth repeating. For a host the allowlist will never permit,
+// or a caller who has spent their allowance, that is both wrong and an
+// invitation to retry in a loop.
+func connectFailureStatus(err error) int {
+	switch {
+	case errors.Is(err, errHostNotAllowed):
+		return http.StatusForbidden
+	case errors.Is(err, errRateLimited):
+		return http.StatusTooManyRequests
+	default:
+		return http.StatusBadGateway
+	}
 }

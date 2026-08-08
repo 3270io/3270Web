@@ -60,8 +60,12 @@ type App struct {
 	apiTokensOnce sync.Once
 	// audit is the security trail, kept apart from the debug log; see
 	// internal/audit.
-	audit        *audit.Recorder
-	auditOnce    sync.Once
+	audit     *audit.Recorder
+	auditOnce sync.Once
+	// rates throttles the routes where one caller can consume something the
+	// whole instance shares; see ratelimit.go.
+	rates        *rateLimiter
+	rateOnce     sync.Once
 	loginLimiter *loginLimiter
 	// authBindIP is "auto", "true" or "false"; see App.bindSessionIP.
 	authBindIP          string
@@ -250,6 +254,9 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.Use(app.Authenticate())
 	r.Use(app.RequireSetup())
 	r.Use(app.RequireLogin())
+	// After authentication, so a limit applies to the account rather than to
+	// whoever happens to share an address with them.
+	r.Use(app.RateLimit())
 	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
@@ -854,7 +861,7 @@ func (app *App) reapIdleSessions(maxIdle time.Duration) {
 		if !ok {
 			continue
 		}
-		if eng, ok := app.chaosEngines.get(id); ok && eng != nil && eng.Status().Active {
+		if eng, ok := app.chaosEngines.get(id); ok && eng != nil && eng.Active() {
 			continue
 		}
 		playbackActive := false
@@ -1208,7 +1215,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	chaosRunActive := false
 	if app.chaosEngines != nil {
 		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
-			chaosRunActive = eng.Status().Active
+			chaosRunActive = eng.Active()
 		}
 	}
 
@@ -2674,10 +2681,17 @@ var settingsDeniedKeys = map[string]bool{
 	// The authentication settings themselves. Naming a different account
 	// store, or turning the mode off, would be a way to walk out through the
 	// gate using a page that sits behind it.
-	"AUTH_MODE":            true,
-	"USERS_PATH":           true,
-	"API_TOKENS_PATH":      true,
-	"AUDIT_LOG_PATH":       true,
+	"AUTH_MODE":       true,
+	"USERS_PATH":      true,
+	"API_TOKENS_PATH": true,
+	"AUDIT_LOG_PATH":  true,
+	// The two limits. Both are the kind of setting a caller would like to
+	// raise before doing something the limit exists to bound.
+	"ALLOWED_HOSTS":        true,
+	"RATE_LIMIT_CONNECT":   true,
+	"RATE_LIMIT_CHAOS":     true,
+	"RATE_LIMIT_TRANSFER":  true,
+	"RATE_LIMIT_AI":        true,
 	"AUTH_BIND_SESSION_IP": true,
 	"AUTH_SESSION_IDLE":    true,
 	"AUTH_SESSION_MAX":     true,
@@ -3673,6 +3687,13 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 	if !isValidHostname(hostname) {
 		return fmt.Errorf("invalid hostname format: %q", hostname)
 	}
+	// The other way to reach a host: keep the session and re-point it. A
+	// workflow file names its own host, and so does the MCP connect tool, so
+	// the allowlist has to be checked here as well as at creation — a fence
+	// with one gate open is not a fence.
+	if err := checkHostAllowed(hostname); err != nil {
+		return err
+	}
 	var existing host.Host
 	withSessionLock(s, func() {
 		existing = s.Host
@@ -3793,6 +3814,24 @@ func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, pro
 		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
 			map[string]string{"reason": "invalid hostname"})
 		return nil, fmt.Errorf("invalid hostname format: %q", hostname)
+	}
+	if err := checkHostAllowed(hostname); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "host not allowed"})
+		return nil, err
+	}
+	// Rate-limited here rather than on the routes, because three of them open
+	// sessions — the connect form, the tab bar and the REST API — and each one
+	// starts an s3270 subprocess. MAX_SESSIONS_PER_USER bounds how many exist
+	// at once; this bounds how fast they can be spawned, which is the part a
+	// loop that opens and closes in a tight cycle would otherwise ignore.
+	if perMinute := rateLimitFor(rateConnect); perMinute > 0 && c != nil {
+		if ok, retryIn := app.rateLimiter().Allow(rateKey(c, rateConnect), perMinute); !ok {
+			app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+				map[string]string{"reason": "rate limit"})
+			return nil, refuse(errRateLimited, fmt.Sprintf(
+				"too many connection attempts; wait about %ds", int(retryIn.Seconds())+1))
+		}
 	}
 	// Checked before anything is started, so a refused request costs nothing
 	// and cannot leave a subprocess behind.

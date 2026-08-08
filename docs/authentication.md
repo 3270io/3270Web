@@ -393,3 +393,65 @@ Writing is best-effort: if the disk fills, the event is lost and the failure
 goes to the debug log, but the request still succeeds. An audit that can refuse
 a sign-in because a disk filled up is a denial of service dressed as a
 safeguard.
+
+---
+
+## Limiting what an instance can reach
+
+A 3270 terminal is a client for arbitrary TCP. Whoever can open a session can
+point it at anything the server can reach, which on a hosted instance means
+the terminal is a route into the network it sits in.
+
+`ALLOWED_HOSTS` fences that:
+
+```bash
+ALLOWED_HOSTS=*.mainframe.corp.example,10.20.30.*
+```
+
+Comma-separated shell globs, matched against the host part so the port does
+not have to be written out. It applies on **every** path — the connect form,
+the tab bar, the REST API, workflow playback, and MCP — because a fence with
+one gate open is not a fence. A refusal is recorded in the
+[audit trail](#the-audit-trail).
+
+Unset means unrestricted. That is the historical behaviour and the right
+default for a laptop or a lab; an allowlist you must configure before the
+product works at all is one people switch off.
+
+Two things are deliberately outside it. Hostname *validity* is a separate,
+always-on check that refuses loopback, link-local and the unspecified address
+— those are never dialled on a caller's behalf, allowlist or not. And the
+bundled sample apps are exempt: they are this process talking to itself, and
+they already have their own switch in `ALLOW_SAMPLE_APPS`.
+
+`MCP_ALLOWED_HOSTS` still exists and is now a **narrower** fence for AI
+clients specifically, on top of `ALLOWED_HOSTS`. A deployment can be willing
+to reach its whole estate from a browser while letting a model near only the
+test LPAR.
+
+## Rate limits
+
+A handful of routes cost the instance something rather than the caller:
+opening a session starts a subprocess, chaos exploration presses keys at a
+mainframe unattended, a transfer moves a file, AI chat spends an upstream
+quota.
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `RATE_LIMIT_CONNECT` | 20/min | Opening a session, on every path |
+| `RATE_LIMIT_CHAOS` | 10/min | Starting or resuming chaos exploration |
+| `RATE_LIMIT_TRANSFER` | 20/min | IND$FILE send and receive |
+| `RATE_LIMIT_AI` | 60/min | The AI chat endpoint |
+
+Counted per account — per address where there are no accounts — so one busy
+person cannot throttle everybody, and nobody gets a fresh allowance by opening
+another tab. `0` turns a limit off.
+
+The defaults are generous on purpose. These exist to stop a runaway loop or a
+deliberate flood, not to pace ordinary work: a limit that honest use runs into
+is a limit somebody removes entirely.
+
+Everything else is unlimited. Reading a screen is cheap and constant, and a
+general request limiter would be the change that gets the whole idea thrown
+out. Signing in has [its own throttle](#session-lifetime), which is a
+different problem — that one is about guessing, not about cost.
