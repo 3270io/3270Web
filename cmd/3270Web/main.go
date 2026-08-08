@@ -127,21 +127,11 @@ const defaultSampleAppPort = 3270
 // go build -ldflags "-X main.appVersion=v1.2.3"
 var appVersion = "0.3.2"
 
-func main() {
-	baseDir := resolveBaseDir()
-	logFile, err := openStartupLog(baseDir)
-	if err == nil {
-		defer logFile.Close()
-		log.SetOutput(logFile)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			stack := debug.Stack()
-			msg := fmt.Sprintf("3270Web crashed during startup: %v", r)
-			log.Printf("%s\n%s", msg, stack)
-			showFatalError(msg)
-		}
-	}()
+// newApp loads configuration from baseDir and constructs the application
+// state. It is separate from main() so that other entry points into the same
+// binary — the `mcp` subcommand — can boot an identical App without
+// duplicating the .env, config-fallback and directory conventions.
+func newApp(baseDir string) *App {
 	envPath := filepath.Join(baseDir, ".env")
 	if err := config.EnsureDotEnv(envPath); err != nil {
 		log.Printf("Warning: could not ensure .env file: %v", err)
@@ -165,7 +155,7 @@ func main() {
 		cfg = &config.Config{ExecPath: "/usr/local/bin"}
 	}
 
-	app := &App{
+	return &App{
 		SessionManager: session.NewManager(),
 		Renderer:       render.NewHtmlRenderer(),
 		Config:         cfg,
@@ -178,7 +168,13 @@ func main() {
 		chaosHintsPath: filepath.Join(baseDir, "chaos-hints.json"),
 		profiles:       newProfileCache(),
 	}
+}
 
+// buildRouter wires middleware, templates, static assets and every route
+// onto a fresh engine. Returning an error rather than calling showFatalError
+// keeps it usable from the `mcp` subcommand, where a modal dialog would be
+// the wrong way to fail.
+func buildRouter(app *App) (*gin.Engine, error) {
 	r := gin.Default()
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("Warning: could not set trusted proxies: %v", err)
@@ -186,28 +182,26 @@ func main() {
 	r.Use(MaxBodySizeMiddleware(maxRequestBodyBytes))
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(OriginRefererCheckMiddleware())
-	templatesGlob, tmplErr := resolveTemplatesGlob(baseDir)
+	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
 	} else {
 		log.Printf("Warning: %v", tmplErr)
 		tmplFS, err := fs.Sub(webassets.FS, "web/templates")
 		if err != nil {
-			showFatalError(err.Error())
-			return
+			return nil, fmt.Errorf("load embedded templates: %w", err)
 		}
 		r.LoadHTMLFS(http.FS(tmplFS), "*")
 	}
 
-	staticDir, staticErr := resolveStaticDir(baseDir)
+	staticDir, staticErr := resolveStaticDir(app.baseDir)
 	if staticErr == nil {
 		r.Static("/static", staticDir)
 	} else {
 		log.Printf("Warning: %v", staticErr)
 		staticFS, err := fs.Sub(webassets.FS, "web/static")
 		if err != nil {
-			showFatalError(err.Error())
-			return
+			return nil, fmt.Errorf("load embedded static assets: %w", err)
 		}
 		r.StaticFS("/static", http.FS(staticFS))
 	}
@@ -317,6 +311,31 @@ func main() {
 	// Public REST/JSON API (gated by API_TOKEN env var)
 	app.registerAPIv1(r)
 
+	return r, nil
+}
+
+func main() {
+	baseDir := resolveBaseDir()
+	logFile, err := openStartupLog(baseDir)
+	if err == nil {
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			msg := fmt.Sprintf("3270Web crashed during startup: %v", r)
+			log.Printf("%s\n%s", msg, stack)
+			showFatalError(msg)
+		}
+	}()
+	app := newApp(baseDir)
+
+	r, err := buildRouter(app)
+	if err != nil {
+		showFatalError(err.Error())
+		return
+	}
 	// Idle sessions (browser tab closed without disconnecting, network drop)
 	// otherwise live forever: their s3270 subprocess, chaos engine, and
 	// session-status poller keep running until the server restarts. Reap
