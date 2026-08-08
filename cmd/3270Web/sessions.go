@@ -255,15 +255,6 @@ func (app *App) SessionsListHandler(c *gin.Context) {
 // SessionsNewHandler opens an additional host session and makes it active.
 // The existing sessions keep running — that is the whole point.
 func (app *App) SessionsNewHandler(c *gin.Context) {
-	hostname := strings.TrimSpace(c.PostForm("hostname"))
-	if hostname == "" {
-		hostname = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
-	}
-	if hostname == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "a hostname is required to open a session"})
-		return
-	}
-
 	if len(app.sessionRoster(c)) >= maxConcurrentSessions {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "You already have the maximum number of sessions open. Close one first.",
@@ -272,7 +263,28 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 		return
 	}
 
-	sess, err := app.startHostSession(hostname)
+	// A named profile is preferred over a bare hostname: it carries TLS, LU,
+	// model and code page, none of which "host:port" can express.
+	var profile *ConnectionProfile
+	hostname := strings.TrimSpace(c.PostForm("hostname"))
+	if name := strings.TrimSpace(c.PostForm("profile")); name != "" {
+		found, ok := app.connectionProfiles().find(name)
+		if !ok {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("connection profile %q no longer exists", name)})
+			return
+		}
+		profile = &found
+		hostname = found.displayTarget()
+	}
+	if hostname == "" {
+		hostname = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
+	}
+	if hostname == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "a host or profile is required to open a session"})
+		return
+	}
+
+	sess, err := app.startHostSessionWithProfile(hostname, profile)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": connectErrorMessage(hostname, err)})
 		return

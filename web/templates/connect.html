@@ -6,13 +6,14 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=12">
     <!-- Shared design system layer; see the note in screen.html. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=9">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=10">
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/ui.js?v=20" defer></script>
+    <script src="/static/connection-profiles.js" defer></script>
 </head>
 <body>
     <script src="/static/early-theme-init.js"></script>
@@ -50,6 +51,7 @@
                 <fieldset class="connect-row">
                     <label for="hostname-input">Hostname / IP<span class="required-mark" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span></label>
                     <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required aria-required="true" autofocus placeholder="hostname:port">
+                    <button type="button" data-profiles-connect>Profiles</button>
                     <button type="button" data-host-save>Save host</button>
                     <button type="button" data-host-load>Load host</button>
                     <button type="submit" id="connect-btn">Connect</button>

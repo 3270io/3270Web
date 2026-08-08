@@ -26,6 +26,40 @@ The rail overlays nothing: the terminal reserves its height, so the top row
 of the screen — which on a 3270 is the title and message line — is never
 covered when the rail slides out.
 
+### Connection profiles
+
+TLS, the LU name, the terminal model and the code page used to be
+server-wide environment variables, so every session in a deployment shared
+them. A **connection profile** makes them per-host, which is what lets one
+host run on TLS while another runs in the clear, or a model 2 against one
+application and a model 4 against another.
+
+A profile holds a name, host, port, optional TLS (with or without
+certificate verification), optional LU name, terminal model and code page,
+and a description.
+
+- **Profiles** on the connect page picks one and connects.
+- **Profiles** in the terminal header manages the list.
+- The **+** button on the toolbar offers your profiles when opening another
+  session, and falls back to asking for a hostname if none are set up.
+
+Each profile shows the target exactly as s3270 will see it — for example
+`L:Y:LU01@mainframe:992` — so what you check is what actually gets dialled.
+`L:` is TLS, `Y:` means certificate verification is off, and `LU01@` pins
+the logical unit.
+
+!!! warning "Skip certificate verification is weaker than TLS"
+
+    It encrypts the connection but accepts any certificate, so it does not
+    protect against an impostor host. It is badged differently for that
+    reason, and cannot be set on a profile that is not using TLS.
+
+!!! note "Profiles are server-side"
+
+    Unlike the browser's saved-hosts list, profiles live on the server, so
+    they are shared by everyone using that deployment and survive a cleared
+    cache. They are stored in `profiles.json` beside the app.
+
 ### Sessions and tabs
 
 You can keep up to six host sessions open at once. The **+** button on the

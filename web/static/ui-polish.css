@@ -1188,6 +1188,199 @@ body[data-focus="on"] .sample-status {
 }
 
 /* ---------------------------------------------------------------- */
+/* Connection profiles                                                */
+/* ---------------------------------------------------------------- */
+.profiles-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.profiles-modal[hidden] { display: none; }
+
+.profiles-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.profiles-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(96vw, 760px);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 18px 20px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.profiles-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-modal-header h3 { margin: 0; font-size: 1.02rem; }
+
+.profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+}
+
+.profile-row:hover { border-color: var(--border); }
+
+.profile-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(8ch, 18ch) 1fr;
+  grid-template-areas: "name target" "desc desc";
+  gap: 2px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.profile-row-name {
+  grid-area: name;
+  font-weight: 600;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The target reads exactly as s3270 will see it, so what an operator checks
+   is what actually gets dialled. */
+.profile-row-target {
+  grid-area: target;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-row-desc {
+  grid-area: desc;
+  font-size: 0.72rem;
+}
+
+.profile-row-desc:empty { display: none; }
+
+.profile-row-tls {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+/* Encrypted-but-unverified is weaker than TLS and should not wear the same
+   badge as the real thing. */
+.profile-row-tls.is-unverified {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.profile-row-action {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-size: 0.72rem;
+}
+
+.profile-row-action.danger { color: var(--danger); }
+
+.profiles-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline-soft);
+}
+
+.profiles-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.profiles-form label,
+.profiles-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
+.profiles-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.profiles-form input[type="text"],
+.profiles-form input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.profiles-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.profiles-status {
+  flex: 1 1 auto;
+  font-size: 0.74rem;
+  color: var(--fg-muted);
+}
+
+.profiles-status.is-error { color: var(--danger); }
+
+/* In "pick a profile and connect" mode the editor is out of the way — you
+   came here to connect, not to administer. */
+.profiles-modal[data-profile-mode="pick"] .profiles-form {
+  opacity: 0.72;
+}
+
+/* ---------------------------------------------------------------- */
 /* Screen history                                                     */
 /* ---------------------------------------------------------------- */
 .history-modal {
