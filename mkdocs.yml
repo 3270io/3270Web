@@ -12,9 +12,12 @@ use_directory_urls: true
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
-  logo: assets/logo.png
-  favicon: assets/logo.png
+  # No `logo:` key on purpose. Material renders that as <img>, which is its own
+  # document and so cannot read the palette tokens. overrides/partials/logo.html
+  # inlines the mark instead, so it re-tints with GRN/AMB/ICE/DAY.
+  favicon: assets/favicon.svg
   icon:
     repo: fontawesome/brands/github
   features:
@@ -25,7 +28,6 @@ theme:
     - navigation.tabs
     - navigation.top
     - navigation.footer
-    - header.autohide
     - search.suggest
     - search.highlight
     - content.code.copy
@@ -34,19 +36,20 @@ theme:
     - toc.integrate
     - content.tabs.link
     - content.footnotes
+  # Colour is owned by docs/stylesheets/3270-theme.css, which ships the same
+  # four palettes as 3270.io and the 3270Connect console (phosphor / amber /
+  # ice / daylight). The GRN·AMB·ICE·DAY switch in the header replaces
+  # Material's two-scheme toggle.
+  #
+  # `3270` is a deliberately unknown scheme name: Material ships no variable
+  # block for it, so nothing competes with ours. (Material renders the scheme
+  # onto <body>, where its own slate/default blocks would otherwise outrank
+  # the html-level tokens by inheritance.) `custom` does the same for
+  # primary/accent.
   palette:
-    - scheme: default
-      primary: teal
-      accent: cyan
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
-    - scheme: slate
-      primary: teal
-      accent: cyan
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
+    scheme: '3270'
+    primary: custom
+    accent: custom
   font:
     text: Inter
     code: JetBrains Mono
@@ -103,13 +106,26 @@ markdown_extensions:
   - footnotes
 
 extra_css:
+  # Shared 3270.io design system — keep first so extra.css can layer on it.
+  - stylesheets/3270-theme.css
   - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/3270-theme.js
 
 extra:
   version: 1.8.6
   CNAME: 3270.io
   generator: false
   social:
+    # Sibling sites first, so every page in the suite offers the same way back
+    # out to 3270.io and across to the other tool's guide.
+    - icon: material/home-variant
+      link: https://3270.io
+      name: 3270.io
+    - icon: material/console-line
+      link: https://3270connect.3270.io
+      name: 3270Connect documentation
     - icon: fontawesome/brands/github
       link: https://github.com/3270io
     - icon: fontawesome/brands/linkedin

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{#
+  3270.io documentation theme — template override.
+
+  Material loads `extra_javascript` at the end of the body, which is too late
+  to decide a palette: the reader would see a frame of phosphor green before
+  their stored choice applied. This block runs in the head, before first
+  paint, and sets the same attributes `javascripts/3270-theme.js` maintains
+  for the rest of the visit.
+
+  Keep this file byte-identical between the 3270Connect and 3270Web repos.
+#}
+{% block extrahead %}
+  {{ super() }}
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+{% endblock %}

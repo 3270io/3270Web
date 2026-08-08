@@ -1,10 +1,57 @@
-# 3270Web
-
-**The modern browser client for IBM 3270 mainframe sessions** — with AI-driven automation, chaos exploration, workflow recording, and a full REST API.
-
-No emulator install. No thick client. Open a browser tab, connect to any TN3270 host, and work exactly like you would at a real 3270 terminal — then let the automation features do the heavy lifting.
-
 ---
+hide:
+  - toc
+---
+
+<div class="hero" markdown>
+<div class="split" markdown>
+<div markdown>
+
+<span class="chip accent"><span class="dot live"></span> Open source · v1.8.6</span>
+
+# The mainframe, <span class="grad">in a browser tab</span>
+
+<p class="lede" markdown>
+No emulator install. No thick client. Open a tab, connect to any TN3270 host, and work
+exactly like you would at a real 3270 terminal — then let AI Chat, chaos exploration and
+workflow recording do the heavy lifting.
+</p>
+
+<div class="hero-actions" markdown>
+[Install and run](installation.md){ .md-button .md-button--primary }
+[Connect a host](configuration.md){ .md-button }
+[REST API](rest-api.md){ .md-button }
+</div>
+
+</div>
+<div markdown>
+
+<div class="term">
+  <div class="term-head">
+    <span class="dot live"></span>
+    <span>session · tn3270</span>
+    <span class="right">model 2 · 24×80</span>
+  </div>
+  <pre class="term-body"><span class="sig">$</span> docker run -p 8080:8080 \
+    <span class="cmt">ghcr.io/3270io/3270web</span>
+<span class="sig">›</span> listening  http://localhost:8080  <span class="tag">[up]</span>
+<span class="sig">›</span> connect    mvs.example.com:992    <span class="tag">[ok]</span>
+<span class="sig">›</span> negotiate  IBM-3278-2-E          <span class="tag info">[tn3270e]</span>
+<span class="sig">›</span> recording  12 actions captured   <span class="tag info">[rec]</span>
+<span class="sig">›</span> <span class="caret"></span></pre>
+</div>
+
+</div>
+</div>
+
+<div class="kpi-strip" markdown>
+<div class="kpi"><span class="k">Install steps</span><span class="v">1</span><span class="n">binary, Docker or Compose</span></div>
+<div class="kpi"><span class="k">Client software</span><span class="v">0</span><span class="n">any modern browser</span></div>
+<div class="kpi"><span class="k">Bundled fonts</span><span class="v">3</span><span class="n">IBM 3270 web faces</span></div>
+<div class="kpi"><span class="k">Export target</span><span class="v">JSON</span><span class="n">replayable by 3270Connect</span></div>
+</div>
+
+</div>
 
 ## Feature Highlights
 
