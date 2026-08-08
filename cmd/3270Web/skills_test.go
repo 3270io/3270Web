@@ -204,6 +204,53 @@ func TestRepeatLoadReturnsReminderNotBody(t *testing.T) {
 	}
 }
 
+// TestConversationHeaderDrivesDedup covers the headless path.
+//
+// The tracker was originally keyed only on the session cookie, so a client
+// with no cookie — which is every non-browser client — got a fresh tracker on
+// every request and the dedup silently did nothing. That is the surface where
+// conversations run longest and re-sending a playbook costs most, so it is
+// worth a test of its own rather than being folded into the cookie case.
+func TestConversationHeaderDrivesDedup(t *testing.T) {
+	_, r := skillsTestApp(t)
+
+	load := func(conversation string) map[string]any {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/skills/load?name=chaos-monkey", nil)
+		if conversation != "" {
+			req.Header.Set(ConversationHeader, conversation)
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		var out map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	first := load("conv-A")
+	if already, _ := first["already_load"].(bool); already {
+		t.Fatal("the first load in a conversation should return the body")
+	}
+	second := load("conv-A")
+	if already, _ := second["already_load"].(bool); !already {
+		t.Error("a repeat load in the same conversation should be deduplicated")
+	}
+
+	// A different conversation has seen nothing, even with no cookie in play.
+	other := load("conv-B")
+	if already, _ := other["already_load"].(bool); already {
+		t.Error("a second conversation was wrongly told it already had the skill")
+	}
+
+	// With no identifier at all we cannot tell callers apart, so nothing is
+	// deduplicated rather than the wrong caller being refused.
+	if already, _ := load("")["already_load"].(bool); already {
+		t.Error("an unidentified caller must not inherit another conversation's history")
+	}
+}
+
 func TestInstructionsListAndLoad(t *testing.T) {
 	_, r := skillsTestApp(t)
 

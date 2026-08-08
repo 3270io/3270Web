@@ -323,6 +323,15 @@ func buildRouter(app *App) (*gin.Engine, error) {
 }
 
 func main() {
+	// The MCP subcommand owns stdout from its first statement, so it must be
+	// dispatched before the startup log, the config load, or the deferred
+	// recover below — which shows a modal dialog on Windows, in front of a
+	// process no one is looking at.
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		runMCP(os.Args[2:])
+		return
+	}
+
 	baseDir := resolveBaseDir()
 	logFile, err := openStartupLog(baseDir)
 	if err == nil {

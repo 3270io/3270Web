@@ -78,10 +78,29 @@ func (app *App) forgetLoadSession(sessionID string) {
 	delete(app.loadSessions, sessionID)
 }
 
-// currentLoadSession resolves the tracker for the request's session, falling
-// back to a throwaway one for a request with no session so a caller is never
-// refused a skill for want of a cookie.
+// ConversationHeader lets a caller name the conversation a request belongs
+// to, for the purpose of "have I already been given this?".
+//
+// The browser panel does not need it: one terminal session is one
+// conversation, and the cookie already says which. A headless client has no
+// cookie and its conversation is not tied to a session at all — it may read
+// the catalogue before connecting anywhere, and keep the same conversation
+// across several sessions. Without a way to say so, every load looks like a
+// first load and the dedup silently does nothing on the surface where
+// conversations are longest.
+const ConversationHeader = "X-3270Web-Conversation"
+
+// currentLoadSession resolves the tracker for a request: an explicit
+// conversation header first, then the session cookie.
+//
+// A request with neither gets a throwaway tracker, so an anonymous caller is
+// never refused a skill for want of an identifier — it just does not get
+// deduplication, which is the right trade when we cannot tell one caller
+// from another.
 func (app *App) currentLoadSession(c *gin.Context) *agent.LoadSession {
+	if id := strings.TrimSpace(c.GetHeader(ConversationHeader)); id != "" {
+		return app.loadSessionFor("conversation:" + id)
+	}
 	if s := app.getSession(c); s != nil {
 		return app.loadSessionFor(s.ID)
 	}
