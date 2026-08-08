@@ -77,6 +77,7 @@ they are whether the thing behaves like a terminal. See the
 - [x] **Insert / overtype toggle** — *shipped: local Insert key, `^` in the OIA*
 - [x] **Type-ahead** — *shipped: characters typed during a host wait are buffered, not dropped*
 - [x] **Business / Engineering workspace modes** — *shipped: the default surface is the terminal; automation is one click away*
+- [x] **Focus mode** — *shipped: Alt+Enter fills the screen (true fullscreen) with an auto-hiding rail carrying the real toolbar; the OIA always stays*
 - [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full *numeric* fields, which covers the common real case but is not the full field-attribute rule
 - [ ] **Cursor movement over protected areas** — the cursor can only rest in an input field, so all-protected rows are skipped
 

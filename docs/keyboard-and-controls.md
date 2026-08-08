@@ -4,6 +4,28 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 
 ## Toolbar Controls
 
+### Focus mode
+
+++alt+enter++ (or the expand icon in the header, or the command palette)
+gives the terminal the whole screen. It is the same shortcut PCOMM and
+Quick3270 have used for full screen for decades.
+
+- The page header, card framing, background and application chip all go.
+- The toolbar and session tabs move into a slim rail at the top that stays
+  hidden until you move the pointer to the top edge or tab into it. A small
+  accent mark at the top centre shows where it is.
+- The terminal grows to fill the space, and the browser goes true
+  fullscreen — so it fills the *display*, not just a window.
+- The OIA always stays. It is the operator's instrument panel, and hiding
+  `X SYSTEM` would defeat the point of having it.
+
+Leave with ++alt+enter++ again, the toggle in the rail, or by leaving
+fullscreen (++esc++ or ++f11++). The choice is remembered per browser.
+
+The rail overlays nothing: the terminal reserves its height, so the top row
+of the screen — which on a 3270 is the title and message line — is never
+covered when the rail slides out.
+
 ### Sessions and tabs
 
 You can keep up to six host sessions open at once. The **+** button on the
