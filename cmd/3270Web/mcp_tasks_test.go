@@ -236,11 +236,7 @@ func TestMCPTaskListChangedIsNotified(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
-	go func() {
-		if err := server.Run(ctx, serverTransport); err != nil && ctx.Err() == nil {
-			t.Errorf("server.Run: %v", err)
-		}
-	}()
+	stopServer := serveMCP(t, server, serverTransport, ctx)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
@@ -254,7 +250,13 @@ func TestMCPTaskListChangedIsNotified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	t.Cleanup(func() { _ = session.Close() })
+	// Ordered teardown; see serveMCP for why the order is not left to the
+	// cleanup stack.
+	t.Cleanup(func() {
+		_ = session.Close()
+		cancel()
+		stopServer()
+	})
 
 	// Drain anything emitted while the tools were first registered.
 	drain(changed)
