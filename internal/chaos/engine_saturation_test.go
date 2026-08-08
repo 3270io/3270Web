@@ -49,7 +49,7 @@ func TestEngineStopsOnSaturation(t *testing.T) {
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -104,12 +104,12 @@ func TestSaturationStopStillWritesWorkflowOutput(t *testing.T) {
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if e.Status().Active {
+	if e.Active() {
 		t.Fatalf("engine still active; saturation should have stopped it")
 	}
 	if got := e.Status().TerminationReason; got != TerminationReasonSaturated {

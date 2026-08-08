@@ -641,7 +641,7 @@ func TestEngineStartStop(t *testing.T) {
 	// Wait for the engine to finish (MaxSteps = 3 with no delay).
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -715,7 +715,7 @@ func TestExportWorkflow(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -990,7 +990,7 @@ func TestEngineFirstScreenHintKey_UsesHintOnFirstAttempt(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1039,7 +1039,7 @@ func TestEngineFirstScreenHintKey_PreservesSamePrefilledHintValue(t *testing.T) 
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1085,7 +1085,7 @@ func TestEngineFirstScreenHintKey_ReusedWhenFirstScreenHashReappears(t *testing.
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1163,7 +1163,7 @@ func TestEngineFirstScreenHintKey_BlockedKeysApplyOnlyToFirstScreen(t *testing.T
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1311,7 +1311,7 @@ func TestEngineMetadata(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1353,7 +1353,7 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1490,7 +1490,7 @@ func TestEngineSingleCellInputsTargetOneFieldPerAttempt(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1537,7 +1537,7 @@ func TestEngineStatusIncludesMindMap(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1677,7 +1677,7 @@ func TestEngineStatusFiltersNoProgressAttemptsByDefault(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1714,7 +1714,7 @@ func TestSnapshotAndResume(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1747,7 +1747,7 @@ func TestSnapshotAndResume(t *testing.T) {
 	}
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e2.Status().Active {
+		if !e2.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1812,7 +1812,7 @@ func TestResumeThenTransitionDoesNotPanic(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1836,7 +1836,7 @@ func TestResumeThenTransitionDoesNotPanic(t *testing.T) {
 	}
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e2.Status().Active {
+		if !e2.Active() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -1872,7 +1872,7 @@ func TestStopIsIdempotent(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

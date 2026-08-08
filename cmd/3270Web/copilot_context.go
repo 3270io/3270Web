@@ -115,7 +115,7 @@ func writeKnowledgeContext(sb *strings.Builder, app *App, s *session.Session) {
 
 	active := false
 	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
-		active = eng.Status().Active
+		active = eng.Active()
 	}
 	if active {
 		sb.WriteString("- Chaos exploration: RUNNING\n")

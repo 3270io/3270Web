@@ -277,12 +277,12 @@ func runChaosExplorerScenarios(t *testing.T, screen *host.Screen, label string) 
 	// Confirm engine is no longer active after stop (optional: wait for goroutine).
 	deadline = time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if eng, ok := app.chaosEngines.get(sessID); !ok || !eng.Status().Active {
+		if eng, ok := app.chaosEngines.get(sessID); !ok || !eng.Active() {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if eng, ok := app.chaosEngines.get(sessID); ok && eng.Status().Active {
+	if eng, ok := app.chaosEngines.get(sessID); ok && eng.Active() {
 		t.Errorf("[%s] engine still active after stop", label)
 	}
 }
@@ -1359,7 +1359,7 @@ func TestChaosLoadAndResume(t *testing.T) {
 	// Wait for resumed engine to finish.
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if eng, ok := app.chaosEngines.get(sessID); !ok || !eng.Status().Active {
+		if eng, ok := app.chaosEngines.get(sessID); !ok || !eng.Active() {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)

@@ -83,7 +83,7 @@ func TestStartFailsWhenAllKeysBlacklisted(t *testing.T) {
 	if err := e.Start(); err == nil {
 		t.Fatalf("Start() = nil, want error when all usable keys are blacklisted")
 	}
-	if e.Status().Active {
+	if e.Active() {
 		t.Fatalf("engine active after Start() refused to launch")
 	}
 }
@@ -160,7 +160,7 @@ func waitForChaosStop(t *testing.T, e *Engine, within time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(within)
 	for time.Now().Before(deadline) {
-		if !e.Status().Active {
+		if !e.Active() {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)

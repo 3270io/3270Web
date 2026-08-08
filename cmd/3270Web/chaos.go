@@ -122,7 +122,7 @@ func (s *chaosEngineStore) set(sessionID string, e *chaos.Engine) {
 func (s *chaosEngineStore) startIfAbsent(sessionID string, build func() (*chaos.Engine, error)) (eng *chaos.Engine, err error, started bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+	if existing, ok := s.engines[sessionID]; ok && existing.Active() {
 		return existing, nil, false
 	}
 	built, buildErr := build()
@@ -153,7 +153,7 @@ func (s *chaosEngineStore) startIfAbsent(sessionID string, build func() (*chaos.
 func (s *chaosEngineStore) resumeIfAbsent(sessionID string, build func() (*chaos.Engine, error), resume func(*chaos.Engine) error) (eng *chaos.Engine, err error, started bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+	if existing, ok := s.engines[sessionID]; ok && existing.Active() {
 		return existing, nil, false
 	}
 	built, buildErr := build()
@@ -179,7 +179,7 @@ func (s *chaosEngineStore) resumeIfAbsent(sessionID string, build func() (*chaos
 func (s *chaosEngineStore) loadRecordingIfInactive(sessionID string, run *chaos.SavedRun) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, ok := s.engines[sessionID]; ok && existing.Status().Active {
+	if existing, ok := s.engines[sessionID]; ok && existing.Active() {
 		return false
 	}
 	delete(s.removed, sessionID)
@@ -595,7 +595,7 @@ func (app *App) ChaosStopHandler(c *gin.Context) {
 	}
 
 	eng, ok := app.chaosEngines.get(s.ID)
-	if !ok || !eng.Status().Active {
+	if !ok || !eng.Active() {
 		c.JSON(http.StatusOK, gin.H{"status": "not running"})
 		return
 	}
@@ -613,7 +613,7 @@ func (app *App) ChaosRemoveHandler(c *gin.Context) {
 		return
 	}
 
-	if eng, ok := app.chaosEngines.get(s.ID); ok && eng.Status().Active {
+	if eng, ok := app.chaosEngines.get(s.ID); ok && eng.Active() {
 		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is running; stop it before removing"})
 		return
 	}
