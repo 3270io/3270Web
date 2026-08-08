@@ -115,7 +115,7 @@ Click **View chaos discovery report** in the toolbar, or call `POST /chaos/repor
 - Per-screen detail: input fields with success/progression counts, auto-blocked and auto-known keys, list of "working" vs "tried but no progress" AID keys
 - Suggested next experiments: per-screen list of untried (and non-auto-blocked) AID keys to try next
 
-The report is also exposed to the Copilot side panel via the `chaos_report` tool.
+The report is also exposed to the AI chat side panel via the `chaos_report` tool.
 
 ## Mind Map Export / Import
 

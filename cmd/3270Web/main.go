@@ -27,6 +27,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
+	"github.com/jnnngs/3270Web/internal/aiprovider"
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
@@ -62,6 +63,10 @@ type App struct {
 	taskStoreOnce sync.Once
 	taskRunStore  *taskRunStore
 	taskRunsOnce  sync.Once
+	// aiConfigStore holds each browser's AI provider choice and credentials
+	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
+	// copilotAuthStore.
+	aiConfigStore *aiprovider.ConfigStore
 }
 
 // connectionProfiles lazily opens the connection-profile store, which lives
@@ -677,6 +682,9 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 				app.reapIdleSessions(maxIdle)
 				if app.copilotAuthStore != nil {
 					app.copilotAuthStore.EvictIdle(copilotIdentityIdleTimeout)
+				}
+				if app.aiConfigStore != nil {
+					app.aiConfigStore.EvictIdle(copilotIdentityIdleTimeout)
 				}
 			}
 		}
