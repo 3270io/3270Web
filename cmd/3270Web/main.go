@@ -32,6 +32,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
+	"github.com/jnnngs/3270Web/internal/task"
 )
 
 type App struct {
@@ -55,6 +56,12 @@ type App struct {
 	connProfiles     *connectionProfileStore
 	connProfilesOnce sync.Once
 	copilotAuthStore *copilot.Store
+	// tasks holds the Guided Business Task catalogue; taskRunStore holds the
+	// in-flight run per session. See tasks.go.
+	tasks         *task.Store
+	taskStoreOnce sync.Once
+	taskRunStore  *taskRunStore
+	taskRunsOnce  sync.Once
 }
 
 // connectionProfiles lazily opens the connection-profile store, which lives
@@ -251,6 +258,14 @@ func main() {
 	r.GET("/api/profiles", app.ProfilesListHandler)
 	r.POST("/api/profiles", app.ProfilesSaveHandler)
 	r.POST("/api/profiles/delete", app.ProfilesDeleteHandler)
+
+	// Guided Business Tasks. See tasks.go.
+	r.GET("/tasks", app.TasksListHandler)
+	r.POST("/tasks/save", app.TasksSaveHandler)
+	r.POST("/tasks/delete", app.TasksDeleteHandler)
+	r.POST("/tasks/run", app.TasksRunHandler)
+	r.GET("/tasks/status", app.TasksStatusHandler)
+	r.POST("/tasks/cancel", app.TasksCancelHandler)
 
 	r.GET("/sessions", app.SessionsListHandler)
 	r.POST("/sessions/new", app.SessionsNewHandler)
@@ -709,6 +724,14 @@ func (app *App) cleanupSession(s *session.Session) {
 	app.chaosEngines.clearRemoved(s.ID)
 	if app.profiles != nil {
 		app.profiles.delete(s.ID)
+	}
+	// A finished task run stays readable so the browser can fetch its result
+	// after the fact; the session ending is what makes it collectable. Without
+	// this the run map grows by one entry for every session that ever ran a
+	// task, for the life of the process.
+	if app.taskRunStore != nil {
+		app.taskRunStore.cancel(s.ID)
+		app.taskRunStore.forget(s.ID)
 	}
 	app.SessionManager.RemoveSession(s.ID)
 }
