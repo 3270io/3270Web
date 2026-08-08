@@ -9,7 +9,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=10">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=12">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -38,6 +38,7 @@
     <script src="/static/session-tabs.js" defer></script>
     <script src="/static/focus-mode.js" defer></script>
     <script src="/static/connection-profiles.js" defer></script>
+    <script src="/static/file-transfer.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
@@ -48,7 +49,7 @@
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=3" defer></script>
-    <script src="/static/ui-polish.js?v=4" defer></script>
+    <script src="/static/ui-polish.js?v=5" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -149,6 +150,9 @@
                 </button>
                 <button type="button" class="icon-button" data-hotspots-toggle aria-pressed="true" data-tippy-content="Toggle hotspots" aria-label="Toggle hotspots">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 2h2v4h-2V2zm7.07 2.93 1.41 1.41-2.83 2.83-1.41-1.41 2.83-2.83zM18 11h4v2h-4v-2zM6.34 4.34 9.17 7.17 7.76 8.58 4.93 5.75l1.41-1.41zM2 11h4v2H2v-2zm10 1a5 5 0 0 1 3.54 8.54l-1.42-1.42A3 3 0 1 0 9.88 15.7l-1.42 1.42A5 5 0 0 1 12 12z"/></svg>
+                </button>
+                <button type="button" class="icon-button" data-transfer-open data-tippy-content="File transfer (IND$FILE)" aria-label="File transfer">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
                 </button>
                 <button type="button" class="icon-button" data-history-open data-tippy-content="Screen history" aria-label="Screen history">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 7 7 6.97 6.97 0 0 1-4.95-2.05l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>

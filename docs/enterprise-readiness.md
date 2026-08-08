@@ -18,9 +18,9 @@ they produce a different priority order.
     All six Phase 1 items are implemented — local cursor navigation, a
     real OIA, reconnect, screen and block copy, workspace modes, and
     3270 field semantics. Five Phase 2 items have followed: concurrent
-    session tabs, connection profiles, hotspots, find on screen, and
-    screen history — plus a focus mode that gives the terminal the whole
-    screen.
+    session tabs, connection profiles, IND$FILE file transfer, hotspots,
+    find on screen, and screen history — plus a focus mode that gives the
+    terminal the whole screen.
 
     Section 3 and section 5 describe the state that motivated the work
     and are kept as the rationale; each finding carries a note on how it
@@ -463,7 +463,7 @@ Rough sizing; sequence matters more than the estimates.
 |---|---|---|---|
 | 7 | Multiple concurrent sessions with tabs | L | ✅ |
 | 8 | Server-side connection profiles: TLS, LU, model, codepage per profile | M | ✅ |
-| 9 | IND$FILE via s3270 `Transfer()` | M | |
+| 9 | IND$FILE via s3270 `Transfer()` | M | ✅ |
 | 10 | Hotspots — clickable PF labels and URLs | S | ✅ |
 | 11 | Screen history / scrollback | M | ✅ |
 | 12 | Find on screen | S | ✅ |
@@ -523,10 +523,11 @@ Neither was in scope; both were real.
 
 ### Phase 2 so far
 
-Five of the seven Phase 2 items are done:
+Six of the seven Phase 2 items are done:
 
 | # | Item | Outcome |
 |---|---|---|
+| 9 | IND$FILE | Send and receive, text and binary, with TSO dataset-creation options behind a disclosure. The local path is always server-chosen — a request names the *host* file and the direction, never a path on the server disk. |
 | 8 | Connection profiles | Per-host TLS, skip-verify, LU name, model and code page, stored server-side. Most of a profile becomes s3270's own target syntax (`L:Y:LU01@host:992`), which the UI shows verbatim so what you check is what gets dialled. |
 | 7 | Concurrent sessions | Up to six live host sessions with a tab bar. The refactor turned out to be avoidable: keeping the existing cookie as "the active session" and adding a roster cookie alongside it meant no handler had to change. |
 | 10 | Hotspots | PF/PA labels and URLs on screen are clickable. Never placed over an input field, and only real key ranges are recognised, so a screen full of numbers does not sprout dead controls. |
@@ -536,8 +537,7 @@ Five of the seven Phase 2 items are done:
 The three share a new `screen-grid.js` that owns the character grid and
 the cell geometry; whole-screen and block copy were moved onto it too.
 
-**Still open in Phase 2:** IND$FILE file transfer and the keyboard
-remapping UI.
+**Still open in Phase 2:** the keyboard remapping UI.
 
 A note on the concurrent-sessions item, since this document previously
 called it a refactor that would touch every handler: it did not. The

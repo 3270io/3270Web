@@ -26,6 +26,30 @@ The rail overlays nothing: the terminal reserves its height, so the top row
 of the screen — which on a 3270 is the title and message line — is never
 covered when the rail slides out.
 
+### File transfer (IND$FILE)
+
+The **transfer** button on the toolbar (also in the command palette) sends a
+file to the host or receives one, using IND$FILE.
+
+- **Host file** is the dataset or file name — `USER.DATA(MEMBER)` for a PDS
+  member.
+- **Mode** is text (with ASCII/EBCDIC translation and line-ending handling)
+  or binary.
+- **New dataset options** — record format, record length, block size and
+  space allocation — sit behind a disclosure, because they only matter when
+  sending to a dataset that does not exist yet.
+
+!!! warning "The session has to be at a command prompt"
+
+    IND$FILE is a program that runs *on the host*, so the session must be
+    somewhere that can start it — a TSO READY prompt, ISPF option 6, or the
+    CMS prompt. A transfer started from inside an application screen will
+    fail, and the host's own error is what gets reported back.
+
+Uploads are capped at 16 MiB and downloads at 64 MiB. IND$FILE moves data
+over the 3270 data stream, which is slow — a large transfer takes minutes,
+and the dialog says so while it runs.
+
 ### Connection profiles
 
 TLS, the LU name, the terminal model and the code page used to be
