@@ -137,7 +137,30 @@
       else drawer.appendChild(nested);
     }
 
+    linkTitle();
     sync(read());
+  }
+
+  /** Material renders the site name in the header as a bare <span>, so the only
+   *  way home is the small logo icon beside it — not where anyone aims. Wrap
+   *  the name in a link pointing wherever the logo already points, rather than
+   *  hardcoding a root, so it stays correct under any base URL. Idempotent:
+   *  build() re-runs on every instant navigation. */
+  function linkTitle() {
+    var topic = document.querySelector(
+      '.md-header__title .md-header__topic:first-child .md-ellipsis'
+    );
+    if (!topic || topic.querySelector('a')) return;
+
+    var logo = document.querySelector('.md-header__button.md-logo');
+    if (!logo || !logo.getAttribute('href')) return;
+
+    var link = document.createElement('a');
+    link.className = 't3270-home-link';
+    link.href = logo.getAttribute('href');
+    link.textContent = topic.textContent.trim();
+    topic.textContent = '';
+    topic.appendChild(link);
   }
 
   /* --- Boot --------------------------------------------------------------- */
