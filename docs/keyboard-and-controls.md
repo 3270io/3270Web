@@ -257,7 +257,49 @@ Common mappings used by 3270Web:
 
 Additional 3270 actions available from the keypad and the command palette
 include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and
-NewLine.
+NewLine. These have no default key of their own; the keyboard mapping
+dialog below can give them one.
+
+### Remapping the keyboard
+
+Twenty years of muscle memory from PCOMM or Quick3270 does not transfer to
+a fixed key layout, so every one of these actions can be rebound. Open
+**Keyboard mapping** from the toolbar (the keyboard icon, next to Profiles
+and Settings) or from the command palette.
+
+- **Rebind** puts the row into capture: press the combination you want and
+  it is recorded. Escape cancels; the terminal never sees the keystroke.
+- A key can only mean one thing, so binding a combination that is already
+  in use **moves** it, and the dialog says which action lost it.
+- **Default** restores one action's built-in key. **Reset all** clears
+  every custom binding.
+- Custom bindings *layer over* the built-ins — the defaults in the table
+  above keep working unless you rebind them specifically. The greyed key
+  beside each action is that built-in, shown so you can see what a key
+  already does before you take it.
+
+Combinations the browser reserves for itself (`Ctrl+W`, `Ctrl+T`, `F11`)
+cannot be captured by any web page, 3270Web included.
+
+#### Sharing and migrating a layout
+
+Bindings are stored in the browser, not on the server. A keyboard layout
+is a personal preference and there is no user identity to attach it to,
+unlike a connection profile, which is deployment configuration an
+administrator sets once.
+
+- **Export** writes the bindings to a JSON file; **Import JSON** reads one
+  back. This is how you move a layout to another machine or browser, and
+  how a team shares a house standard.
+- **Import PCOMM** reads a PCOMM `.KMP` keyboard file directly, so a
+  migration from Personal Communications does not start by rebuilding
+  everyone's layout by hand.
+
+The PCOMM dialect varies between versions, and the importer is deliberately
+tolerant. It maps what it recognises and **reports the number of lines it
+could not** rather than dropping them silently — a partial import that
+tells you what is missing beats one that looks complete and is not. Check
+the reported count, and rebind anything it skipped by hand.
 
 ### Cursor movement is local
 

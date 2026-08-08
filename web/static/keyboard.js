@@ -614,7 +614,17 @@
       "[data-modal]",
       "[data-copilot-clear-modal]",
       "[data-copilot-modal]",
-      "[data-history-modal]"
+      "[data-history-modal]",
+      // These three were missing, so a keystroke landing on a button inside
+      // them (rather than a text input, which isEditableTarget already
+      // covers) was still reaching the host — pressing F3 to dismiss the
+      // transfer dialog would fire PF3 at the application behind it.
+      "[data-transfer-modal]",
+      "[data-profiles-modal]",
+      // The keymap editor especially: this handler is on window, so its
+      // capture listener runs before the editor's document one, and without
+      // this the key being recorded would also be sent to the host.
+      "[data-keymap-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
@@ -942,6 +952,21 @@
       return "CHAR_" + event.key.toUpperCase();
     }
     return "";
+  }
+
+  // resolveCustomBinding asks keymap.js whether this keystroke has a
+  // user-defined meaning. Returns "" when it does not, or when the module is
+  // absent — the terminal must keep working with its built-in mapping if the
+  // keymap script fails to load.
+  function resolveCustomBinding(event) {
+    if (!window.ThreeSeventyWeb || !window.ThreeSeventyWeb.keymap) {
+      return "";
+    }
+    try {
+      return window.ThreeSeventyWeb.keymap.resolve(event) || "";
+    } catch (_) {
+      return "";
+    }
   }
 
   function isEditableTarget(target) {
@@ -1466,6 +1491,32 @@
       return;
     }
 
+    // A user's own binding wins over the built-in mapping. Checked before
+    // everything else so someone who has rebound, say, Ctrl+Enter to PF12
+    // gets PF12 rather than the default Enter — the whole point of remapping
+    // is to override what the terminal would otherwise do.
+    var bound = resolveCustomBinding(event);
+    if (bound) {
+      event.preventDefault();
+      if (isCursorNavigationKey(bound)) {
+        if (submitting) {
+          bufferTypeAhead({ type: "nav", key: bound });
+        } else if (!handleLocalNavigation(bound, formId)) {
+          sendAidKey(bound, formId, isScreenInput(event.target) ? event.target : null);
+        }
+        return;
+      }
+      if (bound === specialKeys.Insert) {
+        setInsertMode(!insertMode);
+        return;
+      }
+      if (bound === specialKeys.Reset && clearOperatorError(formId)) {
+        return;
+      }
+      sendAidKey(bound, formId, event.target);
+      return;
+    }
+
     var isEscapeKey = event.key === "Escape" || (event.keyCode || event.which) === 27;
     if (clearConfirmArmed && !isEscapeKey) {
       disarmClearConfirmation();
@@ -1958,6 +2009,50 @@
     container.appendChild(maxGroup);
   }
 
+  // The physical key each 3270 action answers to by default. This is the one
+  // description of the built-in mapping: the virtual keypad prints it on the
+  // key caps, and the keymap editor shows it beside each action so an
+  // operator can see what a key already does before rebinding over it. Kept
+  // at module scope rather than inside renderKeypad() because a second copy
+  // in the editor would drift the first time a default changed.
+  var defaultKeyMappings = {
+    Enter: "Enter",
+    Tab: "Tab",
+    BackTab: "Shift+Tab",
+    Clear: "Esc",
+    BackSpace: "Backspace",
+    Delete: "Delete",
+    Insert: "Insert",
+    Home: "Home",
+    Up: "ArrowUp",
+    Down: "ArrowDown",
+    Left: "ArrowLeft",
+    Right: "ArrowRight",
+    PA1: "Alt+F1",
+    PA2: "Alt+F2",
+    PA3: "Alt+F3"
+  };
+
+  function pfMapping(pfNum) {
+    if (pfNum >= 1 && pfNum <= 12) {
+      return "F" + pfNum;
+    }
+    return "Shift+F" + (pfNum - 12);
+  }
+
+  // defaultKeyFor returns the built-in key for an action, or "" when the
+  // action has no keyboard default and is reachable only from the keypad,
+  // the toolbar or a custom binding.
+  function defaultKeyFor(action) {
+    var name = String(action || "").trim();
+    var pf = name.match(/^PF(\d{1,2})$/);
+    if (pf) {
+      var n = parseInt(pf[1], 10);
+      return n >= 1 && n <= 24 ? pfMapping(n) : "";
+    }
+    return defaultKeyMappings[name] || "";
+  }
+
   function renderKeypad(containerId) {
     var container = containerId
       ? document.getElementById(containerId)
@@ -2025,30 +2120,7 @@
       PF12: "PF12 Cancel / Confirm"
     };
 
-    var keyMappings = {
-      Enter: "Enter",
-      Tab: "Tab",
-      BackTab: "Shift+Tab",
-      Clear: "Esc",
-      BackSpace: "Backspace",
-      Delete: "Delete",
-      Insert: "Insert",
-      Home: "Home",
-      Up: "ArrowUp",
-      Down: "ArrowDown",
-      Left: "ArrowLeft",
-      Right: "ArrowRight",
-      PA1: "Alt+F1",
-      PA2: "Alt+F2",
-      PA3: "Alt+F3"
-    };
-
-    function pfMapping(pfNum) {
-      if (pfNum >= 1 && pfNum <= 12) {
-        return "F" + pfNum;
-      }
-      return "Shift+F" + (pfNum - 12);
-    }
+    var keyMappings = defaultKeyMappings;
 
     var pfGroup = document.createElement("div");
     pfGroup.className = "h3270-keypad-group";
@@ -2352,7 +2424,8 @@
     sendKey: function (key, formId) {
       window.sendKey(key, formId);
     },
-    focusTerminal: focusTerminalContext
+    focusTerminal: focusTerminalContext,
+    defaultKeyFor: defaultKeyFor
   };
 
   document.addEventListener("DOMContentLoaded", function () {
