@@ -71,6 +71,13 @@ type App struct {
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.
 	aiConfigStore *aiprovider.ConfigStore
+	// snapshotStore holds the named point-in-time screen copies a session has
+	// taken; screenTraceStore holds its running or finished screen capture.
+	// See snapshots.go and screen_trace.go.
+	snapshotStore     *snapshotStore
+	snapshotStoreOnce sync.Once
+	screenTraceStore  *screenTraceStore
+	screenTraceOnce   sync.Once
 	// catalogueFields holds the skills/instructions/extensions catalogue and
 	// the per-conversation load trackers. See skills.go.
 	catalogueFields
@@ -283,6 +290,8 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
 	r.GET("/host/query", app.HostQueryHandler)
+	r.GET("/host/toggles", app.HostTogglesHandler)
+	r.POST("/host/toggles", app.HostToggleSetHandler)
 
 	// Chaos exploration handlers
 	r.POST("/chaos/start", app.ChaosStartHandler)
@@ -788,6 +797,17 @@ func (app *App) cleanupSession(s *session.Session) {
 	if app.taskRunStore != nil {
 		app.taskRunStore.cancel(s.ID)
 		app.taskRunStore.forget(s.ID)
+	}
+	// Snapshots are a working note taken during a run, so they end with the
+	// run. A screen trace holds a file handle inside the terminal, which the
+	// subprocess exiting closes for us; what is dropped here is only this
+	// server's record of where the file went — the file itself stays on disk
+	// for whoever asked for it.
+	if app.snapshotStore != nil {
+		app.snapshotStore.forget(s.ID)
+	}
+	if app.screenTraceStore != nil {
+		app.screenTraceStore.forget(s.ID)
 	}
 	// Which skills a conversation has already been given is only meaningful
 	// while that conversation exists, and the map would otherwise grow by one

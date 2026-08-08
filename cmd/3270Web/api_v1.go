@@ -101,6 +101,26 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.POST("/wait", app.ScreenWaitHandler)
 	g.GET("/context", app.CopilotContextHandler)
 
+	// Point-in-time screen copies, and the comparison between two of them.
+	// This is the regression-testing surface: capture the screen a flow is
+	// meant to land on, run it again later, ask what moved. See snapshots.go.
+	g.POST("/snapshots", app.APITakeSnapshot)
+	g.GET("/snapshots", app.APIListSnapshots)
+	g.DELETE("/snapshots", app.APIDeleteSnapshot)
+	g.POST("/snapshots/diff", app.APIDiffSnapshots)
+
+	// The terminal's own display toggles — monocase, crosshair, cursor blink.
+	// A narrow allowlist; see internal/host/toggles.go for why it is narrow.
+	g.GET("/toggles", app.APIToggles)
+	g.POST("/toggles", app.APISetToggle)
+
+	// Screen tracing. Unlike everything else here this writes a file on the
+	// server, so it is behind ALLOW_SCREEN_TRACE as well as the token. See
+	// screen_trace.go.
+	g.POST("/screen-trace", app.APIStartScreenTrace)
+	g.DELETE("/screen-trace", app.APIStopScreenTrace)
+	g.GET("/screen-trace", app.APIScreenTraceStatus)
+
 	// Chaos exploration.
 	g.POST("/chaos/start", app.ChaosStartHandler)
 	g.POST("/chaos/stop", app.ChaosStopHandler)
