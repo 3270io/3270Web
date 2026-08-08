@@ -38,24 +38,59 @@ setting that looks like protection but is not would be worse than none at all.
 
 ## First start
 
-Starting with `AUTH_MODE=local` and no accounts creates one and prints a
-one-time password to the log:
+Start with `AUTH_MODE=local` and no accounts, and 3270Web waits in setup mode:
+every page redirects to a one-time setup screen where you create the first
+administrator.
+
+To stop the first person who reaches the port from claiming the instance, the
+form asks for a **setup code** printed in the server log:
 
 ```
-auth: created the first admin account "admin"
-auth: one-time password: l0DcFoiufFprA0k8QFUB1HOL
-auth: this is shown once and must be changed at first sign-in
+auth: no accounts yet — open the web interface to create the first administrator
+auth: setup code: EJWQ-RUYN-7XL3-PT3O
+auth: the code is required once, and stops working as soon as the account exists
 ```
 
-Under Docker, read it with `docker compose logs 3270Web`.
+Under Docker, read it with `docker compose logs 3270Web`. Case, spaces and
+dashes are all ignored, so it can be typed however it was copied.
 
-The password is generated per instance, never a fixed default, and shown once.
-The account can do nothing except change its own password until it does, so a
-password sitting in a log file does not stay usable.
+Open 3270Web in a browser, enter the code, and choose your own username and
+password. You are signed in immediately, and setup closes for good — the page
+redirects to the sign-in form from then on, and the code stops working.
+
+!!! note "Nothing is created behind your back"
+    3270Web never invents an account or a default password. Until you complete
+    setup there are no credentials to leak, and the administrator's password is
+    one you chose rather than one printed in a log.
+
+If you would rather not use the web form, create the account with the CLI
+before starting the server. Setup does not arm when an account already exists:
+
+```bash
+3270Web user add root --admin
+```
 
 ## Managing accounts
 
-Account management is a console command. It edits the same file the server
+Administrators get an **Accounts** page in the web interface, reachable from
+the button beside their name in the header, or directly at `/admin/users`. From
+there you can add accounts, change roles, reset passwords, disable and re-enable
+people, and delete accounts.
+
+A few actions are deliberately unavailable, because each would strand you on a
+page you could no longer use, with no way back except the CLI:
+
+- Removing your own administrator role
+- Disabling or deleting your own account
+- Demoting, disabling or deleting the last enabled administrator
+
+Disabling an account, resetting its password or deleting it signs that person
+out everywhere immediately. A password an administrator sets is temporary: its
+owner is asked to choose their own the next time they sign in.
+
+### From the command line
+
+Account management is also a console command. It edits the same file the server
 reads, so it works whether or not the server is running — a new account can
 sign in immediately, without a restart.
 

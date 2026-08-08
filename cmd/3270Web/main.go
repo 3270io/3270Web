@@ -58,6 +58,8 @@ type App struct {
 	authBindIP          string
 	authIdleTimeout     time.Duration
 	authAbsoluteTimeout time.Duration
+	// setup tracks whether the instance still needs its first administrator.
+	setup setupState
 
 	themeCache     map[string]string
 	themeCacheMu   sync.RWMutex
@@ -227,6 +229,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// one answer to "who is this", then refuse anonymous callers when the mode
 	// requires a login. RequireLogin is a no-op under AUTH_MODE=none.
 	r.Use(app.Authenticate())
+	r.Use(app.RequireSetup())
 	r.Use(app.RequireLogin())
 	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
 	if tmplErr == nil {
@@ -261,6 +264,16 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET(changePasswordPath, app.ChangePasswordPageHandler)
 	r.POST(changePasswordPath, app.ChangePasswordHandler)
 	r.GET("/api/whoami", app.WhoAmIHandler)
+	r.GET(setupPath, app.SetupPageHandler)
+	r.POST(setupPath, app.SetupHandler)
+
+	// Account administration.
+	admin := r.Group("", app.RequireAdmin())
+	admin.GET(adminUsersPath, app.AdminUsersPageHandler)
+	admin.GET("/api/admin/users", app.AdminListUsersHandler)
+	admin.POST("/api/admin/users", app.AdminCreateUserHandler)
+	admin.PATCH("/api/admin/users/:id", app.AdminUpdateUserHandler)
+	admin.DELETE("/api/admin/users/:id", app.AdminDeleteUserHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
@@ -901,6 +914,7 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		// escapes attribute values for us, so a name containing markup
 		// cannot break out.
 		"ThemesJSON": themesJSON,
+		"Auth":       app.authView(c),
 	})
 }
 
@@ -1138,6 +1152,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "screen.html", gin.H{
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
+		"Auth":                    app.authView(c),
 		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
 		"Fonts":                   app.Config.Fonts.Fonts,
 		"SelectedColorScheme":     snap.Prefs.ColorScheme,
@@ -3981,37 +3996,7 @@ func (app *App) configureAuth() error {
 
 	// From here on the instance requires accounts, so refuse to start without
 	// a usable store rather than presenting a login nobody can pass.
-	count, err := app.userStore().Count()
-	if err != nil {
-		return fmt.Errorf("read user store %s: %w", app.userStore().Path(), err)
-	}
-	if count == 0 {
-		if err := app.bootstrapFirstAdmin(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// bootstrapFirstAdmin creates the initial account on first start.
-//
-// The password is generated rather than fixed, printed once, and marked for
-// change at first login: a well-known default would be a worse credential than
-// no authentication at all, because it would look like protection.
-func (app *App) bootstrapFirstAdmin() error {
-	password, err := users.GeneratePassword()
-	if err != nil {
-		return fmt.Errorf("generate bootstrap password: %w", err)
-	}
-	user, err := app.userStore().Add("admin", password, authz.RoleAdmin, true)
-	if err != nil {
-		return fmt.Errorf("create the first admin account: %w", err)
-	}
-
-	log.Printf("auth: created the first admin account %q", user.Username)
-	log.Printf("auth: one-time password: %s", password)
-	log.Printf("auth: this is shown once and must be changed at first sign-in")
-	return nil
+	return app.beginSetupIfNeeded()
 }
 
 // envDuration reads a duration setting, falling back when unset or unparseable.

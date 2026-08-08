@@ -2,10 +2,12 @@ package users
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jnnngs/3270Web/internal/authz"
@@ -359,5 +361,152 @@ func TestFileFormatIsStable(t *testing.T) {
 		if _, ok := parsed.Users[0][key]; !ok {
 			t.Errorf("stored user is missing %q", key)
 		}
+	}
+}
+
+func TestAddFirstAdmin(t *testing.T) {
+	s := newTestStore(t)
+
+	created, err := s.AddFirstAdmin("root", testPassword)
+	if err != nil {
+		t.Fatalf("AddFirstAdmin: %v", err)
+	}
+	if created.Role != authz.RoleAdmin {
+		t.Errorf("role = %q, want %q", created.Role, authz.RoleAdmin)
+	}
+	// The account is chosen by its owner, so unlike an issued password it does
+	// not need replacing before use.
+	if created.MustChangePassword {
+		t.Error("a self-chosen first password should not require a change")
+	}
+	if _, err := s.Authenticate("root", testPassword); err != nil {
+		t.Errorf("the first admin cannot log in: %v", err)
+	}
+}
+
+// Setup is reachable without credentials, so a second caller arriving after
+// the first must not be able to add themselves as an administrator.
+func TestAddFirstAdminRefusesOnceAccountsExist(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.AddFirstAdmin("root", testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddFirstAdmin("mallory", testPassword); err != ErrNotFirstUser {
+		t.Errorf("second AddFirstAdmin gave %v, want %v", err, ErrNotFirstUser)
+	}
+
+	list, err := s.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Username != "root" {
+		t.Errorf("account list = %v, want only root", list)
+	}
+}
+
+func TestAddFirstAdminConcurrent(t *testing.T) {
+	s := newTestStore(t)
+
+	var wg sync.WaitGroup
+	created := make([]bool, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := s.AddFirstAdmin(fmt.Sprintf("admin%d", i), testPassword)
+			created[i] = err == nil
+		}(i)
+	}
+	wg.Wait()
+
+	wins := 0
+	for _, ok := range created {
+		if ok {
+			wins++
+		}
+	}
+	if wins != 1 {
+		t.Errorf("%d concurrent callers succeeded, want exactly 1", wins)
+	}
+	if n, _ := s.Count(); n != 1 {
+		t.Errorf("account count = %d, want 1", n)
+	}
+}
+
+func TestSetRole(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("root", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add("bob", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.SetRole("bob", authz.RoleAdmin); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	list, _ := s.List()
+	for _, u := range list {
+		if u.Username == "bob" && u.Role != authz.RoleAdmin {
+			t.Errorf("bob role = %q, want admin", u.Role)
+		}
+	}
+
+	if err := s.SetRole("bob", authz.RoleUser); err != nil {
+		t.Errorf("demote with another admin present: %v", err)
+	}
+	// root is now the only admin.
+	if err := s.SetRole("root", authz.RoleUser); err == nil {
+		t.Error("demoting the only admin was allowed")
+	}
+	if err := s.SetRole("root", "wizard"); err == nil {
+		t.Error("an unknown role was accepted")
+	}
+	if err := s.SetRole("ghost", authz.RoleUser); err != ErrUserNotFound {
+		t.Errorf("unknown user gave %v, want %v", err, ErrUserNotFound)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("root", testPassword, authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add("bob", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Delete("bob"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := s.Authenticate("bob", testPassword); err != ErrInvalidCredentials {
+		t.Error("a deleted account can still log in")
+	}
+	if err := s.Delete("root"); err == nil {
+		t.Error("deleting the only admin was allowed")
+	}
+	if err := s.Delete("ghost"); err != ErrUserNotFound {
+		t.Errorf("unknown user gave %v, want %v", err, ErrUserNotFound)
+	}
+}
+
+func TestRequirePasswordChange(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Add("bob", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RequirePasswordChange("bob"); err != nil {
+		t.Fatalf("RequirePasswordChange: %v", err)
+	}
+	got, err := s.Authenticate("bob", testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.MustChangePassword {
+		t.Error("the account was not flagged")
+	}
+	if err := s.RequirePasswordChange("ghost"); err != ErrUserNotFound {
+		t.Errorf("unknown user gave %v, want %v", err, ErrUserNotFound)
 	}
 }

@@ -5,42 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=1">
     <script src="/static/theme.js?v=8" defer></script>
+    <script src="/static/background.js" defer></script>
+    <script src="/static/auth-form.js?v=1" defer></script>
 </head>
 <body>
     <script src="/static/early-theme-init.js"></script>
-    <div class="bg-overlay" data-bg-toggle title="Click to toggle background animation" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
+    <div class="bg-overlay" aria-hidden="true">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
-    <div class="error-page">
-        <div class="error-card">
-            <h1 class="error-title">Sign in to 3270Web</h1>
+
+    <main class="auth-wrap">
+        <div class="auth-card">
+            <div class="auth-head">
+                {{ template "brand-mark" }}
+                <h1 class="auth-title">3270Web</h1>
+            </div>
+            <p class="auth-sub">Sign in to reach your terminal sessions.</p>
 
             {{ if .Error }}
-            <p class="error-message" role="alert" aria-live="assertive">{{ .Error }}</p>
+            <div class="auth-alert auth-alert--error" role="alert" aria-live="assertive">
+                <span>{{ .Error }}</span>
+            </div>
             {{ end }}
 
-            <form action="/login" method="post" class="login-form" autocomplete="on">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" autocomplete="username"
-                       autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+            <form action="/login" method="post" class="auth-form" data-auth-form>
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" autocomplete="username"
+                           autocapitalize="none" autocorrect="off" spellcheck="false"
+                           required autofocus>
+                </div>
 
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password"
-                       autocomplete="current-password" required>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password"
+                           autocomplete="current-password" required>
+                </div>
 
-                <button type="submit">Sign in</button>
+                <button type="submit" class="auth-submit">Sign in</button>
             </form>
 
             {{ if .ShowNoTLS }}
-            <p class="login-note">
-                This connection is not encrypted. Your password and session are
-                visible to anyone who can observe traffic on this network.
-            </p>
+            <div class="auth-alert auth-alert--warn" style="margin-top:18px;margin-bottom:0">
+                <span>
+                    This connection is not encrypted. Your password and session
+                    are visible to anyone who can observe traffic on this network.
+                </span>
+            </div>
             {{ end }}
         </div>
-    </div>
-    <script src="/static/background.js" defer></script>
+    </main>
 </body>
 </html>

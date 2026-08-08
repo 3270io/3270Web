@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3270Web - Set up</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/favicon-32.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=1">
+    <script src="/static/theme.js?v=8" defer></script>
+    <script src="/static/background.js" defer></script>
+    <script src="/static/auth-form.js?v=1" defer></script>
+</head>
+<body data-min-password-length="{{ .MinLength }}">
+    <script src="/static/early-theme-init.js"></script>
+    <div class="bg-overlay" aria-hidden="true">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+
+    <main class="auth-wrap">
+        <div class="auth-card auth-card--wide">
+            <div class="auth-head">
+                {{ template "brand-mark" }}
+                <h1 class="auth-title">Set up 3270Web</h1>
+            </div>
+            <p class="auth-sub">
+                This instance has no accounts yet. Create the first
+                administrator to finish setting it up.
+            </p>
+
+            {{ if .Error }}
+            <div class="auth-alert auth-alert--error" role="alert" aria-live="assertive">
+                <span>{{ .Error }}</span>
+            </div>
+            {{ end }}
+
+            <div class="auth-alert auth-alert--info">
+                <span>
+                    The setup code is printed in the server log. Under Docker,
+                    run <code>docker compose logs 3270Web</code>.
+                </span>
+            </div>
+
+            <form action="/setup" method="post" class="auth-form" data-auth-form novalidate>
+                <div class="field">
+                    <label for="setupCode">Setup code</label>
+                    <input type="text" id="setupCode" name="setupCode" class="code-input"
+                           autocomplete="off" autocapitalize="characters" autocorrect="off"
+                           spellcheck="false" required autofocus
+                           aria-describedby="setup-code-hint">
+                    <div class="field-hint" id="setup-code-hint">
+                        Dashes, spaces and lower case are all fine.
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="username">Administrator username</label>
+                    <input type="text" id="username" name="username" autocomplete="username"
+                           autocapitalize="none" autocorrect="off" spellcheck="false" required
+                           aria-describedby="username-hint">
+                    <div class="field-hint" id="username-hint">
+                        Letters, digits, dot, dash and underscore.
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password"
+                           autocomplete="new-password" minlength="{{ .MinLength }}" required
+                           data-pw-input aria-describedby="pw-status">
+                    <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="pw-status" id="pw-status" data-pw-status aria-live="polite">
+                        At least {{ .MinLength }} characters.
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="confirmPassword">Confirm password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword"
+                           autocomplete="new-password" minlength="{{ .MinLength }}" required
+                           data-pw-confirm aria-describedby="pw-match">
+                    <div class="pw-status" data-pw-match id="pw-match" aria-live="polite"></div>
+                </div>
+
+                <button type="submit" class="auth-submit">Create administrator</button>
+            </form>
+
+            {{ if .ShowNoTLS }}
+            <div class="auth-alert auth-alert--warn" style="margin-top:18px;margin-bottom:0">
+                <span>
+                    This connection is not encrypted, so what you type here is
+                    visible to anyone who can observe traffic on this network.
+                </span>
+            </div>
+            {{ end }}
+
+            <p class="auth-note">
+                Can't find the code? It is in <code>{{ .LogPath }}</code>, on the
+                line beginning <code>auth: setup code:</code>.
+            </p>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3270Web - Accounts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/favicon-32.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=1">
+    <script src="/static/theme.js?v=8" defer></script>
+    <script src="/static/background.js" defer></script>
+</head>
+<body data-min-password-length="{{ .MinLength }}" data-auth-enabled="{{ .AuthEnabled }}">
+    <script src="/static/early-theme-init.js"></script>
+    <div class="bg-overlay" aria-hidden="true">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="admin-page">
+        <div class="card">
+            <div class="card-header">
+                <div class="brand-lockup">
+                    {{ template "brand-mark" }}
+                    <div>
+                        <h1>Accounts</h1>
+                        <div class="subtle">Who may sign in to this 3270Web instance</div>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <a href="/"><button type="button">Back to 3270Web</button></a>
+                </div>
+            </div>
+
+            {{ if not .AuthEnabled }}
+            <div class="auth-alert auth-alert--warn">
+                <span>
+                    Authentication is turned off, so this instance has no
+                    accounts. Set <code>AUTH_MODE=local</code> and restart to
+                    require a sign-in.
+                </span>
+            </div>
+            {{ else }}
+
+            <div class="admin-status" data-admin-status aria-live="polite"></div>
+
+            <div class="admin-toolbar">
+                <span class="admin-count" data-admin-count>Loading…</span>
+                <div class="toolbar">
+                    <button type="button" data-admin-refresh>Refresh</button>
+                    <button type="button" data-admin-add>Add account</button>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <div class="admin-table-scroll">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Account</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Created</th>
+                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody data-admin-rows>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+    </div>
+
+    <!-- Add account -->
+    <div class="admin-dialog" data-dialog="add" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="add-title">
+            <h2 id="add-title">Add account</h2>
+            <p class="admin-dialog-desc">
+                The person signing in will be asked to choose their own password
+                the first time they use this one.
+            </p>
+            <form class="auth-form" data-add-form>
+                <div class="field">
+                    <label for="new-username">Username</label>
+                    <input type="text" id="new-username" name="username" autocomplete="off"
+                           autocapitalize="none" autocorrect="off" spellcheck="false" required>
+                </div>
+                <div class="field">
+                    <label for="new-role">Role</label>
+                    <select id="new-role" name="role">
+                        <option value="user" selected>User — their own sessions only</option>
+                        <option value="admin">Administrator — plus account management</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="new-password">Temporary password</label>
+                    <input type="password" id="new-password" name="password"
+                           minlength="{{ .MinLength }}" autocomplete="new-password" required
+                           data-pw-input aria-describedby="new-pw-status">
+                    <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="pw-status" id="new-pw-status" data-pw-status aria-live="polite">
+                        At least {{ .MinLength }} characters.
+                    </div>
+                </div>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-dialog-cancel>Cancel</button>
+                    <button type="submit">Create account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reset password -->
+    <div class="admin-dialog" data-dialog="reset" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+            <h2 id="reset-title">Reset password</h2>
+            <p class="admin-dialog-desc">
+                Set a temporary password for <strong data-reset-name></strong>.
+                They will be signed out everywhere and asked to choose their own
+                the next time they sign in.
+            </p>
+            <form class="auth-form" data-reset-form>
+                <div class="field">
+                    <label for="reset-password">Temporary password</label>
+                    <input type="password" id="reset-password" name="password"
+                           minlength="{{ .MinLength }}" autocomplete="new-password" required
+                           data-pw-input aria-describedby="reset-pw-status">
+                    <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="pw-status" id="reset-pw-status" data-pw-status aria-live="polite">
+                        At least {{ .MinLength }} characters.
+                    </div>
+                </div>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-dialog-cancel>Cancel</button>
+                    <button type="submit">Reset password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm destructive action -->
+    <div class="admin-dialog" data-dialog="confirm" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h2 id="confirm-title" data-confirm-title>Are you sure?</h2>
+            <p class="admin-dialog-desc" data-confirm-desc></p>
+            <div class="admin-dialog-actions">
+                <button type="button" data-dialog-cancel>Cancel</button>
+                <button type="button" class="danger" data-confirm-accept>Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/auth-form.js?v=1" defer></script>
+    <script src="/static/admin-users.js?v=1" defer></script>
+</body>
+</html>

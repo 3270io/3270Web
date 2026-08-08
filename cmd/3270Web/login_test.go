@@ -31,6 +31,10 @@ func newAuthTestApp(t *testing.T, mode string) (*App, *gin.Engine) {
 	if err != nil {
 		t.Fatalf("buildRouter: %v", err)
 	}
+	// These tests describe a configured instance. First-run setup arms itself
+	// on an empty store and would otherwise intercept every request; the
+	// setup flow has its own tests in setup_test.go.
+	app.setup.complete()
 	return app, r
 }
 
@@ -289,6 +293,7 @@ func TestSessionIPBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	app.setup.complete()
 	addUser(t, app, "alice", authz.RoleUser, false)
 
 	cookie := authCookieFrom(doLogin(t, r, "alice", loginTestPassword, "10.0.0.1"))
@@ -432,9 +437,10 @@ func TestChangePasswordRequiresTheCurrentOne(t *testing.T) {
 	}
 }
 
-// Turning authentication on with no accounts would lock everyone out, so the
-// first start creates one and says so.
-func TestBootstrapCreatesFirstAdmin(t *testing.T) {
+// Turning authentication on with no accounts must not invent one. The
+// instance waits in first-run setup instead, which is covered in setup_test.go;
+// what matters here is that nothing is created behind the operator's back.
+func TestNoAccountIsCreatedAutomatically(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv(authz.ModeEnv, "local")
 
@@ -444,29 +450,14 @@ func TestBootstrapCreatesFirstAdmin(t *testing.T) {
 		t.Fatalf("buildRouter: %v", err)
 	}
 
-	list, err := app.userStore().List()
+	n, err := app.userStore().Count()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 1 {
-		t.Fatalf("account count = %d, want 1", len(list))
+	if n != 0 {
+		t.Errorf("account count = %d, want 0", n)
 	}
-	if list[0].Role != authz.RoleAdmin {
-		t.Errorf("bootstrap account role = %q, want %q", list[0].Role, authz.RoleAdmin)
-	}
-	if !list[0].MustChangePassword {
-		t.Error("the bootstrap account is not flagged for a password change")
-	}
-	if _, err := os.Stat(filepath.Join(base, "users.json")); err != nil {
-		t.Errorf("user store was not written: %v", err)
-	}
-
-	// A second start must not create another account or reset the first.
-	app2 := newApp(base)
-	if _, err := buildRouter(app2); err != nil {
-		t.Fatal(err)
-	}
-	if n, _ := app2.userStore().Count(); n != 1 {
-		t.Errorf("account count after restart = %d, want 1", n)
+	if _, err := os.Stat(filepath.Join(base, "users.json")); err == nil {
+		t.Error("a user store was written before any account was created")
 	}
 }

@@ -1,0 +1,661 @@
+/* =====================================================================
+   3270Web — accounts layer
+   ---------------------------------------------------------------------
+   Sign-in, first-run setup and account administration.
+
+   Loaded after style.css and ui-polish.css. Every colour here comes from
+   the per-theme custom properties those files define (--bg, --panel,
+   --panel-2, --border, --fg, --fg-muted, --accent, --accent-2), so the
+   built-in themes and user-authored ones pick these screens up with no
+   per-theme work. There are no literal colours below except where a
+   translucent tint is derived from a token with color-mix.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1. Centred single-purpose pages (sign in, setup, password change)
+   --------------------------------------------------------------------- */
+
+.auth-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 16px);
+  box-shadow: var(--elev-4, var(--shadow));
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* A hairline of accent along the top edge. The card is otherwise very
+   plain, and this is what ties it to the terminal chrome elsewhere. */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+      transparent,
+      var(--accent) 22%,
+      var(--accent-2, var(--accent)) 62%,
+      transparent);
+  opacity: 0.85;
+}
+
+.auth-card--wide {
+  max-width: 560px;
+}
+
+.auth-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.auth-head .brand-mark {
+  flex: 0 0 auto;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.auth-sub {
+  margin: 0 0 24px;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------
+   2. Forms
+   --------------------------------------------------------------------- */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* style.css styles `label` alongside the controls (`label, select, button,
+   input`), giving it a panel background, border and padding. That is right
+   for the toolbar's inline labels and wrong for a stacked form, where it
+   makes every caption look like an empty input above the real one. Reset it
+   here rather than narrowing the base rule, which the terminal chrome
+   depends on. */
+.field > label {
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  font-weight: 600;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.field > input,
+.field > select {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  padding: 11px 12px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.field > input:hover:not(:disabled),
+.field > select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.field > input:focus,
+.field > select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.field-hint {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  line-height: 1.45;
+}
+
+/* The setup code is transcribed from a log, so it gets room to breathe and
+   wide tracking that makes character-by-character comparison easy. */
+.field > input.code-input {
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-size: 1.05rem;
+  text-align: center;
+  padding: 13px 12px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--bg);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 8px);
+  cursor: pointer;
+  transition: filter 120ms ease, transform 60ms ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.auth-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.auth-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   3. Messages
+   --------------------------------------------------------------------- */
+
+.auth-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 13px;
+  margin-bottom: 18px;
+  border-radius: var(--r-sm, 8px);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  border: 1px solid;
+}
+
+.auth-alert::before {
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.auth-alert--error {
+  color: var(--term-color-red, #ff6b6b);
+  border-color: color-mix(in srgb, var(--term-color-red, #ff6b6b) 45%, var(--border));
+  background: color-mix(in srgb, var(--term-color-red, #ff6b6b) 12%, var(--panel));
+}
+
+.auth-alert--error::before {
+  content: "!";
+}
+
+.auth-alert--info {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+
+.auth-alert--warn {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--term-color-yellow, #ffd166) 42%, var(--border));
+  background: color-mix(in srgb, var(--term-color-yellow, #ffd166) 10%, var(--panel));
+}
+
+.auth-alert--warn::before {
+  content: "\26A0";
+}
+
+.auth-note {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+.auth-note code {
+  font-family: var(--mono);
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.95em;
+  word-break: break-all;
+}
+
+/* ---------------------------------------------------------------------
+   4. Password strength meter
+   --------------------------------------------------------------------- */
+
+.pw-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pw-meter span {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--fg-muted) 25%, transparent);
+  transition: background 160ms ease;
+}
+
+.pw-meter[data-score="1"] span:nth-child(-n + 1),
+.pw-meter[data-score="2"] span:nth-child(-n + 2),
+.pw-meter[data-score="3"] span:nth-child(-n + 3),
+.pw-meter[data-score="4"] span:nth-child(-n + 4) {
+  background: var(--accent);
+}
+
+.pw-meter[data-score="1"] span:nth-child(-n + 1) {
+  background: var(--term-color-red, #ff6b6b);
+}
+
+.pw-meter[data-score="2"] span:nth-child(-n + 2) {
+  background: var(--term-color-yellow, #ffd166);
+}
+
+.pw-status {
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+  min-height: 1.1em;
+}
+
+.pw-status[data-state="ok"] {
+  color: var(--accent);
+}
+
+.pw-status[data-state="bad"] {
+  color: var(--term-color-red, #ff6b6b);
+}
+
+/* ---------------------------------------------------------------------
+   5. Account administration
+   --------------------------------------------------------------------- */
+
+.admin-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 20px 64px;
+  position: relative;
+  z-index: 1;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.admin-count {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px);
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: var(--elev-2, none);
+}
+
+.admin-table-scroll {
+  overflow-x: auto;
+}
+
+table.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 11px 14px;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--panel-2) 70%, var(--panel));
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table tbody tr {
+  transition: background 120ms ease;
+}
+
+.admin-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.admin-table tr[data-disabled="true"] td:not(.admin-actions-cell) {
+  opacity: 0.5;
+}
+
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Initial-letter avatar. Cheap to render, and it makes a long list of
+   monospace names scannable at a glance. */
+.admin-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
+  text-transform: uppercase;
+}
+
+/* break-all would split a short name like "alice" across two lines as soon as
+   the column is tight. `anywhere` only breaks a word that genuinely cannot
+   fit, which is what a pathologically long username needs and an ordinary one
+   never triggers. */
+.admin-username {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Give the identity column room before anything else is allowed to squeeze
+   it, and keep the timestamp on one line. */
+.admin-table th:first-child,
+.admin-table td:first-child {
+  min-width: 200px;
+}
+
+.admin-table td:nth-child(4) {
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+.admin-self-tag {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.pill--admin {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pill--user {
+  color: var(--fg-muted);
+  border-color: var(--border);
+  background: transparent;
+}
+
+.pill--ok {
+  color: var(--term-color-green, #5fcb96);
+  border-color: color-mix(in srgb, var(--term-color-green, #5fcb96) 45%, var(--border));
+  background: color-mix(in srgb, var(--term-color-green, #5fcb96) 10%, transparent);
+}
+
+.pill--off {
+  color: var(--fg-muted);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--fg-muted) 8%, transparent);
+}
+
+.pill--warn {
+  color: var(--term-color-yellow, #ffd166);
+  border-color: color-mix(in srgb, var(--term-color-yellow, #ffd166) 45%, var(--border));
+  background: color-mix(in srgb, var(--term-color-yellow, #ffd166) 10%, transparent);
+}
+
+.admin-actions-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.admin-actions button {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: var(--r-xs, 6px);
+}
+
+.admin-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.admin-empty strong {
+  display: block;
+  color: var(--fg);
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+
+.admin-status {
+  min-height: 1.3em;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.admin-status[data-state="ok"] {
+  color: var(--accent);
+}
+
+.admin-status[data-state="error"] {
+  color: var(--term-color-red, #ff6b6b);
+}
+
+/* Skeleton rows while the first fetch is in flight — steadier than a
+   spinner, because the table does not jump when data arrives. */
+.admin-skeleton td > span {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(90deg,
+      color-mix(in srgb, var(--fg-muted) 14%, transparent),
+      color-mix(in srgb, var(--fg-muted) 26%, transparent),
+      color-mix(in srgb, var(--fg-muted) 14%, transparent));
+  background-size: 200% 100%;
+  animation: admin-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes admin-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton td > span {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   6. Dialogs
+   --------------------------------------------------------------------- */
+
+.admin-dialog[hidden] {
+  display: none;
+}
+
+.admin-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.admin-dialog-content {
+  width: 100%;
+  max-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 16px);
+  box-shadow: var(--elev-4, var(--shadow));
+  padding: 24px;
+}
+
+.admin-dialog-content h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.admin-dialog-desc {
+  margin: 0 0 18px;
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.admin-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+/* ---------------------------------------------------------------------
+   7. Signed-in indicator, shown in the app chrome
+   --------------------------------------------------------------------- */
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.user-chip .admin-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 0.7rem;
+}
+
+.user-chip-name {
+  font-weight: 600;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-chip form {
+  display: inline;
+}
+
+.user-chip button {
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+/* ---------------------------------------------------------------------
+   8. Narrow screens
+   --------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .auth-card {
+    padding: 24px 20px;
+  }
+
+  .admin-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-actions-cell {
+    text-align: left;
+  }
+
+  .admin-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

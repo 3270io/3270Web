@@ -34,12 +34,24 @@ const (
 var publicPaths = map[string]bool{
 	loginPath:  true,
 	logoutPath: true,
+	setupPath:  true,
 	"/healthz": true,
 }
 
 // publicPrefixes cover static assets, which must load before login so the
 // login page is not unstyled.
 var publicPrefixes = []string{"/static/", "/assets/", "/favicon"}
+
+// isStaticAssetPath reports whether a path serves page furniture that must
+// load before any gate, so the login and setup pages are not unstyled.
+func isStaticAssetPath(path string) bool {
+	for _, prefix := range publicPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 func isPublicPath(path string) bool {
 	if publicPaths[path] {
@@ -371,4 +383,29 @@ func (app *App) WhoAmIHandler(c *gin.Context) {
 		"role":          string(principal.Role),
 		"isAdmin":       principal.IsAdmin(),
 	})
+}
+
+// authView is the small bundle of identity a page template needs to render
+// the signed-in chip. Kept as one value so a template never has to reason
+// about which of several flags to consult.
+type authView struct {
+	// Enabled is false under AUTH_MODE=none, where there is nobody to show.
+	Enabled  bool
+	Username string
+	IsAdmin  bool
+}
+
+func (app *App) authView(c *gin.Context) authView {
+	if app.authMode == authz.ModeNone {
+		return authView{}
+	}
+	principal := principalFrom(c)
+	if principal.IsAnonymous() {
+		return authView{}
+	}
+	return authView{
+		Enabled:  true,
+		Username: usernameFrom(c),
+		IsAdmin:  principal.IsAdmin(),
+	}
 }

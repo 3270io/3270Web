@@ -256,6 +256,130 @@ func (s *Store) Add(username, password string, role authz.Role, mustChange bool)
 	return u.Redacted(), nil
 }
 
+// ErrNotFirstUser is returned when AddFirstAdmin runs against a store that
+// already has accounts.
+var ErrNotFirstUser = errors.New("users: accounts already exist")
+
+// AddFirstAdmin creates the initial administrator, but only while the store is
+// empty.
+//
+// The emptiness check and the write happen under one lock. First-run setup is
+// reachable without credentials by design, so two requests arriving together
+// must not both succeed — the second would be an unauthenticated stranger
+// adding themselves as an administrator to an instance that already has one.
+func (s *Store) AddFirstAdmin(username, password string) (User, error) {
+	if err := ValidateUsername(username); err != nil {
+		return User{}, err
+	}
+	if err := ValidatePassword(password); err != nil {
+		return User{}, err
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return User{}, err
+	}
+	if len(list) > 0 {
+		return User{}, ErrNotFirstUser
+	}
+
+	id, err := newID()
+	if err != nil {
+		return User{}, err
+	}
+	now := s.now()
+	u := User{
+		ID:                id,
+		Username:          username,
+		Role:              authz.RoleAdmin,
+		PasswordHash:      hash,
+		CreatedAt:         now,
+		PasswordChangedAt: now,
+	}
+	if err := s.save([]User{u}); err != nil {
+		return User{}, err
+	}
+	return u.Redacted(), nil
+}
+
+// SetRole changes an account's role.
+//
+// Demoting the last enabled administrator is refused for the same reason
+// disabling them is: it leaves an instance nobody can administer.
+func (s *Store) SetRole(username string, role authz.Role) error {
+	if role != authz.RoleAdmin && role != authz.RoleUser {
+		return fmt.Errorf("users: unknown role %q", role)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+
+	idx := indexOfUsername(list, username)
+	if idx < 0 {
+		return ErrUserNotFound
+	}
+	if list[idx].Role == role {
+		return nil
+	}
+	if role == authz.RoleUser && list[idx].Role == authz.RoleAdmin {
+		if countEnabledAdmins(list) <= 1 && !list[idx].Disabled {
+			return errors.New("users: refusing to demote the only enabled admin")
+		}
+	}
+
+	list[idx].Role = role
+	return s.save(list)
+}
+
+// Delete removes an account permanently.
+func (s *Store) Delete(username string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+
+	idx := indexOfUsername(list, username)
+	if idx < 0 {
+		return ErrUserNotFound
+	}
+	if list[idx].Role == authz.RoleAdmin && !list[idx].Disabled && countEnabledAdmins(list) <= 1 {
+		return errors.New("users: refusing to delete the only enabled admin")
+	}
+
+	return s.save(append(list[:idx:idx], list[idx+1:]...))
+}
+
+func indexOfUsername(list []User, username string) int {
+	for i := range list {
+		if strings.EqualFold(list[i].Username, username) {
+			return i
+		}
+	}
+	return -1
+}
+
+func countEnabledAdmins(list []User) int {
+	n := 0
+	for _, u := range list {
+		if u.Role == authz.RoleAdmin && !u.Disabled {
+			n++
+		}
+	}
+	return n
+}
+
 // Authenticate verifies a username and password.
 //
 // A missing user still costs a full hash comparison. Returning early would
@@ -336,24 +460,12 @@ func (s *Store) SetDisabled(username string, disabled bool) error {
 		return err
 	}
 
-	idx := -1
-	for i := range list {
-		if strings.EqualFold(list[i].Username, username) {
-			idx = i
-			break
-		}
-	}
+	idx := indexOfUsername(list, username)
 	if idx < 0 {
 		return ErrUserNotFound
 	}
 	if disabled && list[idx].Role == authz.RoleAdmin && !list[idx].Disabled {
-		enabledAdmins := 0
-		for _, u := range list {
-			if u.Role == authz.RoleAdmin && !u.Disabled {
-				enabledAdmins++
-			}
-		}
-		if enabledAdmins <= 1 {
+		if countEnabledAdmins(list) <= 1 {
 			return errors.New("users: refusing to disable the only enabled admin")
 		}
 	}
@@ -422,4 +534,24 @@ func GeneratePassword() (string, error) {
 		return "", fmt.Errorf("users: generate password: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// RequirePasswordChange flags an account so its owner must choose a new
+// password before doing anything else.
+//
+// Used after an administrator resets one: the administrator now knows the
+// value, so it has to stop being the account's real password promptly.
+func (s *Store) RequirePasswordChange(username string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+	idx := indexOfUsername(list, username)
+	if idx < 0 {
+		return ErrUserNotFound
+	}
+	list[idx].MustChangePassword = true
+	return s.save(list)
 }

@@ -1,0 +1,307 @@
+package main
+
+import (
+	"errors"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/users"
+)
+
+const adminUsersPath = "/admin/users"
+
+// RequireAdmin gates instance-wide administration.
+//
+// Under AUTH_MODE=none the single operator is an administrator, so this
+// changes nothing for the default deployment.
+func (app *App) RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		principal := principalFrom(c)
+		if principal.IsAnonymous() {
+			app.rejectUnauthenticated(c)
+			return
+		}
+		if !principal.IsAdmin() {
+			if wantsJSON(c) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"error": "this action requires an administrator account",
+				})
+				return
+			}
+			c.HTML(http.StatusForbidden, "error.html", gin.H{
+				"Error": "This page requires an administrator account.",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// AdminUsersPageHandler serves the account management page.
+func (app *App) AdminUsersPageHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "admin-users.html", gin.H{
+		"MinLength":   users.MinPasswordLength,
+		"AuthMode":    string(app.authMode),
+		"AuthEnabled": app.authMode != authz.ModeNone,
+		"Username":    usernameFrom(c),
+	})
+}
+
+// adminUserView is the wire shape for one account. It never carries a hash;
+// the store strips it, and this type has nowhere to put one.
+type adminUserView struct {
+	ID                 string `json:"id"`
+	Username           string `json:"username"`
+	Role               string `json:"role"`
+	Disabled           bool   `json:"disabled"`
+	MustChangePassword bool   `json:"mustChangePassword"`
+	CreatedAt          string `json:"createdAt"`
+	PasswordChangedAt  string `json:"passwordChangedAt"`
+	// Self marks the caller's own account, so the UI can grey out the actions
+	// that would lock them out of the instance they are using.
+	Self bool `json:"self"`
+}
+
+func toAdminUserView(u users.User, selfID string) adminUserView {
+	return adminUserView{
+		ID:                 u.ID,
+		Username:           u.Username,
+		Role:               string(u.Role),
+		Disabled:           u.Disabled,
+		MustChangePassword: u.MustChangePassword,
+		CreatedAt:          u.CreatedAt.UTC().Format("2006-01-02 15:04"),
+		PasswordChangedAt:  u.PasswordChangedAt.UTC().Format("2006-01-02 15:04"),
+		Self:               u.ID == selfID,
+	}
+}
+
+// AdminListUsersHandler returns every account.
+func (app *App) AdminListUsersHandler(c *gin.Context) {
+	if app.authMode == authz.ModeNone {
+		c.JSON(http.StatusOK, gin.H{"authEnabled": false, "users": []adminUserView{}})
+		return
+	}
+
+	list, err := app.userStore().List()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the account list"})
+		return
+	}
+
+	selfID := principalFrom(c).UserID
+	out := make([]adminUserView, 0, len(list))
+	for _, u := range list {
+		out = append(out, toAdminUserView(u, selfID))
+	}
+	c.JSON(http.StatusOK, gin.H{"authEnabled": true, "users": out})
+}
+
+type adminCreateUserRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
+
+// AdminCreateUserHandler adds an account.
+func (app *App) AdminCreateUserHandler(c *gin.Context) {
+	if err := app.requireAuthEnabled(c); err != nil {
+		return
+	}
+
+	var req adminCreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	role := authz.RoleUser
+	if strings.EqualFold(req.Role, string(authz.RoleAdmin)) {
+		role = authz.RoleAdmin
+	}
+
+	username := strings.TrimSpace(req.Username)
+	if err := users.ValidateUsername(username); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+		return
+	}
+	if err := users.ValidatePassword(req.Password); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+		return
+	}
+
+	// New accounts must change the password the administrator chose: it was
+	// typed by somebody else and probably sent over chat.
+	user, err := app.userStore().Add(username, req.Password, role, true)
+	if err != nil {
+		if errors.Is(err, users.ErrUserExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": "an account with that name already exists"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+		return
+	}
+
+	log.Printf("auth: %s created account %q (%s)", adminActor(c), user.Username, user.Role)
+	c.JSON(http.StatusCreated, gin.H{"user": toAdminUserView(user, principalFrom(c).UserID)})
+}
+
+type adminUpdateUserRequest struct {
+	// Pointers so "not mentioned" and "set to false" stay distinguishable.
+	Role     *string `json:"role"`
+	Disabled *bool   `json:"disabled"`
+	Password *string `json:"password"`
+}
+
+// AdminUpdateUserHandler changes a role, enabled state or password.
+func (app *App) AdminUpdateUserHandler(c *gin.Context) {
+	if err := app.requireAuthEnabled(c); err != nil {
+		return
+	}
+
+	target, ok := app.lookupTarget(c)
+	if !ok {
+		return
+	}
+
+	var req adminUpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	self := target.ID == principalFrom(c).UserID
+
+	if req.Role != nil {
+		role := authz.RoleUser
+		if strings.EqualFold(*req.Role, string(authz.RoleAdmin)) {
+			role = authz.RoleAdmin
+		}
+		// Self-demotion is refused rather than merely warned about: it takes
+		// effect immediately and the administrator would lose the page they
+		// are standing on, with no way back without the CLI.
+		if self && role != authz.RoleAdmin {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "you cannot remove your own administrator role"})
+			return
+		}
+		if err := app.userStore().SetRole(target.Username, role); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+			return
+		}
+		log.Printf("auth: %s set %q role to %s", adminActor(c), target.Username, role)
+	}
+
+	if req.Disabled != nil {
+		if self && *req.Disabled {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "you cannot disable your own account"})
+			return
+		}
+		if err := app.userStore().SetDisabled(target.Username, *req.Disabled); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+			return
+		}
+		if *req.Disabled {
+			// A disabled account must lose its live sessions, or "disabled"
+			// only takes effect the next time they sign in.
+			app.authSessions.DeleteAllFor(target.ID)
+		}
+		log.Printf("auth: %s set %q disabled=%v", adminActor(c), target.Username, *req.Disabled)
+	}
+
+	if req.Password != nil {
+		if err := users.ValidatePassword(*req.Password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+			return
+		}
+		if err := app.userStore().SetPassword(target.Username, *req.Password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+			return
+		}
+		// The administrator now knows this password, so the owner has to
+		// replace it before doing anything else.
+		if err := app.userStore().RequirePasswordChange(target.Username); err != nil {
+			log.Printf("auth: could not flag %q for a password change: %v", target.Username, err)
+		}
+		if !self {
+			app.authSessions.DeleteAllFor(target.ID)
+		}
+		log.Printf("auth: %s reset the password for %q", adminActor(c), target.Username)
+	}
+
+	updated, found, err := app.userStore().ByID(target.ID)
+	if err != nil || !found {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": toAdminUserView(updated, principalFrom(c).UserID)})
+}
+
+// AdminDeleteUserHandler removes an account.
+func (app *App) AdminDeleteUserHandler(c *gin.Context) {
+	if err := app.requireAuthEnabled(c); err != nil {
+		return
+	}
+
+	target, ok := app.lookupTarget(c)
+	if !ok {
+		return
+	}
+	if target.ID == principalFrom(c).UserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "you cannot delete your own account"})
+		return
+	}
+
+	if err := app.userStore().Delete(target.Username); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+		return
+	}
+	app.authSessions.DeleteAllFor(target.ID)
+	log.Printf("auth: %s deleted account %q", adminActor(c), target.Username)
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
+
+// lookupTarget resolves the :id path parameter, answering the request itself
+// when it cannot.
+func (app *App) lookupTarget(c *gin.Context) (users.User, bool) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing account id"})
+		return users.User{}, false
+	}
+	user, found, err := app.userStore().ByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the account"})
+		return users.User{}, false
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no such account"})
+		return users.User{}, false
+	}
+	return user, true
+}
+
+// requireAuthEnabled rejects account management when there are no accounts to
+// manage, which is clearer than silently succeeding against a store nothing
+// reads.
+func (app *App) requireAuthEnabled(c *gin.Context) error {
+	if app.authMode != authz.ModeNone {
+		return nil
+	}
+	err := errors.New("authentication is disabled")
+	c.JSON(http.StatusConflict, gin.H{
+		"error": "Account management needs AUTH_MODE=local. Restart 3270Web with it set.",
+	})
+	return err
+}
+
+// adminActor names the administrator for a log line.
+func adminActor(c *gin.Context) string {
+	if name := usernameFrom(c); name != "" {
+		return name
+	}
+	return principalFrom(c).UserID
+}
