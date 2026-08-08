@@ -56,6 +56,37 @@
     PA3: "PA3"
   };
 
+  // ---------------------------------------------------------------------
+  // Terminal state that lives on the client, not the host.
+  //
+  // On a real 3270 the cursor, insert/overtype mode and the operator-error
+  // lock are all local functions of the terminal — the host learns the
+  // cursor position exactly once, in the inbound data stream, when an AID
+  // key is pressed. Modelling them here is what removes a network
+  // round-trip from every Tab and arrow keypress.
+  // ---------------------------------------------------------------------
+
+  // Insert mode (toggled by the Insert key). Off means overtype, which is
+  // the 3270 default.
+  var insertMode = false;
+  // A client-detected operator error (e.g. a letter typed into a numeric
+  // field, or overflowing a full field in insert mode). Like a real
+  // terminal this inhibits input until Reset. Empty string means no error.
+  var operatorError = "";
+  // The host's own input-inhibit state, as last reported by the server.
+  var hostIndicator = "";
+  var hostExplanation = "";
+  // Set while an AID key is in flight so the OIA can show X SYSTEM
+  // immediately rather than waiting for the next server poll to say so.
+  var awaitingHost = false;
+  // Keystrokes entered while the host held the keyboard. Real terminals
+  // buffer these; dropping them (the previous behaviour) punishes exactly
+  // the fast operators who type ahead by reflex.
+  var typeAhead = [];
+  var typeAheadLimit = 64;
+
+  var numericCharPattern = /^[0-9.,\-+]$/;
+
   function findForm(formId) {
     var form = null;
     if (formId) {
@@ -162,6 +193,12 @@
     var preferredFieldName = target && typeof target.name === "string" ? target.name : "";
     var preferredCaret = target && typeof target.selectionStart === "number" ? target.selectionStart : null;
     submitting = true;
+    // Show X SYSTEM the instant the key goes out. Waiting for the next
+    // server poll to report the lock would leave a visible gap in which the
+    // terminal looks idle while the host is in fact thinking — the exact
+    // ambiguity the OIA exists to remove.
+    awaitingHost = true;
+    renderOIA();
     window.setTimeout(function () {
       var request;
       try {
@@ -173,14 +210,17 @@
       }
       if (!request || typeof request.then !== "function") {
         submitting = false;
+        finishHostRoundTrip();
         return;
       }
       request.then(
         function () {
           submitting = false;
+          finishHostRoundTrip();
         },
         function () {
           submitting = false;
+          finishHostRoundTrip();
         }
       );
     }, keySubmitDelayMs);
@@ -200,7 +240,8 @@
       ["[data-status-keyboard]", payload.statusKeyboard],
       ["[data-status-model]", payload.statusModel],
       ["[data-status-dimensions]", payload.statusDimensions],
-      ["[data-status-cursor]", payload.statusCursor]
+      ["[data-status-cursor]", payload.statusCursor],
+      ["[data-oia-online]", payload.oiaOnline]
     ];
     for (var i = 0; i < fields.length; i++) {
       var selector = fields[i][0];
@@ -213,6 +254,111 @@
         el.textContent = value;
       }
     }
+    if (typeof payload.oiaIndicator === "string") {
+      hostIndicator = payload.oiaIndicator;
+      hostExplanation =
+        typeof payload.oiaExplanation === "string" ? payload.oiaExplanation : "";
+      // An authoritative reading from the host supersedes the optimistic
+      // "waiting" state the client set when it sent the AID key.
+      awaitingHost = false;
+    }
+    renderOIA();
+
+    // A host that hangs up does not necessarily produce a 401 on the next
+    // request — s3270 stays alive and simply reports "not connected" — so
+    // watch the OIA for it and hand off to the reconnect logic. Without
+    // this, a drop mid-session just looks like a terminal that stopped
+    // responding.
+    if (
+      payload.oiaConnected === false &&
+      window.ThreeSeventyWeb &&
+      typeof window.ThreeSeventyWeb.notifySessionExpired === "function"
+    ) {
+      window.ThreeSeventyWeb.notifySessionExpired();
+    }
+  }
+
+  // renderOIA paints the Operator Information Area. Precedence matters and
+  // mirrors a real terminal: an operator error outranks a system wait,
+  // because pressing Enter harder will not clear it — only Reset will.
+  function renderOIA() {
+    var indicator = "";
+    var explanation = "";
+    var kind = "ready";
+
+    if (operatorError) {
+      indicator = "X -f";
+      explanation = operatorError + " — press Reset (or Esc) to continue";
+      kind = "error";
+    } else if (hostIndicator === "X -f") {
+      indicator = hostIndicator;
+      explanation = hostExplanation || "Operator error — press Reset";
+      kind = "error";
+    } else if (awaitingHost || hostIndicator) {
+      indicator = hostIndicator || "X SYSTEM";
+      explanation = hostExplanation || "Host is processing — input inhibited";
+      kind = "wait";
+    } else {
+      explanation = "Ready for input";
+    }
+
+    var indicatorEl = document.querySelector("[data-oia-indicator]");
+    if (indicatorEl) {
+      indicatorEl.textContent = indicator;
+      indicatorEl.setAttribute("data-oia-state", kind);
+      if (explanation) {
+        indicatorEl.setAttribute("title", explanation);
+      } else {
+        indicatorEl.removeAttribute("title");
+      }
+    }
+
+    // Only the inhibit explanation is announced. The visual bar also carries
+    // the cursor position, and putting aria-live on the whole bar (as it was)
+    // made a screen reader read out row/column on every single keystroke.
+    var announce = document.querySelector("[data-oia-announce]");
+    if (announce && announce.textContent !== explanation) {
+      announce.textContent = explanation;
+    }
+
+    var insertEl = document.querySelector("[data-oia-insert]");
+    if (insertEl) {
+      insertEl.hidden = !insertMode;
+    }
+
+    var shell = getTerminalShell();
+    if (shell) {
+      shell.setAttribute("data-oia-state", kind);
+    }
+  }
+
+  function setOperatorError(reason) {
+    if (operatorError === reason) {
+      return;
+    }
+    operatorError = reason;
+    renderOIA();
+  }
+
+  // clearOperatorError resolves whichever inhibit is actually in force: a
+  // client-side one is purely local, but a host-reported error needs the
+  // real Reset AID sent upstream. Returns true if it handled the situation.
+  function clearOperatorError(formId) {
+    if (operatorError) {
+      operatorError = "";
+      renderOIA();
+      return true;
+    }
+    if (hostIndicator === "X -f") {
+      sendFormWithKey(specialKeys.Reset, formId, document.activeElement);
+      return true;
+    }
+    return false;
+  }
+
+  function setInsertMode(next) {
+    insertMode = !!next;
+    renderOIA();
   }
 
   function submitFormWithoutNavigation(form, formId, preferredFieldName, preferredCaret) {
@@ -656,6 +802,10 @@
     if (!isEditableTarget(target) || target.disabled || target.readOnly) {
       return false;
     }
+    if (target.dataset && target.dataset.numeric === "1" && /[^0-9.,\-+]/.test(text)) {
+      setOperatorError("Numeric field");
+      return false;
+    }
     var value = target.value || "";
     var start = typeof target.selectionStart === "number" ? target.selectionStart : value.length;
     var end = typeof target.selectionEnd === "number" ? target.selectionEnd : start;
@@ -923,6 +1073,340 @@
     return ordered;
   }
 
+  // ---------------------------------------------------------------------
+  // Local cursor navigation.
+  //
+  // Tab, Back-Tab, the arrows and Home used to POST to the server, costing a
+  // full round-trip (submit -> s3270 action -> screen re-read -> re-render ->
+  // DOM replacement) for a movement the host neither sees nor cares about.
+  // On a WAN that made routine field-to-field navigation visibly slow. These
+  // move the caret in the DOM instead; the resulting position is reported to
+  // the host once, with the next AID key, via the cursor_row/cursor_col
+  // hidden inputs that setCursorFromTarget already fills in.
+  // ---------------------------------------------------------------------
+
+  function placeCaret(el, caret) {
+    if (!el || typeof el.focus !== "function") {
+      return false;
+    }
+    el.focus();
+    if (typeof el.setSelectionRange !== "function" || typeof el.value !== "string") {
+      return true;
+    }
+    var pos = typeof caret === "number" && isFinite(caret) ? caret : 0;
+    if (pos < 0) {
+      pos = 0;
+    }
+    if (pos > el.value.length) {
+      pos = el.value.length;
+    }
+    el.setSelectionRange(pos, pos);
+    return true;
+  }
+
+  // absoluteCursorOf converts a caret inside a field input into screen
+  // coordinates. Continuation lines of a multi-line field start at column 0,
+  // matching the offset logic in setCursorFromTarget.
+  function absoluteCursorOf(el) {
+    var pos = getFieldPosition(el);
+    if (!pos) {
+      return null;
+    }
+    var startX = getLineOffsetFromName(el.name || "") > 0 ? 0 : pos.x;
+    var caret = typeof el.selectionStart === "number" ? el.selectionStart : 0;
+    return { row: pos.y, col: startX + caret };
+  }
+
+  function inputRowOf(el) {
+    var pos = getFieldPosition(el);
+    return pos ? pos.y : null;
+  }
+
+  function inputStartColOf(el) {
+    var pos = getFieldPosition(el);
+    if (!pos) {
+      return 0;
+    }
+    return getLineOffsetFromName(el.name || "") > 0 ? 0 : pos.x;
+  }
+
+  function currentScreenInput(form) {
+    var active = document.activeElement;
+    if (isScreenInput(active) && (!form || form.contains(active))) {
+      return active;
+    }
+    var inputs = getOrderedScreenInputs(form);
+    return inputs.length ? inputs[0] : null;
+  }
+
+  // moveTab implements 3270 Tab / Back-Tab. Back-Tab first jumps to the start
+  // of the current field when the caret is mid-field, which is what the real
+  // key does and what muscle memory expects.
+  function moveTab(form, back) {
+    var inputs = getOrderedScreenInputs(form);
+    if (!inputs.length) {
+      return false;
+    }
+    var current = currentScreenInput(form);
+    var idx = inputs.indexOf(current);
+    if (idx === -1) {
+      return placeCaret(inputs[0], 0);
+    }
+    if (back) {
+      var caret = typeof current.selectionStart === "number" ? current.selectionStart : 0;
+      if (caret > 0) {
+        return placeCaret(current, 0);
+      }
+      return placeCaret(inputs[(idx - 1 + inputs.length) % inputs.length], 0);
+    }
+    return placeCaret(inputs[(idx + 1) % inputs.length], 0);
+  }
+
+  function moveHome(form) {
+    var inputs = getOrderedScreenInputs(form);
+    if (!inputs.length) {
+      return false;
+    }
+    return placeCaret(inputs[0], 0);
+  }
+
+  // moveHorizontal walks the caret one cell left or right, crossing into the
+  // adjacent field at a field boundary and wrapping around the screen.
+  //
+  // Deviation from a hardware terminal worth knowing about: a field's caret
+  // range is bounded by its current text length, not its full width, because
+  // the value is stored untrimmed only as far as the host sent it. Arrowing
+  // right therefore skips the blank tail of a short value and lands on the
+  // next field. Typing still fills the field normally.
+  function moveHorizontal(form, delta) {
+    var inputs = getOrderedScreenInputs(form);
+    if (!inputs.length) {
+      return false;
+    }
+    var current = currentScreenInput(form);
+    var idx = inputs.indexOf(current);
+    if (idx === -1) {
+      return placeCaret(inputs[0], 0);
+    }
+    var caret = typeof current.selectionStart === "number" ? current.selectionStart : 0;
+    var next = caret + delta;
+    var limit = typeof current.value === "string" ? current.value.length : 0;
+    if (next >= 0 && next <= limit) {
+      return placeCaret(current, next);
+    }
+    var neighbourIdx = (idx + (delta > 0 ? 1 : -1) + inputs.length) % inputs.length;
+    var neighbour = inputs[neighbourIdx];
+    var neighbourLen = typeof neighbour.value === "string" ? neighbour.value.length : 0;
+    return placeCaret(neighbour, delta > 0 ? 0 : neighbourLen);
+  }
+
+  // moveVertical keeps the caret in the same screen column where it can. The
+  // DOM only holds unprotected fields, so rows made entirely of protected
+  // text are skipped rather than landed on — a real terminal would park the
+  // cursor there, but there is nowhere in this rendering to put it.
+  function moveVertical(form, delta) {
+    var inputs = getOrderedScreenInputs(form);
+    if (!inputs.length) {
+      return false;
+    }
+    var current = currentScreenInput(form);
+    var origin = current ? absoluteCursorOf(current) : null;
+    if (!origin) {
+      return placeCaret(inputs[0], 0);
+    }
+
+    var rows = [];
+    for (var i = 0; i < inputs.length; i++) {
+      var row = inputRowOf(inputs[i]);
+      if (row !== null && rows.indexOf(row) === -1) {
+        rows.push(row);
+      }
+    }
+    rows.sort(function (a, b) {
+      return a - b;
+    });
+
+    // Rows strictly in the direction of travel, nearest first, then wrapping
+    // round to the far end of the screen.
+    var ordered = [];
+    var j;
+    if (delta > 0) {
+      for (j = 0; j < rows.length; j++) {
+        if (rows[j] > origin.row) {
+          ordered.push(rows[j]);
+        }
+      }
+      for (j = 0; j < rows.length; j++) {
+        if (rows[j] <= origin.row) {
+          ordered.push(rows[j]);
+        }
+      }
+    } else {
+      for (j = rows.length - 1; j >= 0; j--) {
+        if (rows[j] < origin.row) {
+          ordered.push(rows[j]);
+        }
+      }
+      for (j = rows.length - 1; j >= 0; j--) {
+        if (rows[j] >= origin.row) {
+          ordered.push(rows[j]);
+        }
+      }
+    }
+
+    for (var k = 0; k < ordered.length; k++) {
+      var targetRow = ordered[k];
+      var hit = findInputAtCursor(form, targetRow, origin.col);
+      if (hit && hit.input) {
+        return placeCaret(hit.input, hit.caret);
+      }
+      var nearest = nearestInputOnRow(inputs, targetRow, origin.col);
+      if (nearest) {
+        return placeCaret(nearest, origin.col - inputStartColOf(nearest));
+      }
+    }
+    return false;
+  }
+
+  function nearestInputOnRow(inputs, row, col) {
+    var best = null;
+    var bestDistance = null;
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputRowOf(inputs[i]) !== row) {
+        continue;
+      }
+      var start = inputStartColOf(inputs[i]);
+      var distance = Math.abs(start - col);
+      if (bestDistance === null || distance < bestDistance) {
+        bestDistance = distance;
+        best = inputs[i];
+      }
+    }
+    return best;
+  }
+
+  // handleLocalNavigation routes a normalized key name to its local movement.
+  // Returns true when the key was a navigation key and has been handled.
+  function handleLocalNavigation(key, formId) {
+    var form = findForm(formId);
+    if (!form) {
+      return false;
+    }
+    // Unformatted screens render as a single textarea with no field grid;
+    // let the browser's own caret handling deal with those.
+    if (!form.querySelector("input[data-x][data-y]")) {
+      return false;
+    }
+    switch (String(key).trim().toUpperCase()) {
+      case "TAB":
+        return moveTab(form, false);
+      case "BACKTAB":
+        return moveTab(form, true);
+      case "HOME":
+        return moveHome(form);
+      case "LEFT":
+        return moveHorizontal(form, -1);
+      case "RIGHT":
+        return moveHorizontal(form, 1);
+      case "UP":
+        return moveVertical(form, -1);
+      case "DOWN":
+        return moveVertical(form, 1);
+      default:
+        return false;
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Type-ahead
+  // ---------------------------------------------------------------------
+
+  function bufferTypeAhead(entry) {
+    if (typeAhead.length >= typeAheadLimit) {
+      return false;
+    }
+    typeAhead.push(entry);
+    return true;
+  }
+
+  // finishHostRoundTrip replays anything typed while the host held the
+  // keyboard, in order. AID keys are deliberately never buffered: replaying a
+  // transaction the operator fired blind against a screen they had not yet
+  // seen is not a convenience, it is a hazard.
+  function finishHostRoundTrip() {
+    awaitingHost = false;
+    renderOIA();
+    if (!typeAhead.length) {
+      return;
+    }
+    var pending = typeAhead;
+    typeAhead = [];
+    for (var i = 0; i < pending.length; i++) {
+      var entry = pending[i];
+      if (entry.type === "nav") {
+        handleLocalNavigation(entry.key, null);
+      } else if (entry.type === "char") {
+        typeCharacter(entry.char);
+      }
+    }
+  }
+
+  // typeCharacter applies one printable character to the focused field with
+  // full 3270 semantics: numeric-field enforcement, insert vs overtype, and
+  // field-overflow detection. Returns false if the terminal refused it.
+  function typeCharacter(ch) {
+    var target = document.activeElement;
+    if (!isScreenInput(target) || target.disabled || target.readOnly) {
+      return false;
+    }
+    if (target.dataset.numeric === "1" && !numericCharPattern.test(ch)) {
+      setOperatorError("Numeric field");
+      return false;
+    }
+    var value = typeof target.value === "string" ? target.value : "";
+    var max = target.maxLength > 0 ? target.maxLength : value.length + 1;
+    var start = typeof target.selectionStart === "number" ? target.selectionStart : value.length;
+    var end = typeof target.selectionEnd === "number" ? target.selectionEnd : start;
+    if (start > end) {
+      var swap = start;
+      start = end;
+      end = swap;
+    }
+
+    var next;
+    if (insertMode) {
+      if (value.length >= max) {
+        setOperatorError("Field full");
+        return false;
+      }
+      next = value.slice(0, start) + ch + value.slice(end);
+    } else {
+      // Overtype: consume the character under the caret rather than pushing
+      // it right.
+      var consumeTo = end > start ? end : Math.min(start + 1, value.length);
+      next = value.slice(0, start) + ch + value.slice(consumeTo);
+    }
+    if (next.length > max) {
+      next = next.slice(0, max);
+    }
+    target.value = next;
+    var caret = Math.min(start + 1, next.length);
+    if (typeof target.setSelectionRange === "function") {
+      target.setSelectionRange(caret, caret);
+    }
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // Auto-skip out of a filled numeric field. Restricting this to numeric
+    // fields matches where real terminals set the auto-skip attribute (date
+    // parts, account digits); firing it on every full alphanumeric field
+    // used to yank the caret away just as an operator went to fix the last
+    // character they typed.
+    if (target.dataset.numeric === "1" && next.length >= max && caret >= max) {
+      focusNextScreenInput(target, findForm(null));
+    }
+    return true;
+  }
+
   function focusNextScreenInput(current, form) {
     var inputs = getOrderedScreenInputs(form);
     var idx = inputs.indexOf(current);
@@ -936,75 +1420,6 @@
       next.setSelectionRange(len, len);
     }
     return true;
-  }
-
-  function handleAutoAdvance(event, form) {
-    if (!event || event.isComposing) {
-      return;
-    }
-    var target = event.target;
-    if (!form || !isScreenInput(target) || target.disabled || target.readOnly) {
-      return;
-    }
-    var max = target.maxLength;
-    if (!max || max < 1) {
-      return;
-    }
-    var value = target.value || "";
-    if (value.length < max) {
-      return;
-    }
-    if (typeof target.selectionStart === "number" && typeof target.selectionEnd === "number") {
-      if (target.selectionStart !== target.selectionEnd || target.selectionEnd !== value.length) {
-        return;
-      }
-    }
-    focusNextScreenInput(target, form);
-  }
-
-  function handleTypeoverOnFocus(event) {
-    var target = event.target;
-    if (!isScreenInput(target) || target.disabled || target.readOnly) {
-      return;
-    }
-    var max = target.maxLength;
-    var value = target.value || "";
-    if (!max || max < 1 || value.length < max) {
-      return;
-    }
-    if (typeof target.setSelectionRange === "function") {
-      target.setSelectionRange(0, value.length);
-    }
-  }
-
-  function handleTypeoverKey(event) {
-    if (!event || event.isComposing) {
-      return;
-    }
-    if (event.metaKey || event.ctrlKey || event.altKey) {
-      return;
-    }
-    if (!event.key || event.key.length !== 1) {
-      return;
-    }
-    var target = event.target;
-    if (!isScreenInput(target) || target.disabled || target.readOnly) {
-      return;
-    }
-    if (typeof target.selectionStart !== "number" || typeof target.selectionEnd !== "number") {
-      return;
-    }
-    if (target.selectionStart !== target.selectionEnd) {
-      return;
-    }
-    var pos = target.selectionStart;
-    var value = target.value || "";
-    if (pos >= value.length) {
-      return;
-    }
-    if (typeof target.setSelectionRange === "function") {
-      target.setSelectionRange(pos, pos + 1);
-    }
   }
 
   function disarmClearConfirmation() {
@@ -1079,14 +1494,15 @@
       var form = findForm(formId);
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !isModalOpen() && form) {
         event.preventDefault();
-        sendFormWithKey(
-          event.shiftKey ? "BackTab" : "Tab",
-          formId,
-          isScreenInput(event.target) ? event.target : null
-        );
-        window.requestAnimationFrame(function () {
-          focusTerminalContext();
-        });
+        var tabKey = event.shiftKey ? "BackTab" : "Tab";
+        if (submitting) {
+          bufferTypeAhead({ type: "nav", key: tabKey });
+        } else if (!handleLocalNavigation(tabKey, formId)) {
+          // Unformatted screens render as a single textarea with no field
+          // grid, so there is nothing to navigate locally — fall back to
+          // letting the host move its own cursor.
+          sendAidKey(tabKey, formId, isScreenInput(event.target) ? event.target : null);
+        }
       }
       return;
     }
@@ -1109,11 +1525,39 @@
       var arrowKey = mapSpecialKey(event);
       if (arrowKey) {
         event.preventDefault();
-        sendFormWithKey(arrowKey, formId, isScreenInput(event.target) ? event.target : null);
-        window.requestAnimationFrame(function () {
-          focusTerminalContext();
-        });
+        if (submitting) {
+          bufferTypeAhead({ type: "nav", key: arrowKey });
+        } else if (!handleLocalNavigation(arrowKey, formId)) {
+          sendAidKey(arrowKey, formId, isScreenInput(event.target) ? event.target : null);
+        }
       }
+      return;
+    }
+
+    // Home is a local cursor movement too, not an AID key.
+    if ((event.key === "Home" || code === 36) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (isInsideTerminalShell(event.target)) {
+        event.preventDefault();
+        if (!handleLocalNavigation("HOME", formId)) {
+          sendAidKey(specialKeys.Home, formId, isScreenInput(event.target) ? event.target : null);
+        }
+        return;
+      }
+    }
+
+    // Insert toggles overtype/insert on the terminal itself; it is not
+    // something the host is told about.
+    if ((event.key === "Insert" || code === 45) && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      setInsertMode(!insertMode);
+      return;
+    }
+
+    // Escape doubles as Reset while input is inhibited — the fastest way out
+    // of an operator error, and otherwise the key does nothing useful here.
+    if (isEscapeKey && (operatorError || hostIndicator === "X -f")) {
+      event.preventDefault();
+      clearOperatorError(formId);
       return;
     }
 
@@ -1121,18 +1565,46 @@
       return;
     }
 
-    handleTypeoverKey(event);
+    // Printable characters go through the 3270 field rules (numeric
+    // enforcement, insert vs overtype, overflow) rather than straight into
+    // the input, and are buffered rather than dropped while the host holds
+    // the keyboard.
+    if (
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !event.isComposing &&
+      event.key &&
+      event.key.length === 1 &&
+      isScreenInput(event.target)
+    ) {
+      event.preventDefault();
+      if (operatorError) {
+        return;
+      }
+      if (submitting) {
+        bufferTypeAhead({ type: "char", char: event.key });
+        return;
+      }
+      typeCharacter(event.key);
+      return;
+    }
 
     var paKey = mapPaKeys(event);
     if (paKey) {
       event.preventDefault();
-      sendFormWithKey(paKey, formId, event.target);
+      sendAidKey(paKey, formId, event.target);
       return;
     }
 
     var special = mapSpecialKey(event);
     if (special) {
       event.preventDefault();
+      if (special === specialKeys.Reset) {
+        if (clearOperatorError(formId)) {
+          return;
+        }
+      }
       if (special === specialKeys.Clear) {
         if (!clearConfirmArmed) {
           armClearConfirmation();
@@ -1140,15 +1612,29 @@
         }
         disarmClearConfirmation();
       }
-      sendFormWithKey(special, formId, event.target);
+      sendAidKey(special, formId, event.target);
       return;
     }
 
     var pfKey = mapFunctionKey(event);
     if (pfKey) {
       event.preventDefault();
-      sendFormWithKey(pfKey, formId, event.target);
+      sendAidKey(pfKey, formId, event.target);
     }
+  }
+
+  // sendAidKey gates every host-bound key on the inhibit state. A real
+  // terminal refuses AID keys outright while an operator error stands, and
+  // never queues one fired during a host wait.
+  function sendAidKey(key, formId, target) {
+    if (operatorError) {
+      renderOIA();
+      return;
+    }
+    if (submitting) {
+      return;
+    }
+    sendFormWithKey(key, formId, target);
   }
 
   function createButton(key, label, options) {
@@ -1716,8 +2202,26 @@
     });
   }
 
+  // The virtual keypad's entry point. Navigation keys resolve locally here
+  // too, so clicking Tab on the on-screen keypad is as instant as pressing
+  // it, and Reset clears a client-side operator error without a round-trip.
   window.sendKey = function (key, formId) {
-    sendFormWithKey(key, formId);
+    var normalized = String(key || "").trim().toUpperCase();
+    if (normalized === "INSERT") {
+      setInsertMode(!insertMode);
+      return;
+    }
+    if (normalized === "RESET" && clearOperatorError(formId)) {
+      return;
+    }
+    if (isCursorNavigationKey(key)) {
+      animateVirtualKey(key);
+      if (handleLocalNavigation(key, formId)) {
+        return;
+      }
+      // No field grid to navigate (an unformatted screen); let the host do it.
+    }
+    sendAidKey(key, formId, document.activeElement);
   };
 
   window.installKeyHandler = function (formId) {
@@ -1743,10 +2247,39 @@
             keyInput.value = specialKeys.Enter;
           }
         });
-        form.addEventListener("input", function (event) {
-          handleAutoAdvance(event, form);
+        // Auto-skip and overtype used to be driven from generic input/focusin
+        // listeners, which meant they also fired for pastes and for focus
+        // changes the operator did not type. typeCharacter now owns both, so
+        // they apply to real keystrokes only.
+
+        // Pasting into a numeric field strips what the field cannot hold
+        // rather than refusing the paste outright. Copying an account number
+        // that arrived with spaces or dashes in it is completely routine, and
+        // rejecting the whole paste for one stray character would be a worse
+        // answer than quietly landing the digits.
+        form.addEventListener("paste", function (event) {
+          var target = event.target;
+          if (!isScreenInput(target) || target.dataset.numeric !== "1") {
+            return;
+          }
+          var clipboard = event.clipboardData || window.clipboardData;
+          if (!clipboard) {
+            return;
+          }
+          var text = clipboard.getData("text") || "";
+          var cleaned = text.replace(/[^0-9.,\-+]/g, "");
+          if (cleaned === text) {
+            return;
+          }
+          event.preventDefault();
+          if (cleaned) {
+            insertTextIntoFocusedInput(cleaned);
+          }
+          if (!cleaned) {
+            setOperatorError("Numeric field");
+          }
         });
-        form.addEventListener("focusin", handleTypeoverOnFocus);
+
         form.dataset.keyHandlerInstalled = "1";
       }
     }
@@ -1791,11 +2324,33 @@
       });
   };
 
+  // Terminal state other modules need: the command palette drives Reset and
+  // insert mode, and screen-copy.js needs to know whether a field is focused.
+  window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+  window.ThreeSeventyWeb.terminal = {
+    toggleInsertMode: function () {
+      setInsertMode(!insertMode);
+    },
+    isInsertMode: function () {
+      return insertMode;
+    },
+    reset: function (formId) {
+      if (!clearOperatorError(formId)) {
+        sendAidKey(specialKeys.Reset, formId, document.activeElement);
+      }
+    },
+    sendKey: function (key, formId) {
+      window.sendKey(key, formId);
+    },
+    focusTerminal: focusTerminalContext
+  };
+
   document.addEventListener("DOMContentLoaded", function () {
     renderKeypad();
     initKeypadVisibilityToggle();
     initKeypadAutoScale();
     installTerminalFocusLock();
+    renderOIA();
 
     var sizeSlider = document.querySelector("[data-terminal-size-slider]");
     if (sizeSlider) {

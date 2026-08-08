@@ -5,6 +5,35 @@ import (
 	"strings"
 )
 
+// Operator Information Area input-inhibit indicators. These are the literal
+// strings a 3270 operator is trained to read: a locked keyboard shows
+// "X SYSTEM" while the host is thinking, and an operator error shows "X -f"
+// until Reset is pressed.
+const (
+	OIAReady       = ""
+	OIASystemWait  = "X SYSTEM"
+	OIAOperatorErr = "X -f"
+)
+
+// OIAIndicator returns the input-inhibit indicator for the current keyboard
+// state, plus a plain-language explanation for tooltips and screen readers.
+func (s *Screen) OIAIndicator() (indicator, explanation string) {
+	state, ok := s.StatusKeyboardState()
+	if !ok {
+		return OIAReady, ""
+	}
+	switch state {
+	case "U":
+		return OIAReady, "Ready for input"
+	case "L":
+		return OIASystemWait, "Host is processing — input inhibited"
+	case "E":
+		return OIAOperatorErr, "Operator error — press Reset"
+	default:
+		return OIASystemWait, "Input inhibited"
+	}
+}
+
 func statusParts(status string) []string {
 	if status == "" {
 		return nil
@@ -32,6 +61,31 @@ func (s *Screen) StatusKeyboardLocked() (bool, bool) {
 		return false, false
 	}
 	return state != "U", true
+}
+
+// StatusConnection returns the raw connection field from the status line:
+// "N" when not connected, otherwise "C(hostname)".
+func (s *Screen) StatusConnection() (string, bool) {
+	parts := statusParts(s.Status)
+	if parts == nil {
+		return "", false
+	}
+	return parts[statusIdxConnection], true
+}
+
+// StatusConnected reports whether s3270 holds a host connection, along with
+// the peer name s3270 reports for it. The third return distinguishes "not
+// connected" from "no usable status line to read".
+func (s *Screen) StatusConnected() (connected bool, peer string, ok bool) {
+	field, ok := s.StatusConnection()
+	if !ok {
+		return false, "", false
+	}
+	if field == "N" {
+		return false, "", true
+	}
+	peer = strings.TrimSuffix(strings.TrimPrefix(field, "C("), ")")
+	return true, peer, true
 }
 
 // StatusModel returns the model number from the status line.

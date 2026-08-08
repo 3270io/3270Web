@@ -12,8 +12,16 @@ they produce a different priority order.
 
 !!! info "Scope"
     This is an analysis document. Every claim below is traceable to a
-    specific file and line in the repository as of the audit date. No
-    runtime behaviour was changed to produce it.
+    specific file and line in the repository as of the audit date.
+
+!!! success "Phase 1 is shipped"
+    The six Phase 1 items are implemented — local cursor navigation, a
+    real OIA, reconnect, screen and block copy, workspace modes, and
+    3270 field semantics. Section 3 and section 5 describe the state
+    that motivated them and are kept as the rationale; each finding now
+    carries a note on how it was resolved. See
+    [Keyboard and Controls](keyboard-and-controls.md) for the resulting
+    behaviour, and [Phase 1 outcome](#9-phase-1-outcome) below.
 
 ---
 
@@ -102,8 +110,12 @@ in the DOM (`data-x`, `data-y`, `data-w` on every input,
 submit time already exists (`cursor_row`/`cursor_col` hidden inputs,
 `html_renderer.go:42`). This is a client-side change with no server work.
 
-Expected effect: 3270Web goes from "noticeably laggy" to "indistinguishable
-from a desktop emulator" for the 90 % of keystrokes that are navigation.
+!!! success "Resolved"
+    Tab, Back-Tab, the arrows and Home now move the caret in the DOM and
+    contact no one. Two deviations from a hardware terminal are documented
+    in [Cursor movement is local](keyboard-and-controls.md#cursor-movement-is-local):
+    a field's caret range is bounded by its current text length, and rows
+    of purely protected text are skipped.
 
 ### 3.2 Field semantics the host expects are not enforced
 
@@ -123,6 +135,15 @@ Consequences:
   surprise users on screens where it shouldn't happen.
 - **No type-ahead.** Keystrokes during a host wait are dropped rather than
   buffered. Fast operators type ahead constantly.
+
+!!! success "Resolved"
+    The numeric attribute now reaches the browser as `data-numeric` and is
+    enforced with a real operator-error lock; Insert is a local
+    insert/overtype toggle shown in the OIA; characters typed during a host
+    wait are buffered and replayed (AID keys are deliberately not).
+    Auto-skip was narrowed to fire only out of full *numeric* fields, which
+    removes the surprising case without changing behaviour operators rely
+    on — the strict field-attribute rule remains open on the roadmap.
 
 ### 3.3 The status line is not an OIA
 
@@ -152,6 +173,12 @@ mangled text — input values drop out of the selection entirely.
 There is no rectangular block copy, which in a 3270 shop is not a nicety:
 it is how people get a column of account numbers into Excel. Quick3270,
 PCOMM, and Rumba+ all ship it.
+
+!!! success "Resolved"
+    The renderer now emits the character grid as `data-screen-text`, and the
+    client overlays live input values on it. Copy Screen returns what is
+    actually displayed, including unsubmitted input and excluding hidden
+    password fields. Alt+drag marks a rectangle; Ctrl+C copies it.
 
 ### 3.5 No reconnect
 
@@ -242,6 +269,15 @@ is real. The fix is **role-based surfacing**, not deletion:
 
 This is a ~2-day change that transforms first-run impressions, and the
 automation audience loses one click.
+
+!!! success "Resolved"
+    Business mode is the default and hides the recording and chaos groups
+    plus the workflow status widget; Engineering mode restores them and the
+    choice persists. Terminal operations and every host key are now in the
+    palette, and palette entries whose control is hidden are hidden too, so
+    Business mode does not offer chaos commands. One carve-out: if a run
+    starts while in Business mode — Copilot can start one — the status
+    widget appears anyway and is put away when the run ends.
 
 ---
 
@@ -405,7 +441,7 @@ browser. Closes the Quick3270 VBScript gap without shipping a script engine.
 
 Rough sizing; sequence matters more than the estimates.
 
-### Phase 1 — Make it usable daily (~3 weeks)
+### Phase 1 — Make it usable daily ✅ shipped
 
 | # | Item | Size |
 |---|---|---|
@@ -450,6 +486,50 @@ Rough sizing; sequence matters more than the estimates.
 Phases 1 and 2 buy the right to be evaluated against Quick3270. Phase 3 is
 the reason to choose 3270Web over it. Phase 4 is the reason procurement
 signs.
+
+---
+
+## 9. Phase 1 outcome
+
+All six Phase 1 items are implemented. What actually changed:
+
+| # | Item | Outcome |
+|---|---|---|
+| 1 | Client-side cursor navigation | Tab, Back-Tab, arrows and Home resolve in the DOM. Zero host round-trips for navigation, verified in a browser. |
+| 2 | Real OIA | Online block, `X SYSTEM`, `X -f`, insert caret. The wait indicator is optimistic on send, then reconciled against the host. |
+| 3 | Reconnect | `POST /reconnect`, drop detection from both 401s and the OIA, backoff retry, manual fallback. |
+| 4 | Screen and block copy | Character grid on the form, live input values overlaid, hidden fields excluded. Alt+drag marks, Ctrl+C copies. |
+| 5 | Workspace modes | Business default, Engineering one click away, palette filtered by mode and given terminal operations plus all host keys. |
+| 6 | Field semantics | Numeric enforcement with an operator-error lock, local insert/overtype toggle, type-ahead buffering. |
+
+### Two things fixed along the way
+
+Neither was in scope; both were real.
+
+- **Custom themes never loaded on the connect page.** `theme.js` fetched
+  the session-gated `/api/themes` before any session existed, took a 401,
+  and silently fell back to an empty list — so the connect page's theme
+  picker only ever showed built-ins, and every page load logged a console
+  error. The endpoint stays gated (an explicit test asserts that); the
+  connect page is served the list inline instead.
+- **The OIA bar was `aria-live`.** It carries the cursor position, so a
+  screen reader announced row and column on every keystroke. Only the
+  inhibit explanation is announced now.
+
+### Known deviations
+
+Deliberate, and worth stating rather than discovering:
+
+- A field's caret range is bounded by its current text length, so arrowing
+  right past a short value moves to the next field instead of walking the
+  field's blank tail.
+- Up and down move between input fields; rows of purely protected text are
+  skipped, because the cursor can only rest in an input.
+- Auto-skip fires only out of full numeric fields. The strict rule keys off
+  the *next* field's auto-skip attribute; that remains open.
+- AID keys are never buffered by type-ahead — only characters are.
+- Reconnecting starts a new host session, so recording and chaos state from
+  the dead connection does not survive.
 
 ---
 
