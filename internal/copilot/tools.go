@@ -144,7 +144,7 @@ func DefaultTools() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "send_key",
-				Description: "Send an AID key to the host. Valid keys: Enter, PF1..PF24, PA1..PA3, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Up/Down/Left/Right. The host typically advances to a new screen after this.",
+				Description: "Send an AID key to the host. Valid keys: Enter, PF1..PF24, PA1..PA3, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Up/Down/Left/Right. The host typically advances to a new screen after this." + dangerousKeyNote(),
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{

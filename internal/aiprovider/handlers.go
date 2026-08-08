@@ -178,6 +178,9 @@ func (h *Handlers) Tools(c *gin.Context) {
 		"tools":         copilot.DefaultTools(),
 		"model":         cfg.Model,
 		"system_prompt": copilot.SystemPrompt(),
+		// The panel used to carry its own copy of this list, which meant the
+		// rule only existed where the browser ran the tool loop.
+		"dangerous_send_keys": copilot.DangerousSendKeys(),
 	})
 }
 
