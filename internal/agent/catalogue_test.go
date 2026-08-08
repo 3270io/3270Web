@@ -42,6 +42,21 @@ func TestBuiltinsLoadCleanly(t *testing.T) {
 		t.Fatal("no built-in skills were embedded")
 	}
 
+	// These four are the procedures that used to be inlined in
+	// copilot.DefaultSystemPrompt. Moving them into files must not be a way
+	// to lose one: the prompt no longer describes them, so nothing else
+	// would notice their absence.
+	for _, want := range []string{
+		"chaos-monkey",
+		"business-understanding",
+		"app-overview",
+		"perform-business-function",
+	} {
+		if _, ok := c.Skill(want); !ok {
+			t.Errorf("built-in skill %q is missing", want)
+		}
+	}
+
 	for _, s := range skills {
 		if s.Source.Kind != SourceBuiltin {
 			t.Errorf("skill %q: source = %q, want builtin", s.Name, s.Source)

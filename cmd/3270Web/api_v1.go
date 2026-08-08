@@ -29,6 +29,15 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/sessions/:id/profile", app.APIProfileHandler)
 	g.GET("/sessions/:id/profile", app.APIProfileGetHandler)
 
+	// Skills and instructions are not session-scoped — the catalogue is the
+	// same whichever host you are connected to, and a client will usually
+	// want to read it before opening a session at all.
+	g.GET("/skills", app.SkillsListHandler)
+	g.GET("/skills/load", app.SkillLoadHandler)
+	g.GET("/instructions", app.InstructionsListHandler)
+	g.GET("/instructions/load", app.InstructionLoadHandler)
+	g.GET("/extensions", app.ExtensionsListHandler)
+
 	app.registerAPIv1SessionScoped(r)
 }
 

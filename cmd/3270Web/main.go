@@ -67,6 +67,9 @@ type App struct {
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.
 	aiConfigStore *aiprovider.ConfigStore
+	// catalogueFields holds the skills/instructions/extensions catalogue and
+	// the per-conversation load trackers. See skills.go.
+	catalogueFields
 }
 
 // connectionProfiles lazily opens the connection-profile store, which lives
@@ -305,7 +308,12 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
 	r.GET("/chaos/insights", app.ChaosInsightsHandler)
 
-	// GitHub Copilot side panel + screen JSON tool endpoint
+	// Skills, instructions and extensions. Registered before initCopilot so
+	// the skill index is available to the system prompt it serves.
+	app.registerSkillRoutes(r)
+	copilot.SetSkillIndex(app.skillIndexSection)
+
+	// AI chat side panel + screen JSON tool endpoints
 	app.initCopilot(r)
 
 	// Public REST/JSON API (gated by API_TOKEN env var)
@@ -760,6 +768,10 @@ func (app *App) cleanupSession(s *session.Session) {
 		app.taskRunStore.cancel(s.ID)
 		app.taskRunStore.forget(s.ID)
 	}
+	// Which skills a conversation has already been given is only meaningful
+	// while that conversation exists, and the map would otherwise grow by one
+	// entry per session for the life of the process.
+	app.forgetLoadSession(s.ID)
 	app.SessionManager.RemoveSession(s.ID)
 }
 

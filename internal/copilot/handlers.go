@@ -134,7 +134,7 @@ func (h *Handlers) Tools(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tools":         DefaultTools(),
 		"model":         DefaultModel,
-		"system_prompt": DefaultSystemPrompt,
+		"system_prompt": SystemPrompt(),
 	})
 }
 

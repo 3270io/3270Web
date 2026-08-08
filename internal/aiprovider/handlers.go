@@ -177,7 +177,7 @@ func (h *Handlers) Tools(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tools":         copilot.DefaultTools(),
 		"model":         cfg.Model,
-		"system_prompt": copilot.DefaultSystemPrompt,
+		"system_prompt": copilot.SystemPrompt(),
 	})
 }
 
