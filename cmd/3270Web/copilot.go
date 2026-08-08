@@ -315,19 +315,15 @@ func screenToJSON(s *host.Screen) gin.H {
 			continue
 		}
 		// Hidden (e.g. password) fields never leave the server: their typed
-		// value must not reach the Copilot API or be echoed back to the
+		// value must not reach the AI provider or be echoed back to the
 		// browser, where it would land in the tool-card transcript and
-		// persist in localStorage.
-		val := ""
-		if !f.IsHidden() {
-			val = f.GetValue()
-		}
+		// persist in localStorage. See screen_redaction.go.
 		fields = append(fields, gin.H{
 			"row":       f.StartY,
 			"col":       f.StartX,
 			"endRow":    f.EndY,
 			"endCol":    f.EndX,
-			"value":     val,
+			"value":     visibleFieldValue(f),
 			"protected": f.IsProtected(),
 			"numeric":   f.IsNumeric(),
 			"hidden":    f.IsHidden(),
@@ -351,54 +347,5 @@ func screenToJSON(s *host.Screen) gin.H {
 	return out
 }
 
-// redactHiddenFieldText returns the screen's text with any hidden (e.g.
-// password) field's characters replaced by '*'. screen.Text() renders the
-// raw buffer, which still holds the actual typed characters for hidden
-// fields — 3270 "hidden" only suppresses local echo on a real terminal, it
-// doesn't stop the value from being present in the buffer sent here.
-func redactHiddenFieldText(s *host.Screen) string {
-	text := s.Text()
-	if s.Width <= 0 {
-		return text
-	}
-	lines := strings.Split(text, "\n")
-	for _, f := range s.Fields {
-		if f == nil || !f.IsHidden() {
-			continue
-		}
-		curX, curY := f.StartX, f.StartY
-		endX, endY := f.EndX, f.EndY
-		for {
-			if curY >= 0 && curY < len(lines) {
-				line := []rune(lines[curY])
-				if curX >= 0 && curX < len(line) {
-					line[curX] = '*'
-					lines[curY] = string(line)
-				}
-			}
-			if curX == endX && curY == endY {
-				break
-			}
-			curX++
-			if curX >= s.Width {
-				curX = 0
-				curY++
-				if curY >= s.Height {
-					break
-				}
-			}
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
-func fieldLength(f *host.Field) int {
-	if f == nil {
-		return 0
-	}
-	if f.EndY == f.StartY {
-		return f.EndX - f.StartX + 1
-	}
-	// Multi-line field: approximate length as the rune count of the value.
-	return len([]rune(f.GetValue()))
-}
+// redactHiddenFieldText and fieldLength live in screen_redaction.go, beside
+// the single definition of what a hidden field may disclose.

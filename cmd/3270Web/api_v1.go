@@ -277,8 +277,13 @@ func (app *App) APISubmit(c *gin.Context) {
 }
 
 // screenToPublicJSON renders s with stable snake_case keys for external
-// consumers. It deliberately does not edit the Copilot-facing screenToJSON
-// shape, whose camelCase keys the Copilot frontend depends on.
+// consumers. It deliberately does not edit the AI-facing screenToJSON
+// shape, whose camelCase keys the chat panel depends on.
+//
+// Hidden fields are redacted here exactly as they are there — see
+// screen_redaction.go. This API is reachable by any bearer-token holder and
+// is what an MCP client reads, so a password left in `value` or in `text`
+// would travel further than the terminal it was typed into.
 func screenToPublicJSON(s *host.Screen) gin.H {
 	if s == nil {
 		return gin.H{}
@@ -293,7 +298,7 @@ func screenToPublicJSON(s *host.Screen) gin.H {
 			"start_col": f.StartX,
 			"end_row":   f.EndY,
 			"end_col":   f.EndX,
-			"value":     f.GetValue(),
+			"value":     visibleFieldValue(f),
 			"protected": f.IsProtected(),
 			"numeric":   f.IsNumeric(),
 			"hidden":    f.IsHidden(),
@@ -303,7 +308,7 @@ func screenToPublicJSON(s *host.Screen) gin.H {
 	out := gin.H{
 		"width":     s.Width,
 		"height":    s.Height,
-		"text":      s.Text(),
+		"text":      redactHiddenFieldText(s),
 		"formatted": s.IsFormatted,
 		"fields":    fields,
 		"status":    strings.TrimSpace(s.Status),
