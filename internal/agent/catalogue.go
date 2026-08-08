@@ -42,11 +42,27 @@ type Catalogue struct {
 	skills       map[string]*Skill
 	instructions map[string]*Instruction
 	extensions   []*Extension
+	tasks        []Document
 	// shadowed records names where a lower layer was deliberately replaced.
 	shadowed map[string]Source
 	// problems records entries that could not be loaded, so a listing can
 	// explain an absence rather than leave a gap.
 	problems []string
+}
+
+// Document is a file an extension contributes for the product to interpret.
+//
+// The bytes travel rather than a parsed value because this package has no
+// business knowing what a Guided Business Task is. The gate that decides
+// whether one is well-formed lives with the type, and an extension's document
+// goes through exactly the same gate as one the operator recorded — which is
+// the property worth having, and the one a second parser here would lose.
+type Document struct {
+	Source Source
+	// File is the path it was read from, for an error message that can be
+	// acted on.
+	File string
+	Data []byte
 }
 
 // Dirs names where a catalogue looks for user content.
@@ -188,6 +204,24 @@ func (c *Catalogue) loadExtensionDir(root, productVersion string) {
 				continue
 			}
 			c.insertSkill(skill)
+		}
+
+		for _, decl := range ext.Manifest.Contributes.Tasks {
+			file, err := resolveInside(ext.Dir, decl.File)
+			if err != nil {
+				c.problemf("extension %s: task %s: %v", ext.Manifest.Name, decl.File, err)
+				continue
+			}
+			raw, err := os.ReadFile(file)
+			if err != nil {
+				c.problemf("extension %s: task %s is not readable", ext.Manifest.Name, decl.File)
+				continue
+			}
+			// Handed over as bytes rather than parsed here. What a task
+			// document means belongs to internal/task, which owns the
+			// validation gate; this package's job is to find the file, prove
+			// it is inside the extension, and say where it came from.
+			c.tasks = append(c.tasks, Document{Source: src, File: file, Data: raw})
 		}
 
 		for _, decl := range ext.Manifest.Contributes.Instructions {
@@ -334,6 +368,12 @@ func (c *Catalogue) Extensions() []*Extension {
 	out := append([]*Extension(nil), c.extensions...)
 	sort.Slice(out, func(i, j int) bool { return out[i].Manifest.Name < out[j].Manifest.Name })
 	return out
+}
+
+// Tasks returns the task documents extensions contributed, in the order they
+// were declared.
+func (c *Catalogue) Tasks() []Document {
+	return append([]Document(nil), c.tasks...)
 }
 
 // Shadowed reports which built-in a named skill replaced, if any.

@@ -63,6 +63,10 @@ type App struct {
 	taskStoreOnce sync.Once
 	taskRunStore  *taskRunStore
 	taskRunsOnce  sync.Once
+	// extensionTaskList holds tasks contributed by installed extensions,
+	// which are read-only and live outside the store's file.
+	extensionTaskList  []task.Task
+	extensionTasksOnce sync.Once
 	// aiConfigStore holds each browser's AI provider choice and credentials
 	// (Claude, OpenAI, Ollama, ...), keyed by the same identity cookie as
 	// copilotAuthStore.

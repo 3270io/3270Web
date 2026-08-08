@@ -459,7 +459,7 @@ func screenToPublicJSON(s *host.Screen) gin.H {
 // response is exactly the document /tasks/save accepts, so a catalogue can be
 // version-controlled and moved between deployments with two curl calls.
 func (app *App) APIListTasks(c *gin.Context) {
-	tasks, err := app.taskStore().List()
+	tasks, err := app.allTasks()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
 		return
@@ -512,7 +512,7 @@ func (app *App) APIRunTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
 		return
 	}
-	t, found := app.taskStore().Find(payload.Name)
+	t, found := app.findTask(payload.Name)
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("there is no task called %q", payload.Name)})
 		return
