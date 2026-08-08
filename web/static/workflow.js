@@ -542,11 +542,24 @@
     }
   };
 
+  // The status widget reports on a run, so it is only present when there is a
+  // run to report on. It used to sit on screen permanently — a 360×320 panel
+  // saying "Playback has not started yet" over the terminal, in the same
+  // corner the Copilot panel occupies. Visibility follows the active-run row
+  // exactly, which also means dismissing that row puts the widget away.
+  const setWidgetPresent = (present) => {
+    if (!statusWidget) {
+      return;
+    }
+    statusWidget.hidden = !present;
+  };
+
   const hideActiveRunRow = () => {
     setHidden(activeRunExtend, true);
     setHidden(activeRunClose, true);
     setHidden(activeRunRow, true);
     setHidden(activeRunContainer, true);
+    setWidgetPresent(false);
   };
 
   const defaultButtonTooltip = (button) => {
@@ -892,6 +905,7 @@
       setHidden(activeRunClose, true);
       setHidden(activeRunRow, true);
       setHidden(activeRunContainer, true);
+      setWidgetPresent(false);
       return;
     }
 
@@ -904,6 +918,7 @@
       setHidden(activeRunClose, true);
       setHidden(activeRunRow, true);
       setHidden(activeRunContainer, true);
+      setWidgetPresent(false);
       return;
     }
     if (dismissedActiveRunKey && dismissKey && dismissedActiveRunKey !== dismissKey) {
@@ -919,6 +934,15 @@
       !chaosExtendButton.hidden;
     const showCloseButton = !recordingActive && !playbackActive && !chaosActive && !!dismissKey;
     const displayText = metadata;
+    // The widget tracks whether a run is genuinely RUNNING, not merely whether
+    // the active-run row is on screen. The row lingers after a run finishes to
+    // offer its result — a thin toolbar strip, which is fine — but leaving a
+    // 360x320 status panel open over the terminal after the work is done is
+    // exactly the clutter this replaced. A live run shows it in either
+    // workspace mode, including Business, where Copilot can start one:
+    // watching your terminal move with no readout of what is driving it is
+    // worse than any amount of clutter.
+    setWidgetPresent(recordingActive || playbackActive || chaosActive);
     setHidden(activeRunContainer, false);
     setHidden(activeRunRow, false);
     setHidden(activeRunExtend, !canExtendChaosFromRow);

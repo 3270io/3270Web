@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -117,19 +118,25 @@ func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) (
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
-	if rendered == *lastHTML {
+	oia := screenOIA(screen)
+	// Dedup on the OIA as well as the HTML: a host that locks the keyboard or
+	// drops the connection without repainting the screen produces byte-identical
+	// HTML, and suppressing that update would leave the operator looking at a
+	// stale "ready" indicator during exactly the wait it exists to report.
+	fingerprint := rendered + "\x00" + fmt.Sprint(oia["oiaIndicator"], oia["oiaOnline"])
+	if fingerprint == *lastHTML {
 		return nil, false
 	}
-	*lastHTML = rendered
+	*lastHTML = fingerprint
 
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
-	payload := gin.H{
+	payload := mergeOIA(gin.H{
 		"html":             rendered,
 		"statusKeyboard":   keyboardLabel,
 		"statusModel":      modelLabel,
 		"statusDimensions": dimensionLabel,
 		"statusCursor":     cursorLabel,
-	}
+	}, screen)
 	if cursorRow, cursorCol, ok := screen.StatusCursor(); ok {
 		payload["cursorRow"] = cursorRow
 		payload["cursorCol"] = cursorCol

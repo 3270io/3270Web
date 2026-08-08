@@ -311,7 +311,7 @@ body.theme-authentic .screen-container {
 }
 
 body.theme-custom .screen-container,
-body.theme-custom .screen-status-line {
+body.theme-custom .screen-oia {
   border-radius: 0;
 }
 
@@ -1535,7 +1535,7 @@ pre, pre input, textarea {
   margin-inline: auto;
 }
 
-.screen-status-line {
+.screen-oia {
   background-color: var(--fg);
   border: 1px solid var(--border);
   border-top: none;
@@ -1556,7 +1556,7 @@ pre, pre input, textarea {
   box-sizing: border-box;
 }
 
-.screen-status-field {
+.screen-oia > * {
   flex: 0 0 auto;
 }
 
@@ -3233,10 +3233,15 @@ pre, pre input, textarea {
   color: var(--fg-muted);
 }
 
+/* Bottom-LEFT. Toast notifications own the bottom-right corner
+   (#h3270-notification-container, bottom/right 24px), so a widget at
+   bottom/right 20px sat directly underneath them — and copy, reconnect and
+   mode switching all raise toasts now. Anchoring left also stops the widget
+   sliding sideways every time the Copilot panel opens or is resized. */
 .workflow-status-widget {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px;
   width: var(--workflow-status-width, 360px);
   height: var(--workflow-status-height, 320px);
   max-width: calc(100vw - 40px);
