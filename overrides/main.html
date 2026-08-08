@@ -30,3 +30,38 @@
     })();
   </script>
 {% endblock %}
+
+{#
+  The product mark above the home page hero.
+
+  It belongs in index.md, but it cannot live there. The `mkdocs-video` plugin
+  re-serialises every page's content through lxml's HTML parser, which
+  lowercases tag and attribute names — `viewBox` becomes `viewbox`,
+  `linearGradient` becomes `lineargradient`, `feDropShadow` becomes
+  `fedropshadow` — and an inline SVG does not survive that. A plain <img>
+  would survive, but an external SVG is its own document, so the `--accent`
+  tokens never reach it and the mark would stay phosphor while the rest of the
+  page turned amber, ice or daylight.
+
+  So index.md leaves an empty placeholder and the mark is spliced in here.
+  Template output is rendered after `on_page_content` and is not touched by
+  that plugin, and the mark is the same partial the header uses, so there is
+  still one copy of the geometry per repo.
+
+  The ids have to be namespaced first. Material already includes that partial
+  twice — the header and the drawer nav — and one of those two is always
+  `display: none` at any given viewport. A duplicate id is resolved to the
+  first match in the document, so the hero's `url(#…)` would point into a
+  hidden subtree, where a mask contributes nothing and the front face renders
+  without its glyph. Prefixing every id and reference keeps this copy pointing
+  at its own defs. The rewrite is deliberately blind to what the ids are
+  called, so renaming them in the partial cannot break it.
+#}
+{% block content %}
+  {%- set rendered = super() -%}
+  {%- set logo %}{% include "partials/logo.html" %}{% endset -%}
+  {%- set mark = logo | replace('id="', 'id="hero-') | replace('url(#', 'url(#hero-') -%}
+  {#- The mark repeats the product name that the <h1> beside it already
+      carries, so it is decorative and hidden from assistive tech. -#}
+  {{ rendered | replace('<p class="hero-mark"></p>', '<p class="hero-mark" aria-hidden="true">' ~ mark ~ '</p>') }}
+{% endblock %}

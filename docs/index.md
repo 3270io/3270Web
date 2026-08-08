@@ -7,7 +7,7 @@ hide:
 <div class="split" markdown>
 <div markdown>
 
-<p class="hero-mark"><img class="plain" src="assets/logo.svg" alt="3270Web" width="72" height="72"></p>
+<p class="hero-mark"></p>
 
 <span class="chip accent"><span class="dot live"></span> Open source · v1.8.6</span>
 
