@@ -259,3 +259,134 @@ func TestTasksDraftRequiresASession(t *testing.T) {
 		t.Fatalf("status = %d, want 401", w.Code)
 	}
 }
+
+/* ---------------------------------------------------------------- */
+/* The token-authenticated API                                      */
+/* ---------------------------------------------------------------- */
+
+func apiRouter(app *App) *gin.Engine {
+	r := gin.New()
+	app.registerAPIv1(r)
+	return r
+}
+
+func apiRequest(r *gin.Engine, method, path, token string, payload any) *httptest.ResponseRecorder {
+	var body *bytes.Reader
+	if payload != nil {
+		b, _ := json.Marshal(payload)
+		body = bytes.NewReader(b)
+	} else {
+		body = bytes.NewReader(nil)
+	}
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// The whole /api/v1 surface is off unless API_TOKEN is set, and the task
+// routes must not be an exception — they can drive a mainframe transaction.
+func TestAPITaskRoutesAreOffWithoutAToken(t *testing.T) {
+	t.Setenv("API_TOKEN", "")
+	app := newTaskTestApp(t)
+	r := apiRouter(app)
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/tasks"},
+		{http.MethodPost, "/api/v1/tasks"},
+		{http.MethodPost, "/api/v1/sessions/abc/tasks/run"},
+	} {
+		w := apiRequest(r, tc.method, tc.path, "", map[string]any{})
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s %s = %d, want 503 when API_TOKEN is unset", tc.method, tc.path, w.Code)
+		}
+	}
+}
+
+func TestAPITaskRoutesRejectABadToken(t *testing.T) {
+	t.Setenv("API_TOKEN", "correct-horse")
+	app := newTaskTestApp(t)
+	r := apiRouter(app)
+	if w := apiRequest(r, http.MethodGet, "/api/v1/tasks", "", nil); w.Code != http.StatusUnauthorized {
+		t.Errorf("no token = %d, want 401", w.Code)
+	}
+	if w := apiRequest(r, http.MethodGet, "/api/v1/tasks", "wrong", nil); w.Code != http.StatusUnauthorized {
+		t.Errorf("wrong token = %d, want 401", w.Code)
+	}
+}
+
+// The catalogue endpoint doubles as export/import: what GET returns is what
+// POST accepts, so a catalogue can be version-controlled and moved between
+// deployments without a bespoke format.
+func TestAPITaskCatalogueRoundTripsThroughItself(t *testing.T) {
+	t.Setenv("API_TOKEN", "tok")
+	app := newTaskTestApp(t)
+	r := apiRouter(app)
+
+	if w := apiRequest(r, http.MethodPost, "/api/v1/tasks", "tok", validTaskPayload()); w.Code != http.StatusOK {
+		t.Fatalf("save = %d, body=%s", w.Code, w.Body.String())
+	}
+	w := apiRequest(r, http.MethodGet, "/api/v1/tasks", "tok", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list = %d", w.Code)
+	}
+	var exported struct{ Tasks []task.Task }
+	if err := json.Unmarshal(w.Body.Bytes(), &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Tasks) != 1 {
+		t.Fatalf("expected one task, got %d", len(exported.Tasks))
+	}
+
+	// Feed an exported task straight back in — into a fresh catalogue, so this
+	// proves the shape survives the round trip rather than that nothing moved.
+	fresh := newTaskTestApp(t)
+	fr := apiRouter(fresh)
+	if w := apiRequest(fr, http.MethodPost, "/api/v1/tasks", "tok", exported.Tasks[0]); w.Code != http.StatusOK {
+		t.Fatalf("re-import = %d, body=%s", w.Code, w.Body.String())
+	}
+	again, _ := fresh.taskStore().Find("Account balance enquiry")
+	if len(again.Steps) != 1 || len(again.Outputs) != 1 || len(again.Parameters) != 1 {
+		t.Errorf("the round trip lost part of the task: %+v", again)
+	}
+}
+
+func TestAPISaveTaskValidatesAtTheBoundary(t *testing.T) {
+	t.Setenv("API_TOKEN", "tok")
+	app := newTaskTestApp(t)
+	r := apiRouter(app)
+	bad := validTaskPayload()
+	bad["steps"].([]map[string]any)[0]["inputs"].([]map[string]any)[0]["parameter"] = "ghost"
+	w := apiRequest(r, http.MethodPost, "/api/v1/tasks", "tok", bad)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIRunTaskRejectsAnUnknownSession(t *testing.T) {
+	t.Setenv("API_TOKEN", "tok")
+	app := newTaskTestApp(t)
+	r := apiRouter(app)
+	w := apiRequest(r, http.MethodPost, "/api/v1/sessions/nope/tasks/run", "tok",
+		map[string]any{"name": "Account balance enquiry"})
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", w.Code, w.Body.String())
+	}
+}
+
+// A session with no host is a different failure from a missing session, and
+// conflating them would send a caller looking in the wrong place.
+func TestAPIRunTaskRejectsADisconnectedSession(t *testing.T) {
+	t.Setenv("API_TOKEN", "tok")
+	app := newTaskTestApp(t)
+	s := app.SessionManager.CreateSession(nil)
+	r := apiRouter(app)
+	w := apiRequest(r, http.MethodPost, "/api/v1/sessions/"+s.ID+"/tasks/run", "tok",
+		map[string]any{"name": "Account balance enquiry"})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body=%s", w.Code, w.Body.String())
+	}
+}

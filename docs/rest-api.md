@@ -49,6 +49,9 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 | `POST` | `/api/v1/sessions/:id/submit` | Submit modified fields + send Enter (or another AID) |
 | `POST` | `/api/v1/sessions/:id/profile` | Run a host compatibility probe and return the `CompatibilityProfile` JSON |
 | `GET` | `/api/v1/sessions/:id/profile` | Return the cached `CompatibilityProfile` from the last probe |
+| `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
+| `POST` | `/api/v1/tasks` | Add or replace a task |
+| `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
 
 ### `POST /api/v1/sessions`
 
@@ -188,6 +191,62 @@ session. `404 Not Found` if no probe has run.
 curl -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:8080/api/v1/sessions/$ID/profile
 ```
+
+### `GET /api/v1/tasks` and `POST /api/v1/tasks`
+
+The [Guided Business Task](business-tasks.md) catalogue. `GET` returns
+exactly the documents `POST` accepts, so these two are also export and
+import — moving a catalogue between deployments, or keeping one in version
+control, needs no separate format. Every task goes through the same
+validation the browser and the runner use.
+
+The catalogue is deployment-wide, which is why it is not under
+`/sessions/:id`.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://127.0.0.1:8080/api/v1/tasks | jq '.tasks'
+```
+
+### `POST /api/v1/sessions/:id/tasks/run`
+
+Run a task and return its result. The task name travels in the body rather
+than the path: task names are prose, and one containing a slash would
+silently become two path segments.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Account balance enquiry","parameters":{"account_number":"40218855"}}' \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/tasks/run
+```
+
+```json
+{
+  "task": "Account balance enquiry",
+  "durationMs": 152,
+  "completed": true,
+  "steps": [{ "index": 1, "description": "Enter the account number", "status": "ok" }],
+  "outputs": [{ "name": "cleared_balance", "label": "Cleared balance",
+                "value": "1,240.55", "found": true }]
+}
+```
+
+**Synchronous**, unlike the browser's `/tasks/run`: a bot wants the answer in
+the response rather than a poll loop. Bounded at five minutes. One run per
+session, shared with the browser path, so an API run and a browser run cannot
+overlap on the same terminal.
+
+A task that stops early returns **`200` with `completed: false`** plus the
+failure detail — which step, what it expected, what it found, and the screen
+it stopped on. The request succeeded; the body says what the host did. An HTTP
+status cannot express "step 3 saw the wrong screen".
+
+| Status | Meaning |
+|---|---|
+| `200` | The run finished. Check `completed`. |
+| `400` | A parameter was rejected. Nothing was sent to the host. |
+| `404` | No such session, or no such task. |
+| `409` | The session is not connected, or a run is already in progress on it. |
 
 ## Browser-session endpoints
 

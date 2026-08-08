@@ -1626,6 +1626,168 @@ body[data-focus="on"] .sample-status {
 .task-card-note { margin: 0 0 10px; font-size: 0.72rem; }
 
 /* ---------------------------------------------------------------- */
+/* Task authoring wizard                                              */
+/* ---------------------------------------------------------------- */
+.wizard-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.wizard-modal[hidden] { display: none; }
+
+.wizard-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.wizard-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(96vw, 860px);
+  max-height: 90vh;
+  padding: 18px 20px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.wizard-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wizard-modal-header h3 { margin: 0; font-size: 1.02rem; }
+
+.wizard-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.wizard-section { display: flex; flex-direction: column; gap: 8px; }
+.wizard-section h4 { margin: 0; font-size: 0.86rem; }
+.wizard-section > .subtle { margin: 0; font-size: 0.76rem; line-height: 1.45; }
+
+/* The server's assumptions, shown rather than buried. This is the difference
+   between a wizard that asks and one that quietly guesses. */
+.wizard-notes {
+  border: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--panel-2) 40%, transparent);
+}
+
+.wizard-notes summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.wizard-notes ul { margin: 8px 0 0; padding-left: 18px; }
+.wizard-notes li { font-size: 0.74rem; line-height: 1.5; margin-bottom: 4px; }
+
+.wizard-param,
+.wizard-output {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(110px, auto) minmax(90px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 30%, transparent);
+}
+
+.wizard-param input,
+.wizard-param select,
+.wizard-output input { width: 100%; box-sizing: border-box; font-size: 0.78rem; }
+
+.wizard-param-where,
+.wizard-output .subtle { font-size: 0.7rem; white-space: nowrap; }
+
+.wizard-output-sample {
+  font-family: var(--mono, monospace);
+  font-size: 0.74rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+
+/* The screen the flow ended on, as a static picking surface. Rendered as a
+   plain <pre> so the same cell arithmetic the live terminal uses applies
+   here — see screenGrid.metricsFor. */
+.wizard-screen {
+  position: relative;
+  overflow: auto;
+  max-height: 42vh;
+  padding: 8px;
+  background: var(--term-bg, #000);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  cursor: crosshair;
+  /* Text selection would fight the drag gesture for the same pointer. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.wizard-screen pre {
+  margin: 0;
+  font-family: var(--term-font, monospace);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  white-space: pre;
+  color: var(--term-fg, #33ff66);
+}
+
+.wizard-marquee {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 2px;
+}
+
+.wizard-marquee[hidden] { display: none; }
+
+.wizard-outputs { display: flex; flex-direction: column; gap: 6px; }
+.wizard-outputs > .subtle { margin: 0; font-size: 0.76rem; }
+
+.wizard-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 620px) {
+  .wizard-param,
+  .wizard-output { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------------------------------------------------------------- */
 /* Keyboard mapping                                                   */
 /* ---------------------------------------------------------------- */
 .keymap-modal {

@@ -50,6 +50,7 @@
     <script src="/static/file-transfer.js" defer></script>
     <script src="/static/keymap-editor.js" defer></script>
     <script src="/static/tasks.js" defer></script>
+    <script src="/static/task-wizard.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js?v=2" defer></script>
@@ -63,7 +64,7 @@
     <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=4" defer></script>
-    <script src="/static/ui-polish.js?v=8" defer></script>
+    <script src="/static/ui-polish.js?v=9" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -194,6 +195,12 @@
                     </button>
                     <div class="recording-controls-panel">
                     <div class="recording-controls-section" aria-label="Recording actions">
+                        <!-- Save the recording as a business task. Lives with the
+                             recording controls because that is where the flow it
+                             turns into a task was just captured. -->
+                        <button type="button" class="icon-button" data-wizard-open data-tippy-content="Save recording as a task" aria-label="Save recording as a task">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z"/></svg>
+                        </button>
                         <form action="/record/stop" method="post" data-recording-stop {{ if not .RecordingActive }}hidden{{ end }}>
                             <button type="submit" class="icon-button icon-button-stop" data-tippy-content="Stop recording" aria-label="Stop recording">
                                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>

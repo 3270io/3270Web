@@ -68,9 +68,40 @@ result card showing a blank balance is worse than an honest error.
 
 ## Defining a task
 
-The authoring wizard is not built yet, so tasks are defined as JSON and
-posted to the catalogue. The catalogue is **server-side**, so one person
-defines a task and everyone else picks it off the menu.
+### From a recording (the wizard)
+
+Record the flow once, then press **Save recording as a task** on the
+recording controls — or find it in the command palette.
+
+1. **Record.** Start recording, work through the screens exactly as the task
+   should run, then stop.
+2. **Confirm the inputs.** Everything typed during the recording arrives as
+   an input the operator will be asked for, labelled with the text the screen
+   itself uses. Switch any that should always be the same to **Always this
+   value**; that removes the input from the form and bakes the value into the
+   step.
+3. **Mark the answer.** Drag across the screen the flow ended on to mark each
+   value the task should report back. This is the one thing a recording
+   cannot work out for itself.
+4. **Name it and save.**
+
+Above the form is **What was assumed** — every guess the draft made, listed
+rather than buried. Read it: a guard that could not be derived, a field with
+no label, or a value that was cleared rather than typed all show up there.
+
+!!! note "Marked regions extend to the next text on the row"
+
+    If you mark `ADA` you get a region as wide as the *slot* the value sits
+    in, not as wide as those three characters. That is deliberate — a region
+    sized to the recorded value would silently truncate a longer one, so
+    `GRACE` would come back as `GRA`. Trailing spaces are trimmed from the
+    result.
+
+### By hand
+
+The catalogue is **server-side**, so one person defines a task and everyone
+else picks it off the menu. A task can also be written directly and posted to
+`/tasks/save`:
 
 ```json
 {
@@ -190,8 +221,68 @@ background; poll `/tasks/status` for progress and the result. One run per
 session — a task drives the single terminal that session owns, and two at
 once would interleave keystrokes into the same screen buffer.
 
-A token-authenticated equivalent under `/api/v1/` is on the
-[roadmap](feature-roadmap.md), for RPA and CI callers.
+### For bots and CI
+
+The same capability is on the token-authenticated
+[REST API](rest-api.md), which needs `API_TOKEN` set.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/tasks` | The catalogue — this is also **export** |
+| `POST` | `/api/v1/tasks` | Add or replace a task — this is also **import** |
+| `POST` | `/api/v1/sessions/{id}/tasks/run` | Run a task in a session and return the result |
+
+```bash
+curl -H "Authorization: Bearer $API_TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Account balance enquiry","parameters":{"account_number":"40218855"}}' \
+     https://3270web.example/api/v1/sessions/$SID/tasks/run
+```
+
+```json
+{
+  "task": "Account balance enquiry",
+  "durationMs": 152,
+  "completed": true,
+  "steps": [{ "index": 1, "description": "Enter the account number", "status": "ok" }],
+  "outputs": [{ "name": "cleared_balance", "label": "Cleared balance",
+                "value": "1,240.55", "found": true }]
+}
+```
+
+The API run is **synchronous**, unlike the browser's. The two callers want
+opposite things: a browser has to show progress and offer Cancel while a
+transaction takes its seconds, so it polls; a bot wants the answer in the
+response and would otherwise have to implement a poll loop to get it. Both are
+bounded by the same five-minute ceiling, and both register in the same
+per-session slot — so an API run and a browser run cannot overlap on one
+terminal.
+
+A task that stopped early returns **200 with `completed: false`** and the
+failure detail, not an HTTP error. The request succeeded; the body says what
+the host did. An HTTP status cannot express "step 3 saw the wrong screen", and
+collapsing it into a 500 would discard the only useful part of the answer.
+
+### Export and import
+
+`GET /api/v1/tasks` returns exactly the documents `POST /api/v1/tasks`
+accepts, so moving a catalogue between deployments — or keeping it in version
+control — needs no separate format:
+
+```bash
+# Export
+curl -H "Authorization: Bearer $API_TOKEN" \
+     https://source.example/api/v1/tasks | jq '.tasks' > tasks.json
+
+# Import, one task at a time
+jq -c '.[]' tasks.json | while read -r t; do
+  curl -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
+       -d "$t" https://target.example/api/v1/tasks
+done
+```
+
+Imported tasks go through the same validation as everything else, so a task
+edited by hand in version control cannot reach the runner malformed.
 
 ## Limits
 

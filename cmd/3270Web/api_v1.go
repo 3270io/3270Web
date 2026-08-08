@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
+	"github.com/jnnngs/3270Web/internal/task"
 )
 
 // registerAPIv1 wires the public /api/v1/* surface used by RPA bots, CI
@@ -28,6 +31,12 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/sessions/:id/submit", app.APISubmit)
 	g.POST("/sessions/:id/profile", app.APIProfileHandler)
 	g.GET("/sessions/:id/profile", app.APIProfileGetHandler)
+
+	// Guided Business Tasks. The catalogue is deployment-wide, so it is not
+	// under /sessions; running one needs a connected session, so that is.
+	g.GET("/tasks", app.APIListTasks)
+	g.POST("/tasks", app.APISaveTask)
+	g.POST("/sessions/:id/tasks/run", app.APIRunTask)
 }
 
 // RequireAPIToken enforces Bearer-token auth against the API_TOKEN env var.
@@ -315,4 +324,102 @@ func screenToPublicJSON(s *host.Screen) gin.H {
 		out["cursor"] = gin.H{"row": row, "col": col}
 	}
 	return out
+}
+
+/* ---------------------------------------------------------------- */
+/* Guided Business Tasks                                             */
+/* ---------------------------------------------------------------- */
+
+// APIListTasks returns the task catalogue. This doubles as export: the
+// response is exactly the document /tasks/save accepts, so a catalogue can be
+// version-controlled and moved between deployments with two curl calls.
+func (app *App) APIListTasks(c *gin.Context) {
+	tasks, err := app.taskStore().List()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks})
+}
+
+// APISaveTask adds or replaces a task. Validated by the same gate the browser
+// and the runner go through, so an imported task cannot be malformed.
+func (app *App) APISaveTask(c *gin.Context) {
+	var t task.Task
+	if err := c.ShouldBindJSON(&t); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	if _, err := app.taskStore().Upsert(t); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "task": t.Name})
+}
+
+// APIRunTask runs a task in the named session and returns the result.
+//
+// Synchronous, unlike the browser's /tasks/run. The two callers want opposite
+// things: a browser needs to show progress and offer Cancel while a
+// transaction takes its seconds, so it polls; a bot or a CI job wants the
+// answer in the response and would otherwise have to implement a poll loop to
+// get it. The run is bounded by the same five-minute ceiling either way.
+//
+// The task name travels in the body rather than the path. Task names are
+// prose — "Account balance enquiry" — and a name containing a slash would
+// silently become two path segments.
+func (app *App) APIRunTask(c *gin.Context) {
+	s, ok := app.apiSessionFromPath(c)
+	if !ok {
+		return
+	}
+	h := app.sessionHost(s)
+	if h == nil || !h.IsConnected() {
+		c.JSON(http.StatusConflict, gin.H{"error": "the session is not connected to a host"})
+		return
+	}
+
+	var payload struct {
+		Name       string            `json:"name"`
+		Parameters map[string]string `json:"parameters"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+	t, found := app.taskStore().Find(payload.Name)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("there is no task called %q", payload.Name)})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), maxTaskRunDuration)
+	defer cancel()
+
+	// Registered in the same per-session store the browser uses. A task drives
+	// the one terminal that session owns, so an API run and a browser run must
+	// not overlap on it — and this is what makes the two paths mutually
+	// exclusive rather than merely unlikely to collide.
+	run := &taskRun{Task: t.Name, StartedAt: time.Now(), Total: len(t.Steps), cancel: cancel}
+	if err := app.taskRuns().begin(s.ID, run); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	defer app.taskRuns().update(s.ID, func(r *taskRun) { r.done = true })
+
+	runner := &task.Runner{Terminal: h}
+	result, err := runner.Run(ctx, t, payload.Parameters)
+	if err != nil {
+		// A parameter the task rejects is the caller's error, not a failure of
+		// the run — nothing was sent to the host.
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	app.taskRuns().update(s.ID, func(r *taskRun) { r.result = result })
+
+	// A task that stopped early is a 200 carrying completed:false, not an HTTP
+	// error: the request succeeded, and the body says what the host did. An
+	// HTTP status cannot express "step 3 saw the wrong screen", and collapsing
+	// it into 500 would throw away the only useful part of the answer.
+	c.JSON(http.StatusOK, result)
 }
