@@ -89,7 +89,7 @@ func setupChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine
 	app := &App{
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
-		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
+		baseDir:        t.TempDir(),
 	}
 
 	r := gin.New()
@@ -492,7 +492,7 @@ func TestChaosExport_AfterCompletion_FallbackFromDisk(t *testing.T) {
 	// about to rely on happens as a separate, best-effort step afterward.
 	// Wait for the actual run file to land before simulating cache loss,
 	// or evicting the cache races the write this test depends on.
-	runFile := filepath.Join(app.chaosRunsDir, runID+".json")
+	runFile := filepath.Join(app.chaosRunsDirForSession(""), runID+".json")
 	deadline = time.Now().Add(6 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(runFile); err == nil {
@@ -548,7 +548,7 @@ func TestChaosStatus_NoSession(t *testing.T) {
 
 // setupFullChaosTestApp creates a test App with all chaos routes registered,
 // including the persistence routes (/chaos/runs, /chaos/load, /chaos/resume).
-// It uses t.TempDir() for the chaosRunsDir so that each test gets an isolated
+// It uses t.TempDir() as the data directory so that each test gets an isolated
 // directory that is cleaned up automatically.
 func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.Engine, string) {
 	t.Helper()
@@ -562,14 +562,13 @@ func setupFullChaosTestApp(t *testing.T, mockHost *host.MockHost) (*App, *gin.En
 	app := &App{
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
-		chaosRunsDir:   t.TempDir(),
-		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
+		baseDir:        t.TempDir(),
 	}
 
 	// Cleanups run last-registered-first, and t.TempDir() registered its
 	// RemoveAll on the lines above — so this one runs before the directories
 	// are removed, which is the whole point. A status goroutine still running
-	// when a test ends writes its saved run into chaosRunsDir, and racing
+	// when a test ends writes its saved run into the runs directory, and racing
 	// RemoveAll for it fails the test with "directory not empty" in whichever
 	// test happened to be unlucky.
 	t.Cleanup(func() {
@@ -1107,21 +1106,21 @@ func TestConfineChaosFilePath_EmptyStaysEmpty(t *testing.T) {
 // The transition log is opened O_APPEND, so an unconfined path let a caller
 // append attacker-influenced JSON to any file the process could write.
 func TestConfineChaosPaths_ConfinesTransitionLog(t *testing.T) {
-	base := t.TempDir()
-	app := &App{chaosRunsDir: base}
+	app := &App{baseDir: t.TempDir()}
+	runsDir := app.chaosRunsDirForSession("")
 
 	cfg := chaos.Config{
 		OutputFile:        "../../escape.json",
 		TransitionLogPath: "/var/log/anything.jsonl",
 	}
-	app.confineChaosPaths(&cfg, "")
+	app.confineChaosPaths(&cfg, "", "")
 
 	for label, got := range map[string]string{
 		"OutputFile":        cfg.OutputFile,
 		"TransitionLogPath": cfg.TransitionLogPath,
 	} {
-		if filepath.Dir(got) != filepath.Clean(base) {
-			t.Errorf("%s = %q, which is outside %q", label, got, base)
+		if filepath.Dir(got) != filepath.Clean(runsDir) {
+			t.Errorf("%s = %q, which is outside %q", label, got, runsDir)
 		}
 	}
 }
@@ -1208,7 +1207,7 @@ func TestChaosStart_OutputFileDoesNotOverwriteLoadedRecording(t *testing.T) {
 		t.Fatalf("chaos wrote outside the runs directory: %v", names)
 	}
 
-	chaosPath := filepath.Join(app.chaosRunsDir, "recording-chaos.json")
+	chaosPath := filepath.Join(app.chaosRunsDirForSession(""), "recording-chaos.json")
 	chaosData, err := os.ReadFile(chaosPath)
 	if err != nil {
 		t.Fatalf("read chaos output file: %v", err)
@@ -1516,7 +1515,7 @@ func TestChaosStart_RespectsEnvSettings(t *testing.T) {
 	app := &App{
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
-		chaosHintsPath: filepath.Join(dir, "chaos-hints.json"),
+		baseDir:        dir,
 		envPath:        envPath,
 	}
 
@@ -1574,7 +1573,7 @@ func TestChaosReport_WithoutRun(t *testing.T) {
 	app := &App{
 		SessionManager: mgr,
 		chaosEngines:   newChaosEngineStore(),
-		chaosHintsPath: filepath.Join(t.TempDir(), "chaos-hints.json"),
+		baseDir:        t.TempDir(),
 	}
 	r := gin.New()
 	r.POST("/chaos/report", app.ChaosReportHandler)

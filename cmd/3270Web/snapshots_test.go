@@ -28,8 +28,6 @@ func snapshotTestApp(t *testing.T) (*App, *gin.Engine, *session.Session, *host.M
 		chaosEngines:   newChaosEngineStore(),
 		baseDir:        t.TempDir(),
 	}
-	app.chaosRunsDir = app.baseDir
-	app.chaosHintsPath = app.baseDir + "/chaos-hints.json"
 
 	mock, err := host.NewMockHost("")
 	if err != nil {

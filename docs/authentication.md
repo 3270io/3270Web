@@ -211,11 +211,22 @@ than tidiness.
 Instance-wide administration — settings, logs, restart and account management
 — requires the `admin` role.
 
-**Stored data is still shared.** Work to separate it is ongoing:
+**Chaos runs and chaos hints are private too.** A saved run holds captured
+screens and the field values that produced them — a record of a real
+application's contents — so each account keeps its own. Under
+`AUTH_MODE=local` they live in `users/<account-id>/` beneath the data
+directory; with a single operator the layout is unchanged.
 
-- Chaos runs, saved tasks, connection profiles and themes live in one pool per
-  instance. Chaos runs in particular hold captured mainframe screens, so treat
-  every account as able to read what any other account explored.
+Turning authentication on for an instance that has been running moves the
+existing chaos runs and hints to the first administrator's account, once, and
+says so in the log. There was one operator, so there is one plausible owner —
+the alternative would be leaving them where nothing looks any more, which
+reads as having lost them.
+
+**Some stored data is still shared.** Work to separate it is ongoing:
+
+- Saved tasks, connection profiles and themes live in one pool per instance.
+  Any account can read and change them.
 - The `/api/v1` token is a single instance-wide credential rather than a
   per-user one. A client holding it can list and drive **any** session,
   including one opened in somebody's browser. That is what the token has always

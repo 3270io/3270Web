@@ -21,7 +21,7 @@ func setupChaosBusinessTestApp(t *testing.T) (*App, *gin.Engine, string) {
 	}
 	mockHost.Connected = true
 	app, r, sessID := setupChaosTestApp(t, mockHost)
-	app.chaosRunsDir = t.TempDir()
+	app.baseDir = t.TempDir()
 	r.GET("/chaos/screens", app.ChaosScreensListHandler)
 	r.POST("/chaos/screens/annotate", app.ChaosScreenAnnotateHandler)
 	r.GET("/chaos/business/functions", app.ChaosBusinessFunctionsListHandler)
@@ -65,7 +65,7 @@ func seedBusinessSavedRun(t *testing.T, app *App, sessID string) *chaos.SavedRun
 		SavedRunMeta: chaos.SavedRunMeta{ID: chaos.NewRunID(), StepsRun: 5, Transitions: 3, UniqueScreens: 2},
 		MindMap:      &mm,
 	}
-	if err := chaos.SaveRun(app.chaosRunsDir, run); err != nil {
+	if err := chaos.SaveRun(app.chaosRunsDirForSession(""), run); err != nil {
 		t.Fatalf("SaveRun: %v", err)
 	}
 	app.chaosEngines.setLoadedRun(sessID, run)
@@ -88,7 +88,7 @@ func TestChaosBusinessAnnotateLoadedRunPersistsToDisk(t *testing.T) {
 	}
 
 	// The annotation must survive a fresh read from disk.
-	reloaded, err := chaos.LoadRun(app.chaosRunsDir, run.ID)
+	reloaded, err := chaos.LoadRun(app.chaosRunsDirForSession(""), run.ID)
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestChaosBusinessFunctionSaveListAndGenerate(t *testing.T) {
 	}
 
 	// Catalog must be persisted to disk alongside the run.
-	reloaded, err := chaos.LoadRun(app.chaosRunsDir, run.ID)
+	reloaded, err := chaos.LoadRun(app.chaosRunsDirForSession(""), run.ID)
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestCompleteEngineAtomicallyInstallsAnnotatedSnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("annotate via loaded run: %v", err)
 	}
-	reloaded, err := chaos.LoadRun(app.chaosRunsDir, runID)
+	reloaded, err := chaos.LoadRun(app.chaosRunsDirForSession(""), runID)
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
