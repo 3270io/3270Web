@@ -211,27 +211,35 @@ than tidiness.
 Instance-wide administration — settings, logs, restart and account management
 — requires the `admin` role.
 
-**Chaos runs and chaos hints are private too.** A saved run holds captured
-screens and the field values that produced them — a record of a real
+**Chaos runs, hints and saved tasks are private too.** A saved run holds
+captured screens and the field values that produced them — a record of a real
 application's contents — so each account keeps its own. Under
-`AUTH_MODE=local` they live in `users/<account-id>/` beneath the data
-directory; with a single operator the layout is unchanged.
+`AUTH_MODE=local` these live in `users/<account-id>/` beneath the data
+directory, with published files in `shared/`. A single-operator instance keeps
+the flat layout it always had.
 
-Turning authentication on for an instance that has been running moves the
-existing chaos runs and hints to the first administrator's account, once, and
-says so in the log. There was one operator, so there is one plausible owner —
-the alternative would be leaving them where nothing looks any more, which
-reads as having lost them.
+**Connection profiles and themes are shared, deliberately.** Everyone connects
+to the same mainframes, so a host list only has to be entered once. An
+administrator publishes a profile or theme with the **Share with everyone**
+option; everybody sees it, and only an administrator can change or remove it.
 
-**Some stored data is still shared.** Work to separate it is ongoing:
+Saving without that option gives you your own copy. If your copy has the same
+name as a published one, yours is what you see — the same way overriding a
+setting works — and everybody else keeps the published version.
 
-- Saved tasks, connection profiles and themes live in one pool per instance.
-  Any account can read and change them.
-- The `/api/v1` token is a single instance-wide credential rather than a
-  per-user one. A client holding it can list and drive **any** session,
-  including one opened in somebody's browser. That is what the token has always
-  been; it is called out here because sessions are otherwise private now, and
-  the token is the remaining exception.
+**Saved tasks are private**, like chaos runs. A task is a recorded procedure
+somebody is working on rather than infrastructure the team shares.
+
+When authentication is switched on for an existing instance, the migration
+follows the same reasoning: connection profiles and themes become the
+published set so nobody loses the host list they were using, while chaos runs,
+hints and saved tasks go to the first administrator.
+
+**One thing is still shared that should not be.** The `/api/v1` token is a
+single instance-wide credential rather than a per-user one. A client holding
+it can list and drive **any** session, including one opened in somebody's
+browser. That is what the token has always been; it is called out here because
+everything else is separated now, and the token is the remaining exception.
 
 For genuine separation between people who should not see each other's work at
 all, run one container and one volume per user.

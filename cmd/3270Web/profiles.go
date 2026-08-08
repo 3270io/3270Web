@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -56,6 +57,10 @@ type ConnectionProfile struct {
 	// CodePage is an s3270 code page, e.g. "cp037" or "cp1140".
 	CodePage    string `json:"codePage,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Shared marks a profile that came from the published set rather than the
+	// caller's own. Output only: it is derived from which store held the
+	// profile, so a client cannot promote one by asserting it.
+	Shared bool `json:"shared,omitempty"`
 }
 
 type connectionProfileStore struct {
@@ -299,30 +304,137 @@ func (p ConnectionProfile) overrideArgs() []string {
 /* ---------------------------------------------------------------- */
 
 func (app *App) ProfilesListHandler(c *gin.Context) {
-	profiles, err := app.connectionProfiles().load()
+	profiles, err := app.visibleProfiles(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"profiles": profiles})
+	c.JSON(http.StatusOK, gin.H{
+		"profiles": profiles,
+		"canShare": principalFrom(c).IsAdmin() && app.publishedProfiles(c) != nil,
+	})
+}
+
+// visibleProfiles is what this caller can see: the published host list plus
+// their own, with their own winning on a name collision.
+//
+// Merging rather than choosing one is what keeps a host list usable for a
+// team. Profiles are shared infrastructure — everyone connects to the same
+// mainframes — so making them purely private would mean every account
+// re-entering the same hosts, while making them purely shared is what this
+// separation is moving away from.
+func (app *App) visibleProfiles(c *gin.Context) ([]ConnectionProfile, error) {
+	own, err := app.ownProfiles(c).load()
+	if err != nil {
+		return nil, err
+	}
+
+	published := app.publishedProfiles(c)
+	if published == nil {
+		return own, nil
+	}
+	shared, err := published.load()
+	if err != nil {
+		return nil, err
+	}
+
+	byName := make(map[string]ConnectionProfile, len(shared)+len(own))
+	order := make([]string, 0, len(shared)+len(own))
+	add := func(p ConnectionProfile, isShared bool) {
+		key := strings.ToLower(strings.TrimSpace(p.Name))
+		p.Shared = isShared
+		if _, seen := byName[key]; !seen {
+			order = append(order, key)
+		}
+		byName[key] = p
+	}
+	for _, p := range shared {
+		add(p, true)
+	}
+	// Second, so a profile of the caller's own with the same name replaces
+	// the published one rather than being hidden by it.
+	for _, p := range own {
+		add(p, false)
+	}
+
+	out := make([]ConnectionProfile, 0, len(order))
+	for _, key := range order {
+		out = append(out, byName[key])
+	}
+	sortProfiles(out)
+	return out, nil
+}
+
+// findVisibleProfile resolves a profile by name across both sets.
+func (app *App) findVisibleProfile(c *gin.Context, name string) (ConnectionProfile, bool) {
+	profiles, err := app.visibleProfiles(c)
+	if err != nil {
+		return ConnectionProfile{}, false
+	}
+	for _, p := range profiles {
+		if strings.EqualFold(strings.TrimSpace(p.Name), strings.TrimSpace(name)) {
+			return p, true
+		}
+	}
+	return ConnectionProfile{}, false
 }
 
 func (app *App) ProfilesSaveHandler(c *gin.Context) {
-	var profile ConnectionProfile
-	if err := c.ShouldBindJSON(&profile); err != nil {
+	var payload struct {
+		ConnectionProfile
+		// Publish asks for this to go into the shared host list rather than
+		// the caller's own. Named separately from the Shared output field so
+		// a client round-tripping a listing cannot publish by accident.
+		Publish bool `json:"publish"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
 		return
 	}
+	profile := payload.ConnectionProfile
+	profile.Shared = false
 	if err := validateProfile(&profile); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	profiles, err := app.connectionProfiles().upsert(profile)
+
+	store, err := app.profileStoreForWrite(c, payload.Publish)
 	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := store.upsert(profile); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to save profile: %v", err)})
 		return
 	}
+
+	profiles, err := app.visibleProfiles(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "profiles": profiles})
+}
+
+// profileStoreForWrite picks which set a change lands in.
+//
+// Publishing changes what every account sees, so it is an administrator's
+// call. Without the flag a save is always the caller's own, which means an
+// ordinary user editing a published profile gets their own copy rather than
+// changing it for everybody — the same shape as overriding a setting.
+func (app *App) profileStoreForWrite(c *gin.Context, publish bool) (*connectionProfileStore, error) {
+	if !publish {
+		return app.ownProfiles(c), nil
+	}
+	published := app.publishedProfiles(c)
+	if published == nil {
+		// One operator: their own set already is the shared one.
+		return app.ownProfiles(c), nil
+	}
+	if !principalFrom(c).IsAdmin() {
+		return nil, errors.New("publishing a profile to everyone requires an administrator account")
+	}
+	return published, nil
 }
 
 func (app *App) ProfilesDeleteHandler(c *gin.Context) {
@@ -338,9 +450,33 @@ func (app *App) ProfilesDeleteHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "a profile name is required"})
 		return
 	}
-	profiles, err := app.connectionProfiles().delete(name)
+	// Try the caller's own set first. Deleting only what belongs to them is
+	// the safe default; removing a published profile takes it away from
+	// everybody, so it needs the same authority publishing did.
+	own := app.ownProfiles(c)
+	if _, found := own.find(name); found {
+		if _, err := own.delete(name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+			return
+		}
+	} else if published := app.publishedProfiles(c); published != nil {
+		if _, found := published.find(name); found {
+			if !principalFrom(c).IsAdmin() {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "that profile is shared with everyone; removing it requires an administrator account",
+				})
+				return
+			}
+			if _, err := published.delete(name); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+				return
+			}
+		}
+	}
+
+	profiles, err := app.visibleProfiles(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "profiles": profiles})

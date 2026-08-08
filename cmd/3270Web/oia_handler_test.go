@@ -172,7 +172,7 @@ func TestConnectPageInlinesCustomThemes(t *testing.T) {
 		baseDir:        base,
 	}
 
-	items, err := app.listFileThemes()
+	items, err := app.listFileThemes(nil)
 	if err != nil {
 		t.Fatalf("listFileThemes: %v", err)
 	}

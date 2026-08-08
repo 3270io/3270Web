@@ -6,22 +6,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/task"
 	"github.com/jnnngs/3270Web/internal/users"
 )
 
 // Where per-user and instance-wide files live under the data directory.
 //
 //	<base>/users/<ownerID>/…   one person's own files
+//	<base>/shared/…            what an administrator has published to everyone
 //
 // Ownership decides the directory, so the filesystem layout matches the
 // authorization rules rather than restating them. Nothing has to remember to
 // filter a listing: a user reading their own directory cannot see another's
 // because it is not there.
-const userDataDirName = "users"
+const (
+	userDataDirName   = "users"
+	sharedDataDirName = "shared"
+)
 
 // dataScope resolves where one actor's files live.
 //
@@ -34,6 +40,10 @@ type dataScope struct {
 	// base is the per-user directory, or the flat data directory when the
 	// deployment has a single operator.
 	base string
+	// shared is where published copies live. Empty under a single operator,
+	// because then everything already is shared and a second location would
+	// only be somewhere else to look.
+	shared string
 }
 
 // dataScopeFor returns the scope for a given owner.
@@ -52,7 +62,10 @@ func (app *App) dataScopeFor(ownerID string) dataScope {
 	if !isSafeOwnerID(ownerID) {
 		return dataScope{base: filepath.Join(app.baseDir, userDataDirName, "invalid")}
 	}
-	return dataScope{base: filepath.Join(app.baseDir, userDataDirName, ownerID)}
+	return dataScope{
+		base:   filepath.Join(app.baseDir, userDataDirName, ownerID),
+		shared: filepath.Join(app.baseDir, sharedDataDirName),
+	}
 }
 
 // dataScopeForRequest returns the scope for whoever is making this request,
@@ -91,6 +104,34 @@ func (s dataScope) chaosRunsDir() string { return filepath.Join(s.base, "chaos-r
 // blacklist that says which keys a run must never press.
 func (s dataScope) chaosHintsPath() string { return filepath.Join(s.base, "chaos-hints.json") }
 
+// tasksPath is this owner's business-task catalogue. Tasks are private with
+// no published set: a task is a recorded procedure someone is working on, not
+// infrastructure the team shares like a host list.
+func (s dataScope) tasksPath() string { return filepath.Join(s.base, "tasks.json") }
+
+// profilesPath is this owner's own connection profiles.
+func (s dataScope) profilesPath() string { return filepath.Join(s.base, "profiles.json") }
+
+// sharedProfilesPath is the published host list every account can read.
+// Empty under a single operator, where profilesPath already is it.
+func (s dataScope) sharedProfilesPath() string {
+	if s.shared == "" {
+		return ""
+	}
+	return filepath.Join(s.shared, profilesFileName)
+}
+
+// themesDir is this owner's own custom themes.
+func (s dataScope) themesDir() string { return filepath.Join(s.base, "themes") }
+
+// sharedThemesDir is the published theme set. Empty under a single operator.
+func (s dataScope) sharedThemesDir() string {
+	if s.shared == "" {
+		return ""
+	}
+	return filepath.Join(s.shared, "themes")
+}
+
 // chaosRunsDirForSession resolves the runs directory from a session's owner.
 //
 // Reading the owner off the session rather than the request is what lets a
@@ -126,19 +167,29 @@ func (app *App) migrateFlatDataToOwner(ownerID string) error {
 		return fmt.Errorf("create user data directory: %w", err)
 	}
 
-	// Only what is actually read from a per-user path is moved. Moving a file
-	// the code still looks for in the flat directory would not partition it —
-	// it would lose it.
+	if err := os.MkdirAll(filepath.Join(app.baseDir, sharedDataDirName), 0o750); err != nil {
+		return fmt.Errorf("create shared data directory: %w", err)
+	}
+
+	// Where each file goes depends on what it was for.
 	//
-	// Chaos runs and their hints are the working documents that matter most
-	// here: a run holds captured screens from a real application, which is
-	// the thing least appropriate to leave in a shared pool. They go to the
-	// first administrator, because on an instance that had one operator there
-	// is exactly one plausible owner and guessing per-file is not possible.
-	moved := make([]string, 0, 2)
+	// Connection profiles and themes were instance-wide and everybody used
+	// them, so they become the published set. Moving a team's host list into
+	// one person's directory would take it away from everyone else on an
+	// instance that had been working fine, which is a worse first impression
+	// of authentication than any amount of separation is worth.
+	//
+	// Chaos runs, their hints and the task catalogue go to the first
+	// administrator. They are working documents rather than infrastructure,
+	// and a chaos run holds captured screens — publishing those to everyone
+	// is the exact thing this separation exists to stop.
+	moved := make([]string, 0, 5)
 	for _, item := range []struct{ from, to string }{
 		{filepath.Join(app.baseDir, "chaos-runs"), scope.chaosRunsDir()},
 		{filepath.Join(app.baseDir, "chaos-hints.json"), scope.chaosHintsPath()},
+		{filepath.Join(app.baseDir, "tasks.json"), scope.tasksPath()},
+		{filepath.Join(app.baseDir, profilesFileName), scope.sharedProfilesPath()},
+		{filepath.Join(app.baseDir, "themes"), scope.sharedThemesDir()},
 	} {
 		if _, err := os.Stat(item.from); err != nil {
 			continue
@@ -157,10 +208,10 @@ func (app *App) migrateFlatDataToOwner(ownerID string) error {
 		return fmt.Errorf("write migration marker: %w", err)
 	}
 	if len(moved) > 0 {
-		log.Printf("data: moved %s into the data directory of account %s — "+
-			"they were created before this instance had accounts, so there was "+
-			"one operator to attribute them to",
-			strings.Join(moved, ", "), ownerID)
+		log.Printf("data: this instance has files from before it had accounts. "+
+			"Moved %s — connection profiles and themes are now published to "+
+			"everyone; the rest belongs to account %s, the one operator there "+
+			"was to attribute them to", strings.Join(moved, ", "), ownerID)
 	}
 	return nil
 }
@@ -189,4 +240,77 @@ func (app *App) firstAdminID() (string, bool, error) {
 		return "", false, nil
 	}
 	return chosen.ID, true, nil
+}
+
+// ownerStores caches the per-account file stores.
+//
+// The stores were sync.Once singletons keyed on nothing, which is right for
+// one operator and wrong the moment there are several: one person's catalogue
+// would be handed to everybody. A map keyed by owner is the same lazy
+// construction, just with the key it always implicitly had.
+type ownerStores struct {
+	mu       sync.Mutex
+	profiles map[string]*connectionProfileStore
+	tasks    map[string]*task.Store
+}
+
+func newOwnerStores() *ownerStores {
+	return &ownerStores{
+		profiles: make(map[string]*connectionProfileStore),
+		tasks:    make(map[string]*task.Store),
+	}
+}
+
+// profileStoreAt returns the profile store rooted at dir, creating it once.
+func (o *ownerStores) profileStoreAt(dir string) *connectionProfileStore {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if s, ok := o.profiles[dir]; ok {
+		return s
+	}
+	s := newConnectionProfileStore(dir)
+	o.profiles[dir] = s
+	return s
+}
+
+// taskStoreAt returns the task catalogue rooted at dir, creating it once.
+func (o *ownerStores) taskStoreAt(dir string) *task.Store {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if s, ok := o.tasks[dir]; ok {
+		return s
+	}
+	s := task.NewStore(dir)
+	o.tasks[dir] = s
+	return s
+}
+
+// ownProfiles is the caller's own profile store — what a save writes to.
+func (app *App) ownProfiles(c *gin.Context) *connectionProfileStore {
+	return app.stores().profileStoreAt(app.dataScopeForRequest(c).base)
+}
+
+// publishedProfiles is the store an administrator publishes into, and every
+// account reads from. Nil under a single operator, where there is only one
+// store and publishing would mean nothing.
+func (app *App) publishedProfiles(c *gin.Context) *connectionProfileStore {
+	scope := app.dataScopeForRequest(c)
+	if scope.shared == "" {
+		return nil
+	}
+	return app.stores().profileStoreAt(scope.shared)
+}
+
+// taskStoreForRequest returns the caller's own task catalogue.
+func (app *App) taskStoreForRequest(c *gin.Context) *task.Store {
+	return app.stores().taskStoreAt(app.dataScopeForRequest(c).base)
+}
+
+func (app *App) stores() *ownerStores {
+	app.storesOnce.Do(func() {
+		if app.ownerStores == nil {
+			app.ownerStores = newOwnerStores()
+		}
+	})
+	return app.ownerStores
 }

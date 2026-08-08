@@ -59,6 +59,9 @@ type App struct {
 	authAbsoluteTimeout time.Duration
 	// setup tracks whether the instance still needs its first administrator.
 	setup setupState
+	// ownerStores caches each account's own file stores.
+	ownerStores *ownerStores
+	storesOnce  sync.Once
 
 	themeCache   map[string]string
 	themeCacheMu sync.RWMutex
@@ -943,7 +946,7 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 	// Embedding the list is what makes custom themes actually appear here;
 	// fetching it was silently 401ing and falling back to an empty list.
 	themesJSON := "[]"
-	if items, err := app.listFileThemes(); err != nil {
+	if items, err := app.listFileThemes(c); err != nil {
 		log.Printf("Connect page: failed to read themes folder: %v", err)
 	} else if encoded, err := json.Marshal(items); err != nil {
 		log.Printf("Connect page: failed to encode themes: %v", err)
@@ -991,7 +994,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 	// A named connection profile carries TLS, LU, model and code page, which
 	// a bare "hostname:port" cannot express.
 	if name := strings.TrimSpace(c.PostForm("profile")); name != "" {
-		profile, ok := app.connectionProfiles().find(name)
+		profile, ok := app.findVisibleProfile(c, name)
 		if !ok {
 			app.renderConnectPage(c, http.StatusBadRequest, "", fmt.Sprintf("Connection profile %q no longer exists.", name))
 			return
@@ -2085,6 +2088,9 @@ type settingsResponse struct {
 type themeSavePayload struct {
 	Name        string            `json:"name"`
 	CustomTheme map[string]string `json:"customTheme"`
+	// Publish asks for the theme to go into the set every account sees,
+	// rather than the caller's own. Administrators only.
+	Publish bool `json:"publish"`
 }
 
 type themeListItem struct {
@@ -2324,7 +2330,19 @@ func (app *App) ThemeSaveHandler(c *gin.Context) {
 		return
 	}
 
-	dir := app.themesDir()
+	dir := app.themesDirFor(c)
+	if payload.Publish {
+		shared := app.sharedThemesDirFor(c)
+		if shared != "" {
+			if !principalFrom(c).IsAdmin() {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "publishing a theme to everyone requires an administrator account",
+				})
+				return
+			}
+			dir = shared
+		}
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create themes folder: %v", err)})
 		return
@@ -2363,8 +2381,43 @@ func (app *App) ThemeSaveHandler(c *gin.Context) {
 // listFileThemes reads the custom themes on disk. Shared by ThemeListHandler
 // and by the connect page, which needs the same list before any session
 // exists and so cannot go through the (deliberately session-gated) endpoint.
-func (app *App) listFileThemes() ([]themeListItem, error) {
-	dir := app.themesDir()
+func (app *App) listFileThemes(c *gin.Context) ([]themeListItem, error) {
+	// Published first, so a theme of the caller's own with the same name
+	// replaces it rather than appearing twice.
+	items, err := app.readThemeDir(app.sharedThemesDirFor(c))
+	if err != nil {
+		return nil, err
+	}
+	own, err := app.readThemeDir(app.themesDirFor(c))
+	if err != nil {
+		return nil, err
+	}
+
+	byName := make(map[string]themeListItem, len(items)+len(own))
+	order := make([]string, 0, len(items)+len(own))
+	for _, group := range [][]themeListItem{items, own} {
+		for _, item := range group {
+			key := strings.ToLower(strings.TrimSpace(item.Name))
+			if _, seen := byName[key]; !seen {
+				order = append(order, key)
+			}
+			byName[key] = item
+		}
+	}
+	out := make([]themeListItem, 0, len(order))
+	for _, key := range order {
+		out = append(out, byName[key])
+	}
+	return out, nil
+}
+
+// readThemeDir reads one themes directory. An empty path or a missing
+// directory is an empty list, not an error: a deployment with a single
+// operator has no published set, and nobody has to have saved a theme.
+func (app *App) readThemeDir(dir string) ([]themeListItem, error) {
+	if strings.TrimSpace(dir) == "" {
+		return []themeListItem{}, nil
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -2421,7 +2474,7 @@ func (app *App) ThemeListHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
-	items, err := app.listFileThemes()
+	items, err := app.listFileThemes(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read themes folder: %v", err)})
 		return
@@ -2467,12 +2520,21 @@ func themeIDFromFile(fileName string) string {
 	return "theme-file:" + base
 }
 
-func (app *App) themesDir() string {
-	base := strings.TrimSpace(app.baseDir)
-	if base == "" {
-		base = resolveBaseDir()
+// themesDirFor is where this caller's own themes are written.
+func (app *App) themesDirFor(c *gin.Context) string {
+	if strings.TrimSpace(app.baseDir) == "" {
+		return filepath.Join(resolveBaseDir(), "themes")
 	}
-	return filepath.Join(base, "themes")
+	return app.dataScopeForRequest(c).themesDir()
+}
+
+// sharedThemesDirFor is the published set, or empty under a single operator
+// where the caller's own directory already is it.
+func (app *App) sharedThemesDirFor(c *gin.Context) string {
+	if strings.TrimSpace(app.baseDir) == "" {
+		return ""
+	}
+	return app.dataScopeForRequest(c).sharedThemesDir()
 }
 
 func scheduleSelfRestart() error {

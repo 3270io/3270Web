@@ -168,8 +168,8 @@ func (app *App) extensionTasks() []task.Task {
 // with a folder, and letting it silently replace a task an operator recorded
 // would be the wrong way round. The shadowed entry is dropped rather than
 // renamed, so the name means one thing everywhere.
-func (app *App) allTasks() ([]task.Task, error) {
-	saved, err := app.taskStore().List()
+func (app *App) allTasks(c *gin.Context) ([]task.Task, error) {
+	saved, err := app.taskStoreForRequest(c).List()
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +191,8 @@ func (app *App) allTasks() ([]task.Task, error) {
 }
 
 // findTask resolves a task by name across both sources.
-func (app *App) findTask(name string) (task.Task, bool) {
-	if t, ok := app.taskStore().Find(name); ok {
+func (app *App) findTask(c *gin.Context, name string) (task.Task, bool) {
+	if t, ok := app.taskStoreForRequest(c).Find(name); ok {
 		return t, true
 	}
 	want := task.NormalizeName(name)
@@ -206,8 +206,8 @@ func (app *App) findTask(name string) (task.Task, bool) {
 
 // isExtensionTask reports whether a name belongs to an extension and not to
 // the editable catalogue.
-func (app *App) isExtensionTask(name string) bool {
-	if _, ok := app.taskStore().Find(name); ok {
+func (app *App) isExtensionTask(c *gin.Context, name string) bool {
+	if _, ok := app.taskStoreForRequest(c).Find(name); ok {
 		return false
 	}
 	want := task.NormalizeName(name)
@@ -226,7 +226,7 @@ func (app *App) isExtensionTask(name string) bool {
 // TasksListHandler returns the catalogue. Sensitive parameter defaults never
 // exist (Validate rejects them), so the whole task is safe to send.
 func (app *App) TasksListHandler(c *gin.Context) {
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
 		return
@@ -240,14 +240,14 @@ func (app *App) TasksSaveHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
 		return
 	}
-	if _, err := app.taskStore().Upsert(t); err != nil {
+	if _, err := app.taskStoreForRequest(c).Upsert(t); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	// The merged list, not the store's: the browser replaces its menu with
 	// what comes back, and returning only the saved half would make every
 	// extension task disappear until the next page load.
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
 		return
@@ -271,17 +271,17 @@ func (app *App) TasksDeleteHandler(c *gin.Context) {
 	// An extension's task is not in the file this writes, so deleting it
 	// would report success and change nothing — and the task would still be
 	// on the menu after a refresh.
-	if app.isExtensionTask(name) {
+	if app.isExtensionTask(c, name) {
 		c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf(
 			"%q comes from an installed extension and is not in this catalogue. "+
 				"Disable the extension to remove it.", name)})
 		return
 	}
-	if _, err := app.taskStore().Delete(name); err != nil {
+	if _, err := app.taskStoreForRequest(c).Delete(name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not update the task catalogue: %v", err)})
 		return
 	}
-	tasks, err := app.allTasks()
+	tasks, err := app.allTasks(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("could not read the task catalogue: %v", err)})
 		return
@@ -389,7 +389,7 @@ func (app *App) TasksRunHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
 		return
 	}
-	t, ok := app.findTask(payload.Name)
+	t, ok := app.findTask(c, payload.Name)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("there is no task called %q", payload.Name)})
 		return

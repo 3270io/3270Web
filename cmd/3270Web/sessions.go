@@ -288,7 +288,7 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 	var profile *ConnectionProfile
 	hostname := strings.TrimSpace(c.PostForm("hostname"))
 	if name := strings.TrimSpace(c.PostForm("profile")); name != "" {
-		found, ok := app.connectionProfiles().find(name)
+		found, ok := app.findVisibleProfile(c, name)
 		if !ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("connection profile %q no longer exists", name)})
 			return
