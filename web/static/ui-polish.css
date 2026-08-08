@@ -1893,10 +1893,12 @@ body[data-focus="on"] .sample-status {
 }
 
 /* A key shown greyed is the built-in default, not something the operator
-   chose — the distinction matters when deciding what is safe to rebind. */
+   chose — the distinction matters when deciding what is safe to rebind.
+   The muted colour carries that on its own; the 0.75 opacity that used to sit
+   on top of it took the label to 4.04:1 against the panel, under the 4.5:1
+   that WCAG 1.4.3 asks of body text. */
 .keymap-keys.is-default {
   color: var(--fg-muted);
-  opacity: 0.75;
 }
 
 /* No keyboard default at all — the label is prose, not a key name. */

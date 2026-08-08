@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>3270Web</title>
     <!-- Without this, mobile browsers lay the page out at a ~980px virtual
@@ -81,6 +81,14 @@
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
+    <!-- No skip link here, deliberately. WCAG 2.4.1 is met by the main
+         landmark on the terminal below, plus the fact that focus starts
+         inside the terminal rather than at the top of the document — the
+         blocks are already behind you. A link at the top of the body could
+         not be reached in practice: Tab and Shift+Tab inside the terminal are
+         3270 field navigation, not browser focus movement, and leaving via
+         the Ctrl+Tab escape hatch puts focus after the terminal, not before
+         it. An unreachable skip link is a worse answer than none. -->
     <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
@@ -391,7 +399,13 @@
                     Press Ctrl+Tab (or Ctrl+Shift+Tab) to move keyboard focus out of the terminal to the rest of the page.
                 </p>
                 <div class="terminal-shell" aria-describedby="terminal-focus-hint">
-                    <div class="screen-container">
+                    <!-- role and tabindex only: this element's identity is
+                         relied on by the renderer, the grid geometry and the
+                         live-update path, so it gains a landmark rather than a
+                         wrapper. tabindex=-1 lets the skip link land here
+                         without adding a tab stop of its own. -->
+                    <div class="screen-container" id="terminal-main" role="main" tabindex="-1"
+                         aria-label="Terminal screen">
                         {{ .ScreenContent }}
                     </div>
                     <!--

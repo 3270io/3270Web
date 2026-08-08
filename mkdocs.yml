@@ -74,6 +74,7 @@ nav:
   - MCP Server: mcp.md
   - Skills and Extensions: skills.md
   - Terminal Capabilities: terminal-capabilities.md
+  - Accessibility: accessibility.md
   - Feature Roadmap: feature-roadmap.md
 
 plugins:

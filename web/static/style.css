@@ -1962,11 +1962,17 @@ pre, pre input, textarea {
   transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
+/* visibility:hidden, as the recording and chaos panels above already do.
+   Without it the collapsed panel is merely clipped to zero width: its seven
+   controls stay in the tab order, so a keyboard user tabs to five buttons and
+   a slider sitting off the side of the viewport, with no way to see where the
+   focus went. pointer-events:none hid them from the mouse only. */
 .terminal-tools-widget.is-collapsed .terminal-tools-panel {
   max-width: 0;
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;
+  visibility: hidden;
 }
 
 .terminal-tools-toggle {
@@ -1995,6 +2001,23 @@ pre, pre input, textarea {
   gap: 8px;
 }
 
+/* WCAG 1.4.10. Below roughly a tablet the 80-column grid is wider than the
+   viewport, and .terminal-shell is a flex item with the default
+   min-width:auto — so it refuses to go under its content's min-content width
+   and pushes the whole document sideways. The grid itself is exempt from
+   reflow (it requires a two-dimensional layout for its meaning: which column
+   a character sits in is information), but the *page* scrolling is not.
+   Releasing the floor and letting the grid scroll inside its own box keeps
+   the scrolling where it belongs. Wider than this there is nothing to
+   scroll, so the rules simply do not apply. */
+@media (max-width: 700px) {
+  .terminal-shell {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .terminal-controls-group {
   display: inline-flex;
   align-items: center;
@@ -2002,8 +2025,22 @@ pre, pre input, textarea {
   flex-wrap: wrap;
 }
 
+/* The floating pill keeps its controls on one line while they fit, which is
+   what nowrap was for — but nowrap also means they keep going when they do
+   not fit, off the side of the viewport. That failed WCAG 1.4.10 at 320px and
+   1.4.4 at 200% text, where the size controls left the screen entirely and
+   could not be reached at all. wrap is identical while there is room. */
 .terminal-controls-floating .terminal-controls-group {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.terminal-controls-floating .terminal-size-control {
+  min-width: 0;
+}
+
+.terminal-controls-floating .terminal-size-slider {
+  min-width: 0;
 }
 
 .terminal-size-control {

@@ -102,6 +102,10 @@ verbatim, so what you check is what gets dialled.
 | Keyboard-trap escape hatch (WCAG 2.1.2) | ✅ |
 | High-contrast and themeable rendering, seven built-in themes | ✅ |
 | Reduced-motion support | ✅ |
+| WCAG 2.1 AA conformance statement, from a tested audit | ✅ |
+
+See [Accessibility](accessibility.md) for the conformance statement — what
+was tested, what conforms, and what does not.
 
 Field labelling is worth calling out. 3270Web derives each input's
 `aria-label` from the protected text to its left, so a screen reader
