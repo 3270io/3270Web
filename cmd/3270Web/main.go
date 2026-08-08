@@ -224,6 +224,12 @@ func main() {
 	r.POST("/disconnect", app.DisconnectHandler)
 	r.POST("/reconnect", app.ReconnectHandler)
 
+	// Concurrent sessions (tab bar). See sessions.go.
+	r.GET("/sessions", app.SessionsListHandler)
+	r.POST("/sessions/new", app.SessionsNewHandler)
+	r.POST("/sessions/switch", app.SessionsSwitchHandler)
+	r.POST("/sessions/close", app.SessionsCloseHandler)
+
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
 	r.GET("/profile", app.ProfileGetHandler)
@@ -946,6 +952,8 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		// running, so a page load with no run in progress does not flash a
 		// 360x320 panel saying "Playback has not started yet".
 		"ShowRunStatus":           snap.RecordingActive || snap.PlaybackActive || chaosRunActive,
+		"SessionTabs":             app.sessionTabs(c),
+		"MaxSessions":             maxConcurrentSessions,
 		"OIAOnline":               oia["oiaOnline"],
 		"OIAIndicator":            oia["oiaIndicator"],
 		"OIAExplanation":          oia["oiaExplanation"],
@@ -1146,12 +1154,27 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	return nil
 }
 
+// DisconnectHandler ends the ACTIVE session. With tabs open, the others keep
+// running and the browser lands on one of them rather than back at the
+// connect page — disconnecting one host should not close the rest.
 func (app *App) DisconnectHandler(c *gin.Context) {
+	closedID := ""
 	if s := app.getSession(c); s != nil {
+		closedID = s.ID
 		if lastTarget := formatSessionTarget(s); lastTarget != "" {
 			setSessionCookie(c, lastTargetCookieName, lastTarget)
 		}
 		app.cleanupSession(s)
+	}
+	remaining := []string(nil)
+	if closedID != "" {
+		remaining = app.forgetSession(c, closedID)
+	} else {
+		setSessionCookie(c, "3270Web_session", "")
+	}
+	if len(remaining) > 0 {
+		c.Redirect(http.StatusFound, "/screen")
+		return
 	}
 	setSessionCookie(c, "3270Web_session", "")
 	c.Redirect(http.StatusFound, "/")
@@ -1169,8 +1192,10 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 // features were tracking ended when the connection did.
 func (app *App) ReconnectHandler(c *gin.Context) {
 	target := ""
+	previousID := ""
 	if s := app.getSession(c); s != nil {
 		target = formatSessionTarget(s)
+		previousID = s.ID
 		app.cleanupSession(s)
 	}
 	if target == "" {
@@ -1190,6 +1215,12 @@ func (app *App) ReconnectHandler(c *gin.Context) {
 			"target": target,
 		})
 		return
+	}
+	// Keep the reconnected session where it was on the tab bar.
+	if previousID != "" {
+		if newID := getCookieValue(c, "3270Web_session"); newID != "" {
+			app.replaceSessionInRoster(c, previousID, newID)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "target": target})
 }
@@ -3161,6 +3192,9 @@ func (app *App) connectToHost(c *gin.Context, hostname string) error {
 	}
 	setSessionCookie(c, "3270Web_session", sess.ID)
 	setSessionCookie(c, lastTargetCookieName, strings.TrimSpace(hostname))
+	// Put it on the tab bar. Connecting from the front page is just opening
+	// the first tab.
+	app.rememberSession(c, sess.ID)
 	return nil
 }
 
