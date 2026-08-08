@@ -64,9 +64,21 @@ A framed terminal is a cross-site context, so the session cookie has to be
 plain HTTP there is no combination that works: the cookie is either not sent
 or discarded, and the frame shows the connect page forever.
 
-Serve 3270Web over TLS, or behind a proxy that terminates TLS and sets
-`X-Forwarded-Proto: https`. `/embed/config` reports `secure_request: false`
-and a `warning` when this is the thing that is missing.
+Serve 3270Web over TLS, or behind a proxy that terminates TLS. Behind a proxy
+there is a second setting: the hop into this process is plain HTTP, so the
+server cannot see the TLS by itself and reads `X-Forwarded-Proto` instead —
+but only when `TRUST_PROXY_HEADERS=true` says a proxy is really in front of
+it. That gate is not optional paranoia: the header is set by whoever sends the
+request, so believing it unconditionally would let any client assert that its
+own connection was secure.
+
+```bash
+EMBED_ORIGINS="https://portal.example.com"
+TRUST_PROXY_HEADERS=true      # only if a proxy terminates TLS for you
+```
+
+`/embed/config` reports `secure_request: false` and a `warning` when this is
+the thing that is missing.
 
 ## In an iframe
 
@@ -207,9 +219,12 @@ the origins the server accepted and, under `ignored`, the entries it could not
 use and why. An origin has to match on scheme, host *and* port.
 
 **The frame shows the connect page and never keeps a session.**
-The session cookie is not reaching the frame. Check `secure_request` in
-`/embed/config`: if it is `false`, 3270Web is not being reached over TLS, and
-no configuration makes a cross-site cookie work over plain HTTP.
+The session cookie is not reaching the frame — a cross-site cookie needs
+`SameSite=None`, which browsers only accept on a `Secure` cookie. Check
+`secure_request` in `/embed/config`. If it is `false` while you are serving
+over HTTPS, the missing piece is `TRUST_PROXY_HEADERS=true`: the server cannot
+see TLS that a proxy terminated. If you are genuinely on plain HTTP, no
+configuration makes this work.
 
 **`postMessage` commands are ignored.**
 The frame only listens to origins in `EMBED_ORIGINS`. Post to the terminal's

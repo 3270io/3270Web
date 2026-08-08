@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
 func TestNormalizeOriginAcceptsWhatABrowserSends(t *testing.T) {
@@ -244,12 +246,13 @@ func contextFor(t *testing.T, req *http.Request) *gin.Context {
 // only value that works, and browsers only honour it on a Secure cookie.
 func TestSessionCookieBecomesSameSiteNoneOnlyWhenEmbeddingOverTLS(t *testing.T) {
 	t.Setenv(embedOriginsEnv, "https://portal.example.com")
+	t.Setenv(reqsec.TrustProxyHeadersEnv, "true")
 
 	req := httptest.NewRequest(http.MethodGet, "/screen", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
 	mode, secure := sessionCookieSameSite(contextFor(t, req))
 	if mode != http.SameSiteNoneMode || !secure {
-		t.Errorf("behind a TLS proxy: (%v, %v), want (None, secure)", mode, secure)
+		t.Errorf("behind a trusted TLS proxy: (%v, %v), want (None, secure)", mode, secure)
 	}
 
 	// Plain HTTP: None would be discarded by the browser, which is not an
@@ -261,30 +264,49 @@ func TestSessionCookieBecomesSameSiteNoneOnlyWhenEmbeddingOverTLS(t *testing.T) 
 	}
 }
 
-// The forwarded header is a claim made by whatever sits in front of this
-// server. With embedding off, nothing needs it, so it is not consulted.
-func TestForwardedProtoIsIgnoredWhenEmbeddingIsOff(t *testing.T) {
-	t.Setenv(embedOriginsEnv, "")
+// Embedding does not decide whether a forwarding header can be believed —
+// TRUST_PROXY_HEADERS does. Configuring an embed origin must not quietly
+// become a second way to turn proxy trust on, because the header is set by
+// whoever sends the request.
+func TestEmbeddingDoesNotImplyTrustingForwardedHeaders(t *testing.T) {
+	t.Setenv(embedOriginsEnv, "https://portal.example.com")
+	t.Setenv(reqsec.TrustProxyHeadersEnv, "")
+
 	req := httptest.NewRequest(http.MethodGet, "/screen", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
 	if requestIsSecure(contextFor(t, req)) {
-		t.Error("X-Forwarded-Proto was trusted in a deployment that does not embed")
+		t.Error("X-Forwarded-Proto was believed without TRUST_PROXY_HEADERS")
+	}
+	// And so the cookie stays Lax, because None on a non-Secure cookie is a
+	// cookie the browser discards.
+	if mode, secure := sessionCookieSameSite(contextFor(t, req)); mode != http.SameSiteLaxMode || secure {
+		t.Errorf("(%v, %v), want (Lax, not secure)", mode, secure)
 	}
 }
 
-func TestForwardedProtoReadsTheFirstHopOfAChain(t *testing.T) {
+// The header itself is parsed by reqsec, which owns the chain rule and is
+// tested there. What this asserts is that the embedding layer asks it rather
+// than answering for itself.
+func TestRequestIsSecureDefersToReqsec(t *testing.T) {
 	t.Setenv(embedOriginsEnv, "https://portal.example.com")
+	t.Setenv(reqsec.TrustProxyHeadersEnv, "true")
 
-	req := httptest.NewRequest(http.MethodGet, "/screen", nil)
-	req.Header.Set("X-Forwarded-Proto", "https, http")
-	if !requestIsSecure(contextFor(t, req)) {
-		t.Error("the browser spoke https to the first proxy; that is what counts")
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/screen", nil)
-	req.Header.Set("X-Forwarded-Proto", "http, https")
-	if requestIsSecure(contextFor(t, req)) {
-		t.Error("the browser spoke http to the first proxy")
+	for _, tc := range []struct {
+		proto string
+		want  bool
+	}{
+		{"https, http", true},
+		{"http, https", false},
+		{"", false},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/screen", nil)
+		if tc.proto != "" {
+			req.Header.Set("X-Forwarded-Proto", tc.proto)
+		}
+		if got := requestIsSecure(contextFor(t, req)); got != tc.want {
+			t.Errorf("X-Forwarded-Proto %q: requestIsSecure = %v, want %v (reqsec.IsTLS = %v)",
+				tc.proto, got, tc.want, reqsec.IsTLS(req))
+		}
 	}
 }
 
@@ -389,4 +411,69 @@ func TestCORSGrantsNoAccessWithoutTheToken(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 — CORS is not authentication", w.Code)
 	}
+}
+
+// setSessionCookie is tested through the header it actually emits, not
+// through sessionCookieSameSite alone.
+//
+// That distinction is the whole point of this test. A merge once resolved
+// setSessionCookie to call c.SetSameSite(http.SameSiteLaxMode) directly,
+// leaving sessionCookieSameSite correct and uncalled. Every test above still
+// passed, and embedding was silently dead: a framed terminal is a cross-site
+// context, so a Lax cookie is never sent and the frame shows the connect page
+// forever with nothing in any log to say why.
+func TestSetSessionCookieEmitsTheSameSiteItDecided(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	issue := func(t *testing.T) string {
+		t.Helper()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/screen", nil)
+		c.Request.Header.Set("X-Forwarded-Proto", "https")
+		setSessionCookie(c, sessionCookieName, "abc123")
+		return w.Header().Get("Set-Cookie")
+	}
+
+	t.Run("embedding over a trusted TLS proxy", func(t *testing.T) {
+		t.Setenv(embedOriginsEnv, "https://portal.example.com")
+		t.Setenv(reqsec.TrustProxyHeadersEnv, "true")
+
+		got := issue(t)
+		if !strings.Contains(got, "SameSite=None") {
+			t.Errorf("Set-Cookie = %q, want SameSite=None so a framed terminal keeps its session", got)
+		}
+		// None without Secure is a cookie the browser discards outright.
+		if !strings.Contains(got, "Secure") {
+			t.Errorf("Set-Cookie = %q, want Secure alongside SameSite=None", got)
+		}
+		if !strings.Contains(got, "HttpOnly") {
+			t.Errorf("Set-Cookie = %q, want HttpOnly — embedding does not relax that", got)
+		}
+	})
+
+	t.Run("no embedding configured", func(t *testing.T) {
+		t.Setenv(embedOriginsEnv, "")
+		t.Setenv(reqsec.TrustProxyHeadersEnv, "true")
+
+		got := issue(t)
+		if !strings.Contains(got, "SameSite=Lax") {
+			t.Errorf("Set-Cookie = %q, want SameSite=Lax — the default deployment is unchanged", got)
+		}
+	})
+
+	t.Run("embedding configured but the request is not secure", func(t *testing.T) {
+		t.Setenv(embedOriginsEnv, "https://portal.example.com")
+		t.Setenv(reqsec.TrustProxyHeadersEnv, "")
+
+		got := issue(t)
+		// None on a non-Secure cookie is discarded, so Lax — which at least
+		// works for the unframed terminal — is the better of two bad options.
+		if !strings.Contains(got, "SameSite=Lax") {
+			t.Errorf("Set-Cookie = %q, want SameSite=Lax over plain HTTP", got)
+		}
+		if strings.Contains(got, "Secure") {
+			t.Errorf("Set-Cookie = %q, want no Secure flag on a plain-HTTP request", got)
+		}
+	})
 }

@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
 // Putting the terminal inside somebody else's page is not one change, it is
@@ -163,29 +165,20 @@ func frameAncestors() string {
 	return "frame-ancestors 'self' " + strings.Join(origins, " ") + ";"
 }
 
-// requestIsSecure reports whether the browser reached this server over TLS,
-// including through a proxy that terminated it. The forwarded header is only
-// consulted when embedding is configured: it is a claim made by whatever is
-// in front of this server, and trusting it changes when a Secure cookie is
-// issued, so it stays out of the default deployment where nothing needs it.
+// requestIsSecure reports whether the browser reached the edge over TLS,
+// including through a proxy that terminated it.
+//
+// The answer comes from reqsec, which gates believing X-Forwarded-Proto on
+// TRUST_PROXY_HEADERS. That gate belongs there rather than here: the header is
+// set by whoever sends the request, so what makes it trustworthy is an
+// operator saying a proxy sits in front of this server — not this server
+// happening to have embedding configured. Every Secure-flag decision in the
+// process then gets the same answer from the same place.
 func requestIsSecure(c *gin.Context) bool {
-	if c == nil || c.Request == nil {
+	if c == nil {
 		return false
 	}
-	if c.Request.TLS != nil {
-		return true
-	}
-	if !embeddingEnabled() {
-		return false
-	}
-	proto := c.GetHeader("X-Forwarded-Proto")
-	if proto == "" {
-		return false
-	}
-	// A chain of proxies appends, so the first entry is what the browser
-	// actually spoke.
-	first, _, _ := strings.Cut(proto, ",")
-	return strings.EqualFold(strings.TrimSpace(first), "https")
+	return reqsec.IsTLS(c.Request)
 }
 
 // sessionCookieSameSite decides how the session cookie is scoped.

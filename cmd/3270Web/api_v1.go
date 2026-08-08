@@ -155,15 +155,15 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.GET("/toggles", app.APIToggles)
 	g.POST("/toggles", app.APISetToggle)
 
-	// Screen tracing. Unlike everything else here this writes a file on the
-	// server, so it is behind ALLOW_SCREEN_TRACE as well as the token. See
-	// screen_trace.go.
 	// The HLLAPI-shaped door onto the same terminal: numbered functions,
 	// one-based linear positions, return codes. For porting an existing
 	// screen-scraper by changing how it calls rather than what it does. See
 	// hllapi.go.
 	g.POST("/hllapi", app.APIHLLAPI)
 
+	// Screen tracing. Unlike everything else here this writes a file on the
+	// server, so it is behind ALLOW_SCREEN_TRACE as well as the token. See
+	// screen_trace.go.
 	g.POST("/screen-trace", app.APIStartScreenTrace)
 	g.DELETE("/screen-trace", app.APIStopScreenTrace)
 	g.GET("/screen-trace", app.APIScreenTraceStatus)

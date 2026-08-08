@@ -33,7 +33,6 @@ import (
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
-	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
 )
@@ -3716,11 +3715,17 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func setSessionCookie(c *gin.Context, name, value string) {
-	// Behind a TLS-terminating proxy the hop into this process is plain HTTP,
-	// so r.TLS alone would drop the Secure flag on a site the browser is
-	// reaching over HTTPS. See reqsec.IsTLS.
-	secure := reqsec.IsTLS(c.Request)
-	c.SetSameSite(http.SameSiteLaxMode)
+	// Both halves come from sessionCookieSameSite: Lax unless this deployment
+	// embeds the terminal, and Secure whenever the browser reached the edge
+	// over TLS — including through a proxy that terminated it, which is
+	// reqsec.IsTLS's job.
+	//
+	// Setting Lax here directly is the tempting shortcut and it silently
+	// disables embedding: a framed terminal is a cross-site context, so a Lax
+	// cookie is never sent and the frame shows the connect page forever, with
+	// nothing in any log to say why. See sessionCookieSameSite in embedding.go.
+	sameSite, secure := sessionCookieSameSite(c)
+	c.SetSameSite(sameSite)
 	maxAge := 3600
 	if value == "" {
 		maxAge = -1
