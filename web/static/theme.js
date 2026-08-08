@@ -353,7 +353,48 @@
     return "theme-yorkshire";
   }
 
+  // normalizeFileThemeList turns a raw /api/themes (or inlined) payload into
+  // the internal shape, dropping anything malformed.
+  function normalizeFileThemeList(incoming) {
+    return (Array.isArray(incoming) ? incoming : [])
+      .map(function (entry) {
+        if (!entry || typeof entry !== "object") {
+          return null;
+        }
+        if (!entry.id || !entry.name || !entry.customTheme) {
+          return null;
+        }
+        return {
+          id: String(entry.id),
+          name: String(entry.name),
+          fileName: String(entry.fileName || ""),
+          customTheme: normalizeCustomTheme(entry.customTheme)
+        };
+      })
+      .filter(Boolean);
+  }
+
+  // The connect page has no session, so /api/themes would 401 there. The
+  // server inlines the list instead; prefer it when present.
+  function inlinedFileThemes() {
+    var el = document.querySelector("[data-file-themes]");
+    if (!el) {
+      return null;
+    }
+    try {
+      return normalizeFileThemeList(JSON.parse(el.getAttribute("data-file-themes") || "[]"));
+    } catch (err) {
+      console.error("Failed to parse inlined custom themes:", err);
+      return [];
+    }
+  }
+
   function loadFileThemes() {
+    var inlined = inlinedFileThemes();
+    if (inlined) {
+      fileThemes = inlined;
+      return Promise.resolve();
+    }
     return fetch("/api/themes", {
       headers: { Accept: "application/json", "Cache-Control": "no-cache" }
     })
@@ -364,23 +405,7 @@
         return res.json();
       })
       .then(function (payload) {
-        var incoming = payload && Array.isArray(payload.themes) ? payload.themes : [];
-        fileThemes = incoming
-          .map(function (entry) {
-            if (!entry || typeof entry !== "object") {
-              return null;
-            }
-            if (!entry.id || !entry.name || !entry.customTheme) {
-              return null;
-            }
-            return {
-              id: String(entry.id),
-              name: String(entry.name),
-              fileName: String(entry.fileName || ""),
-              customTheme: normalizeCustomTheme(entry.customTheme)
-            };
-          })
-          .filter(Boolean);
+        fileThemes = normalizeFileThemeList(payload && payload.themes);
       })
       .catch(function (err) {
         console.error("Failed to load custom themes:", err);

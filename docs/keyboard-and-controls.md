@@ -4,20 +4,41 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 
 ## Toolbar Controls
 
-Main toolbar actions include:
+### Workspace modes
 
-- Disconnect session
+The toolbar has two surfaces, chosen by the **Business / Engineering**
+button in the header. The choice is remembered per browser.
+
+**Business** is the default and shows only what you need to use a
+mainframe application:
+
+- Disconnect and Reconnect
 - View logs
 - Print screen
+- Copy screen
+- Command palette, Copilot chat, and settings
+
+**Engineering** adds the automation surface on top:
+
 - Start/stop recording
-- Load recording
-- Play/debug/view/remove recording
+- Load recording; play, debug, view or remove it
 - Playback pause/resume/stop controls (when active)
 - Chaos exploration controls
-- Command palette, Copilot chat, and settings
+- The workflow status widget
 
 ![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
+
+Nothing is removed in Business mode — switching modes is one click, and
+everything in Engineering mode remains reachable from the command palette
+once you are there.
+
+!!! note "Runs are always visible"
+
+    If a recording, playback or chaos run starts while you are in
+    Business mode — Copilot can start one — the workflow status widget
+    appears anyway, and goes away again when the run ends. You are never
+    left watching a terminal move on its own with no way to see why.
 
 The **Recording** and **Chaos** labels are group toggles — click one to
 expand its controls, and the choice is remembered. Anything hidden inside
@@ -37,25 +58,52 @@ every toolbar and modal action.
 - Recently used commands appear first when the search box is empty.
 - Theme switching is available here too, so you can change the look
   without opening Settings.
+- Terminal operations are here: copy the screen, copy a marked block,
+  reconnect, toggle insert mode, reset the keyboard, show the keypad,
+  switch workspace mode.
+- Every host key is searchable but hidden from the default list, since
+  twenty-four PF keys would crowd out everything else. Type `pf3`,
+  `attn`, `erase` or `pa1` to reach them.
+- Commands whose control is hidden are hidden too, so in Business mode
+  the palette does not offer recording or chaos actions.
 
 While the palette is open it takes over the keyboard completely, so
 nothing you type leaks through to the 3270 screen underneath.
 
-## Terminal Status Bar
+## Operator Information Area
 
-The bar directly beneath the screen is the operator information area.
+The bar directly beneath the screen is the OIA, and it carries the same
+indicators a 3270 operator has read reflexively for forty years.
 
 ![Terminal status bar](images/terminal-status-bar.png)
 
-| Field | Meaning |
+| Position | Meaning |
 |---|---|
-| `KB` | Keyboard state — green `UNLOCKED` when you can type, amber `LOCKED` while the host is inhibiting input, red on `ERROR` |
+| Left block | `4` online, `4-A` online and owned by an application, `–` disconnected, `?` status not yet readable |
+| Input inhibit | Empty when ready. `X SYSTEM` while the host is processing. `X -f` on an operator error |
+| `^` | Insert mode is on (see [Insert and overtype](#insert-and-overtype)) |
 | `MODEL` | Negotiated 3270 model number |
 | `SIZE` | Screen geometry in rows × columns |
 | `CURSOR` | Current cursor row and column |
 
-If the keyboard shows `LOCKED`, the host has not finished processing the
-last submission — wait, or press `Reset` from the keypad.
+The two indicators on the left are the ones that matter:
+
+- **`X SYSTEM`** means the host has the keyboard and is thinking. Wait.
+  Pressing Enter again will not help. It appears the moment an AID key
+  goes out, so there is no window in which the terminal looks idle while
+  the host is busy.
+- **`X -f`** means input is inhibited by an operator error — most often a
+  letter typed into a numeric field, or a full field in insert mode. It
+  will not clear on its own: press ++esc++ or `Reset`.
+
+The terminal bezel also tints while input is inhibited, so a locked
+keyboard is noticeable without reading the bar.
+
+!!! info "Screen readers"
+
+    Only the inhibit explanation is announced, not the whole bar. The bar
+    also carries the cursor position, and announcing that on every
+    keystroke made the terminal unusable with a screen reader.
 
 ## Virtual Keyboard (Keypad)
 
@@ -85,22 +133,73 @@ The keypad visibility preference can be saved in Settings (`Use keypad`).
 
 Common mappings used by 3270Web:
 
-- `Enter` -> Enter
-- `Tab` -> Tab
-- `Shift+Tab` -> BackTab
-- `Esc` -> Clear (**press twice** — see below)
-- `Arrow keys` -> Cursor movement
-- `Home` -> Home
-- `Backspace` -> BackSpace
-- `Delete` -> Delete
-- `Insert` -> Insert
-- `F1..F12` -> `PF1..PF12`
-- `Shift+F1..Shift+F12` -> `PF13..PF24`
-- `Alt+F1` -> `PA1`
-- `Alt+F2` -> `PA2`
-- `Alt+F3` -> `PA3`
+| Key | Action | Where it runs |
+|---|---|---|
+| `Enter` | Enter | Host |
+| `F1`..`F12` | `PF1`..`PF12` | Host |
+| `Shift+F1`..`Shift+F12` | `PF13`..`PF24` | Host |
+| `Alt+F1` / `Alt+F2` / `Alt+F3` | `PA1` / `PA2` / `PA3` | Host |
+| `Esc` | Clear (**press twice**) — or Reset while input is inhibited | Host |
+| `Tab` / `Shift+Tab` | Next / previous field | **Terminal** |
+| `Arrow keys` | Cursor movement | **Terminal** |
+| `Home` | First input field | **Terminal** |
+| `Insert` | Toggle insert / overtype | **Terminal** |
+| `Backspace` / `Delete` | Edit within the field | **Terminal** |
 
-Additional 3270 actions available in keypad/full mappings include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and NewLine.
+Additional 3270 actions available from the keypad and the command palette
+include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and
+NewLine.
+
+### Cursor movement is local
+
+Tab, Back-Tab, the arrows and Home move the cursor inside the browser and
+do not contact the host. On a 3270 the cursor belongs to the terminal; the
+host is told where it is exactly once, in the inbound data stream, when an
+AID key is pressed.
+
+This matters on a real network. Each of those keys used to cost a full
+round-trip — submit, s3270 action, screen re-read, re-render — so tabbing
+through a twelve-field screen over a WAN meant a dozen waits for movement
+the host never sees. They are now instant.
+
+Two deviations from a hardware terminal are worth knowing:
+
+- A field's caret range is bounded by the text currently in it, not its
+  full width, so arrowing right past the end of a short value moves to the
+  next field rather than walking the field's blank tail. Typing still
+  fills the field normally.
+- Up and down move between input fields. Rows made entirely of protected
+  text are skipped, because there is nowhere in this rendering to park a
+  cursor that is not in a field.
+
+### Insert and overtype
+
+The terminal starts in overtype, the 3270 default: what you type replaces
+the character under the cursor. Press ++ins++ to switch to insert, which
+pushes the rest of the field right; the OIA shows `^` while it is on.
+Typing into a field that is already full in insert mode raises an
+operator error rather than silently dropping the character.
+
+Insert is a terminal function — pressing it never contacts the host.
+
+### Numeric fields
+
+Fields the host marks numeric accept only digits, `.`, `,`, `-` and `+`.
+Typing anything else is refused and raises `X -f` in the OIA; press
+++esc++ or `Reset` to continue. This is what a real terminal does, and it
+is a round-trip faster than letting the host reject the value.
+
+Pasting into a numeric field is treated more leniently: non-numeric
+characters are stripped and the digits land. Copying an account number
+that arrived with spaces or dashes in it is routine, and refusing the
+whole paste over one stray character would be the wrong answer.
+
+### Type-ahead
+
+Keystrokes typed while the host holds the keyboard are buffered and
+replayed once the screen comes back, instead of being dropped. AID keys
+are deliberately *not* buffered — replaying a transaction fired against a
+screen you had not yet seen is a hazard, not a convenience.
 
 !!! warning "Escape needs a second press"
 
@@ -116,9 +215,38 @@ While the terminal has focus it captures ++tab++ so field navigation
 reaches the host instead of moving browser focus. To get out to the rest
 of the page, press ++ctrl+tab++ (or ++ctrl+shift+tab++).
 
+## Copying from the screen
+
+The screen is rendered as text with input fields spliced into it, so
+dragging across it with the mouse produces mangled output — the input
+values drop out of the selection. Use these instead:
+
+- **Copy screen** (toolbar, or the command palette) copies the whole
+  screen as text, including anything you have typed but not yet
+  submitted. Values in hidden password fields are never copied, since
+  they were never displayed.
+- **Rectangular block copy**: hold ++alt++ and drag over the screen to
+  mark a rectangle, then press ++ctrl+c++. ++esc++ clears the mark. This
+  is how you get a column of values into a spreadsheet without the
+  surrounding text coming with it.
+
+## Reconnecting
+
+If the host drops the connection, 3270Web notices, shows
+`X DISCONNECTED` in the OIA, and retries automatically with a backoff
+(1s, 2s, 4s, 8s, 15s). If it comes back, the page reloads on the new
+connection. If it does not, a banner offers a manual **Reconnect**, which
+is also on the toolbar and in the command palette.
+
+Reconnecting starts a new host session, so recording and chaos state from
+the dead connection does not survive — the host-side conversation those
+features were tracking ended when the connection did.
+
 ## Focus and Input Behavior
 
-When you press mapped keys, 3270Web sends the action to the host and refreshes the terminal content. Cursor-aware behavior is preserved for field input where possible.
+Host keys are sent to the host and the terminal content is refreshed.
+Cursor movement, insert mode and field validation are handled locally
+(see above), so only keys the host actually needs cause a round-trip.
 
 ## Tips for Reliable Use
 

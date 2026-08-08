@@ -56,13 +56,29 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 - [ ] **IND$FILE file transfer** (s3270 `Transfer()`) — text and binary, ASCII/EBCDIC
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
 - [ ] **Multiple concurrent sessions / tabs in one browser** — today, one session per cookie
-- [ ] **Rectangular block copy/paste** — today, browser-native selection only
+- [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
 - [ ] **Scrollback / screen history navigation**
 - [ ] **Find/search within current screen**
 - [ ] **Hotspots** (clickable PF labels and URLs detected on screen)
-- [ ] **Auto-reconnect on host drop**
-- [ ] **Named saved sessions / connection profiles**
+- [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
+- [ ] **Named saved sessions / connection profiles** — saved hosts exist but are browser-local and hostname-only
 - [ ] **Customizable keyboard mapping in the UI** (multiple profiles)
+
+## Daily-use fidelity
+
+Behaviours an experienced 3270 operator expects from the terminal itself,
+tracked separately from feature parity because they are not features —
+they are whether the thing behaves like a terminal. See the
+[Enterprise Readiness Audit](enterprise-readiness.md) for the full case.
+
+- [x] **Local cursor navigation** — *shipped: Tab, Back-Tab, arrows and Home move the caret in the browser instead of costing a host round-trip each*
+- [x] **Real OIA** — *shipped: `X SYSTEM`, `X -f`, online/application block, insert indicator*
+- [x] **Numeric field enforcement** — *shipped: the 3270 numeric attribute now reaches the browser and is enforced, with a real operator-error lock*
+- [x] **Insert / overtype toggle** — *shipped: local Insert key, `^` in the OIA*
+- [x] **Type-ahead** — *shipped: characters typed during a host wait are buffered, not dropped*
+- [x] **Business / Engineering workspace modes** — *shipped: the default surface is the terminal; automation is one click away*
+- [ ] **Strict auto-skip semantics** — auto-skip currently fires out of full *numeric* fields, which covers the common real case but is not the full field-attribute rule
+- [ ] **Cursor movement over protected areas** — the cursor can only rest in an input field, so all-protected rows are skipped
 
 ## s3270 features not yet surfaced
 

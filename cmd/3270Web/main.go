@@ -221,6 +221,7 @@ func main() {
 
 	// Disconnect handler
 	r.POST("/disconnect", app.DisconnectHandler)
+	r.POST("/reconnect", app.ReconnectHandler)
 
 	// Host compatibility profile (cookie-auth, current session)
 	r.POST("/profile", app.ProfileHandler)
@@ -671,12 +672,29 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		defaultHost = "localhost:3270"
 	}
 	samplePorts := allowedSampleAppPorts()
+	// The connect page carries the same theme picker as the terminal, but no
+	// session exists yet, so it cannot use the session-gated /api/themes.
+	// Embedding the list is what makes custom themes actually appear here;
+	// fetching it was silently 401ing and falling back to an empty list.
+	themesJSON := "[]"
+	if items, err := app.listFileThemes(); err != nil {
+		log.Printf("Connect page: failed to read themes folder: %v", err)
+	} else if encoded, err := json.Marshal(items); err != nil {
+		log.Printf("Connect page: failed to encode themes: %v", err)
+	} else {
+		themesJSON = string(encoded)
+	}
 	c.HTML(status, "connect.html", gin.H{
 		"DefaultHost":  defaultHost,
 		"SampleApps":   availableSampleApps(),
 		"SamplePorts":  samplePorts,
 		"ConnectError": connectError,
 		"Version":      appVersion,
+		// Passed as a plain string into an attribute, not template.JS into a
+		// <script>: theme names come from files on disk and html/template
+		// escapes attribute values for us, so a name containing markup
+		// cannot break out.
+		"ThemesJSON": themesJSON,
 	})
 }
 
@@ -764,6 +782,43 @@ func screenStatusLabels(screen *host.Screen) (keyboard, model, dimensions, curso
 	return keyboard, model, dimensions, cursor
 }
 
+// screenOIA builds the Operator Information Area fields. The status line used
+// to carry only KB/MODEL/SIZE/CURSOR, which left an operator unable to tell
+// "the host is thinking" from "the app is broken" — the one thing the real
+// OIA exists to communicate. These fields add the indicators operators
+// actually read: the online/application block on the left and the
+// input-inhibit indicator ("X SYSTEM", "X -f") in the middle.
+func screenOIA(screen *host.Screen) gin.H {
+	indicator, explanation := screen.OIAIndicator()
+	connected, peer, known := screen.StatusConnected()
+	// The classic left-hand block: "4" means online, "4-A" means online and
+	// owned by an application (which, for a TN3270 session showing a
+	// formatted screen, it is).
+	online := "4"
+	if !known {
+		online = "?"
+	} else if !connected {
+		online = "–"
+	} else if screen.IsFormatted {
+		online = "4-A"
+	}
+	return gin.H{
+		"oiaOnline":      online,
+		"oiaConnected":   connected && known,
+		"oiaPeer":        peer,
+		"oiaIndicator":   indicator,
+		"oiaExplanation": explanation,
+	}
+}
+
+// mergeOIA copies the OIA fields into an existing payload map.
+func mergeOIA(payload gin.H, screen *host.Screen) gin.H {
+	for k, v := range screenOIA(screen) {
+		payload[k] = v
+	}
+	return payload
+}
+
 func (app *App) ScreenHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -790,6 +845,14 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	themeCSS := app.buildThemeCSS(snap.Prefs)
 
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
+	oia := screenOIA(screen)
+
+	chaosRunActive := false
+	if app.chaosEngines != nil {
+		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
+			chaosRunActive = eng.Status().Active
+		}
+	}
 
 	sampleAppName := ""
 	sampleAppPort := 0
@@ -832,6 +895,14 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"StatusModel":             modelLabel,
 		"StatusDimensions":        dimensionLabel,
 		"StatusCursor":            cursorLabel,
+		// The run-status widget is only rendered when something is actually
+		// running, so a page load with no run in progress does not flash a
+		// 360x320 panel saying "Playback has not started yet".
+		"ShowRunStatus":           snap.RecordingActive || snap.PlaybackActive || chaosRunActive,
+		"OIAOnline":               oia["oiaOnline"],
+		"OIAIndicator":            oia["oiaIndicator"],
+		"OIAExplanation":          oia["oiaExplanation"],
+		"OIAPeer":                 oia["oiaPeer"],
 		"SampleAppName":           sampleAppName,
 		"SampleAppPort":           sampleAppPort,
 		"TargetHost":              snap.TargetHost,
@@ -861,13 +932,13 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 	}
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
-	payload := gin.H{
+	payload := mergeOIA(gin.H{
 		"html":             rendered,
 		"statusKeyboard":   keyboardLabel,
 		"statusModel":      modelLabel,
 		"statusDimensions": dimensionLabel,
 		"statusCursor":     cursorLabel,
-	}
+	}, screen)
 	if cursorRow, cursorCol, ok := screen.StatusCursor(); ok {
 		payload["cursorRow"] = cursorRow
 		payload["cursorCol"] = cursorCol
@@ -1036,6 +1107,43 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 	}
 	setSessionCookie(c, "3270Web_session", "")
 	c.Redirect(http.StatusFound, "/")
+}
+
+// ReconnectHandler re-dials the current session's target host after a drop.
+// Mainframe sessions end for routine reasons — LPAR maintenance, VTAM
+// timeouts, network blips — and before this the only recovery was to go back
+// to the connect page and retype the host, losing your place several times a
+// day.
+//
+// The old session's s3270 subprocess is torn down and a fresh one started,
+// which means recording and chaos state for the dead session does not
+// survive. That is the honest outcome: the host-side conversation those
+// features were tracking ended when the connection did.
+func (app *App) ReconnectHandler(c *gin.Context) {
+	target := ""
+	if s := app.getSession(c); s != nil {
+		target = formatSessionTarget(s)
+		app.cleanupSession(s)
+	}
+	if target == "" {
+		target = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
+	}
+	if target == "" {
+		setSessionCookie(c, "3270Web_session", "")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no previous host to reconnect to"})
+		return
+	}
+
+	if err := app.connectToHost(c, target); err != nil {
+		log.Printf("Reconnect failed for %q: %v", target, err)
+		setSessionCookie(c, "3270Web_session", "")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":  connectErrorMessage(target, err),
+			"target": target,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "target": target})
 }
 
 func (app *App) RecordStartHandler(c *gin.Context) {
@@ -1853,20 +1961,17 @@ func (app *App) ThemeSaveHandler(c *gin.Context) {
 	})
 }
 
-func (app *App) ThemeListHandler(c *gin.Context) {
-	if !app.hasSession(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
-		return
-	}
+// listFileThemes reads the custom themes on disk. Shared by ThemeListHandler
+// and by the connect page, which needs the same list before any session
+// exists and so cannot go through the (deliberately session-gated) endpoint.
+func (app *App) listFileThemes() ([]themeListItem, error) {
 	dir := app.themesDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			c.JSON(http.StatusOK, gin.H{"themes": []themeListItem{}})
-			return
+			return []themeListItem{}, nil
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read themes folder: %v", err)})
-		return
+		return nil, err
 	}
 
 	items := make([]themeListItem, 0, len(entries))
@@ -1909,6 +2014,19 @@ func (app *App) ThemeListHandler(c *gin.Context) {
 		return strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
 	})
 
+	return items, nil
+}
+
+func (app *App) ThemeListHandler(c *gin.Context) {
+	if !app.hasSession(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	items, err := app.listFileThemes()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read themes folder: %v", err)})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"themes": items})
 }
 
