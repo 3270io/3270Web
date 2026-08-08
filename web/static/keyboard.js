@@ -1482,8 +1482,8 @@
       return;
     }
 
-    // Alt+Enter belongs to focus mode, not the host — it is the full-screen
-    // shortcut PCOMM and Quick3270 have used for decades. This handler is on
+    // Alt+Enter belongs to focus mode, not the host — it is the long-standing
+    // full-screen convention for terminal emulators. This handler is on
     // window and so runs before focus-mode.js's document listener, which
     // means declining it has to happen here or the host gets a stray Enter
     // every time someone maximises.

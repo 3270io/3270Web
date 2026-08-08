@@ -1,5 +1,30 @@
 # CLAUDE.md — 3270Web
 
+## Writing for a public repository
+
+This repository is open source. Everything in it is publicly readable —
+code comments, docs (which publish to 3270Web.3270.io), commit messages,
+PR titles and bodies, and issue comments.
+
+**Do not name competing products, and do not frame work as matching,
+catching up to, or copying one.** No comparison tables with a rival's name
+in a column header, no "X ships this and we don't", no "closes the gap
+against X", no links to a competitor's site or price list. This applies to
+commit messages and PR descriptions exactly as much as to code and docs.
+
+Write the same point in terms of the user and the category instead:
+
+- ✅ "Operators expect this as standard terminal behaviour."
+- ✅ "A capability an enterprise 3270 terminal is generally expected to have."
+- ✅ "Years of muscle memory from another terminal emulator."
+- ❌ "PCOMM and Quick3270 both ship this."
+- ❌ "The most-cited gap against Rumba+."
+
+Naming a **file format or protocol** for interoperability is fine and
+sometimes unavoidable — a `.KMP` keymap importer has to say what it reads,
+and IND$FILE and TN3270 are protocol names. State the format, not the
+vendor's product positioning.
+
 ## Project Overview
 
 **3270Web** is a Go web application that provides a browser-based IBM 3270 mainframe terminal interface. It wraps the `s3270` binary and exposes a REST/JSON API alongside a full-featured HTML/JS UI for interactive sessions, workflow recording/replay, automated chaos exploration, and GitHub Copilot integration.
