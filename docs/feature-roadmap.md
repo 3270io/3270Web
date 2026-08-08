@@ -11,6 +11,10 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **A cursor that is not confined to the fields** — it can rest on any cell of
+  the display, so screens driven by cursor position rather than field content
+  are operable; and auto-skip now follows the field-attribute rule instead of
+  approximating it. See [Keyboard and Controls](keyboard-and-controls.md).
 - **Guided Business Tasks** — record a screen flow once, and anyone can run
   it from a form and read the answer without navigating a green screen.
   Named inputs, named outputs, and a run that stops at the first divergence
@@ -78,8 +82,10 @@ the thing behaves like a terminal. The rest of this list is shipping; see
       field-attribute rule rather than approximating it as "the field is
       numeric". See
       [Keyboard and Controls](keyboard-and-controls.md#auto-skip)*
-- [ ] **Cursor movement over protected areas** — the cursor can only rest in
-      an input field, so rows of purely protected text are skipped
+- [x] **Cursor movement over protected areas** — *shipped: the cursor can rest
+      on any cell of the display, which is what makes "position the cursor
+      beside your choice" screens operable. See
+      [Keyboard and Controls](keyboard-and-controls.md#cursor-on-protected-text)*
 - [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things
       and the keypad currently wins, leaving the terminal a tile in the
       corner of a full screen. Which should take priority is a product call,

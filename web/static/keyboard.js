@@ -84,6 +84,13 @@
   // the fast operators who type ahead by reflex.
   var typeAhead = [];
   var typeAheadLimit = 64;
+  // Where the cursor is when it is resting somewhere that is not an input
+  // field — see the "Cursor over protected text" section. null means the
+  // cursor is in a field and the DOM caret is the truth.
+  var freeCursor = null;
+  // Set for one focusin cycle while keepKeystrokeSink is deliberately putting
+  // DOM focus back on a field with the cursor still out on protected text.
+  var sinkFocusPending = false;
 
   var numericCharPattern = /^[0-9.,\-+]$/;
 
@@ -178,7 +185,12 @@
     if (!form) {
       return;
     }
-    if (target && !isCursorNavigationKey(key)) {
+    if (freeCursor && !isCursorNavigationKey(key)) {
+      // The whole point of a cursor that can leave the fields: this is the one
+      // moment the host is told where it is, and for a "put the cursor beside
+      // your choice" screen it is the entire input.
+      setCursorInputs(form, freeCursor.row, freeCursor.col);
+    } else if (target && !isCursorNavigationKey(key)) {
       setCursorFromTarget(form, target);
     } else if (isCursorNavigationKey(key)) {
       // Navigation should be relative to host cursor, not client-side input focus.
@@ -468,6 +480,11 @@
       return;
     }
 
+    // A new screen means the host has set the cursor, so whatever the operator
+    // had done locally is superseded. Replacing the container's innerHTML has
+    // already destroyed the overlay caret; this drops the state behind it.
+    clearFreeCursor();
+
     var target = null;
     var caret = null;
     var hasCursor =
@@ -483,6 +500,12 @@
       if (located && located.input) {
         target = located.input;
         caret = located.caret;
+      } else {
+        // The host parked its cursor on protected text — a menu saying "the
+        // cursor is here, press Enter". That used to be discarded and the
+        // caret dumped into the first field, silently moving the cursor the
+        // application had deliberately placed. Now it is honoured.
+        setFreeCursor(form, cursorRow, cursorCol);
       }
     }
 
@@ -1100,6 +1123,299 @@
   }
 
   // ---------------------------------------------------------------------
+  // Cursor over protected text.
+  //
+  // On a 3270 the cursor can rest on any cell of the display, protected or
+  // not. This rendering only has DOM nodes for the *unprotected* fields, so
+  // the caret could previously only ever be inside one of them — whole rows
+  // of protected text were skipped over by the arrow keys, and the cursor
+  // could not be parked on one.
+  //
+  // That is not cosmetic. A family of mainframe applications is driven by
+  // cursor position over protected text: "put the cursor beside your choice
+  // and press Enter" menus, cursor-select fields, and anything that reads the
+  // inbound cursor address rather than a field value. Without a cursor that
+  // can leave the fields, those screens simply cannot be operated.
+  //
+  // freeCursor is that cursor. When it is set the DOM caret is no longer the
+  // truth: an overlay caret is painted over the cell, the fields' own carets
+  // are hidden, the OIA reads the free position, and the next AID key reports
+  // it. DOM focus deliberately stays on whichever input had it, because that
+  // is what keeps keystrokes arriving at the handler at all — the cell the
+  // operator is on and the node the browser delivers keys to are different
+  // questions, and conflating them is what would fight the focus lock.
+  // ---------------------------------------------------------------------
+
+  function screenDims(form) {
+    var rows = form ? parseInt(form.dataset.rows, 10) : NaN;
+    var cols = form ? parseInt(form.dataset.cols, 10) : NaN;
+    return {
+      rows: rows > 0 ? rows : 24,
+      cols: cols > 0 ? cols : 80
+    };
+  }
+
+  // normalizeCell wraps a cell address into the screen, the way a 3270 does:
+  // off the right-hand edge continues on the next row, off the bottom
+  // continues at the top.
+  function normalizeCell(dims, row, col) {
+    while (col < 0) {
+      col += dims.cols;
+      row -= 1;
+    }
+    while (col >= dims.cols) {
+      col -= dims.cols;
+      row += 1;
+    }
+    row = ((row % dims.rows) + dims.rows) % dims.rows;
+    return { row: row, col: col };
+  }
+
+  function freeCursorOverlay(create) {
+    var grid = window.ThreeSeventyWeb && window.ThreeSeventyWeb.screenGrid;
+    if (!grid || typeof grid.overlayLayer !== "function") {
+      return null;
+    }
+    var layer = grid.overlayLayer();
+    if (!layer) {
+      return null;
+    }
+    var el = layer.querySelector(":scope > .screen-free-cursor");
+    if (!el && create) {
+      el = document.createElement("div");
+      el.className = "screen-free-cursor";
+      el.setAttribute("aria-hidden", "true");
+      layer.appendChild(el);
+    }
+    return el;
+  }
+
+  // paintFreeCursor draws the overlay caret over freeCursor's cell. It is also
+  // the repaint path: the terminal is resizable and the font metrics change
+  // with it, so the position is recomputed from the grid rather than cached.
+  function paintFreeCursor() {
+    var el = freeCursorOverlay(!!freeCursor);
+    if (!el) {
+      return;
+    }
+    if (!freeCursor) {
+      el.hidden = true;
+      return;
+    }
+    var grid = window.ThreeSeventyWeb.screenGrid;
+    var metrics = grid.metrics();
+    if (!metrics) {
+      el.hidden = true;
+      return;
+    }
+    grid.positionOverCells(el, metrics, {
+      top: freeCursor.row,
+      bottom: freeCursor.row,
+      left: freeCursor.col,
+      right: freeCursor.col
+    });
+    el.hidden = false;
+  }
+
+  // The OIA's CURSOR readout is 1-based, matching the server's own format, so
+  // that a position read off the screen means the same thing whoever wrote it.
+  function showCursorReadout(row, col) {
+    var el = document.querySelector("[data-status-cursor]");
+    if (el) {
+      el.textContent = String(row + 1) + "," + String(col + 1);
+    }
+  }
+
+  function setFreeCursor(form, row, col) {
+    freeCursor = { row: row, col: col };
+    var shell = getTerminalShell();
+    if (shell) {
+      // Drives `caret-color: transparent` on the fields. Two visible carets
+      // would be worse than none: the operator has to be able to see where
+      // the keyboard is actually pointing.
+      shell.setAttribute("data-free-cursor", "1");
+    }
+    paintFreeCursor();
+    // A repaint after layout settles. setFreeCursor is called from the
+    // screen-refresh path, where the container has just been replaced and the
+    // terminal has not been resized to fit it yet, so the metrics read now can
+    // be a frame out of date.
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(paintFreeCursor);
+    }
+    showCursorReadout(row, col);
+    return true;
+  }
+
+  function clearFreeCursor() {
+    if (!freeCursor) {
+      return false;
+    }
+    freeCursor = null;
+    var shell = getTerminalShell();
+    if (shell) {
+      shell.removeAttribute("data-free-cursor");
+    }
+    paintFreeCursor();
+    return true;
+  }
+
+  // fieldSpan is the cells an input actually occupies on its row. data-w is
+  // the field's full width, which is not the same as its value's length —
+  // that difference is why leaving a field sideways has to be expressed in
+  // cells rather than in caret offsets.
+  function fieldSpan(el) {
+    var pos = getFieldPosition(el);
+    if (!pos) {
+      return null;
+    }
+    var start = getLineOffsetFromName(el.name || "") > 0 ? 0 : pos.x;
+    var width = parseInt(el.dataset.w, 10);
+    if (isNaN(width) || width <= 0) {
+      width = el.maxLength > 0 ? el.maxLength : 1;
+    }
+    return { row: pos.y, start: start, end: start + width - 1 };
+  }
+
+  // moveToCell puts the cursor on a screen cell: into the field if the cell
+  // belongs to one, on the free cursor if it does not.
+  function moveToCell(form, dims, row, col) {
+    var cell = normalizeCell(dims, row, col);
+    var hit = findInputAtCursor(form, cell.row, cell.col);
+    if (hit && hit.input) {
+      clearFreeCursor();
+      return placeCaret(hit.input, hit.caret);
+    }
+    return setFreeCursor(form, cell.row, cell.col);
+  }
+
+  // cursorCell is where the cursor is now, in screen coordinates, whichever
+  // of the two representations currently holds it.
+  function cursorCell(form) {
+    if (freeCursor) {
+      return { row: freeCursor.row, col: freeCursor.col };
+    }
+    var current = currentScreenInput(form);
+    return current ? absoluteCursorOf(current) : null;
+  }
+
+  // inhibitOnProtected is the answer to "the operator typed while the cursor
+  // was on protected text". A real terminal raises input-inhibited and waits
+  // for Reset rather than quietly moving the character somewhere it fits.
+  function inhibitOnProtected() {
+    if (!freeCursor) {
+      return false;
+    }
+    setOperatorError("Protected field");
+    return true;
+  }
+
+  // installFreeCursorPointer makes clicking protected text park the cursor
+  // there, which is how anyone would expect to answer a "position the cursor
+  // beside your choice" screen with a mouse. Clicking a field is left to the
+  // browser: focusing the input is already the right outcome, and the focusin
+  // listener drops the free cursor.
+  //
+  // This listens on the document rather than the screen container because the
+  // container is replaced wholesale on every screen refresh, which would take
+  // a listener bound to it along with it.
+  function installFreeCursorPointer() {
+    document.addEventListener(
+      "pointerdown",
+      function (event) {
+        // Alt+drag is the block-copy marker; it must not move the cursor.
+        if (event.altKey || event.button !== 0) {
+          return;
+        }
+        var grid = window.ThreeSeventyWeb && window.ThreeSeventyWeb.screenGrid;
+        if (!grid) {
+          return;
+        }
+        var container = grid.container();
+        if (!container || !event.target || typeof event.target.closest !== "function") {
+          return;
+        }
+        if (!container.contains(event.target)) {
+          return;
+        }
+        // A hotspot is a click target in its own right, and a field click
+        // belongs to the browser.
+        if (event.target.closest(".screen-hotspot") || isScreenInput(event.target)) {
+          return;
+        }
+        var form = grid.form();
+        var metrics = grid.metrics();
+        if (!form || !metrics) {
+          return;
+        }
+        var cell = grid.pointToCell(metrics, event.clientX, event.clientY);
+        var hit = findInputAtCursor(form, cell.row, cell.col);
+        if (hit && hit.input) {
+          // Clicking the blank tail of a short field: land in the field rather
+          // than dropping a free cursor inside one, which would then inhibit
+          // typing into the very field that was clicked.
+          clearFreeCursor();
+          placeCaret(hit.input, hit.caret);
+          return;
+        }
+        setFreeCursor(form, cell.row, cell.col);
+        keepKeystrokeSink(form);
+      },
+      true
+    );
+
+    // Deliberately focusing a field — by click or by Tab — puts the cursor back
+    // in it, so the free cursor has to go. Without this, clicking straight from
+    // protected text into a field would leave the overlay caret behind and
+    // typing inhibited.
+    document.addEventListener(
+      "focusin",
+      function (event) {
+        if (sinkFocusPending) {
+          sinkFocusPending = false;
+          return;
+        }
+        if (freeCursor && isScreenInput(event.target)) {
+          clearFreeCursor();
+        }
+      },
+      true
+    );
+  }
+
+  // keepKeystrokeSink puts DOM focus back on a field after a click on protected
+  // text. Clicking a <pre> blurs the active element to <body>, and from there
+  // the arrow keys stop being recognised as terminal keys at all — so the
+  // cursor would land on the cell the operator clicked and then refuse to move.
+  //
+  // It runs a frame late on purpose: the blur is the pointerdown's default
+  // action, so focusing during the event would just be undone by it.
+  function keepKeystrokeSink(form) {
+    if (typeof window.requestAnimationFrame !== "function") {
+      return;
+    }
+    window.requestAnimationFrame(function () {
+      if (!freeCursor || !form) {
+        return;
+      }
+      var active = document.activeElement;
+      if (isScreenInput(active) && form.contains(active)) {
+        return;
+      }
+      var sink = form.querySelector(
+        "input[data-x][data-y]:not([disabled]):not([readonly])"
+      );
+      if (!sink || typeof sink.focus !== "function") {
+        return;
+      }
+      // Suppress the focusin listener above: this focus is bookkeeping, not the
+      // operator asking to be in that field.
+      sinkFocusPending = true;
+      sink.focus();
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // Local cursor navigation.
   //
   // Tab, Back-Tab, the arrows and Home used to POST to the server, costing a
@@ -1143,19 +1459,6 @@
     return { row: pos.y, col: startX + caret };
   }
 
-  function inputRowOf(el) {
-    var pos = getFieldPosition(el);
-    return pos ? pos.y : null;
-  }
-
-  function inputStartColOf(el) {
-    var pos = getFieldPosition(el);
-    if (!pos) {
-      return 0;
-    }
-    return getLineOffsetFromName(el.name || "") > 0 ? 0 : pos.x;
-  }
-
   function currentScreenInput(form) {
     var active = document.activeElement;
     if (isScreenInput(active) && (!form || form.contains(active))) {
@@ -1173,6 +1476,14 @@
     if (!inputs.length) {
       return false;
     }
+    // Tab is defined as field-to-field, so from a protected cell it means the
+    // next field after that cell — not the next one after whichever input
+    // happens to still hold DOM focus.
+    if (freeCursor) {
+      var from = { row: freeCursor.row, col: freeCursor.col };
+      clearFreeCursor();
+      return placeCaret(tabTargetFromCell(inputs, from, back), 0);
+    }
     var current = currentScreenInput(form);
     var idx = inputs.indexOf(current);
     if (idx === -1) {
@@ -1188,31 +1499,56 @@
     return placeCaret(inputs[(idx + 1) % inputs.length], 0);
   }
 
+  // tabTargetFromCell picks the field Tab (or Back-Tab) should land on when
+  // the cursor starts on a cell rather than in a field. inputs is in reading
+  // order, so the answer is the first field after the cell, wrapping round.
+  function tabTargetFromCell(inputs, from, back) {
+    var i;
+    if (back) {
+      for (i = inputs.length - 1; i >= 0; i--) {
+        var prev = fieldSpan(inputs[i]);
+        if (prev && (prev.row < from.row || (prev.row === from.row && prev.start < from.col))) {
+          return inputs[i];
+        }
+      }
+      return inputs[inputs.length - 1];
+    }
+    for (i = 0; i < inputs.length; i++) {
+      var span = fieldSpan(inputs[i]);
+      if (span && (span.row > from.row || (span.row === from.row && span.start > from.col))) {
+        return inputs[i];
+      }
+    }
+    return inputs[0];
+  }
+
   function moveHome(form) {
     var inputs = getOrderedScreenInputs(form);
     if (!inputs.length) {
       return false;
     }
+    clearFreeCursor();
     return placeCaret(inputs[0], 0);
   }
 
-  // moveHorizontal walks the caret one cell left or right, crossing into the
-  // adjacent field at a field boundary and wrapping around the screen.
+  // moveHorizontal walks the cursor one cell left or right, over protected
+  // text as readily as through a field, and wrapping round the screen edges.
   //
   // Deviation from a hardware terminal worth knowing about: a field's caret
   // range is bounded by its current text length, not its full width, because
   // the value is stored untrimmed only as far as the host sent it. Arrowing
-  // right therefore skips the blank tail of a short value and lands on the
-  // next field. Typing still fills the field normally.
+  // right out of a short value therefore leaves from the end of the field
+  // rather than crawling through its blank tail. Typing still fills the field
+  // normally.
   function moveHorizontal(form, delta) {
-    var inputs = getOrderedScreenInputs(form);
-    if (!inputs.length) {
-      return false;
+    var dims = screenDims(form);
+    if (freeCursor) {
+      return moveToCell(form, dims, freeCursor.row, freeCursor.col + delta);
     }
     var current = currentScreenInput(form);
-    var idx = inputs.indexOf(current);
-    if (idx === -1) {
-      return placeCaret(inputs[0], 0);
+    if (!current) {
+      var inputs = getOrderedScreenInputs(form);
+      return inputs.length ? placeCaret(inputs[0], 0) : false;
     }
     var caret = typeof current.selectionStart === "number" ? current.selectionStart : 0;
     var next = caret + delta;
@@ -1220,95 +1556,29 @@
     if (next >= 0 && next <= limit) {
       return placeCaret(current, next);
     }
-    var neighbourIdx = (idx + (delta > 0 ? 1 : -1) + inputs.length) % inputs.length;
-    var neighbour = inputs[neighbourIdx];
-    var neighbourLen = typeof neighbour.value === "string" ? neighbour.value.length : 0;
-    return placeCaret(neighbour, delta > 0 ? 0 : neighbourLen);
-  }
-
-  // moveVertical keeps the caret in the same screen column where it can. The
-  // DOM only holds unprotected fields, so rows made entirely of protected
-  // text are skipped rather than landed on — a real terminal would park the
-  // cursor there, but there is nowhere in this rendering to put it.
-  function moveVertical(form, delta) {
-    var inputs = getOrderedScreenInputs(form);
-    if (!inputs.length) {
+    // Leaving the field. Step from the field's own edge in cells, not from the
+    // caret: the cells between the value's end and the field's end belong to
+    // this input, and stepping into one of them would clamp straight back to
+    // where the cursor already is.
+    var span = fieldSpan(current);
+    if (!span) {
       return false;
     }
-    var current = currentScreenInput(form);
-    var origin = current ? absoluteCursorOf(current) : null;
-    if (!origin) {
-      return placeCaret(inputs[0], 0);
-    }
-
-    var rows = [];
-    for (var i = 0; i < inputs.length; i++) {
-      var row = inputRowOf(inputs[i]);
-      if (row !== null && rows.indexOf(row) === -1) {
-        rows.push(row);
-      }
-    }
-    rows.sort(function (a, b) {
-      return a - b;
-    });
-
-    // Rows strictly in the direction of travel, nearest first, then wrapping
-    // round to the far end of the screen.
-    var ordered = [];
-    var j;
-    if (delta > 0) {
-      for (j = 0; j < rows.length; j++) {
-        if (rows[j] > origin.row) {
-          ordered.push(rows[j]);
-        }
-      }
-      for (j = 0; j < rows.length; j++) {
-        if (rows[j] <= origin.row) {
-          ordered.push(rows[j]);
-        }
-      }
-    } else {
-      for (j = rows.length - 1; j >= 0; j--) {
-        if (rows[j] < origin.row) {
-          ordered.push(rows[j]);
-        }
-      }
-      for (j = rows.length - 1; j >= 0; j--) {
-        if (rows[j] >= origin.row) {
-          ordered.push(rows[j]);
-        }
-      }
-    }
-
-    for (var k = 0; k < ordered.length; k++) {
-      var targetRow = ordered[k];
-      var hit = findInputAtCursor(form, targetRow, origin.col);
-      if (hit && hit.input) {
-        return placeCaret(hit.input, hit.caret);
-      }
-      var nearest = nearestInputOnRow(inputs, targetRow, origin.col);
-      if (nearest) {
-        return placeCaret(nearest, origin.col - inputStartColOf(nearest));
-      }
-    }
-    return false;
+    return moveToCell(form, dims, span.row, delta > 0 ? span.end + 1 : span.start - 1);
   }
 
-  function nearestInputOnRow(inputs, row, col) {
-    var best = null;
-    var bestDistance = null;
-    for (var i = 0; i < inputs.length; i++) {
-      if (inputRowOf(inputs[i]) !== row) {
-        continue;
-      }
-      var start = inputStartColOf(inputs[i]);
-      var distance = Math.abs(start - col);
-      if (bestDistance === null || distance < bestDistance) {
-        bestDistance = distance;
-        best = inputs[i];
-      }
+  // moveVertical moves exactly one row and keeps the screen column, which is
+  // what the key does on a terminal. It used to skip to the next row that had
+  // an input on it, because a row of purely protected text was not somewhere
+  // the cursor could go; with freeCursor it is.
+  function moveVertical(form, delta) {
+    var dims = screenDims(form);
+    var origin = cursorCell(form);
+    if (!origin) {
+      var inputs = getOrderedScreenInputs(form);
+      return inputs.length ? placeCaret(inputs[0], 0) : false;
     }
-    return best;
+    return moveToCell(form, dims, origin.row + delta, origin.col);
   }
 
   // handleLocalNavigation routes a normalized key name to its local movement.
@@ -1381,6 +1651,12 @@
   // full 3270 semantics: numeric-field enforcement, insert vs overtype, and
   // field-overflow detection. Returns false if the terminal refused it.
   function typeCharacter(ch) {
+    // The cursor is on protected text. DOM focus is still on a field — that is
+    // how the keystroke reached us at all — so without this check the character
+    // would land somewhere the operator is not looking.
+    if (inhibitOnProtected()) {
+      return false;
+    }
     var target = document.activeElement;
     if (!isScreenInput(target) || target.disabled || target.readOnly) {
       return false;
@@ -1628,6 +1904,19 @@
       return;
     }
 
+    // Backspace and Delete are otherwise left to the browser to apply to the
+    // focused field. While the cursor is on protected text that field is not
+    // where the operator is, so editing it would destroy input they cannot see
+    // themselves touching. A terminal inhibits instead.
+    if (
+      freeCursor &&
+      (event.key === "Backspace" || code === 8 || event.key === "Delete" || code === 46)
+    ) {
+      event.preventDefault();
+      inhibitOnProtected();
+      return;
+    }
+
     if (isEditableTarget(event.target) && isNativeNavKey(event)) {
       return;
     }
@@ -1643,7 +1932,10 @@
       !event.isComposing &&
       event.key &&
       event.key.length === 1 &&
-      isScreenInput(event.target)
+      // While the cursor is out on protected text, DOM focus may have ended up
+      // on the shell rather than a field. The keystroke still has to reach
+      // typeCharacter, which is what raises the operator error.
+      (isScreenInput(event.target) || (freeCursor && isInsideTerminalShell(event.target)))
     ) {
       event.preventDefault();
       if (operatorError) {
@@ -2322,6 +2614,14 @@
         true
       );
       keydownInstalled = true;
+      installFreeCursorPointer();
+      // The terminal is resizable and the cell size changes with it, so the
+      // overlay caret has to be re-placed rather than left at stale pixels.
+      window.addEventListener("resize", function () {
+        if (freeCursor) {
+          paintFreeCursor();
+        }
+      });
     }
     var form = findForm(formId);
     if (form) {

@@ -21,6 +21,7 @@ terminal.
 | Extended colour, blink, reverse video, underscore, intensify | ✅ |
 | Operator Information Area — online/application block, `X SYSTEM`, `X -f` operator error, insert indicator | ✅ |
 | Local cursor movement — Tab, Back-Tab, arrows and Home resolve in the client, with no host round-trip | ✅ |
+| A cursor that can rest anywhere on the display, protected text included, for cursor-position-driven screens | ✅ |
 | Numeric field enforcement, with a real operator-error lock | ✅ |
 | Auto-skip driven by the field attributes the application sends, not by guesswork | ✅ |
 | Insert / overtype toggle | ✅ |

@@ -313,15 +313,39 @@ round-trip — submit, s3270 action, screen re-read, re-render — so tabbing
 through a twelve-field screen over a WAN meant a dozen waits for movement
 the host never sees. They are now instant.
 
-Two deviations from a hardware terminal are worth knowing:
+One deviation from a hardware terminal is worth knowing: a field's caret
+range is bounded by the text currently in it, not its full width, so
+arrowing right past the end of a short value leaves the field rather than
+walking its blank tail. Typing still fills the field normally.
 
-- A field's caret range is bounded by the text currently in it, not its
-  full width, so arrowing right past the end of a short value moves to the
-  next field rather than walking the field's blank tail. Typing still
-  fills the field normally.
-- Up and down move between input fields. Rows made entirely of protected
-  text are skipped, because there is nowhere in this rendering to park a
-  cursor that is not in a field.
+### Cursor on protected text
+
+The cursor is not confined to the input fields. Up and down move one row at
+a time and keep the column, the arrows walk cell by cell and wrap at the
+screen edges, and any cell can be the cursor's resting place — including one
+in the middle of the application's own label text.
+
+That is not a detail. A whole family of mainframe screens is driven by
+cursor position rather than by field content: *"put the cursor beside your
+choice and press Enter"* menus, cursor-select fields, and anything that
+reads the inbound cursor address. A cursor that could only sit in an input
+field cannot operate them at all.
+
+While the cursor is on protected text:
+
+- It is drawn as an underscore over the cell, and the fields' own carets are
+  hidden, so exactly one thing on the screen looks like the cursor.
+- The OIA `CURSOR` readout shows where it is, same as anywhere else.
+- Typing raises `X -f`, the way a terminal refuses input to a protected
+  position. Press ++esc++ or `Reset` to continue; the cursor does not move.
+- The next AID key reports the position to the host. This is the payoff.
+
+Clicking anywhere on the screen puts the cursor there. ++tab++ and
+++home++ still mean *field*, so they take the cursor back into one.
+
+When the host sends a new screen it sets the cursor, and 3270Web now
+honours that even when the host parked it on protected text — a menu that
+positions its own cursor beside an option keeps it there.
 
 ### Insert and overtype
 

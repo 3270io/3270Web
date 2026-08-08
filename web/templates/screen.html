@@ -14,7 +14,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -24,7 +24,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=12" defer></script>
+    <script src="/static/keyboard.js?v=13" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
