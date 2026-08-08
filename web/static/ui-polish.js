@@ -49,7 +49,10 @@
     { label: "View logs", group: "Session", sel: "[data-logs-open]", icon: "doc" },
     { label: "Open settings", group: "Session", sel: "[data-settings-open]", icon: "gear" },
     { label: "About 3270Web", group: "Session", sel: "[data-about-open]", icon: "info" },
-    { label: "Toggle Copilot chat", group: "Session", sel: "[data-copilot-toggle]", icon: "chat", hint: "Show or hide the assistant panel" },
+    { label: "Toggle AI chat", group: "Session", sel: "[data-copilot-toggle]", icon: "chat", hint: "Show or hide the assistant panel" },
+    // run:, not sel: — the settings button lives inside the chat panel, so a
+    // selector entry would only be reachable once the panel is already open.
+    { label: "AI provider settings", group: "Session", icon: "gear", hint: "Choose Copilot, Claude, OpenAI, Ollama, …", run: () => window.CopilotPanel && window.CopilotPanel.settings() },
     { label: "Hide header & toolbar", group: "Session", sel: "[data-chrome-toggle]", icon: "eye", hint: "Distraction-free terminal" },
 
     // Recording

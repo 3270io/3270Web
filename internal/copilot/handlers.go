@@ -70,11 +70,18 @@ func NewHandlers(store *Store) *Handlers {
 	return &Handlers{store: store}
 }
 
-// identity resolves the calling browser's Copilot identity, minting and
-// cookie-ing a new one if the request has none (or an unrecognized one).
+// Identity resolves the calling browser's AI identity, minting and
+// cookie-ing a new one if the request has none (or an unrecognized one). The
+// returned value always matches identityIDPattern, so it is safe to use as a
+// filesystem path component.
+//
 // Must be called before any response headers/body are written, since it may
 // itself set a cookie header.
-func (h *Handlers) identity(c *gin.Context) *identityAuth {
+//
+// Exported because internal/aiprovider keys its own per-browser settings on
+// the same identity: a user's provider choice and their Copilot login belong
+// to one browser, not to the (much shorter-lived) 3270Web_session cookie.
+func Identity(c *gin.Context) string {
 	id, err := c.Cookie(identityCookieName)
 	if err != nil || !identityIDPattern.MatchString(id) {
 		id = randomID()
@@ -82,7 +89,12 @@ func (h *Handlers) identity(c *gin.Context) *identityAuth {
 		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie(identityCookieName, id, copilotIdentityCookieMaxAge, "/", "", secure, true)
 	}
-	return h.store.get(id)
+	return id
+}
+
+// identity resolves the calling browser's Copilot auth state.
+func (h *Handlers) identity(c *gin.Context) *identityAuth {
+	return h.store.get(Identity(c))
 }
 
 // Register attaches the package's routes to the given Gin engine.

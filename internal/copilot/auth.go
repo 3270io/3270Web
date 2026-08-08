@@ -148,6 +148,15 @@ func (st *Store) get(id string) *identityAuth {
 	return e
 }
 
+// Get returns the AuthManager and Client belonging to one browser identity,
+// creating them on first sight. Used by internal/aiprovider, which owns the
+// provider-selection layer above this package and delegates back to it when
+// the selected provider is GitHub Copilot.
+func (st *Store) Get(id string) (*AuthManager, *Client) {
+	e := st.get(id)
+	return e.auth, e.client
+}
+
 // EvictIdle drops cached identities untouched for at least maxIdle, bounding
 // the store's memory on a long-running server that many different browsers
 // connect to over time. Eviction only drops the in-memory cache — the

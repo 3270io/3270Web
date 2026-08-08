@@ -4706,6 +4706,7 @@ body.copilot-open .page-wrap {
   font-size: 12px;
   padding: 4px 8px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .copilot-icon-button:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -5190,6 +5191,84 @@ body.copilot-open .page-wrap {
   cursor: pointer;
 }
 .copilot-modal-footer button:hover { color: var(--fg); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* --- AI provider settings dialog ---
+   Reuses the .copilot-modal chrome; these rules only add the form layout
+   the provider picker needs (label above control, full-width inputs). */
+.ai-provider-modal { max-width: 460px; }
+.ai-field {
+  display: block;
+  margin-top: 14px;
+}
+.ai-field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.ai-field select,
+.ai-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+}
+.ai-field select:focus,
+.ai-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.ai-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-field-help {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.ai-field-help a { color: var(--accent); }
+.ai-secondary-btn,
+.ai-primary-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.ai-secondary-btn:hover { color: var(--fg); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.ai-primary-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ai-primary-btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.ai-status-error { border-left-color: var(--danger, #e05252); }
+
+/* Provider name in the model bar, so it is always obvious which backend a
+   reply came from. It sits beside the model rather than in the header, which
+   has no room left once Auto / Provider / Clear / Sign out are in it. */
+.copilot-provider-name {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+.copilot-panel-title { white-space: nowrap; }
 
 /* --- Streaming "thinking" indicator --- */
 .copilot-typing {
