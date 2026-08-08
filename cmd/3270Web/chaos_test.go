@@ -1028,23 +1028,87 @@ func TestChaosLoadRecordingAndExport(t *testing.T) {
 	}
 }
 
-func TestSafeChaosOutputFilePath_AvoidsLoadedRecordingCollision(t *testing.T) {
-	got := safeChaosOutputFilePath(filepath.Join("tmp", "workflow.json"), "workflow.json")
-	want := filepath.Join("tmp", "workflow-chaos.json")
+func TestConfineChaosFilePath_AvoidsLoadedRecordingCollision(t *testing.T) {
+	base := t.TempDir()
+
+	got := confineChaosFilePath(base, "workflow.json", "workflow.json")
+	want := filepath.Join(base, "workflow-chaos.json")
 	if got != want {
-		t.Fatalf("safeChaosOutputFilePath collision = %q, want %q", got, want)
+		t.Fatalf("collision = %q, want %q", got, want)
 	}
 
-	got = safeChaosOutputFilePath(filepath.Join("tmp", "workflow-chaos.json"), "workflow-chaos.json")
-	want = filepath.Join("tmp", "workflow-chaos.json")
+	got = confineChaosFilePath(base, "workflow-chaos.json", "workflow-chaos.json")
+	want = filepath.Join(base, "workflow-chaos.json")
 	if got != want {
-		t.Fatalf("safeChaosOutputFilePath idempotent = %q, want %q", got, want)
+		t.Fatalf("idempotent = %q, want %q", got, want)
 	}
 
-	got = safeChaosOutputFilePath(filepath.Join("tmp", "chaos-output.json"), "workflow.json")
-	want = filepath.Join("tmp", "chaos-output.json")
+	got = confineChaosFilePath(base, "chaos-output.json", "workflow.json")
+	want = filepath.Join(base, "chaos-output.json")
 	if got != want {
-		t.Fatalf("safeChaosOutputFilePath no-collision = %q, want %q", got, want)
+		t.Fatalf("no-collision = %q, want %q", got, want)
+	}
+}
+
+// A caller-supplied output path used to be written verbatim, with MkdirAll on
+// its parent. Every input here must end up inside the runs directory.
+func TestConfineChaosFilePath_ConfinesTraversal(t *testing.T) {
+	base := t.TempDir()
+
+	for _, requested := range []string{
+		"/etc/cron.d/payload",
+		"../../../etc/passwd",
+		"..\\..\\windows\\system32\\evil.json",
+		"/home/user/.ssh/authorized_keys",
+		filepath.Join(base, "..", "escape.json"),
+		"subdir/nested.json",
+		"....//....//escape.json",
+	} {
+		got := confineChaosFilePath(base, requested, "")
+		if got == "" {
+			t.Errorf("confineChaosFilePath(%q) returned empty, want a confined path", requested)
+			continue
+		}
+		if filepath.Dir(got) != filepath.Clean(base) {
+			t.Errorf("confineChaosFilePath(%q) = %q, which is outside %q", requested, got, base)
+		}
+	}
+}
+
+func TestConfineChaosFilePath_EmptyStaysEmpty(t *testing.T) {
+	base := t.TempDir()
+
+	if got := confineChaosFilePath(base, "", ""); got != "" {
+		t.Errorf("empty request = %q, want \"\" so the engine writes nothing", got)
+	}
+	if got := confineChaosFilePath(base, "   ", ""); got != "" {
+		t.Errorf("blank request = %q, want \"\"", got)
+	}
+	// With nowhere safe to write, decline rather than honouring the caller's path.
+	if got := confineChaosFilePath("", "/tmp/anywhere.json", ""); got != "" {
+		t.Errorf("unconfigured base = %q, want \"\"", got)
+	}
+}
+
+// The transition log is opened O_APPEND, so an unconfined path let a caller
+// append attacker-influenced JSON to any file the process could write.
+func TestConfineChaosPaths_ConfinesTransitionLog(t *testing.T) {
+	base := t.TempDir()
+	app := &App{chaosRunsDir: base}
+
+	cfg := chaos.Config{
+		OutputFile:        "../../escape.json",
+		TransitionLogPath: "/var/log/anything.jsonl",
+	}
+	app.confineChaosPaths(&cfg, "")
+
+	for label, got := range map[string]string{
+		"OutputFile":        cfg.OutputFile,
+		"TransitionLogPath": cfg.TransitionLogPath,
+	} {
+		if filepath.Dir(got) != filepath.Clean(base) {
+			t.Errorf("%s = %q, which is outside %q", label, got, base)
+		}
 	}
 }
 
@@ -1115,7 +1179,22 @@ func TestChaosStart_OutputFileDoesNotOverwriteLoadedRecording(t *testing.T) {
 		t.Fatalf("recording file was overwritten: got %q, want %q", string(gotRecording), string(sentinel))
 	}
 
-	chaosPath := filepath.Join(outputDir, "recording-chaos.json")
+	// The request named an absolute path outside the runs directory. Only the
+	// sentinel may exist there — the export belongs in the runs directory under
+	// the sanitised, collision-avoiding name.
+	strays, err := os.ReadDir(outputDir)
+	if err != nil {
+		t.Fatalf("read output dir: %v", err)
+	}
+	if len(strays) != 1 || strays[0].Name() != "recording.json" {
+		names := make([]string, 0, len(strays))
+		for _, e := range strays {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("chaos wrote outside the runs directory: %v", names)
+	}
+
+	chaosPath := filepath.Join(app.chaosRunsDir, "recording-chaos.json")
 	chaosData, err := os.ReadFile(chaosPath)
 	if err != nil {
 		t.Fatalf("read chaos output file: %v", err)

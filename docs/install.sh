@@ -45,6 +45,9 @@ COMPOSE_DIR="$PWD/3270web"
 APP_DIR=""                # resolved during the binary install
 BIN_LINK=""               # resolved during the binary install
 DRY_RUN=0
+API_TOKEN_ARG=""          # --api-token: empty, "auto", or a literal token
+API_TOKEN_VALUE=""        # resolved token; empty leaves /api/v1 and MCP off
+MCP_TOOLS="interactive"   # --mcp-tools: readonly | interactive | full
 
 # ==========================================================================
 # 1. Palette
@@ -602,6 +605,53 @@ success_binary() {
 }
 
 # ==========================================================================
+# 6b. API token
+#
+# One variable decides whether a container serves anything but the browser
+# UI: with API_TOKEN unset every /api/v1 request answers 503, and MCP over
+# HTTP lives under that same prefix. So --api-token is the switch that lets
+# an AI client drive the terminal, and leaving it off is a real default
+# rather than an oversight -- a published port with no token is a browser
+# UI, not an open API.
+# ==========================================================================
+
+gen_token() {
+  if have openssl; then
+    openssl rand -hex 24
+  elif [ -r /dev/urandom ] && have od; then
+    # No pipe *into* head, so pipefail cannot trip on a SIGPIPE'd reader.
+    od -An -tx1 -N24 /dev/urandom | tr -d ' \n'
+  else
+    die "Cannot generate a token on this host: install openssl, or pass --api-token <value>."
+  fi
+}
+
+resolve_api_token() {
+  case "$API_TOKEN_ARG" in
+    "")     API_TOKEN_VALUE="" ;;
+    auto)   API_TOKEN_VALUE="$(gen_token)" ;;
+    *)      API_TOKEN_VALUE="$API_TOKEN_ARG" ;;
+  esac
+}
+
+# The line the install panels print for the API, whichever method ran.
+step_api() {
+  if [ -n "$API_TOKEN_VALUE" ]; then
+    step "api" "/api/v1 + MCP ${GLYPH_SEP} tools: ${MCP_TOOLS}" "on"
+  else
+    step "api" "off ${GLYPH_SEP} --api-token to enable MCP" "n/a" "$C_FAINT"
+  fi
+}
+
+success_mcp() {
+  [ -n "$API_TOKEN_VALUE" ] || return 0
+  step "mcp url" "http://localhost:${PORT}/api/v1/mcp"
+  step "token" "$API_TOKEN_VALUE"
+  step "connect" "claude mcp add --transport http 3270web http://localhost:${PORT}/api/v1/mcp --header \"Authorization: Bearer \$API_TOKEN\""
+  step "mcp docs" "${DOCS_URL}/mcp/"
+}
+
+# ==========================================================================
 # 7. Method: single Docker container
 # ==========================================================================
 
@@ -627,10 +677,12 @@ install_docker() {
 
   local tag="latest"
   [ "$VERSION" != "latest" ] && tag="$VERSION"
+  resolve_api_token
 
   step "image" "${IMAGE}:${tag}"
   step "name" "$CONTAINER_NAME"
   step "listen" "${BIND}:${PORT} → 8080"
+  step_api
   printf '\n'
 
   if port_in_use "$PORT"; then
@@ -670,16 +722,23 @@ install_docker() {
   # listen address is visible in `docker inspect` next to the port mapping.
   # Note this cannot rescue a --version pinned before WEBUI_BIND existed: those
   # binaries bind 127.0.0.1 unconditionally and ignore the variable.
+  local -a env_args=(-e GIN_MODE=release -e WEBUI_BIND=0.0.0.0)
+  if [ -n "$API_TOKEN_VALUE" ]; then
+    env_args+=(-e "API_TOKEN=${API_TOKEN_VALUE}" -e "MCP_TOOLS=${MCP_TOOLS}")
+  fi
+
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p "${BIND}:${PORT}:8080" \
-    -e GIN_MODE=release \
-    -e WEBUI_BIND=0.0.0.0 \
+    "${env_args[@]}" \
     -v 3270web-chaos:/app/chaos-runs \
     "${IMAGE}:${tag}" >/dev/null </dev/null
   step "started" "container ${CONTAINER_NAME}" "up"
   step "volume" "3270web-chaos → /app/chaos-runs" "ok"
+  # `docker inspect` and the daemon's process list both show -e values, so say
+  # where the token ended up rather than leaving it to be discovered.
+  [ -n "$API_TOKEN_VALUE" ] && step "token" "in the container environment" "ok"
 
   wait_for_health
   success_docker "$tag"
@@ -694,6 +753,7 @@ success_docker() {
   step "stop" "docker stop ${CONTAINER_NAME}"
   step "remove" "docker rm -f ${CONTAINER_NAME}"
   step "docs" "${DOCS_URL}/installation/"
+  success_mcp
   printf '\n'
 }
 
@@ -715,15 +775,24 @@ install_compose() {
   local tag="latest"
   [ "$VERSION" != "latest" ] && tag="$VERSION"
   local file="${COMPOSE_DIR}/docker-compose.yml"
+  local envfile="${COMPOSE_DIR}/.env"
+  resolve_api_token
 
   step "file" "$file"
   step "image" "${IMAGE}:${tag}"
   step "listen" "${BIND}:${PORT} → 8080"
   step "compose" "$DOCKER_COMPOSE"
+  step_api
   printf '\n'
 
   if [ -e "$file" ]; then
     warn "${file} already exists."
+    confirm "Overwrite it?" || die "Cancelled." 130
+    printf '\n'
+  fi
+
+  if [ -n "$API_TOKEN_VALUE" ] && [ -e "$envfile" ]; then
+    warn "${envfile} already exists and holds the API token."
     confirm "Overwrite it?" || die "Cancelled." 130
     printf '\n'
   fi
@@ -739,6 +808,44 @@ install_compose() {
   fi
 
   mkdir -p "$COMPOSE_DIR"
+
+  # The API block is built here rather than inline so the stack reads the same
+  # either way: the variables are always named and always explained, and the
+  # only difference is whether they are commented out.
+  local mcp_env
+  if [ -n "$API_TOKEN_VALUE" ]; then
+    mcp_env="      # Turns on /api/v1 and, under the same prefix, MCP over HTTP at
+      # POST /api/v1/mcp -- how an AI client drives this terminal. The
+      # value is interpolated from the .env file beside this one, so the
+      # stack can be shared and the secret cannot.
+      - API_TOKEN=\${API_TOKEN}
+      # Tool tier: readonly, interactive or full. See ${DOCS_URL}/mcp/
+      - MCP_TOOLS=${MCP_TOOLS}
+      # Fence the AI client off from hosts it has no business on:
+      # - MCP_ALLOWED_HOSTS=*.test.example.com"
+  else
+    mcp_env="      # /api/v1 -- and MCP over HTTP at POST /api/v1/mcp, which is how an
+      # AI client drives this terminal -- stay off until a token is set:
+      # without one every /api/v1 request answers 503. Re-run the
+      # installer with --api-token auto, or put a long random value in a
+      # .env file beside this one and uncomment these two lines.
+      # See ${DOCS_URL}/mcp/
+      # - API_TOKEN=\${API_TOKEN}
+      # - MCP_TOOLS=interactive"
+  fi
+
+  if [ -n "$API_TOKEN_VALUE" ]; then
+    # Written before the stack starts, and readable only by this user: the
+    # compose file is the thing you commit, the .env is the thing you do not.
+    # Created empty and locked down first, so the token is never briefly
+    # world-readable on a permissive umask.
+    : > "$envfile"
+    chmod 600 "$envfile" 2>/dev/null || true
+    printf '# 3270Web API token. Read by docker compose for ${API_TOKEN}.\nAPI_TOKEN=%s\n' \
+      "$API_TOKEN_VALUE" > "$envfile"
+    step "wrote" "${envfile} (0600)" "ok"
+  fi
+
   cat > "$file" <<YAML
 # 3270Web — https://3270Web.3270.io
 #
@@ -761,6 +868,7 @@ services:
       # terminal is exposed to is decided by "ports:" above, not by this
       # line -- do not change it to 127.0.0.1 to keep the terminal private.
       - WEBUI_BIND=0.0.0.0
+${mcp_env}
       # Any S3270_* option can be set here, for example:
       # - S3270_MODEL=3279-2-E
       # - S3270_CODE_PAGE=bracket
@@ -795,6 +903,7 @@ success_compose() {
   step "logs" "${DOCKER_COMPOSE} logs -f"
   step "stop" "${DOCKER_COMPOSE} down"
   step "docs" "${DOCS_URL}/installation/"
+  success_mcp
   printf '\n'
 }
 
@@ -905,6 +1014,11 @@ Options
   --bind <address>                  Host interface to bind (default: 127.0.0.1)
   --dir <path>                      Compose project directory
                                     (default: ./3270web)
+  --api-token <value|auto>          Enable /api/v1 and MCP over HTTP with this
+                                    token; "auto" generates one (docker and
+                                    compose methods; default: off)
+  --mcp-tools <readonly|interactive|full>
+                                    MCP tool tier (default: interactive)
   --system                          Binary install to /opt + /usr/local/bin
   --user                            Binary install under \$HOME (default)
   --theme <grn|amb|ice|day>         Installer colour palette (default: grn)
@@ -932,6 +1046,10 @@ parse_args() {
       --bind=*)  BIND="${1#*=}"; shift ;;
       --dir)     COMPOSE_DIR="${2:-}"; shift 2 ;;
       --dir=*)   COMPOSE_DIR="${1#*=}"; shift ;;
+      --api-token)   API_TOKEN_ARG="${2:-}"; shift 2 ;;
+      --api-token=*) API_TOKEN_ARG="${1#*=}"; shift ;;
+      --mcp-tools)   MCP_TOOLS="${2:-}"; shift 2 ;;
+      --mcp-tools=*) MCP_TOOLS="${1#*=}"; shift ;;
       --theme)   THEME="${2:-}"; shift 2 ;;
       --theme=*) THEME="${1#*=}"; shift ;;
       --system)  SYSTEM_INSTALL="yes"; shift ;;
@@ -953,6 +1071,18 @@ parse_args() {
   case "$PORT" in
     ''|*[!0-9]*) printf 'Invalid --port: %s\n' "$PORT" >&2; exit 2 ;;
   esac
+
+  case "$MCP_TOOLS" in
+    readonly|interactive|full) : ;;
+    *) printf 'Unknown --mcp-tools: %s (want readonly, interactive or full)\n' "$MCP_TOOLS" >&2; exit 2 ;;
+  esac
+
+  # The binary install writes its own .env and 3270Web mcp drives it over
+  # stdio, so a token there would be answering a question nobody asked.
+  if [ -n "$API_TOKEN_ARG" ] && [ "$METHOD" = "binary" ]; then
+    printf -- '--api-token applies to the docker and compose methods; the binary install configures API_TOKEN in its own .env\n' >&2
+    exit 2
+  fi
 }
 
 # ==========================================================================

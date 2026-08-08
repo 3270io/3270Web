@@ -158,7 +158,7 @@ Includes:
 - `CHAOS_LEARNED_INPUT_REUSE_BIAS` (default `1.0`) — weight applied to known-good input values when generating new field writes.
 - `CHAOS_LEARNED_KEY_REUSE_BIAS` (default `1.0`) — how often the engine retries AID keys that have previously caused a transition versus exploring untried keys.
 - `CHAOS_EXPORT_SUCCESS_BALANCE` (default `1.0`) — when exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps.
-- `CHAOS_OUTPUT_FILE`
+- `CHAOS_OUTPUT_FILE` — **file name** for the exported workflow JSON. Written into the chaos runs directory; any directory component is dropped. See the note in [Chaos Mode](chaos-mode.md#jsonl-transition-log).
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
 Use this section to tune how aggressively chaos mode explores screens and where optional output should be written. See [Chaos Mode](chaos-mode.md) for a deeper walkthrough of the bias settings.
@@ -236,6 +236,39 @@ If log access is enabled in settings, you can open the Logs modal from the toolb
 - Refresh logs
 - Copy/download logs
 - Clear logs
+
+## Running Behind a Reverse Proxy
+
+When a reverse proxy terminates TLS, the hop from the proxy into 3270Web is
+plain HTTP. The app cannot see the browser's real scheme on its own, so
+session cookies would be issued without the `Secure` flag even though the
+user is browsing over HTTPS.
+
+Set `TRUST_PROXY_HEADERS=true` so 3270Web reads `X-Forwarded-Proto` and marks
+its cookies `Secure` accordingly.
+
+!!! warning "Only enable this behind a proxy you control"
+    `X-Forwarded-Proto` is just a request header. If 3270Web is reachable
+    directly, any client can set it and assert that its own plain-HTTP
+    connection is secure. Leave this unset unless every route to the app
+    passes through a proxy that overwrites the header.
+
+Ensure the proxy sets the header on the way through, for example in nginx:
+
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+## Secret Settings
+
+Values 3270Web treats as secrets — currently `S3270_KEY_PASSWORD` and
+`S3270_PROXY`, which commonly carries credentials — are write-only. The
+Settings API reports whether each is set and shows `********` in place of the
+value; it never returns the value itself.
+
+Saving the settings form with the mask still in the field leaves the stored
+secret untouched. To change one, type the new value; to remove one, clear the
+field.
 
 ## Best Practices
 

@@ -10,4 +10,11 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       - GIN_MODE=release
+      # /api/v1 — and MCP over HTTP at POST /api/v1/mcp, which is how an AI
+      # client drives this terminal — stay off until a token is set: without
+      # one every /api/v1 request answers 503. Put a long random value in a
+      # .env file beside this one and uncomment both lines.
+      # See https://3270Web.3270.io/mcp/
+      # - API_TOKEN=${API_TOKEN}
+      # - MCP_TOOLS=interactive
     restart: unless-stopped

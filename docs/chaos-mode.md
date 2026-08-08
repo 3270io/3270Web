@@ -153,7 +153,16 @@ walkthrough and a migration-readiness recipe.
 
 ## JSONL Transition Log
 
-Set `CHAOS_TRANSITION_LOG_PATH` (or `transition_log_path` in the JSON config body) to a file path and chaos will append one JSON object per attempt to that file (newline-delimited / JSONL). Each line includes the full `Attempt` record: from/to hash, AID key sent, field writes, whether the screen transitioned, and any error. This is intended for offline analysis or feeding into another pipeline.
+Set `CHAOS_TRANSITION_LOG_PATH` (or `transition_log_path` in the JSON config body) to a **file name** and chaos will append one JSON object per attempt to that file (newline-delimited / JSONL). Each line includes the full `Attempt` record: from/to hash, AID key sent, field writes, whether the screen transitioned, and any error. This is intended for offline analysis or feeding into another pipeline.
+
+!!! note "The server chooses the directory"
+    This setting names a file, not a path. The log is written inside the chaos
+    runs directory alongside saved runs, and any directory component in the
+    value is dropped — `/var/log/chaos.jsonl` and `chaos.jsonl` both produce
+    `chaos.jsonl` in the runs directory. The same applies to
+    `CHAOS_OUTPUT_FILE` / `outputFile`. To collect these artefacts elsewhere,
+    mount the runs directory where you want it — under Docker, add a volume as
+    shown in [Installation](installation.md).
 
 ## Running Chaos via AI Chat
 

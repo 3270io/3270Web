@@ -49,6 +49,8 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 | `--port <port>` | `8080` | Host port to serve on |
 | `--bind <address>` | `127.0.0.1` | Host interface to publish on |
 | `--dir <path>` | `./3270web` | Compose project directory |
+| `--api-token <value\|auto>` | off | Turn on `/api/v1` and [MCP over HTTP](mcp.md); `auto` generates a token |
+| `--mcp-tools <readonly\|interactive\|full>` | `interactive` | MCP tool tier |
 | `--system` | off | Binary install to `/opt` + `/usr/local/bin` |
 | `--user` | on | Binary install under `$HOME` |
 | `--theme <grn\|amb\|ice\|day>` | `grn` | Installer palette, matching the docs themes |
@@ -59,6 +61,32 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 
 Non-interactive by design: with no TTY (a CI job, a provisioning script) the
 installer stops asking and picks the binary on `amd64`, Docker elsewhere.
+
+### Install with the API and MCP switched on
+
+`/api/v1` — and with it [MCP over HTTP](mcp.md), the endpoint an AI client
+connects to — is off until `API_TOKEN` is set. `--api-token` sets it for the
+Docker and Compose methods:
+
+```bash
+curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- \
+  --method compose --api-token auto --yes
+```
+
+`auto` generates a random token; pass a value of your own instead if you have
+one. The Compose method writes it to a `.env` file (mode `0600`) beside the
+generated `docker-compose.yml` and interpolates it from there, so the stack
+file itself carries no secret. Either way the installer prints the token and
+the MCP URL when it finishes:
+
+```
+  › mcp url    http://localhost:8080/api/v1/mcp
+  › token      e436b3d930c2ce7f51c9a05fb1a9494…
+```
+
+Without the flag, both methods write the same variables commented out with a
+note on how to turn them on. The binary method configures `API_TOKEN` in the
+`.env` it generates itself, so `--api-token` does not apply there.
 
 !!! tip "Read before you pipe"
     Piping a script from the internet into a shell deserves a look first:
@@ -232,6 +260,20 @@ docker run --rm -p 8080:8080 \
   ghcr.io/3270io/3270web:latest
 ```
 
+To serve the [REST API](rest-api.md) and [MCP](mcp.md) as well as the browser
+UI, add a token:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e GIN_MODE=release \
+  -e API_TOKEN="$API_TOKEN" \
+  -e MCP_TOOLS=interactive \
+  ghcr.io/3270io/3270web:latest
+```
+
+Without `API_TOKEN` every `/api/v1/*` request — MCP included — answers
+`503`, so a published port is a browser UI and nothing more.
+
 ### Health check
 
 The container probes `GET /healthz`, which returns:
@@ -310,11 +352,58 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       - GIN_MODE=release
+      # - API_TOKEN=${API_TOKEN}
+      # - MCP_TOOLS=interactive
     restart: unless-stopped
 ```
 
 The container `HEALTHCHECK` is inherited automatically — `docker compose ps`
 shows the health column.
+
+### Serve the API and MCP from the stack
+
+The two commented lines are the whole of it. `/api/v1` is off until
+`API_TOKEN` is set — and [MCP over HTTP](mcp.md) lives under that prefix, at
+`POST /api/v1/mcp`, so an AI client cannot reach a stack without one.
+
+Put the token in a `.env` file beside `docker-compose.yml`, where Compose
+picks it up for `${API_TOKEN}` without it being written into the stack file:
+
+```bash
+printf 'API_TOKEN=%s\n' "$(openssl rand -hex 24)" > .env
+chmod 600 .env
+```
+
+Then uncomment both lines and bring the stack up:
+
+```yaml
+    environment:
+      - GIN_MODE=release
+      - API_TOKEN=${API_TOKEN}
+      - MCP_TOOLS=interactive          # readonly | interactive | full
+      # - MCP_ALLOWED_HOSTS=*.test.example.com
+```
+
+```bash
+docker compose up -d
+set -a; . ./.env; set +a
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $API_TOKEN" \
+  http://127.0.0.1:8080/api/v1/sessions
+```
+
+`200` means the API is live and MCP with it, at
+`http://127.0.0.1:8080/api/v1/mcp`. `503` means the token is not reaching the
+container; `401` means it is, but not the value you sent.
+[MCP Server](mcp.md#docker-compose-and-remote-clients) covers connecting a
+client to that endpoint, and the tool tiers `MCP_TOOLS` selects.
+
+!!! warning "A token is a password for the terminal"
+    An MCP client holding it can open sessions, type into fields and press
+    keys on whatever host the stack can reach. Keep the port mapping on
+    `127.0.0.1` unless the stack is behind TLS, set `MCP_ALLOWED_HOSTS` to
+    fence off the hosts that matter, and treat the token like the mainframe
+    credential it is standing next to.
 
 ### Use the published image instead of building
 

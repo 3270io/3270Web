@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
 // chatStreamTimeout is the server-side cap on one proxied /chat/completions
@@ -85,7 +87,7 @@ func Identity(c *gin.Context) string {
 	id, err := c.Cookie(identityCookieName)
 	if err != nil || !identityIDPattern.MatchString(id) {
 		id = randomID()
-		secure := c.Request.TLS != nil
+		secure := reqsec.IsTLS(c.Request)
 		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie(identityCookieName, id, copilotIdentityCookieMaxAge, "/", "", secure, true)
 	}

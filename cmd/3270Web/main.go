@@ -32,6 +32,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/render"
+	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
 )
@@ -2015,12 +2016,11 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	// so a loopback test would either pass for every remote client or fail for
 	// every one, depending on the network mode. The session check is the real
 	// authorization signal.
-	includeSensitive := c.Query("includeSensitive") == "true"
 	switch c.Request.Method {
 	case http.MethodGet:
-		app.writeSettingsResponse(c, includeSensitive)
+		app.writeSettingsResponse(c)
 	case http.MethodPost:
-		app.updateSettings(c, includeSensitive)
+		app.updateSettings(c)
 	default:
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
 	}
@@ -2036,8 +2036,8 @@ func (app *App) hasSession(c *gin.Context) bool {
 	return app.getSession(c) != nil
 }
 
-func (app *App) writeSettingsResponse(c *gin.Context, includeSensitive bool) {
-	settings, masked, err := app.settingsSnapshot(includeSensitive)
+func (app *App) writeSettingsResponse(c *gin.Context) {
+	settings, masked, err := app.settingsSnapshot()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load settings"})
 		return
@@ -2048,7 +2048,11 @@ func (app *App) writeSettingsResponse(c *gin.Context, includeSensitive bool) {
 	})
 }
 
-func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []string, error) {
+// settingsDefaults enumerates every key the settings API understands, with the
+// value used when .env does not define it. It doubles as the source of the
+// write allowlist, so a key added here becomes writable and a key removed here
+// stops being writable — the two cannot drift apart.
+func settingsDefaults() map[string]string {
 	defaults := make(map[string]string)
 	for _, spec := range config.S3270OptionSpecs() {
 		defaults[spec.EnvVar] = spec.DefaultVal
@@ -2068,9 +2072,20 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	defaults["CHAOS_TRANSITION_LOG_PATH"] = ""
 	defaults["CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS"] = "true"
 	defaults["CHAOS_EXCLUDE_NO_PROGRESS_EVENTS"] = "true"
+	return defaults
+}
 
+// settingsSnapshot returns the effective settings with every secret value
+// replaced by settingsSecretPlaceholder, plus the names of the secrets that
+// are actually set.
+//
+// There is deliberately no way to read a secret back out. The UI only needs to
+// know whether one is configured, and the previous includeSensitive=true
+// escape hatch handed S3270_KEY_PASSWORD in cleartext to anyone who could
+// reach the endpoint.
+func (app *App) settingsSnapshot() (map[string]string, []string, error) {
 	settings := make(map[string]string)
-	for key, value := range defaults {
+	for key, value := range settingsDefaults() {
 		settings[key] = value
 	}
 
@@ -2088,19 +2103,20 @@ func (app *App) settingsSnapshot(includeSensitive bool) (map[string]string, []st
 	}
 
 	masked := []string{}
-	if !includeSensitive {
-		for _, key := range []string{"S3270_KEY_PASSWORD"} {
-			if value, ok := settings[key]; ok && value != "" {
-				settings[key] = "********"
-				masked = append(masked, key)
-			}
+	for key := range settingsSecretKeys {
+		value, ok := settings[key]
+		if !ok || value == "" {
+			continue
 		}
+		settings[key] = settingsSecretPlaceholder
+		masked = append(masked, key)
 	}
+	sort.Strings(masked)
 
 	return settings, masked, nil
 }
 
-func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
+func (app *App) updateSettings(c *gin.Context) {
 	data, err := c.GetRawData()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request"})
@@ -2132,8 +2148,13 @@ func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
 		specs[spec.EnvVar] = spec
 	}
 
+	allowed := settingsWritableKeys()
 	errorsByKey := make(map[string]string)
 	for key, value := range settings {
+		if !settingsKeyWritable(key, allowed) {
+			errorsByKey[key] = "unknown setting"
+			continue
+		}
 		if err := validateSettingValue(key, value, specs); err != nil {
 			errorsByKey[key] = err.Error()
 		}
@@ -2147,6 +2168,11 @@ func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
 	}
 
 	for key, value := range settings {
+		// The client echoes back the placeholder it was served for a secret it
+		// did not change. Writing it would replace the secret with the mask.
+		if settingsSecretKeys[key] && value == settingsSecretPlaceholder {
+			continue
+		}
 		if err := config.UpsertDotEnvValue(app.envPath, key, value); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to persist %s", key)})
 			return
@@ -2154,7 +2180,7 @@ func (app *App) updateSettings(c *gin.Context, includeSensitive bool) {
 		app.applyRuntimeSetting(key, value)
 	}
 
-	app.writeSettingsResponse(c, includeSensitive)
+	app.writeSettingsResponse(c)
 }
 
 func (app *App) RestartHandler(c *gin.Context) {
@@ -2424,6 +2450,90 @@ func (app *App) applyRuntimeSetting(key, value string) {
 			_ = os.Setenv(key, strings.ToLower(value))
 		}
 	}
+}
+
+// settingsSecretPlaceholder stands in for a secret's value in every settings
+// response. The UI posts the whole form back on save, so a masked field would
+// otherwise be written back verbatim and overwrite the real secret with the
+// mask. updateSettings treats an incoming value equal to this placeholder as
+// "leave it alone", which is what makes masking safe to do unconditionally.
+const settingsSecretPlaceholder = "********"
+
+// settingsSecretKeys hold values that are never returned to a client. The
+// response's Masked list still names them when they are set, so the UI can
+// show that a value exists without being told what it is.
+var settingsSecretKeys = map[string]bool{
+	"S3270_KEY_PASSWORD": true,
+	// Proxy specifications routinely carry credentials in the userinfo part.
+	"S3270_PROXY": true,
+}
+
+// settingsExtraOptionsPrefix namespaces the per-field option lists the UI
+// persists alongside the settings it owns (see extraOptionsPrefix in ui.js).
+// The suffix must name a real s3270 option, so these expand the writable set
+// without opening it up.
+const settingsExtraOptionsPrefix = "APP_SETTINGS_OPTIONS_"
+
+// settingsDeniedKeys can never be written through the settings API, whatever
+// else says otherwise.
+//
+// .env is promoted into the process environment at startup, so a write here is
+// a write to the environment of the next run. API_TOKEN is the sharpest case:
+// it is unset by default and LoadDotEnv only fills keys that are absent, so
+// before this list existed a caller could name their own API token, restart the
+// app, and come back holding the instance-wide API credential.
+var settingsDeniedKeys = map[string]bool{
+	"API_TOKEN":          true,
+	"COPILOT_AUTH_PATH":  true,
+	"MCP_TOOLS":          true,
+	"MCP_ALLOWED_HOSTS":  true,
+	"WEBUI_BIND":         true,
+	"WEBUI_PORT":         true,
+	"PATH":               true,
+	"LD_PRELOAD":         true,
+	"LD_LIBRARY_PATH":    true,
+	"GIN_MODE":           true,
+	"ALLOW_SAMPLE_APPS":  true,
+	"CHAOS_RUNS_DIR":     true,
+	"XDG_CONFIG_HOME":    true,
+	"HOME":               true,
+	"TMPDIR":             true,
+	"GOTRACEBACK":        true,
+	"S3270_EXEC_PATH":    true,
+	"S3270_TRACE_FILE":   true,
+	"S3270_SCRIPT_PORT":  true,
+	"S3270_HTTPD":        true,
+	"S3270_CHILD_SCRIPT": true,
+}
+
+// settingsWritableKeys is the allowlist for POST /api/settings.
+//
+// Validation used to check the *value* of keys it recognised and then fall
+// through to "no error" for every key it did not, so any key at all could be
+// written into .env. The set of keys the app actually understands is already
+// enumerated by settingsDefaults, so that is the natural allowlist.
+func settingsWritableKeys() map[string]bool {
+	allowed := make(map[string]bool)
+	for key := range settingsDefaults() {
+		if !settingsDeniedKeys[key] {
+			allowed[key] = true
+		}
+	}
+	return allowed
+}
+
+// settingsKeyWritable reports whether key may be persisted.
+func settingsKeyWritable(key string, allowed map[string]bool) bool {
+	if settingsDeniedKeys[key] {
+		return false
+	}
+	if allowed[key] {
+		return true
+	}
+	if suffix, ok := strings.CutPrefix(key, settingsExtraOptionsPrefix); ok {
+		return allowed[suffix] && !settingsDeniedKeys[suffix]
+	}
+	return false
 }
 
 func validateSettingValue(key, value string, specs map[string]config.S3270OptionSpec) error {
@@ -3586,8 +3696,11 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 }
 
 func setSessionCookie(c *gin.Context, name, value string) {
-	sameSite, secure := sessionCookieSameSite(c)
-	c.SetSameSite(sameSite)
+	// Behind a TLS-terminating proxy the hop into this process is plain HTTP,
+	// so r.TLS alone would drop the Secure flag on a site the browser is
+	// reaching over HTTPS. See reqsec.IsTLS.
+	secure := reqsec.IsTLS(c.Request)
+	c.SetSameSite(http.SameSiteLaxMode)
 	maxAge := 3600
 	if value == "" {
 		maxAge = -1
