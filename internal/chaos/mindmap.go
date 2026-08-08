@@ -91,6 +91,15 @@ func newMindMap() *MindMap {
 	return &MindMap{Areas: make(map[string]*MindMapArea)}
 }
 
+// clone returns a copy safe to hand out while the engine keeps running.
+//
+// Every map is rebuilt, including empty ones. `next := *area` copies each map
+// *header*, so an empty-but-non-nil map would otherwise be the same map in
+// both copies — and the engine writes the first entry into it moments after
+// creating it. A status request landing in that window marshalled a map the
+// engine was writing to: a data race, and a possible panic inside
+// encoding/json rather than anywhere it could be caught. Guarding on
+// non-nil rather than non-empty is the whole fix.
 func (m *MindMap) clone() *MindMap {
 	if m == nil || (len(m.Areas) == 0 && len(m.BusinessFunctions) == 0) {
 		return nil
@@ -111,50 +120,50 @@ func (m *MindMap) clone() *MindMap {
 			continue
 		}
 		next := *area
-		if len(area.FieldMetadata) > 0 {
+		if area.FieldMetadata != nil {
 			next.FieldMetadata = make(map[string]MindMapFieldMetadata, len(area.FieldMetadata))
 			for fKey, meta := range area.FieldMetadata {
 				next.FieldMetadata[fKey] = meta
 			}
 		}
-		if len(area.FieldDiscovery) > 0 {
+		if area.FieldDiscovery != nil {
 			next.FieldDiscovery = make(map[string]MindMapFieldDiscovery, len(area.FieldDiscovery))
 			for fKey, meta := range area.FieldDiscovery {
 				next.FieldDiscovery[fKey] = meta
 			}
 		}
-		if len(area.KnownTriedValues) > 0 {
+		if area.KnownTriedValues != nil {
 			next.KnownTriedValues = make(map[string][]string, len(area.KnownTriedValues))
 			for fKey, values := range area.KnownTriedValues {
 				next.KnownTriedValues[fKey] = append([]string(nil), values...)
 			}
 		}
-		if len(area.KnownWorkingValues) > 0 {
+		if area.KnownWorkingValues != nil {
 			next.KnownWorkingValues = make(map[string][]string, len(area.KnownWorkingValues))
 			for fKey, values := range area.KnownWorkingValues {
 				next.KnownWorkingValues[fKey] = append([]string(nil), values...)
 			}
 		}
-		if len(area.FieldCountProgressions) > 0 {
+		if area.FieldCountProgressions != nil {
 			next.FieldCountProgressions = make(map[int]int, len(area.FieldCountProgressions))
 			for count, progressions := range area.FieldCountProgressions {
 				next.FieldCountProgressions[count] = progressions
 			}
 		}
-		if len(area.FieldSemantics) > 0 {
+		if area.FieldSemantics != nil {
 			next.FieldSemantics = make(map[string]BusinessFieldSemantic, len(area.FieldSemantics))
 			for fKey, sem := range area.FieldSemantics {
 				next.FieldSemantics[fKey] = sem
 			}
 		}
-		if len(area.KeyPresses) > 0 {
+		if area.KeyPresses != nil {
 			next.KeyPresses = make(map[string]*MindMapKeyPress, len(area.KeyPresses))
 			for aid, keyPress := range area.KeyPresses {
 				if keyPress == nil {
 					continue
 				}
 				kp := *keyPress
-				if len(keyPress.Destinations) > 0 {
+				if keyPress.Destinations != nil {
 					kp.Destinations = make(map[string]int, len(keyPress.Destinations))
 					for to, count := range keyPress.Destinations {
 						kp.Destinations[to] = count

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/users"
@@ -254,6 +255,10 @@ func (app *App) SetupHandler(c *gin.Context) {
 	if !app.setup.matches(code) {
 		app.loginLimiter.RecordFailure(limitKeys...)
 		log.Printf("auth: setup attempted from %s with an incorrect code", clientIP)
+		app.auditRecorder().Log(audit.Entry{
+			Event: audit.EventFirstAdmin, Outcome: audit.Denied, ClientIP: clientIP,
+			Detail: map[string]string{"reason": "incorrect setup code"},
+		})
 		app.renderSetup(c, http.StatusUnauthorized, "That setup code is not correct. It is printed in the server log.")
 		return
 	}
@@ -286,6 +291,12 @@ func (app *App) SetupHandler(c *gin.Context) {
 	app.setup.complete()
 	app.loginLimiter.Reset(limitKeys...)
 	log.Printf("auth: first administrator %q created from %s; setup is now closed", user.Username, clientIP)
+	app.auditRecorder().Log(audit.Entry{
+		Event:    audit.EventFirstAdmin,
+		Actor:    audit.Actor{UserID: user.ID, Username: user.Username, Role: string(user.Role)},
+		ClientIP: clientIP,
+		Target:   user.Username,
+	})
 
 	// An instance that ran without accounts has files in the flat layout that
 	// nothing looks for once data is per-user. Attribute them to the account

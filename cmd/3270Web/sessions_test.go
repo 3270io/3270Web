@@ -318,7 +318,7 @@ func TestSessionCapAppliesToEveryCreationPath(t *testing.T) {
 	}
 	// startHostSession is the single point /connect, the tab bar and the REST
 	// API all funnel through.
-	if _, err := app.startHostSession(authz.LocalUserID, "127.0.0.1:3270"); err == nil {
+	if _, err := app.startHostSession(asPrincipal(authz.Local()), "127.0.0.1:3270"); err == nil {
 		t.Error("startHostSession ignored the per-user cap")
 	}
 }

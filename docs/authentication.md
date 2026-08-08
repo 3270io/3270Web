@@ -326,3 +326,70 @@ instance with accounts it needs a token and an explicit URL:
 
 Tool calls then act as that account: `list_sessions` shows its sessions, and
 `use_session` reaches its sessions only.
+
+---
+
+## The audit trail
+
+Sign-ins, sessions and changes to the instance are recorded in a file of their
+own, separate from the debug log. An administrator reads it at
+**/admin/audit**, or downloads it whole.
+
+The debug log is for diagnosing the server: verbose, written by whatever code
+happens to be running, and its wording changes whenever a message reads badly.
+That does not suit the question an audit answers — *who opened a session
+against that host, and when* — which has to survive being asked months later.
+
+### What is recorded
+
+| Event | Recorded with |
+|---|---|
+| Sign-in succeeded, failed, or throttled | account, address, and why it failed |
+| Sign-out, password changed | account, address |
+| First administrator created, or a wrong setup code | address |
+| Account created, changed, deleted | who did it, and to whom |
+| API token issued, revoked, or refused | token id, account, scopes |
+| Session opened, or refused | account, target host, and why it was refused |
+| File transfer | direction and the host-side dataset name |
+| Settings changed | which keys — never their values |
+| Server restarted, log access changed | who did it |
+
+A refused sign-in is recorded **with the real reason** — a disabled account is
+distinguished from a wrong password — even though the reply to the browser
+never says which. The person at the keyboard must not learn which usernames
+exist; the administrator reading the trail is entitled to know.
+
+### What is never recorded
+
+Passwords, tokens, screen contents, and the values typed into fields. Settings
+appear as the keys that changed, because one of them holds a keyfile password.
+The file is read by every administrator and may be shipped elsewhere, so
+anything written to it is disclosed for as long as it exists.
+
+Successful API calls are not recorded either — only refused ones. A line per
+request would turn the trail into an access log and bury everything else in it.
+
+### The file
+
+One JSON object per line, appended, mode `0600`, at `audit.log` beside the
+account store (`AUDIT_LOG_PATH` moves it). It can be read with the tools you
+already have:
+
+```bash
+jq -r 'select(.event == "session.opened") | [.time, .actor.username, .target] | @tsv' audit.log
+```
+
+It rolls over at 8 MiB, keeping one previous generation — enough that a
+restart or a busy afternoon does not lose the morning. **A deployment that
+needs real retention should ship the lines somewhere else**; two files on the
+same disk are a bound on size, not an archive.
+
+There is no switch to turn it off. A trail somebody can disable before acting
+is not a trail — which is also why the file is admin-readable but the
+`ALLOW_LOG_ACCESS` toggle that gates the *debug* log does not apply to it, and
+why turning that toggle on is itself recorded here.
+
+Writing is best-effort: if the disk fills, the event is lost and the failure
+goes to the debug log, but the request still succeeds. An audit that can refuse
+a sign-in because a disk filled up is a denial of service dressed as a
+safeguard.

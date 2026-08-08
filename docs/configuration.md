@@ -193,6 +193,7 @@ where the rest of the deployment is described.
 | `ALLOW_SAMPLE_APPS` | off | Letting the headless API start a bundled sample app. It is a listener this process opens on your behalf |
 | `ALLOW_SCREEN_TRACE` | off | [Screen tracing](rest-api.md#apiv1sessionsidscreen-trace), which writes every screen the terminal draws to a file on the server — including whatever was typed into a field the host did not mark hidden |
 | `EMBED_ORIGINS` | unset | Framing the terminal in a page on another origin, and calling the API from one. Names the exact origins; there is no wildcard. See [Embedding 3270Web](embedding.md) |
+| `AUDIT_LOG_PATH` | `audit.log` beside the account store | Where the [audit trail](authentication.md#the-audit-trail) is written. It is always on; this only moves it |
 | `TRUST_PROXY_HEADERS` | off | Believing `X-Forwarded-Proto`, so cookies keep their `Secure` flag behind a proxy that terminated TLS. Only set it when a proxy really is in front of this server — the header is set by whoever sends the request |
 
 `ALLOW_LOG_ACCESS` is the fifth, and it does have a Settings field — see

@@ -302,7 +302,7 @@ func (app *App) APICreateSession(c *gin.Context) {
 			})
 			return
 		}
-		s, err := app.startHostSession(principalFrom(c).UserID, hostname)
+		s, err := app.startHostSession(c, hostname)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -314,7 +314,7 @@ func (app *App) APICreateSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid hostname format: %q", hostname)})
 		return
 	}
-	s, err := app.startHostSession(principalFrom(c).UserID, hostname)
+	s, err := app.startHostSession(c, hostname)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return

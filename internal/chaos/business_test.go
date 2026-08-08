@@ -545,3 +545,56 @@ func TestBuildAreaDedupSignatureIgnoresDisplayAttributes(t *testing.T) {
 		t.Fatal("dedup signature must ignore color/highlight display attributes")
 	}
 }
+
+// The engine creates a map and puts the first entry in it a moment later. A
+// clone taken in that window used to share the empty map, because clone
+// deep-copied only maps that already had something in them while `next :=
+// *area` had already copied every map header. The engine's next write then
+// raced a status request marshalling the clone — a data race, and a possible
+// panic inside encoding/json where nothing could catch it.
+func TestMindMapCloneDoesNotShareEmptyMaps(t *testing.T) {
+	mm := newMindMap()
+	area := mm.ensureArea("h1")
+	area.FieldMetadata = make(map[string]MindMapFieldMetadata)
+	area.FieldDiscovery = make(map[string]MindMapFieldDiscovery)
+	area.KnownTriedValues = make(map[string][]string)
+	area.KnownWorkingValues = make(map[string][]string)
+	area.FieldCountProgressions = make(map[int]int)
+	area.FieldSemantics = make(map[string]BusinessFieldSemantic)
+	area.KeyPresses = map[string]*MindMapKeyPress{
+		"Enter": {Destinations: make(map[string]int)},
+	}
+
+	cloned := mm.clone()
+	if cloned == nil {
+		t.Fatal("clone returned nil")
+	}
+	clonedArea := cloned.Areas["h1"]
+
+	// What the engine does next.
+	area.FieldMetadata["R1C1L8"] = MindMapFieldMetadata{}
+	area.FieldDiscovery["R1C1L8"] = MindMapFieldDiscovery{}
+	area.KnownTriedValues["R1C1L8"] = []string{"x"}
+	area.KnownWorkingValues["R1C1L8"] = []string{"x"}
+	area.FieldCountProgressions[1] = 1
+	area.FieldSemantics["R1C1L8"] = BusinessFieldSemantic{Name: "user_id"}
+	area.KeyPresses["PF3"] = &MindMapKeyPress{}
+	area.KeyPresses["Enter"].Destinations["h2"] = 1
+
+	for name, size := range map[string]int{
+		"FieldMetadata":          len(clonedArea.FieldMetadata),
+		"FieldDiscovery":         len(clonedArea.FieldDiscovery),
+		"KnownTriedValues":       len(clonedArea.KnownTriedValues),
+		"KnownWorkingValues":     len(clonedArea.KnownWorkingValues),
+		"FieldCountProgressions": len(clonedArea.FieldCountProgressions),
+		"FieldSemantics":         len(clonedArea.FieldSemantics),
+		"Destinations":           len(clonedArea.KeyPresses["Enter"].Destinations),
+	} {
+		if size != 0 {
+			t.Errorf("%s: the clone shares the original's empty map (now holds %d)", name, size)
+		}
+	}
+	if len(clonedArea.KeyPresses) != 1 {
+		t.Errorf("KeyPresses: the clone shares the original's map (now holds %d)", len(clonedArea.KeyPresses))
+	}
+}
