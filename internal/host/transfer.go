@@ -11,8 +11,8 @@ import (
 // IND$FILE file transfer, via s3270's Transfer() action.
 //
 // Getting a dataset off the host and into a spreadsheet, or a file up to it,
-// is routine work in a 3270 shop — it is the single most-cited gap against
-// Quick3270, PCOMM and Rumba+, all of which ship it.
+// is routine work in a 3270 shop, and a standard capability operators expect
+// of a terminal.
 //
 // Transfer() takes comma-separated key=value options. Those go down the same
 // pipe as every other s3270 action, so a value containing a comma, a

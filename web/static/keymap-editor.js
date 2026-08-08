@@ -198,8 +198,8 @@
     var reader = new FileReader();
     reader.onload = function () {
       var text = String(reader.result || "");
-      if (kind === "pcomm") {
-        var result = keymap().importPcomm(text);
+      if (kind === "keymapfile") {
+        var result = keymap().importKeymapFile(text);
         var count = keymap().applyImported(result.bindings, false);
         render();
         if (!count) {
@@ -280,13 +280,13 @@
       '  <div class="keymap-actions">',
       '    <span class="keymap-status" data-keymap-status aria-live="polite"></span>',
       '    <button type="button" data-keymap-import-json>Import JSON</button>',
-      '    <button type="button" data-keymap-import-pcomm>Import PCOMM</button>',
+      '    <button type="button" data-keymap-import-file>Import keymap file</button>',
       '    <button type="button" data-keymap-export>Export</button>',
       '    <button type="button" class="danger" data-keymap-reset>Reset all</button>',
       "  </div>",
       '  <p class="subtle keymap-note">Custom bindings layer over the built-in keys, which keep working unless you rebind them. Combinations the browser reserves for itself (Ctrl+W, Ctrl+T, F11) cannot be captured by any web page. Bindings are stored in this browser — use Export to move them.</p>',
       '  <input type="file" accept="application/json,.json" data-keymap-file-json hidden>',
-      '  <input type="file" accept=".kmp,.KMP,text/plain" data-keymap-file-pcomm hidden>',
+      '  <input type="file" accept=".kmp,.KMP,text/plain" data-keymap-file-kmp hidden>',
       "</div>"
     ].join("");
     document.body.appendChild(modal);
@@ -299,12 +299,12 @@
     modal.querySelector("[data-keymap-export]").addEventListener("click", exportMap);
 
     var jsonFile = modal.querySelector("[data-keymap-file-json]");
-    var pcommFile = modal.querySelector("[data-keymap-file-pcomm]");
+    var kmpFile = modal.querySelector("[data-keymap-file-kmp]");
     modal.querySelector("[data-keymap-import-json]").addEventListener("click", function () {
       jsonFile.click();
     });
-    modal.querySelector("[data-keymap-import-pcomm]").addEventListener("click", function () {
-      pcommFile.click();
+    modal.querySelector("[data-keymap-import-file]").addEventListener("click", function () {
+      kmpFile.click();
     });
     jsonFile.addEventListener("change", function () {
       if (jsonFile.files && jsonFile.files[0]) {
@@ -312,10 +312,10 @@
         jsonFile.value = "";
       }
     });
-    pcommFile.addEventListener("change", function () {
-      if (pcommFile.files && pcommFile.files[0]) {
-        importFile(pcommFile.files[0], "pcomm");
-        pcommFile.value = "";
+    kmpFile.addEventListener("change", function () {
+      if (kmpFile.files && kmpFile.files[0]) {
+        importFile(kmpFile.files[0], "keymapfile");
+        kmpFile.value = "";
       }
     });
 

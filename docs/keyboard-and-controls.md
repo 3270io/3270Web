@@ -7,8 +7,8 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 ### Focus mode
 
 ++alt+enter++ (or the expand icon in the header, or the command palette)
-gives the terminal the whole screen. It is the same shortcut PCOMM and
-Quick3270 have used for full screen for decades.
+gives the terminal the whole screen. It is the long-standing full-screen
+convention for terminal emulators.
 
 - The page header, card framing, background and application chip all go.
 - The toolbar and session tabs move into a slim rail at the top that stays
@@ -262,7 +262,7 @@ dialog below can give them one.
 
 ### Remapping the keyboard
 
-Twenty years of muscle memory from PCOMM or Quick3270 does not transfer to
+Years of muscle memory from another terminal emulator does not transfer to
 a fixed key layout, so every one of these actions can be rebound. Open
 **Keyboard mapping** from the toolbar (the keyboard icon, next to Profiles
 and Settings) or from the command palette.
@@ -291,12 +291,12 @@ administrator sets once.
 - **Export** writes the bindings to a JSON file; **Import JSON** reads one
   back. This is how you move a layout to another machine or browser, and
   how a team shares a house standard.
-- **Import PCOMM** reads a PCOMM `.KMP` keyboard file directly, so a
-  migration from Personal Communications does not start by rebuilding
+- **Import keymap file** reads a `.KMP` keyboard file from another
+  emulator directly, so a migration does not start by rebuilding
   everyone's layout by hand.
 
-The PCOMM dialect varies between versions, and the importer is deliberately
-tolerant. It maps what it recognises and **reports the number of lines it
+The `.KMP` dialect varies between the versions that produce these files, so
+the importer is deliberately tolerant. It maps what it recognises and **reports the number of lines it
 could not** rather than dropping them silently — a partial import that
 tells you what is missing beats one that looks complete and is not. Check
 the reported count, and rebind anything it skipped by hand.

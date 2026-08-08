@@ -1,16 +1,12 @@
 # Feature Roadmap
 
 This page tracks where 3270Web stands today against the s3270 binary's
-exposed action surface and against competing 3270 emulators (PCOMM,
-Rumba+, Reflection, BlueZone, HostExplorer, Vista TN3270, Inventu
-Viewer+, z/Scope, Mocha, Flynet, Virtel, Glink, ZOC, x3270). It is a
-menu, not a schedule — items in **Future candidates** are deliberately
-unprioritized.
+exposed action surface and against the capabilities an enterprise 3270
+terminal is generally expected to have. It is a menu, not a schedule —
+items in **Future candidates** are deliberately unprioritized.
 
-For a prioritized view of the same ground from the perspective of a
-business user running 3270Web as their everyday terminal — including the
-daily-use defects that outrank most of the items below — see the
-[Enterprise Readiness Audit](enterprise-readiness.md).
+For what 3270Web provides today, rather than what may come next, see
+[Terminal Capabilities](terminal-capabilities.md).
 
 ## Recently shipped
 
@@ -49,9 +45,10 @@ daily-use defects that outrank most of the items below — see the
 | Modernization / web-native | Cookie-session web UI, embedded s3270, Windows desktop wrapper, Docker image, MkDocs site. **New in this release:** public REST/JSON API at `/api/v1/*`. |
 | Automation / AI | Workflow recording/playback (3270Connect-compatible JSON), chaos exploration with hints, GitHub Copilot side panel driving the host via tool calls. |
 
-## Table-stakes gaps vs. competitors
+## Table-stakes gaps
 
-Items most enterprise emulators ship that 3270Web does not yet have.
+Capabilities an enterprise 3270 terminal is generally expected to have
+and that 3270Web did not.
 
 - [x] **IND$FILE file transfer** (s3270 `Transfer()`) — *shipped: send and receive, text and binary, with TSO dataset creation options*
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
@@ -63,15 +60,15 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
 - [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
 - [x] **Customizable keyboard mapping in the UI** — *shipped: rebind by
-  pressing the key, with JSON export/import and a PCOMM `.KMP` importer
-  that reports what it could not map*
+  pressing the key, with JSON export/import and a `.KMP` keymap-file
+  importer that reports what it could not map*
 
 ## Daily-use fidelity
 
 Behaviours an experienced 3270 operator expects from the terminal itself,
 tracked separately from feature parity because they are not features —
-they are whether the thing behaves like a terminal. See the
-[Enterprise Readiness Audit](enterprise-readiness.md) for the full case.
+they are whether the thing behaves like a terminal. See
+[Terminal Capabilities](terminal-capabilities.md) for what is shipping.
 
 - [x] **Local cursor navigation** — *shipped: Tab, Back-Tab, arrows and Home move the caret in the browser instead of costing a host round-trip each*
 - [x] **Real OIA** — *shipped: `X SYSTEM`, `X -f`, online/application block, insert indicator*
@@ -101,7 +98,7 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 ## Modernization / web-native
 
 - [x] **Public REST/JSON screen API** — *shipped at `/api/v1/*` (see [REST API](rest-api.md))*
-- [ ] **OAuth / SAML / OIDC SSO** — Inventu Viewer+ ships this; needed for BYOD and Azure AD orgs
+- [ ] **OAuth / SAML / OIDC SSO** — needed for BYOD and Azure AD orgs
 - [ ] **Audit logging** for compliance (who did what, when, against which host)
 - [ ] **WCAG 2.1 AA + screen-reader support** — near-zero in the competition, large untapped differentiator
 - [ ] **Embed-in-iframe / SPA integration story** documented end-to-end
@@ -111,7 +108,35 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 
 Build on the existing Copilot + chaos + workflow plumbing.
 
-- [ ] **HLLAPI-shape scripting endpoint** for external bots — partially solved by the new REST API; a thinner "HLLAPI compatibility" wrapper could ease migration from PCOMM/Rumba
+### Guided Business Tasks
+
+The flagship item: record a business flow once, and everyone else runs it
+by filling in a form and reading the answer, without ever looking at a
+green screen.
+
+> **Account balance enquiry**
+> Retrieves the current cleared balance for a customer account.
+>
+> Account number `[ 40218855 ]` — 8 digits, required
+> As-at date `[ 2026-08-08 ]` — optional, defaults to today
+
+3270Web navigates the application, filling fields and pressing keys with
+the terminal visible throughout, and returns a result card rather than a
+screen. Where a step diverges from the recorded path it **stops at the
+divergence, reports which step failed and what it saw instead, and leaves
+the terminal exactly where it stopped** so the operator can take over.
+Silent failure or blind continuation would be worse than no automation.
+
+- [ ] **Output extraction** — name regions of the final screen as the answer. Everything else depends on it.
+- [ ] **Independence from chaos** — build a task from a plain recording, not only from a discovered mind-map, so an analyst does not need a chaos run first.
+- [ ] **Run surface** — a Tasks menu, a parameter form, live progress, a cancel, and a result card with copy and CSV export.
+- [ ] **Authoring wizard** — after recording, ask which typed values are inputs and which final-screen regions are the answer.
+- [ ] **Sharing** — a server-side task catalogue so a team shares one library, plus export/import of task definitions.
+- [ ] **Task API** — `POST /api/v1/tasks/{name}/run` for RPA and CI callers.
+
+### Other
+
+- [ ] **HLLAPI-shape scripting endpoint** for external bots — partially solved by the new REST API; a thinner "HLLAPI compatibility" wrapper would ease migration of existing HLLAPI screen-scrapers
 - [ ] **Macro recorder polish** — the workflow recorder exists; surface it as "macros" with named, parameterized re-runs
 - [ ] **Natural-language → keystrokes** — extend the Copilot tool surface with a "describe the screen action you want" action
 - [ ] **One-click "Explain this screen"** — Copilot already has `get_screen`; a button can chain it with a fixed prompt
@@ -120,15 +145,15 @@ Build on the existing Copilot + chaos + workflow plumbing.
 
 If 3270Web wants to lead rather than match, the standouts are:
 
-1. **Accessibility** — almost nobody in this category has a documented WCAG/screen-reader story. A modern web emulator with ARIA labels, keyboard-only operation, and high-contrast themes wins regulated-industry RFPs by default.
-2. **AI-assisted use** — the Copilot side panel is already unusual; doubling down on screen-aware Copilot actions, natural-language transactions, and AI explanations puts daylight between 3270Web and every desktop competitor.
-3. **Public REST API + workflow JSON** — paired, these make 3270Web the easy choice for RPA and CI integration. Competitors either gate this behind expensive enterprise tiers or don't ship it at all.
+1. **Accessibility** — a documented WCAG/screen-reader story is rare in this category. A web emulator with ARIA labels, keyboard-only operation, and high-contrast themes is a strong fit for regulated-industry requirements.
+2. **AI-assisted use** — the Copilot side panel is unusual for a terminal; screen-aware Copilot actions, natural-language transactions, and AI explanations build on something no green screen has had before.
+3. **Public REST API + workflow JSON** — paired, these make 3270Web straightforward to adopt for RPA and CI integration, which is rarely a first-class capability in this category.
 
 ## In-flight (this release)
 
 ### Terminal / API
 - E1: [s3270 `String()` for field writes](#s3270-features-not-yet-surfaced) — performance and observability win; replaces the per-character `key(0x..)` loop noted as a `TODO` since the Java port.
-- E2: [Print screen](#table-stakes-gaps-vs-competitors) — table-stakes parity with PCOMM, Rumba+, BlueZone.
+- E2: [Print screen](#table-stakes-gaps) — table-stakes terminal capability.
 - E3: [Public REST API](rest-api.md) — modernization differentiator; reuses the existing Copilot tool plumbing.
 
 ### Chaos exploration

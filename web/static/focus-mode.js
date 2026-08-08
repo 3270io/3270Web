@@ -4,16 +4,15 @@
 // never reads: a page header, a card border, an application banner. An
 // operator working a green screen all day wants the screen.
 //
-// What makes this better than a desktop emulator's full-screen: Quick3270 and
-// PCOMM can only fill their own window, and their toolbars either stay or
-// vanish entirely. Here the real toolbar is *relocated* by CSS into a rail
-// that hides until you reach for it — no duplicate buttons, so every control,
-// tooltip, keyboard handler and command-palette entry keeps working exactly
-// as it does in the normal layout. And the browser's Fullscreen API means it
-// fills the display, not a window.
+// The toolbar is *relocated* by CSS into a rail that hides until you reach
+// for it, rather than duplicated or dropped — so every control, tooltip,
+// keyboard handler and command-palette entry keeps working exactly as it does
+// in the normal layout. The browser's Fullscreen API means it fills the
+// display, not a window.
 //
-// Alt+Enter is the toggle, which is what PCOMM and Quick3270 have used for
-// full screen for decades.
+// Alt+Enter is the toggle: the long-standing full-screen convention for
+// terminal emulators, so it is what an experienced operator already reaches
+// for.
 (function () {
   "use strict";
 
@@ -246,9 +245,9 @@
       }
     });
 
-    // Alt+Enter, the full-screen shortcut PCOMM and Quick3270 have used for
-    // decades. Claimed before the terminal's own Enter handling, which would
-    // otherwise send an AID key to the host.
+    // Alt+Enter, the long-standing full-screen convention for terminal
+    // emulators. Claimed before the terminal's own Enter handling, which
+    // would otherwise send an AID key to the host.
     document.addEventListener(
       "keydown",
       function (event) {
