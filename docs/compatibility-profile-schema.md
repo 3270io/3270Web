@@ -90,7 +90,7 @@ companion diff.
 {
   "ind_file": "yes" | "no" | "unknown",
   "query_reply_ids": ["..."],
-  "unknown": ["BindPluName", "Tn3270eFunctions"]
+  "unknown": ["BindPluName", "Tn3270eOptions"]
 }
 ```
 

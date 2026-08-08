@@ -43,14 +43,14 @@ func newMockHostWith(queries map[string]string) *host.MockHost {
 
 func TestProbe_RichZOSLikeHost(t *testing.T) {
 	mh := newMockHostWith(map[string]string{
-		"Host":             "host mvs01.example.com 992 tls",
-		"ConnectionState":  "tn3270e mvs01.example.com",
-		"Bind":             "rows 32 cols 80 alt color extended",
-		"Model":            "IBM-3279-2-E",
-		"BindPluName":      "LU01",
-		"Tn3270eFunctions": "BIND-IMAGE RESPONSES SYSREQ",
-		"ScreenCurSize":    "24 80",
-		"Cursor":           "1 1",
+		"Host":            "host mvs01.example.com 992 tls",
+		"ConnectionState": "tn3270e mvs01.example.com",
+		"Bind":            "rows 32 cols 80 alt color extended",
+		"Model":           "IBM-3279-2-E",
+		"BindPluName":     "LU01",
+		"Tn3270eOptions":  "BIND-IMAGE RESPONSES SYSREQ",
+		"ScreenCurSize":   "24 80",
+		"Cursor":          "1 1",
 	})
 
 	now := time.Date(2026, 5, 17, 12, 0, 0, 0, time.UTC)

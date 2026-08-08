@@ -49,6 +49,7 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 | `POST` | `/api/v1/sessions/:id/submit` | Submit modified fields + send Enter (or another AID) |
 | `POST` | `/api/v1/sessions/:id/profile` | Run a host compatibility probe and return the `CompatibilityProfile` JSON |
 | `GET` | `/api/v1/sessions/:id/profile` | Return the cached `CompatibilityProfile` from the last probe |
+| `GET` | `/api/v1/sessions/:id/query` | Ask the terminal about the connection itself |
 | `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
 | `POST` | `/api/v1/tasks` | Add or replace a task |
 | `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
@@ -191,6 +192,65 @@ session. `404 Not Found` if no probe has run.
 curl -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:8080/api/v1/sessions/$ID/profile
 ```
+
+### `GET /api/v1/sessions/:id/query`
+
+The connection's own account of itself: negotiated telnet options, TLS state,
+terminal name, cursor, byte counts, the s3270 build actually running, and
+everything else the terminal knows about its link to the host.
+
+None of it is on the screen, which is the point. A session that renders
+perfectly may still have failed to negotiate TN3270E, or bound a different LU
+from the one that was asked for, and this is the only place that shows. It is
+the difference between "the application looks fine" and "the connection is
+what we specified".
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://127.0.0.1:8080/api/v1/sessions/$ID/query
+```
+
+```json
+{
+  "session": "1900afaa255b1f4d29257119f4e8f021",
+  "queries": {
+    "ConnectionState": "connected-3270",
+    "Host": "host mvs01.example.com 992",
+    "TerminalName": "IBM-3278-4-E",
+    "ScreenSizeCurrent": "rows 24 columns 80",
+    "TelnetHostOptions": "BINARY END OF RECORD",
+    "Tls": "not secure",
+    "LuName": "",
+    "Version": "s3270 v4.5ga5"
+  },
+  "available": ["About", "Actions", "BindPluName", "..."]
+}
+```
+
+`available` is every field name, in the terminal's own order. A field whose
+value is genuinely empty is still reported — "the LU name is blank" and "this
+build has no LU name to report" are different facts.
+
+Add `?name=` for one field. The match is case-insensitive and the reply echoes
+the canonical spelling:
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  "http://127.0.0.1:8080/api/v1/sessions/$ID/query?name=terminalname"
+```
+
+```json
+{ "session": "1900afaa…", "name": "TerminalName", "value": "IBM-3278-4-E" }
+```
+
+A name that is not in `available` gets `400 Bad Request` **and the list of
+names that would have worked**. That refusal is deliberate rather than
+pedantic: the underlying terminal action does not reliably reject a keyword it
+does not know — it can block instead — and a blocked command costs the session,
+because the only way out of it is to restart the terminal process. So names are
+only ever taken from the terminal's own answer, never from the request.
+
+`409 Conflict` if the session is not connected.
 
 ### `GET /api/v1/tasks` and `POST /api/v1/tasks`
 

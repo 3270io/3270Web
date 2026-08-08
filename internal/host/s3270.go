@@ -37,6 +37,13 @@ type S3270 struct {
 const (
 	waitUnlockTimeoutSeconds = 10
 	commandTimeout           = 15 * time.Second
+	// Disconnect and quit are both on the teardown path, where an unresponsive
+	// subprocess must not be allowed to hold up session cleanup. They get their
+	// own short budgets rather than commandTimeout's fifteen seconds: the point
+	// of a graceful close is that it is quick, and the fallback — killing the
+	// process — is exactly what used to happen unconditionally.
+	disconnectTimeout = 3 * time.Second
+	quitGraceTimeout  = 2 * time.Second
 )
 
 // NewS3270 creates a new S3270 host instance.
@@ -121,23 +128,65 @@ func (h *S3270) Stop() error {
 }
 
 func (h *S3270) stopLocked() error {
+	// Close the host session before the process goes away.
+	//
+	// Teardown used to be `quit` immediately followed by SIGKILL, which leaves
+	// the TCP connection to the host to be noticed and reaped by whatever is in
+	// between. That is fine against a host on the same LAN and unfriendly
+	// everywhere else: a TN3270 gateway or an SNA-to-IP proxy that never saw the
+	// session close can hold the LU until its own idle timer expires, and the
+	// next connect on that LU is refused in the meantime. Asking s3270 to
+	// disconnect makes it send the close the other end is waiting for.
+	h.disconnectLocked()
+
 	if h.stdin != nil {
-		// Send quit just in case
 		_, _ = fmt.Fprintln(h.stdin, "quit")
 		_ = h.stdin.Close()
 		h.stdin = nil
 	}
 	if h.cmd != nil {
-		// Kill if still running
-		if h.cmd.ProcessState == nil && h.cmd.Process != nil {
-			_ = h.cmd.Process.Kill()
-		}
-		_ = h.cmd.Wait()
+		h.reapLocked(h.cmd)
 		h.cmd = nil
 	}
 	h.stdout = nil
 	h.stderr = nil
 	return nil
+}
+
+// disconnectLocked asks s3270 to close the host session, best effort. A host
+// that has already gone away, or a subprocess that is already dead, makes this
+// fail — neither is a reason to fail the caller's Stop().
+func (h *S3270) disconnectLocked() {
+	if h.stdin == nil || h.cmd == nil || h.cmd.ProcessState != nil {
+		return
+	}
+	_, _, err := h.executeCommandLockedTimeout("Disconnect", "Disconnect", disconnectTimeout)
+	if err != nil && h.verboseLogging {
+		log.Printf("[VERBOSE] s3270 Disconnect on teardown: %v", err)
+	}
+}
+
+// reapLocked waits for the subprocess to act on quit, and kills it if it does
+// not. Wait is called exactly once — from the goroutine — because calling it
+// twice on one exec.Cmd is an error, and the kill path still has to wait for
+// the process to be collected or it leaves a zombie.
+func (h *S3270) reapLocked(cmd *exec.Cmd) {
+	if cmd.ProcessState != nil || cmd.Process == nil {
+		// Already reaped, or never started — there is nothing to wait for, and
+		// a second Wait on one exec.Cmd is itself an error.
+		return
+	}
+	waited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+	case <-time.After(quitGraceTimeout):
+		_ = cmd.Process.Kill()
+		<-waited
+	}
 }
 
 func (h *S3270) IsConnected() bool {
@@ -480,6 +529,10 @@ func (h *S3270) doCommandLockedRedacted(cmd string, logCmd string) ([]string, st
 }
 
 func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, string, error) {
+	return h.executeCommandLockedTimeout(cmd, logCmd, commandTimeout)
+}
+
+func (h *S3270) executeCommandLockedTimeout(cmd string, logCmd string, timeout time.Duration) ([]string, string, error) {
 	if h.stdin == nil {
 		return nil, "", fmt.Errorf("not connected")
 	}
@@ -521,7 +574,7 @@ func (h *S3270) executeCommandLocked(cmd string, logCmd string) ([]string, strin
 			}
 		}
 		return result.data, result.status, result.err
-	case <-time.After(commandTimeout):
+	case <-time.After(timeout):
 		if proc != nil && proc.Process != nil {
 			_ = proc.Process.Kill()
 		}

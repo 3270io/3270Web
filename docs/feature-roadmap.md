@@ -11,6 +11,10 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **The connection's own account of itself** — negotiated telnet options, TLS
+  state, terminal name and byte counts over the API, none of which the screen
+  shows; and a graceful host disconnect on teardown rather than a killed
+  subprocess. See [REST API](rest-api.md).
 - **A cursor that is not confined to the fields** — it can rest on any cell of
   the display, so screens driven by cursor position rather than field content
   are operable; and auto-skip now follows the field-attribute rule instead of
@@ -96,16 +100,21 @@ the thing behaves like a terminal. The rest of this list is shipping; see
 s3270 already supports these — wiring them up is mostly a wrapper job.
 `String()`, `Transfer()` and `PrintText()` are already done.
 
+- [x] **`Query`** — *shipped: `GET /api/v1/sessions/:id/query` returns
+      everything the terminal knows about the connection — negotiated telnet
+      options, TLS state, terminal name, byte counts — none of which is on the
+      screen. See [REST API](rest-api.md)*
+- [x] **Explicit `Disconnect`** — *shipped: teardown closes the host session
+      before the subprocess goes away, instead of killing it and leaving the
+      TCP connection for a gateway to notice in its own time*
 - [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and
       regression tests
-- [ ] **`Query(host|model|cursor|...)`** — richer status surface for the UI
-      and the API
 - [ ] **`Toggle()` / `Set()`** — runtime resource changes (monocase, blink)
 - [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting
 - [ ] **`ScreenTrace`** — event-driven screen-change capture for
       observability
-- [ ] **Explicit `Disconnect`** — today the subprocess is killed; a graceful
-      disconnect is friendlier to upstream proxies
+- [ ] **A host-details panel in the browser** — the query surface is on the API
+      only; the same information belongs one click from the terminal
 
 ## Enterprise deployment
 

@@ -144,9 +144,9 @@ func applyQueryBindPluName(p *CompatibilityProfile, resp string) {
 	p.Protocol.LUName = name
 }
 
-// applyQueryTn3270eFunctions parses `Query(Tn3270eFunctions)`. The response
-// lists negotiated function names (one per line, or whitespace-separated),
-// e.g. "BIND-IMAGE RESPONSES SYSREQ".
+// applyQueryTn3270eFunctions parses the negotiated TN3270E function list, which
+// s3270 answers under `Query(Tn3270eOptions)`. The response lists function names
+// (one per line, or whitespace-separated), e.g. "BIND-IMAGE RESPONSES SYSREQ".
 func applyQueryTn3270eFunctions(p *CompatibilityProfile, resp string) {
 	if strings.TrimSpace(resp) == "" {
 		return

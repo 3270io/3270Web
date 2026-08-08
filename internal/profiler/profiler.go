@@ -176,7 +176,14 @@ func probeSequence() []queryStep {
 		{"Cursor", applyQueryCursor},
 		{"Model", applyQueryModel},
 		{"BindPluName", applyQueryBindPluName},
-		{"Tn3270eFunctions", applyQueryTn3270eFunctions},
+		// Tn3270eOptions, not Tn3270eFunctions. The latter is not a keyword any
+		// current s3270 carries, and asking for it does not error — it BLOCKS,
+		// burning the wrapper's whole command timeout and then costing the
+		// subprocess, which the session silently reconnects behind. Measured
+		// against s3270 v4.5: a probe run took 15s of its 15s in that one query
+		// and marked the capability unknown anyway. Tn3270eOptions answers the
+		// same question, in the same shape, immediately.
+		{"Tn3270eOptions", applyQueryTn3270eFunctions},
 		{"ScreenCurSize", applyQueryScreenCurSize},
 	}
 }
