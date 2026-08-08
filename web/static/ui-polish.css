@@ -847,12 +847,248 @@ body.theme-authentic .screen-container::after {
 }
 
 /* ---------------------------------------------------------------- */
+/* Screen history                                                     */
+/* ---------------------------------------------------------------- */
+.history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.history-modal[hidden] {
+  display: none;
+}
+
+.history-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.history-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(96vw, 1100px);
+  max-height: 88vh;
+  padding: 16px 18px 14px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+
+.history-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.history-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.history-modal-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.history-modal-meta {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The history view is a plain monospace block, not the interactive form —
+   history is read-only, and rendering it as fields would invite typing
+   into a screen that no longer exists. */
+.history-modal-view {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  white-space: pre;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0, "kern" 0;
+}
+
+.history-modal-note {
+  font-size: 0.72rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Hotspots                                                           */
+/* ---------------------------------------------------------------- */
+/* Invisible until hovered. The legend text the application printed is
+   already legible — decorating it permanently would be redecorating the
+   host's screen, which is not this layer's business. The affordance is
+   the cursor plus an underline on approach. */
+.screen-hotspot {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font: inherit;
+  transition: background var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+
+.screen-hotspot:hover,
+.screen-hotspot:focus-visible {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+  outline: none;
+}
+
+.screen-hotspot:focus-visible {
+  box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 2px var(--accent);
+}
+
+.screen-hotspot-url:hover,
+.screen-hotspot-url:focus-visible {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+body[data-hotspots="off"] .screen-hotspot {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- */
+/* Find on screen                                                     */
+/* ---------------------------------------------------------------- */
+.screen-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 8px;
+  padding: 6px 10px;
+  width: 100%;
+  max-width: var(--terminal-width, 100%);
+  box-sizing: border-box;
+  background: var(--glass-strong);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  box-shadow: var(--elev-2);
+}
+
+.screen-find-bar[hidden] {
+  display: none;
+}
+
+.screen-find-bar > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: var(--fg-muted);
+}
+
+.screen-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 2px 0;
+}
+
+.screen-find-status {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 7ch;
+  text-align: right;
+}
+
+.screen-find-btn {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  background: transparent;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-xs);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.screen-find-btn:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+/* Every hit is marked; the current one is picked out more strongly, the
+   same convention as a browser's own find. */
+.screen-find-match {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--warn) 34%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 60%, transparent);
+}
+
+.screen-find-match.is-active {
+  background: color-mix(in srgb, var(--accent) 46%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ---------------------------------------------------------------- */
 /* Rectangular block selection                                        */
 /* ---------------------------------------------------------------- */
 /* The marquee sits above the screen but must never eat pointer events —
    the drag that draws it is handled on the container underneath. */
 .screen-container {
   position: relative;
+}
+
+/* Every absolutely-positioned decoration lives here rather than directly in
+   .screen-container — see overlayLayer() in screen-grid.js. The layer itself
+   is inert; its children opt back into pointer events where they need them. */
+.screen-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.screen-overlay-layer > .screen-hotspot {
+  pointer-events: auto;
 }
 
 .screen-block-selection {

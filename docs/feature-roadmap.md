@@ -57,9 +57,9 @@ Items most enterprise emulators ship that 3270Web does not yet have.
 - [x] **Print screen** (s3270 `PrintText()`) — *shipped: toolbar button → opens printable HTML in a new tab*
 - [ ] **Multiple concurrent sessions / tabs in one browser** — today, one session per cookie
 - [x] **Rectangular block copy/paste** — *shipped: Alt+drag marks a block, Ctrl+C copies it; plus whole-screen copy that includes unsubmitted input*
-- [ ] **Scrollback / screen history navigation**
-- [ ] **Find/search within current screen**
-- [ ] **Hotspots** (clickable PF labels and URLs detected on screen)
+- [x] **Scrollback / screen history navigation** — *shipped: last 50 screens per session, read-only viewer*
+- [x] **Find/search within current screen** — *shipped: Ctrl+F over the character grid, so it sees input values the browser's own find cannot*
+- [x] **Hotspots** (clickable PF labels and URLs detected on screen) — *shipped: never placed over an input field, only real key ranges*
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
 - [ ] **Named saved sessions / connection profiles** — saved hosts exist but are browser-local and hostname-only
 - [ ] **Customizable keyboard mapping in the UI** (multiple profiles)

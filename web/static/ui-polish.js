@@ -30,6 +30,7 @@
     download: "M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z",
     upload: "M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z",
     bulb: "M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z",
+    search: "M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z",
     info: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
     trash: "M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z"
   };
@@ -80,6 +81,9 @@
     { label: "Remove chaos run", group: "Chaos", sel: "[data-chaos-remove]", icon: "trash" },
 
     // Terminal
+    { label: "Find on screen", group: "Terminal", sel: "[data-find-open]", icon: "search", hint: "Ctrl+F — searches input values too" },
+    { label: "Screen history", group: "Terminal", sel: "[data-history-open]", icon: "doc", hint: "Look back at earlier screens" },
+    { label: "Toggle hotspots", group: "Terminal", sel: "[data-hotspots-toggle]", icon: "bulb", hint: "Clickable PF labels and URLs" },
     { label: "Copy screen", group: "Terminal", sel: "[data-copy-screen]", icon: "doc", hint: "Whole screen as text" },
     { label: "Copy marked block", group: "Terminal", icon: "doc", hint: "Alt+drag marks a rectangle", run: () => runTerminal("copyBlock") },
     { label: "Reconnect to host", group: "Terminal", icon: "power", hint: "Re-dial the current host", run: () => runTerminal("reconnect") },

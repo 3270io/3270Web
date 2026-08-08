@@ -189,6 +189,7 @@ func main() {
 	r.GET("/screen/content", app.ScreenContentHandler)
 	r.GET("/screen/stream", app.ScreenStreamHandler)
 	r.GET("/screen/print", app.PrintScreenHandler)
+	r.GET("/screen/history", app.ScreenHistoryHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/submit/async", app.SubmitAsyncHandler)
 	r.POST("/prefs", app.PrefsHandler)
@@ -811,6 +812,51 @@ func screenOIA(screen *host.Screen) gin.H {
 	}
 }
 
+// recordScreenHistory stores the screen the operator is about to be shown.
+// Called from every display path (full page render, async refresh, SSE push);
+// Session.RecordScreen drops repeats, so calling it more than once for the
+// same screen is harmless.
+func recordScreenHistory(s *session.Session, screen *host.Screen) {
+	if s == nil || screen == nil {
+		return
+	}
+	rows := screen.Height
+	cols := screen.Width
+	if rows <= 0 || cols <= 0 {
+		return
+	}
+	cursor := ""
+	if row, col, ok := screen.StatusCursor(); ok {
+		cursor = fmt.Sprintf("%d,%d", row+1, col+1)
+	}
+	s.RecordScreen(session.ScreenHistoryEntry{
+		Text:   screen.Text(),
+		Rows:   rows,
+		Cols:   cols,
+		Cursor: cursor,
+		At:     time.Now(),
+	})
+}
+
+// ScreenHistoryHandler returns the session's recent screens, oldest first.
+// Answers "what did the previous screen say?", which a terminal without
+// scrollback simply cannot.
+func (app *App) ScreenHistoryHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	entries := s.ScreenHistorySnapshot()
+	if entries == nil {
+		entries = []session.ScreenHistoryEntry{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"screens": entries,
+		"limit":   session.ScreenHistoryLimit,
+	})
+}
+
 // mergeOIA copies the OIA fields into an existing payload map.
 func mergeOIA(payload gin.H, screen *host.Screen) gin.H {
 	for k, v := range screenOIA(screen) {
@@ -840,6 +886,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
+	recordScreenHistory(s, screen)
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	snap := app.snapshotSession(s)
 	themeCSS := app.buildThemeCSS(snap.Prefs)
@@ -930,6 +977,7 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
 	}
+	recordScreenHistory(s, screen)
 	rendered := app.Renderer.Render(screen, "/submit", s.ID)
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
 	payload := mergeOIA(gin.H{
