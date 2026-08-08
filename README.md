@@ -68,6 +68,11 @@ A connected session — terminal, toolbar, recording and chaos controls:
 
 ![A connected 3270Web session](docs/images/yorkshire_image.png)
 
+The toolbar has two surfaces. **Business** mode is the default and shows the
+terminal plus the handful of controls an application user needs; **Engineering**
+mode (shown above) adds the recording and chaos groups. The chip in the header
+switches between them and the choice persists per browser.
+
 The AI Chat panel, where discovery and natural-language operation happen:
 
 ![3270Web AI Chat panel](docs/images/copilot-panel.png)
@@ -77,8 +82,59 @@ More — the command palette, settings, keypad and status bar — in
 [documentation site](https://3270Web.3270.io).
 
 
+## Install
+
+One command, on any Linux host:
+
+```bash
+curl -fsSL https://3270Web.3270.io/install.sh | bash
+```
+
+It asks how you want to run 3270Web — **native binary**, **Docker**, or **Docker
+Compose** — checks the host for what each one needs, installs it, and waits for
+`GET /healthz` to come back before telling you it is up.
+
+To skip the questions, pass the method:
+
+```bash
+# Native binary (amd64; s3270 is bundled)
+curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method binary --yes
+
+# Single Docker container
+curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
+
+# Docker Compose stack written to ./3270web/
+curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method compose --yes
+```
+
+| Flag | Default | |
+|---|---|---|
+| `--method <binary\|docker\|compose>` | ask | Installation method |
+| `--version <tag>` | `latest` | Release tag, e.g. `v0.3.2` |
+| `--port <port>` | `8080` | Host port to serve on |
+| `--bind <address>` | `127.0.0.1` | Host interface to publish on |
+| `--dir <path>` | `./3270web` | Compose project directory |
+| `--system` / `--user` | `--user` | Binary install to `/opt` or under `$HOME` |
+| `--theme <grn\|amb\|ice\|day>` | `grn` | Installer palette |
+| `--yes` | off | Accept every prompt |
+| `--dry-run` | off | Report what would happen, change nothing |
+
+The binary method installs to `~/.local/share/3270web/` and links
+`~/.local/bin/3270web`. 3270Web keeps its runtime state (`.env`, `3270Web.log`,
+`chaos-runs/`) next to the executable, which is why the binary lives in a
+directory of its own rather than directly in a `bin` directory.
+
+Prefer to read before you pipe:
+
+```bash
+curl -fsSL https://3270Web.3270.io/install.sh -o install.sh
+less install.sh && bash install.sh
+```
+
+Full details in [docs/installation.md](docs/installation.md).
+
 ## Requirements
-- Go 1.22+
+- Go 1.22+ (only to build from source — the installer needs neither Go nor a clone)
 - Access to a 3270 host
 
 ## Run locally
@@ -109,17 +165,65 @@ Use `-Goarch arm64` or `-Goos linux -Goarch arm64` for cross-compiles.
 
 ## Docker
 ```bash
-# Compose (recommended) — serves on http://127.0.0.1:8080
-docker compose up --build
+# Published image — serves on http://localhost:8080
+docker run --rm -p 8080:8080 ghcr.io/3270io/3270web:latest
 
-# Or build/run directly:
+# Or build it yourself:
 docker build -t 3270web .
-docker run -p 8080:8080 3270web
+docker run --rm -p 8080:8080 3270web
 ```
 The image is published multi-arch (`linux/amd64`, `linux/arm64`) to
 `ghcr.io/3270io/3270web`. It installs the `s3270` package (available at `/usr/bin/s3270`),
 runs as a non-root `app` user, and exposes a `GET /healthz` liveness endpoint that the
 container's `HEALTHCHECK` polls.
+
+## Docker Compose
+
+The repo ships a [`docker-compose.yml`](docker-compose.yml) that builds from
+source. To run the **published image** instead, drop `build:` and point `image:`
+at the GHCR tag:
+
+```yaml
+services:
+  3270web:
+    image: ghcr.io/3270io/3270web:latest
+    container_name: 3270web
+    ports:
+      # 127.0.0.1 keeps the terminal off the network. Use "8080:8080" to
+      # publish on every interface.
+      - "127.0.0.1:8080:8080"
+    environment:
+      - GIN_MODE=release
+      # Any S3270_* option can be set here:
+      # - S3270_MODEL=3279-2-E
+      # - S3270_CODE_PAGE=bracket
+    volumes:
+      # Keep chaos exploration runs across container recreates.
+      - 3270web-chaos:/app/chaos-runs
+    restart: unless-stopped
+
+volumes:
+  3270web-chaos:
+```
+
+```bash
+docker compose pull       # or: docker compose up --build, to build from source
+docker compose up -d
+docker compose ps         # HEALTH column comes from the image's HEALTHCHECK
+docker compose logs -f
+docker compose down
+```
+
+The container `HEALTHCHECK` is inherited automatically, so `docker compose ps`
+shows health without extra configuration. `curl -fsS http://localhost:8080/healthz`
+returns `{"status":"ok","version":"..."}` once it is ready.
+
+Configure 3270Web with environment variables rather than bind-mounting `/app` —
+the binary and its embedded `web/` assets live there, and a mount over `/app`
+would shadow them.
+
+The installer writes this file for you:
+`curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method compose`.
 
 ## Recording workflow.json
 1. Connect to a host.

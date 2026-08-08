@@ -40,10 +40,21 @@ You can also use:
 6. **Command palette** — search every action (++ctrl+k++)
 7. **Copilot chat** — show or hide the AI side panel
 8. **Settings** — open the settings modal
+9. **Workspace mode** — switch between Business and Engineering
 
 The eye icon to the left of the palette button hides the header and
 toolbar for a distraction-free terminal; click it again to bring them
 back.
+
+!!! note "Business mode is the default"
+
+    The screenshot above is **Engineering** mode, which is why callouts 4
+    and 5 are visible. In **Business** mode — what you get on a fresh
+    browser — the recording and chaos groups are hidden and the toolbar
+    carries only what an application user needs. Callout 9 switches
+    between them, and the choice persists per browser. See
+    [Keyboard and Controls](keyboard-and-controls.md) for the full
+    breakdown.
 
 ## Settings Modal Callouts
 
