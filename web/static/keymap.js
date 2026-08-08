@@ -1,10 +1,10 @@
 // Custom keyboard mapping.
 //
 // The physical-key to 3270-action mapping was hard-coded, so a shop whose
-// operators have twenty years of muscle memory from PCOMM or Quick3270 had to
-// retrain them. Every desktop emulator ships a remapping dialog; Quick3270
-// additionally imports PCOMM keyboard files, which is what makes a migration
-// a morning rather than a project.
+// operators have years of muscle memory from another terminal emulator had to
+// retrain them. Remapping is standard in this category, and being able to
+// read an existing keyboard file is what makes a migration a morning rather
+// than a project.
 //
 // A binding is a normalised key signature ("Ctrl+Shift+F3") mapped to a 3270
 // action name ("PF15"). User bindings are layered over the built-in defaults

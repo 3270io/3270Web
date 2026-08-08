@@ -1,8 +1,8 @@
 # Enterprise Readiness Audit
 
 An assessment of 3270Web as a **daily-driver TN3270 terminal for business
-users**, benchmarked against Quick3270, IBM Personal Communications (PCOMM),
-Micro Focus Rumba+ and Reflection, and BlueZone.
+users**, measured against the capabilities an enterprise 3270 terminal is
+generally expected to have.
 
 This page complements [Feature Roadmap](feature-roadmap.md). The roadmap
 answers *"what could we build?"*. This page answers *"what does a claims
@@ -20,7 +20,7 @@ they produce a different priority order.
     3270 field semantics. All seven Phase 2 items have followed:
     concurrent session tabs, connection profiles, IND$FILE file transfer,
     hotspots, find on screen, screen history and a keyboard remapping UI
-    with PCOMM keymap import — plus a focus mode that gives the terminal
+    with keymap file import — plus a focus mode that gives the terminal
     the whole screen.
 
     Sections 3, 4 and 5 describe the state that motivated the work and
@@ -63,19 +63,19 @@ mostly presentation work over plumbing that is already written and tested.
 
 ## 2. What is already strong
 
-Credit where it is due — these are not table stakes, and several
-competitors charge extra for them.
+Credit where it is due — these are not table stakes, and several are
+commonly paid extras in this category.
 
 | Capability | Where | Note |
 |---|---|---|
 | Full AID/control key coverage | `cmd/3270Web/keys.go` | PF1–24, PA1–3, Attn, SysReq, Clear, Reset, EraseEOF, EraseInput, Dup, FieldMark, Newline, Home. Complete. |
 | Extended colour + highlight rendering | `internal/render/html_renderer.go:368` | All 7 3270 colours, blink, reverse, underscore, intensify. |
-| Screen-reader field labelling | `internal/render/html_renderer.go:66` | Derives `aria-label` from the protected text to the field's left. Genuinely rare — most competitors announce every field as a bare "edit text". |
+| Screen-reader field labelling | `internal/render/html_renderer.go:66` | Derives `aria-label` from the protected text to the field's left. Genuinely rare — the norm in this category is to announce every field as a bare "edit text". |
 | Keyboard-trap escape hatch | `web/static/keyboard.js:1064` | Ctrl+Tab releases terminal focus, satisfying WCAG 2.1.2. Thoughtfully done. |
 | Unsolicited host updates | `web/static/screen-live.js` | SSE push with a 1.5 s typing grace window so in-flight keystrokes aren't clobbered. |
 | Public REST API | `cmd/3270Web/api_v1.go` | Nine endpoints. RPA and CI integration without licensing negotiations. |
 | Recording / playback | `cmd/3270Web/workflow_playback.go` | 3270Connect-compatible JSON, with pause/step/debug. |
-| Chaos exploration | `internal/chaos/` | No competitor has anything comparable. |
+| Chaos exploration | `internal/chaos/` | No comparable capability is standard in this category. |
 
 The accessibility work in particular is a real asset. It is close to being
 a defensible RFP differentiator in regulated industries, and it is nearly
@@ -178,8 +178,8 @@ Because the screen is a `<pre>` interleaved with `<input>` elements
 mangled text — input values drop out of the selection entirely.
 
 There is no rectangular block copy, which in a 3270 shop is not a nicety:
-it is how people get a column of account numbers into Excel. Quick3270,
-PCOMM, and Rumba+ all ship it.
+it is how people get a column of account numbers into Excel, and it is
+standard terminal behaviour.
 
 !!! success "Resolved"
     The renderer now emits the character grid as `data-screen-text`, and the
@@ -190,8 +190,8 @@ PCOMM, and Rumba+ all ship it.
 ### 3.5 No reconnect
 
 When the host drops, the session is gone. No auto-reconnect, no
-"Reconnect" button, no preserved host/port for a one-click retry. Every
-competitor reconnects automatically. Mainframe sessions drop for routine
+"Reconnect" button, no preserved host/port for a one-click retry.
+Reconnecting automatically is standard. Mainframe sessions drop for routine
 reasons — LPAR maintenance, VTAM timeouts, network blips — and losing your
 place several times a day is a serious irritant.
 
@@ -199,15 +199,16 @@ place several times a day is a serious irritant.
 
 ## 4. P1 — Table-stakes parity gaps
 
-Benchmarked against [Quick3270's published feature
-list](https://www.dn-computing.com/Quick3270.htm).
+Measured against what an enterprise 3270 terminal is generally expected to
+provide. "Expected" below means the capability is common enough in this
+category that its absence is noticed on day one.
 
-| Capability | Quick3270 | PCOMM / Rumba+ | 3270Web | Notes |
-|---|:---:|:---:|:---:|---|
+| Capability | Expected | 3270Web | Notes |
+|---|:---:|:---:|---|
 | Multiple concurrent sessions (tabs) | ✅ | ✅ | ❌ | One session per cookie — `session.Session` holds a single `Host` (`internal/session/session.go:17`). Business users routinely run 3–6 sessions. |
 | IND$FILE file transfer | ✅ | ✅ | ❌ | s3270 `Transfer()` is not wired up. Referenced in the profiler schema only. |
-| Customisable keyboard mapping | ✅ | ✅ | ❌ | Mappings are hard-coded in `keyboard.js:684–795`. Quick3270 imports PCOMM keyboard files — that is a migration accelerator. |
-| Macro / scripting language | ✅ VBScript + debugger | ✅ | ⚠️ | 3270Web has recording/playback JSON and a REST API — arguably better for CI, worse for a power user who wants a loop and an `IF`. |
+| Customisable keyboard mapping | ✅ | ❌ | Mappings are hard-coded in `keyboard.js:684–795`. Reading an existing keyboard file from another emulator is a migration accelerator. |
+| Macro / scripting language | ✅ | ⚠️ | 3270Web has recording/playback JSON and a REST API — arguably better for CI, worse for a power user who wants a loop and an `IF`. |
 | EHLLAPI / WinHLLAPI | ✅ | ✅ | ❌ | The blocker for migrating shops with existing HLLAPI screen-scrapers. The REST API is the modern answer but is not drop-in. |
 | Hotspots (clickable PF labels, URLs) | ✅ | ✅ | ❌ | Cheap to add and disproportionately loved. The chaos engine already parses the bottom-row PF legend — that parser is directly reusable. |
 | Per-session TLS / LU / model | ✅ | ✅ | ❌ | These are server-wide env vars (`internal/config/s3270_env.go:218`). The connect form takes `hostname:port` only, and `parseHostPort` (`cmd/3270Web/validator.go:9`) cannot parse s3270's `L:lu@host:port` form. You cannot have one TLS host and one plaintext host. |
@@ -382,12 +383,12 @@ worse than no automation at all.
 ### Why this is the right bet
 
 - **It is the demo.** "Type an account number, get a balance, never see a
-  green screen" is a story a CIO understands in ten seconds. No competitor
-  tells it.
+  green screen" is a story a CIO understands in ten seconds, and not one a
+  terminal emulator is usually able to tell.
 - **It changes the addressable user.** Today's product needs someone who
   knows the application. This one serves someone who knows only the
   business question — a much larger population, and the one that actually
-  justifies replacing a paid emulator.
+  justifies replacing a paid tool.
 - **It rehabilitates chaos mode commercially.** Chaos stops being "a
   testing curiosity" and becomes "the thing that discovers your business
   tasks automatically". The mind-map is the asset; tasks are the product.
@@ -440,7 +441,7 @@ exit/destructive keys — point that intelligence at the human user instead of
 the explorer.
 
 **Real macros.** Recording JSON with conditionals and loops, edited in the
-browser. Closes the Quick3270 VBScript gap without shipping a script engine.
+browser. Covers the scripting case without shipping a script engine.
 
 ---
 
@@ -469,7 +470,7 @@ Rough sizing; sequence matters more than the estimates.
 | 10 | Hotspots — clickable PF labels and URLs | S | ✅ |
 | 11 | Screen history / scrollback | M | ✅ |
 | 12 | Find on screen | S | ✅ |
-| 13 | Keyboard remapping UI, with PCOMM keymap import | M | ✅ |
+| 13 | Keyboard remapping UI, with keymap file import | M | ✅ |
 
 ### Phase 3 — Guided Business Tasks (~6 weeks)
 
@@ -490,9 +491,8 @@ Rough sizing; sequence matters more than the estimates.
 | 21 | WCAG 2.1 AA conformance statement | M |
 | 22 | Shared server-side task and profile library | M |
 
-Phases 1 and 2 buy the right to be evaluated against Quick3270. Phase 3 is
-the reason to choose 3270Web over it. Phase 4 is the reason procurement
-signs.
+Phases 1 and 2 buy the right to be evaluated seriously. Phase 3 is the
+reason to choose 3270Web. Phase 4 is the reason procurement signs.
 
 ---
 
@@ -535,7 +535,7 @@ All seven Phase 2 items are done:
 | 10 | Hotspots | PF/PA labels and URLs on screen are clickable. Never placed over an input field, and only real key ranges are recognised, so a screen full of numbers does not sprout dead controls. |
 | 11 | Screen history | Last 50 screens per session, kept as text, browsable read-only. Consecutive duplicates collapse, so it records what was seen rather than how often the client polled. |
 | 12 | Find on screen | Ctrl+F over the character grid, so it matches input values and text straddling field boundaries — both invisible to the browser's own find. Stepping onto a match in a field moves the 3270 cursor there. |
-| 13 | Keyboard remapping | Rebind by pressing the key, not by picking a name from a list of key codes nobody recognises. Custom bindings layer over the built-ins rather than replacing them, so remapping one key does not unbind the other forty. JSON export/import moves a layout between machines; a PCOMM `.KMP` importer covers the migration case Quick3270 uses as a selling point. |
+| 13 | Keyboard remapping | Rebind by pressing the key, not by picking a name from a list of key codes nobody recognises. Custom bindings layer over the built-ins rather than replacing them, so remapping one key does not unbind the other forty. JSON export/import moves a layout between machines, and an importer for the `.KMP` keyboard-file format covers migration from an existing layout. |
 
 Items 10–12 share a new `screen-grid.js` that owns the character grid and
 the cell geometry; whole-screen and block copy were moved onto it too.
@@ -567,5 +567,7 @@ Deliberate, and worth stating rather than discovering:
 
 ## Sources
 
-- [Quick3270 — DN Computing](https://www.dn-computing.com/Quick3270.htm)
-- [Quick3270 configuration reference (PDF)](https://dn-computing.com/download/Quick3270%20configuration.pdf)
+Every claim about 3270Web above is traceable to a file and line in this
+repository. Claims about what is expected of an enterprise 3270 terminal
+are drawn from the published capabilities of tools in this category and
+from the IBM 3270 Data Stream Programmer's Reference (GA23-0059).
