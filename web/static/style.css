@@ -1929,8 +1929,10 @@ pre, pre input, textarea {
 .terminal-width-column > .card-header,
 .terminal-width-column > [data-main-toolbar],
 .terminal-width-column > .active-run-toolbar-row,
+/* The sample-app chip sizes to its content — see the note in
+   ui-polish.css. It used to be stretched to the terminal's full width as a
+   banner. */
 .terminal-width-column > .sample-status {
-  width: 100%;
   box-sizing: border-box;
 }
 
@@ -3195,13 +3197,16 @@ pre, pre input, textarea {
   }
 }
 
+/* Base styling only; ui-polish.css turns this into a compact chip. It was
+   a stacked full-width card, which is a lot of furniture for "which local
+   test server is running". */
 .sample-status {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--panel-2);
 }

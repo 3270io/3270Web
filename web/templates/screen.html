@@ -4,18 +4,18 @@
     <title>3270Web</title>
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=11">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=12">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=10">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
-    <script src="/static/keyboard.js?v=9" defer></script>
+    <script src="/static/keyboard.js?v=10" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
@@ -27,7 +27,7 @@
          preventDefault(), ui.js's listener sees event.defaultPrevented and
          skips entirely — so toolbar buttons never got the spinner/disabled
          state, allowing double-submits. -->
-    <script src="/static/ui.js?v=19" defer></script>
+    <script src="/static/ui.js?v=20" defer></script>
     <script src="/static/workflow.js?v=17" defer></script>
     <script src="/static/screen-live.js" defer></script>
     <script src="/static/screen-grid.js" defer></script>
@@ -35,6 +35,9 @@
     <script src="/static/hotspots.js" defer></script>
     <script src="/static/screen-find.js" defer></script>
     <script src="/static/screen-history.js" defer></script>
+    <script src="/static/session-tabs.js" defer></script>
+    <script src="/static/focus-mode.js" defer></script>
+    <script src="/static/connection-profiles.js" defer></script>
     <script src="/static/workspace-mode.js" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js" defer></script>
@@ -45,7 +48,7 @@
     <script src="/static/copilot-auth.js" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=3" defer></script>
-    <script src="/static/ui-polish.js?v=3" defer></script>
+    <script src="/static/ui-polish.js?v=4" defer></script>
 </head>
 <body data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
@@ -56,6 +59,12 @@
         <div class="card">
             <div class="stack">
                 <div class="terminal-width-column">
+            <!-- Rail zone: the header, session tabs and toolbar. In the normal
+                 layout this is a plain wrapper. In focus mode, CSS turns it
+                 into a slim auto-hiding rail — the real controls are moved
+                 rather than duplicated, so tooltips, handlers and the command
+                 palette all keep working untouched. See focus-mode.js. -->
+            <div data-focus-rail-zone>
             <div class="card-header">
                 <div data-chrome-title class="brand-lockup">
                     {{ template "brand-mark" }}
@@ -81,6 +90,15 @@
                     </button>
                     <button
                         type="button"
+                        class="icon-button focus-toggle-button"
+                        data-focus-toggle
+                        data-tippy-content="Focus mode — fill the screen (Alt+Enter)"
+                        aria-label="Focus mode — fill the screen (Alt+Enter)"
+                        aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 4v-4h2v6h-6v-2h4z"/></svg>
+                    </button>
+                    <button
+                        type="button"
                         class="icon-button cmdk-trigger"
                         data-command-palette-open
                         data-tippy-content="Command palette (Ctrl+K)"
@@ -91,6 +109,7 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5zm0 7.6L4.8 6 12 4.2 19.2 6 12 9.6zM2 17l10 5 10-5-2.1-1.1L12 19.8 4.1 15.9 2 17zm0-5 10 5 10-5-2.1-1.1L12 14.8 4.1 10.9 2 12z"/></svg>
                         <span data-workspace-label>Business</span>
                     </button>
+                    <button type="button" data-profiles-open data-tippy-content="Connection profiles">Profiles</button>
                     <button type="button" data-about-open>About</button>
                     <button type="button" class="icon-button copilot-toggle-button" data-copilot-toggle data-tippy-content="Open Copilot chat" aria-label="Open Copilot chat">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
@@ -100,8 +119,22 @@
                     </button>
                 </div>
             </div>
+            <!-- Session tabs. Hidden until a second session exists; see
+                 session-tabs.js. Rendered server-side so the bar does not
+                 pop in after load when several sessions are already open. -->
+            <div class="session-tab-bar" data-session-tabs {{ if lt (len .SessionTabs) 2 }}hidden{{ end }}>
+                {{ range .SessionTabs }}
+                <div class="session-tab{{ if .Active }} is-active{{ end }}" role="presentation">
+                    <button type="button" class="session-tab-label" title="{{ .Target }}" aria-current="{{ if .Active }}page{{ else }}false{{ end }}">{{ .Label }}</button>
+                    <button type="button" class="session-tab-close" aria-label="Close session {{ .Target }}">&times;</button>
+                </div>
+                {{ end }}
+            </div>
             <div class="toolbar" data-main-toolbar style="margin-bottom: 16px;">
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
+                <button type="button" class="icon-button" data-session-new data-tippy-content="Open another host session" aria-label="Open another host session">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                </button>
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </button>
@@ -278,6 +311,7 @@
                     </div>
                 </div>
             </div>
+            </div><!-- /rail zone -->
             <div class="active-run-toolbar-row" data-active-run-container hidden>
                 <span class="active-run-row" data-active-run-row data-status-open role="button" tabindex="0" aria-label="Open workflow status" data-tippy-content="Open workflow status">
                     <span class="active-run-label">Active Run</span>
@@ -292,9 +326,13 @@
                 </span>
             </div>
             {{ if .SampleAppName }}
-            <div class="sample-status">
+            <!-- Sample-app provenance is a development detail: which local
+                 test server this is and on what port. It told a business user
+                 nothing and cost a full-width block above the terminal, so it
+                 is now a compact chip and only in Engineering mode. -->
+            <div class="sample-status" data-sample-status>
                 <span class="sample-app-title">{{ .SampleAppName }}</span>
-                <span class="subtle">Running on port {{ .SampleAppPort }}</span>
+                <span class="subtle">port {{ .SampleAppPort }}</span>
             </div>
             {{ end }}
 

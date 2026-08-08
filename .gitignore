@@ -54,3 +54,8 @@ chaos-hints.json
 chaos-workflow*.json
 chaos-output*.json
 /chaos*.log
+
+# Connection profiles are per-deployment runtime state, written by the app at
+# its base directory — configuration for an install, not source.
+/profiles.json
+/profiles.json.tmp
