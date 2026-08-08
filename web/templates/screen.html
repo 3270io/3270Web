@@ -18,6 +18,9 @@
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
+    <!-- Touch support. Every rule is behind body.touch-device, which touch.js
+         adds only on a coarse pointer, so a desktop renders unchanged. -->
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=1">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -72,6 +75,9 @@
          all unless this page is framed AND EMBED_ORIGINS names the framing
          origin. See web/static/embed.js. -->
     <script src="/static/embed.js?v=1" defer></script>
+    <!-- The thumb-reachable AID keys and tap-to-place-cursor. Loads after
+         screen-grid.js, whose cell geometry it uses. -->
+    <script src="/static/touch.js?v=1" defer></script>
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>

@@ -11,6 +11,22 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **Touch** — a bar of terminal keys within a thumb's reach on a tablet or a
+  phone, riding above the software keyboard rather than behind it, and a tap
+  on protected text that places the cursor there. Without an AID key a device
+  with no keyboard could read a screen and never end one. See
+  [Keyboard and Controls](keyboard-and-controls.md#touch-devices).
+- **The terminal inside another application** — a named allowlist of origins
+  that may frame 3270Web or call its API from a page, a chrome-less
+  `?embed=1` rendering, and a postMessage channel for the page around the
+  frame. Documented end to end, including why HTTPS is not optional for it.
+  See [Embedding 3270Web](embedding.md).
+- **Screen snapshots, display toggles and screen tracing** — the screen frozen
+  under a name and diffed row by row, so a flow can be checked against the
+  screen it used to land on; the terminal's own display settings read and
+  written where they live; and every screen recorded as it is drawn,
+  including the ones replaced before anyone asked to see them. See
+  [REST API](rest-api.md).
 - **The connection's own account of itself** — negotiated telnet options, TLS
   state, terminal name and byte counts, none of which the screen shows, in a
   **Connection** panel one click from the terminal and on the API for scripted
@@ -109,12 +125,29 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 - [x] **Explicit `Disconnect`** — *shipped: teardown closes the host session
       before the subprocess goes away, instead of killing it and leaving the
       TCP connection for a gateway to notice in its own time*
-- [ ] **`Snap()`** — point-in-time screen snapshots; enables diffing and
-      regression tests
-- [ ] **`Toggle()` / `Set()`** — runtime resource changes (monocase, blink)
-- [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting
-- [ ] **`ScreenTrace`** — event-driven screen-change capture for
-      observability
+- [x] **`Snap()`** — *shipped: the screen frozen under a name and compared row
+      by row, against another snapshot or against the screen as it stands now.
+      That is what makes a regression test against a green screen possible:
+      the answer is which rows moved, not pass or fail. See
+      [REST API](rest-api.md)*
+- [x] **`Toggle()` / `Set()`** — *shipped: the display toggles this build
+      actually has — monocase, crosshair, cursor blink, the underscore under
+      input fields — read from and written to the terminal rather than
+      mirrored here. A narrow allowlist, because the same action also reaches
+      trace files and printer sessions*
+- [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting. Held
+      deliberately rather than pending: `Source()` reads a file of actions,
+      `Script()` starts a process, and a macro would run on the same control
+      pipe the session depends on. What they are wanted *for* — running a
+      recorded sequence against a host — is already
+      [Guided Business Tasks](business-tasks.md) and workflow replay, over
+      validated steps rather than raw actions. The open question is whether
+      any remaining case justifies the surface
+- [x] **`ScreenTrace`** — *shipped: every screen recorded as it is drawn,
+      including the ones the host replaced before anyone asked to see them —
+      the screens a poller can never find. Behind `ALLOW_SCREEN_TRACE`,
+      because it writes a file holding everything that crossed the display.
+      See [REST API](rest-api.md)*
 - [x] **A host-details panel in the browser** — *shipped: **Connection** in the
       terminal header reads the same endpoint the API does, so the connection's
       own account of itself is one click away rather than API-only. See
@@ -138,9 +171,15 @@ proceed without them; procurement cannot.
 
 ## Web-native and integration
 
-- [ ] **Embed-in-iframe / SPA integration story**, documented end to end
-- [ ] **Mobile / touch UI** — the UI is desktop-first; a touch-friendly
-      keypad and hotspots would unlock tablet use
+- [x] **Embed-in-iframe / SPA integration story** — *shipped: `EMBED_ORIGINS`
+      names the origins that may frame the terminal or call the API from a
+      page, `?embed=1` renders it without chrome, and a postMessage channel
+      lets the surrounding page read the screen and press keys. See
+      [Embedding 3270Web](embedding.md)*
+- [x] **Mobile / touch UI** — *shipped: a thumb-reachable bar of AID keys that
+      rides above the software keyboard, tap-to-place-cursor on protected
+      text, and a screen that scrolls and zooms rather than reflowing. See
+      [Keyboard and Controls](keyboard-and-controls.md#touch-devices)*
 - [ ] **HLLAPI-shape scripting endpoint** — partly solved by the REST API; a
       thinner compatibility wrapper would ease migration of existing HLLAPI
       screen-scrapers

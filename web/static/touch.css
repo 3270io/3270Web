@@ -1,0 +1,156 @@
+/* Touch support. Every rule is behind body.touch-device, which touch.js adds
+ * only on a coarse pointer, so a desktop deployment renders exactly as it did.
+ *
+ * The theme is not restyled here. What changes is what a finger can reach and
+ * what a finger can hit — the terminal keeps its own look. */
+
+/* ---- The action bar ------------------------------------------------- */
+
+.touch-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-raised, rgba(20, 22, 28, 0.96));
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  /* Repositioned by touch.js when the software keyboard opens; the transition
+   * keeps that from reading as a jump. */
+  transition: transform 120ms ease-out;
+}
+
+.touch-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+/* The primary row must fit without scrolling — these are the keys somebody
+ * reaches for without looking. */
+.touch-key-row--primary .touch-key {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* A phone cannot show 24 function keys at a tappable size, and shrinking them
+ * until it can is how a keypad stops being usable. So the drawer scrolls. */
+.touch-key-row--drawer {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.touch-key-row--drawer .touch-key {
+  flex: 0 0 auto;
+  min-width: 64px;
+}
+
+.touch-key {
+  /* 44px is the smallest target most people hit reliably with a thumb. */
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.18));
+  background: var(--surface-sunken, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  /* Kills the browser's wait-and-see for a double-tap-to-zoom. On a keypad
+   * that delay is the difference between a terminal and a slideshow. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.touch-key:active {
+  background: var(--accent-soft, rgba(120, 180, 255, 0.28));
+  transform: translateY(1px);
+}
+
+.touch-key--primary {
+  background: var(--accent, #2f6fed);
+  border-color: var(--accent, #2f6fed);
+  color: #fff;
+}
+
+.touch-key--more {
+  flex: 0 0 auto;
+  min-width: 56px;
+}
+
+/* The bar is fixed over the page, so the page needs room to scroll clear of
+ * it — otherwise the last rows of an 24-line screen are permanently behind
+ * the keys. */
+body.touch-device .page-wrap {
+  padding-bottom: 120px;
+}
+
+/* ---- Reaching the rest of the interface ------------------------------ */
+
+/* Toolbar and modal controls are sized for a mouse pointer. A finger needs
+ * the same 44px the action bar uses. */
+body.touch-device .icon-button,
+body.touch-device .toolbar button,
+body.touch-device .h3270-key {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+/* An 80-column screen does not fit across a phone. Scrolling it sideways is
+ * the honest answer — shrinking the font until it fits makes it unreadable,
+ * and reflowing a 3270 screen is not a thing that can be done: the column a
+ * character sits in is the information. */
+body.touch-device .screen-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Panning and pinch-zoom over the screen, but no double-tap zoom — a
+ * double-tap on the grid is two cursor placements, not a zoom gesture. */
+body.touch-device .screen-container pre,
+body.touch-device .renderer-form {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+/* Tapping protected text places the cursor there, so it should look like
+ * something a tap does. */
+body.touch-device .screen-container pre {
+  cursor: pointer;
+}
+
+/* Field inputs get the double-tap delay removed and nothing else.
+ *
+ * The obvious move — a minimum height so a one-character field is easier to
+ * hit — is wrong twice over. A row taller than its line box pushes every row
+ * below it down, and a 3270 screen where column 40 of row 6 is not directly
+ * under column 40 of row 5 is not a 3270 screen. It also breaks the tap that
+ * this file exists to add: cell geometry is the <pre>'s box divided by the
+ * row count, so one stretched row makes every tap below it land on the wrong
+ * line. The zoom control is the answer for a screen that is too small; it
+ * scales the grid, which keeps it a grid. */
+body.touch-device .screen-container input {
+  touch-action: manipulation;
+}
+
+/* Tooltips are hover affordances. On touch they fire on tap and then sit
+ * over the thing that was tapped, which turns every button into two taps. */
+body.touch-device .tippy-box {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .touch-action-bar,
+  .touch-key:active {
+    transition: none;
+    transform: none;
+  }
+}

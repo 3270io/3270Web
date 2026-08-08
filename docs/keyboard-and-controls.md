@@ -274,6 +274,46 @@ The keypad visibility preference can be saved in Settings (`Use keypad`).
 5. PA key group
 6. Common 3270 action keys
 
+## Touch devices
+
+On a tablet or a phone — anything the browser reports as a coarse pointer —
+3270Web adds a bar of terminal keys across the bottom of the display and makes
+the screen tappable. Nothing changes on a desktop, including a desktop with a
+touchscreen: a device with a keyboard already has an Enter key and does not
+want a permanent bar across the bottom.
+
+**The action bar.** Every 3270 screen ends with an AID key, and a device with
+no keyboard has none, so without this the terminal is read-only. The first row
+is what a screen actually ends with — Enter, Tab, back-tab, `PF3`, Clear,
+Reset — sized for a thumb and placed where a thumb is. `PF…` opens a drawer
+with `PF1`–`PF24`, `PA1`–`PA3`, Home, EraseEOF and Insert, scrolling
+sideways: a phone cannot show two dozen function keys at a size anyone can
+hit, and shrinking them until it can is how a keypad stops working.
+
+The bar rides above the software keyboard rather than hiding behind it, which
+matters because the keyboard opens exactly when a field is focused — the
+moment the AID keys are needed.
+
+Pressing a key here is the same as pressing it on a physical keyboard: the
+field keeps focus, what was typed into it is still there, and the key goes
+through the same path.
+
+**Tap to place the cursor.** A tap on the protected part of the screen puts
+the cursor on that cell. "Position the cursor beside your choice and press
+Enter" is a whole genre of mainframe screen, and with a keyboard it is an
+arrow key — with a finger it had no answer at all. A tap on an input field is
+still the browser's, which is what opens the software keyboard for typing.
+
+**Reading an 80-column screen on a narrow display.** The screen scrolls
+sideways and pinch-zooms. It does not reflow, and it does not shrink to fit:
+which column a character sits in is part of what a 3270 screen means, so a
+line that wrapped would be a line that lied. Use the zoom control in the
+terminal tools for a size that suits the device — it scales the grid, which
+keeps it a grid.
+
+The full [virtual keypad](#virtual-keyboard-keypad) is still available from
+the terminal tools widget, if a tablet has room for it.
+
 ## Physical Keyboard Mappings
 
 Common mappings used by 3270Web:

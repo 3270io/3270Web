@@ -80,6 +80,8 @@ verbatim, so what you check is what gets dialled.
 | Export and import a layout as JSON | ✅ |
 | Import an existing `.KMP` keyboard file | ✅ |
 | Virtual keypad, in compact, full and maximum layouts | ✅ |
+| Touch: AID keys within a thumb's reach, above the software keyboard | ✅ |
+| Touch: tap the screen to place the cursor, protected cells included | ✅ |
 
 ## File transfer
 
@@ -123,6 +125,9 @@ rather than merely tolerate it.
 | Task authoring from a chaos run — convert a discovered path into a runnable task | ✅ |
 | Chaos exploration — automated discovery of an application's screens and transitions | ✅ |
 | Screen mind-map, exportable and diffable between hosts | ✅ |
+| Screen snapshots, diffed row by row — regression testing against a green screen | ✅ |
+| Screen tracing — every screen recorded as it is drawn, including the ones replaced before anyone looked | ✅ |
+| Embeddable in another application's page, with a documented postMessage channel | ✅ |
 | Host compatibility profiler | ✅ |
 | AI Chat driving the host through a documented tool surface | ✅ |
 | Docker image and a one-line installer | ✅ |
