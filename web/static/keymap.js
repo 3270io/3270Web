@@ -188,17 +188,17 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* PCOMM keyboard file import                                          */
+  /* Keyboard file import (.KMP)                                         */
   /* ------------------------------------------------------------------ */
 
-  // PCOMM .KMP files are INI-shaped, with entries that name a key position
-  // and the function bound to it. The dialect varies between PCOMM versions
-  // and this parser is deliberately tolerant and deliberately honest: it maps
-  // what it recognises and REPORTS what it did not, rather than silently
-  // dropping lines and leaving an operator to discover the gaps by pressing
-  // keys. A partial import that tells you what is missing beats a
-  // confident-looking one that lies.
-  var PCOMM_FUNCTIONS = {
+  // .KMP keyboard files are INI-shaped, with entries that name a key position
+  // and the function bound to it. The dialect varies between the versions
+  // that produce them, so this parser is deliberately tolerant and
+  // deliberately honest: it maps what it recognises and REPORTS what it did
+  // not, rather than silently dropping lines and leaving an operator to
+  // discover the gaps by pressing keys. A partial import that tells you what
+  // is missing beats a confident-looking one that lies.
+  var KEYMAP_FILE_FUNCTIONS = {
     enter: "Enter",
     clear: "Clear",
     reset: "Reset",
@@ -228,7 +228,7 @@
     insert: "Insert"
   };
 
-  function pcommFunctionToAction(raw) {
+  function keymapFileFunctionToAction(raw) {
     var value = String(raw || "").trim().toLowerCase();
     value = value.replace(/^\[|\]$/g, "").replace(/[\s-]/g, "");
     if (!value) {
@@ -244,12 +244,12 @@
       var m = parseInt(pa[1], 10);
       return m >= 1 && m <= 3 ? "PA" + m : "";
     }
-    return PCOMM_FUNCTIONS[value] || "";
+    return KEYMAP_FILE_FUNCTIONS[value] || "";
   }
 
-  // pcommKeyToSignature converts PCOMM's key naming to ours. PCOMM writes
-  // things like "F3", "SHIFT+F3", "ALT+F1", "CTRL+A".
-  function pcommKeyToSignature(raw) {
+  // keymapFileKeyToSignature converts the file's key naming to ours. These
+  // files write things like "F3", "SHIFT+F3", "ALT+F1", "CTRL+A".
+  function keymapFileKeyToSignature(raw) {
     var value = String(raw || "").trim();
     if (!value) {
       return "";
@@ -309,9 +309,10 @@
     return parts.join("+");
   }
 
-  // importPcomm parses a PCOMM keyboard file and returns what it understood
-  // along with the lines it could not, so the caller can show both.
-  function importPcomm(text) {
+  // importKeymapFile parses a .KMP keyboard file and returns what it
+  // understood along with the lines it could not, so the caller can show
+  // both.
+  function importKeymapFile(text) {
     var imported = {};
     var skipped = [];
     var lines = String(text || "").split(/\r?\n/);
@@ -326,14 +327,14 @@
       }
       var left = line.slice(0, eq).trim();
       var right = line.slice(eq + 1).trim();
-      // PCOMM often writes several fields separated by semicolons; the first
-      // is the function.
+      // These files often write several fields separated by semicolons; the
+      // first is the function.
       right = right.split(";")[0].trim();
       // Entries are commonly "KEY<name>" or just the key name.
       left = left.replace(/^key[_ ]?/i, "");
 
-      var signature = pcommKeyToSignature(left);
-      var action = pcommFunctionToAction(right);
+      var signature = keymapFileKeyToSignature(left);
+      var action = keymapFileFunctionToAction(right);
       if (!signature || !action) {
         skipped.push(line);
         continue;
@@ -369,7 +370,7 @@
     unbind: unbind,
     clear: clearAll,
     reload: load,
-    importPcomm: importPcomm,
+    importKeymapFile: importKeymapFile,
     applyImported: applyImported,
     count: function () {
       return Object.keys(bindings).length;

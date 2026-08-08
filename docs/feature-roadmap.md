@@ -62,8 +62,8 @@ and that 3270Web did not.
 - [x] **Auto-reconnect on host drop** — *shipped: backoff retry with a manual Reconnect fallback*
 - [x] **Named saved sessions / connection profiles** — *shipped: server-side profiles with per-host TLS, skip-verify, LU name, model and code page*
 - [x] **Customizable keyboard mapping in the UI** — *shipped: rebind by
-  pressing the key, with JSON export/import and a PCOMM `.KMP` importer
-  that reports what it could not map*
+  pressing the key, with JSON export/import and a `.KMP` keymap-file
+  importer that reports what it could not map*
 
 ## Daily-use fidelity
 

@@ -6,24 +6,25 @@ This repository is open source. Everything in it is publicly readable —
 code comments, docs (which publish to 3270Web.3270.io), commit messages,
 PR titles and bodies, and issue comments.
 
-**Do not name competing products, and do not frame work as matching,
-catching up to, or copying one.** No comparison tables with a rival's name
-in a column header, no "X ships this and we don't", no "closes the gap
-against X", no links to a competitor's site or price list. This applies to
-commit messages and PR descriptions exactly as much as to code and docs.
+**Do not name commercial terminal emulators, and do not frame work as
+matching, catching up to, or copying one.** No comparison tables with
+another vendor's name in a column header, no "*product* ships this and we
+don't", no "closes the gap against *product*", no links to another
+vendor's site or price list. This applies to commit messages and PR
+descriptions exactly as much as to code and docs.
 
 Write the same point in terms of the user and the category instead:
 
 - ✅ "Operators expect this as standard terminal behaviour."
 - ✅ "A capability an enterprise 3270 terminal is generally expected to have."
 - ✅ "Years of muscle memory from another terminal emulator."
-- ❌ "PCOMM and Quick3270 both ship this."
-- ❌ "The most-cited gap against Rumba+."
+- ❌ Naming two rival products and saying both ship the feature.
+- ❌ Calling something "the most-cited gap against *vendor*".
 
 Naming a **file format or protocol** for interoperability is fine and
-sometimes unavoidable — a `.KMP` keymap importer has to say what it reads,
-and IND$FILE and TN3270 are protocol names. State the format, not the
-vendor's product positioning.
+sometimes unavoidable — a `.KMP` keymap importer has to say which format it
+reads, and IND$FILE and TN3270 are protocol names. State the format, never
+the vendor whose product writes it.
 
 ## Project Overview
 
