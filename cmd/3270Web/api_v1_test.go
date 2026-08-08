@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -238,5 +239,58 @@ func TestParseQueryFields(t *testing.T) {
 	// reports something in an unexpected shape still shows up.
 	if _, ok := fields["D"]; !ok {
 		t.Error("a line with no colon was dropped")
+	}
+}
+
+// The browser panel and the API read the same implementation through different
+// doors. Two handlers would be how the two surfaces end up disagreeing about
+// what a field is called, so this pins that they agree on a real session.
+func TestHostQueryHandlerMatchesTheAPI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mh, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mh.Connected = true
+	mh.QueryResponses = map[string]string{"": fakeBareQuery}
+	app := &App{SessionManager: session.NewManager()}
+	sess := app.SessionManager.CreateSession(mh)
+
+	r := gin.New()
+	r.GET("/host/query", app.HostQueryHandler)
+	r.GET("/api/v1/sessions/:id/query", app.APIQuery)
+
+	cookieReq := httptest.NewRequest(http.MethodGet, "/host/query", nil)
+	cookieReq.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+	cookieW := httptest.NewRecorder()
+	r.ServeHTTP(cookieW, cookieReq)
+	if cookieW.Code != http.StatusOK {
+		t.Fatalf("cookie route status = %d, want 200, body=%s", cookieW.Code, cookieW.Body.String())
+	}
+
+	_, apiBody := getQuery(t, r, "/api/v1/sessions/"+sess.ID+"/query")
+	var browserBody map[string]any
+	if err := json.Unmarshal(cookieW.Body.Bytes(), &browserBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !reflect.DeepEqual(browserBody, apiBody) {
+		t.Errorf("the two doors disagree:\n browser = %v\n api     = %v", browserBody, apiBody)
+	}
+}
+
+// No session cookie is 401, not an empty panel: "you are not signed in" and
+// "this connection reports nothing" are different answers.
+func TestHostQueryHandlerWithoutASessionIs401(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app := &App{SessionManager: session.NewManager()}
+	r := gin.New()
+	r.GET("/host/query", app.HostQueryHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/host/query", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401, body=%s", w.Code, w.Body.String())
 	}
 }

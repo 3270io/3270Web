@@ -84,6 +84,42 @@ the logical unit.
     they are shared by everyone using that deployment and survive a cleared
     cache. They are stored in `profiles.json` beside the app.
 
+### Connection details
+
+**Connection** in the terminal header — or "Connection details" in the
+command palette — shows what the terminal knows about its own link to the
+host. None of it is on the screen.
+
+That matters because a session can render perfectly and still be connected
+on terms nobody chose. TN3270E may have failed to negotiate, the host may
+have bound a different LU from the one the profile asked for, TLS may not
+be in force. The application looks the same either way. This is the only
+place the difference shows, and it is the first thing worth reading out on
+a support call.
+
+The panel leads with the fields that answer that question — state, host,
+terminal name, screen size, code page, TLS, LU name, bound PLU, the
+negotiated TN3270E and telnet options, connect time and byte counts — and
+puts **everything the terminal reports** under a disclosure below, in the
+terminal's own order. A field this build reports that the panel has never
+heard of still appears; it just appears in the second list.
+
+Two details worth knowing:
+
+- A value the terminal reports as **empty** is shown as *none reported*
+  rather than left blank. "The host bound no LU name" and "this build
+  cannot tell you" are different answers.
+- The longest values (copyright, proxy list, running tasks) are abbreviated
+  by the terminal itself and carry a **Show** button that fetches them in
+  full.
+
+**Copy** puts the whole list on the clipboard as plain text, for pasting
+into a ticket. **Refresh** re-reads it — the byte counts always move, and
+the connection state moves exactly when it matters.
+
+The same information is on the [REST API](rest-api.md#get-apiv1sessionsidquery)
+for scripted checks.
+
 ### Sessions and tabs
 
 You can keep up to six host sessions open at once. The **+** button on the

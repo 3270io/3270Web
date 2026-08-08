@@ -647,7 +647,8 @@
       // The keymap editor especially: this handler is on window, so its
       // capture listener runs before the editor's document one, and without
       // this the key being recorded would also be sent to the host.
-      "[data-keymap-modal]"
+      "[data-keymap-modal]",
+      "[data-host-details-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);

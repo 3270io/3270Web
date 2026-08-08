@@ -2380,6 +2380,63 @@ body[data-hotspots="off"] .screen-hotspot {
   pointer-events: auto;
 }
 
+/* Connection details — see host-details.js. Values are monospaced because most
+   of them are protocol strings an operator compares character by character
+   against what a profile asked for. */
+.modal-host-details {
+  max-width: 720px;
+}
+
+.host-details-list {
+  display: grid;
+  grid-template-columns: minmax(9rem, auto) 1fr;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+  align-items: baseline;
+}
+
+.host-details-list dt {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+}
+
+.host-details-list dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.host-details-list dd[data-empty] {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.host-details-list-raw {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.host-details-status {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.host-details-status[data-error] {
+  color: var(--danger, #d9534f);
+}
+
+.host-details-status[hidden] {
+  display: none;
+}
+
+.host-details-expand {
+  font-size: 0.78rem;
+  padding: 1px 8px;
+}
+
 /* The cursor when it is resting on protected text — see the "Cursor over
    protected text" section of keyboard.js. It is drawn as an underscore rather
    than a block so the character underneath stays readable, which is what a
