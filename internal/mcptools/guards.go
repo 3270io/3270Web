@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/jnnngs/3270Web/internal/hostpolicy"
 )
 
 // Two guards that turn advice in the built-in skills into something the
@@ -16,36 +17,19 @@ import (
 // survives a model that is in a hurry, so the cases where getting it wrong is
 // expensive are checked here instead.
 
-// hostAllowed reports whether a hostname may be connected to.
+// hostAllowed reports whether an AI client may point a session at a hostname.
 //
-// With MCP_ALLOWED_HOSTS unset every host is allowed, which is right for a
-// tool run against a lab. Setting it is how a deployment fences off
-// production: isValidHostname already blocks loopback and link-local
-// addresses, but nothing otherwise distinguishes the test LPAR from the one
-// serving customers.
+// This is narrower than the deployment-wide ALLOWED_HOSTS, which the server
+// enforces on every connection path including this one. MCP_ALLOWED_HOSTS
+// fences the model specifically: a deployment can be willing to reach its
+// whole estate from a browser while letting an AI client near only the test
+// LPAR. Unset means "whatever the server allows", not "everything".
+//
+// Checking here as well as at the server is deliberate. The refusal a model
+// can act on is one that names the tool argument it got wrong, before a
+// session has been opened or a connection attempted.
 func hostAllowed(hostname string) bool {
-	patterns := strings.TrimSpace(os.Getenv("MCP_ALLOWED_HOSTS"))
-	if patterns == "" {
-		return true
-	}
-
-	// Compare on the host part alone, so a pattern does not have to
-	// anticipate every port someone might use.
-	host := strings.ToLower(strings.TrimSpace(hostname))
-	if idx := strings.Index(host, ":"); idx >= 0 {
-		host = host[:idx]
-	}
-
-	for _, pattern := range strings.Split(patterns, ",") {
-		pattern = strings.ToLower(strings.TrimSpace(pattern))
-		if pattern == "" {
-			continue
-		}
-		if ok, _ := filepath.Match(pattern, host); ok {
-			return true
-		}
-	}
-	return false
+	return hostpolicy.Allowed(os.Getenv("MCP_ALLOWED_HOSTS"), hostname)
 }
 
 // unguardedChaosAllowed reports whether exploration may start with no key
