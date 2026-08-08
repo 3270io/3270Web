@@ -71,13 +71,24 @@ func TestMayUseSession(t *testing.T) {
 		t.Error("the single operator cannot use their own session")
 	}
 
-	// The instance-wide token is unconfined, but it is still a credential.
-	if !separated.mayUseSession(newCtx(authz.Service()), owned("alice")) {
-		t.Error("the API token cannot reach a session")
+	// A token is issued to an account and reaches what that account reaches —
+	// no special case for arriving on a bearer header rather than a cookie.
+	aliceToken := authz.Token("alice", authz.RoleUser, []string{"read"})
+	if !separated.mayUseSession(newCtx(aliceToken), owned("alice")) {
+		t.Error("alice's token cannot reach alice's session")
+	}
+	if separated.mayUseSession(newCtx(aliceToken), owned("bob")) {
+		t.Error("alice's token reached bob's session")
 	}
 	anonToken := authz.Principal{Kind: authz.KindAPIToken}
 	if separated.mayUseSession(newCtx(anonToken), owned("alice")) {
 		t.Error("a token Kind with no identity was accepted")
+	}
+
+	// With one operator the shared token is that operator, so the API can
+	// drive a session opened in the browser and the other way round.
+	if !single.mayUseSession(newCtx(authz.Service()), owned(authz.LocalUserID)) {
+		t.Error("the shared token cannot reach the operator's own session")
 	}
 }
 
@@ -184,25 +195,57 @@ func TestAPISessionScopeHidesOtherUsersSessions(t *testing.T) {
 	}
 }
 
-// The token surface is unconfined today, and that has to stay true until
-// tokens belong to individual users — otherwise this change would break every
-// existing API and MCP client.
-func TestAPITokenReachesAnySession(t *testing.T) {
+// Naming a session in the path is the API's way of choosing one, so it is
+// also the way an API client would reach somebody else's. A token carries its
+// owner's identity, and this is where that has to bite.
+func TestAPITokenIsConfinedToItsOwner(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	app := &App{SessionManager: session.NewManager(), authMode: authz.ModeLocal}
+	mine := app.SessionManager.CreateSessionFor("alice", mustMockHost(t))
 	theirs := app.SessionManager.CreateSessionFor("bob", mustMockHost(t))
 
 	r := gin.New()
-	r.Use(func(c *gin.Context) { c.Set(principalContextKey, authz.Service()) })
+	r.Use(func(c *gin.Context) {
+		c.Set(principalContextKey, authz.Token("alice", authz.RoleUser, []string{"read", "write"}))
+	})
 	r.GET("/api/v1/sessions/:id/probe", app.APISessionScope(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
+	probe := func(id string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions/"+id+"/probe", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	if w := probe(mine.ID); w.Code != http.StatusOK {
+		t.Errorf("own session = %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	w := probe(theirs.ID)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("another account's session = %d, want 404", w.Code)
+	}
+	// Same answer as an ID that does not exist, so the difference cannot be
+	// used to discover which IDs are real.
+	if !strings.Contains(w.Body.String(), "session not found") {
+		t.Errorf("body = %q", w.Body.String())
+	}
+
+	// An admin's token is no different: administering an instance is not the
+	// same power as typing into somebody's authenticated mainframe session.
+	adminRouter := gin.New()
+	adminRouter.Use(func(c *gin.Context) {
+		c.Set(principalContextKey, authz.Token("carol", authz.RoleAdmin, nil))
+	})
+	adminRouter.GET("/api/v1/sessions/:id/probe", app.APISessionScope(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions/"+theirs.ID+"/probe", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200 — the instance-wide token is unconfined", w.Code)
+	aw := httptest.NewRecorder()
+	adminRouter.ServeHTTP(aw, req)
+	if aw.Code != http.StatusNotFound {
+		t.Errorf("an admin's token reached another account's session: %d", aw.Code)
 	}
 }
 

@@ -260,6 +260,18 @@ func (app *App) AdminDeleteUserHandler(c *gin.Context) {
 		return
 	}
 	app.authSessions.DeleteAllFor(target.ID)
+	// Its tokens already stop working — authenticateAPIToken looks the owner
+	// up on every call — but marking them revoked keeps the token list honest
+	// rather than showing dead credentials as active.
+	//
+	// Disabling does not do this, deliberately: the same live lookup refuses a
+	// disabled account's tokens, and re-enabling should give the person their
+	// automated clients back rather than making them reissue everything.
+	if n, err := app.tokenStore().RevokeAllFor(target.ID); err != nil {
+		log.Printf("auth: could not revoke tokens for %q: %v", target.Username, err)
+	} else if n > 0 {
+		log.Printf("auth: revoked %d API token(s) belonging to %q", n, target.Username)
+	}
 	log.Printf("auth: %s deleted account %q", adminActor(c), target.Username)
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }

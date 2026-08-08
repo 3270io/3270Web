@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -147,15 +146,17 @@ func (app *App) ProfileGetHandler(c *gin.Context) {
 // APIProfileHandler handles POST /api/v1/sessions/:id/profile — Bearer-auth
 // variant used by external tools (CI, fleet probes, 3270Connect dashboards).
 func (app *App) APIProfileHandler(c *gin.Context) {
-	id := strings.TrimSpace(c.Param("id"))
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
+	// Probing drives the terminal — it sends commands and reads what comes
+	// back — so it is resolved through the same ownership check as every other
+	// route rather than by ID alone.
+	s, ok := app.apiSessionFromPath(c)
+	if !ok {
 		return
 	}
 	var body profileRequestBody
 	_ = c.ShouldBindJSON(&body)
 
-	p, status, err := app.runProbeForSessionID(c.Request.Context(), id, body)
+	p, status, err := app.runProbeForSessionID(c.Request.Context(), s.ID, body)
 	if err != nil {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -166,15 +167,11 @@ func (app *App) APIProfileHandler(c *gin.Context) {
 // APIProfileGetHandler handles GET /api/v1/sessions/:id/profile — Bearer-auth
 // variant of the cached-profile getter.
 func (app *App) APIProfileGetHandler(c *gin.Context) {
-	id := strings.TrimSpace(c.Param("id"))
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing session id"})
+	s, ok := app.apiSessionFromPath(c)
+	if !ok {
 		return
 	}
-	if _, ok := app.SessionManager.GetSession(id); !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
-		return
-	}
+	id := s.ID
 	if app.profiles == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no cached profile for session"})
 		return

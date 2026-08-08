@@ -30,10 +30,13 @@ import (
 // exposed port; this path is for a Dockerised instance or a shared server,
 // and inherits RequireAPIToken along with the rest of /api/v1.
 func (app *App) registerMCPHTTP(r *gin.Engine) {
-	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		// A server per connection, so one client's current session and
-		// loaded-skill history do not leak into another's.
-		return buildMCPServer(newEngineInvoker(r), mcpHTTPTier())
+		// loaded-skill history do not leak into another's — and so each
+		// carries the credential its own client presented. A token belongs to
+		// an account, so replaying the caller's own header is what makes the
+		// tools reach that account's sessions and no one else's.
+		return buildMCPServer(newEngineInvoker(r, req.Header.Get("Authorization")), mcpHTTPTier())
 	}, nil)
 
 	r.Any("/api/v1/mcp", app.RequireAPIToken(), gin.WrapH(handler))
@@ -59,10 +62,13 @@ func mcpHTTPTier() mcptools.Tier {
 // question of which address the server happens to be bound to.
 type engineInvoker struct {
 	engine *gin.Engine
+	// authorization is the header the client presented to open this MCP
+	// connection, replayed on every tool call it makes.
+	authorization string
 }
 
-func newEngineInvoker(engine *gin.Engine) *engineInvoker {
-	return &engineInvoker{engine: engine}
+func newEngineInvoker(engine *gin.Engine, authorization string) *engineInvoker {
+	return &engineInvoker{engine: engine, authorization: strings.TrimSpace(authorization)}
 }
 
 func (e *engineInvoker) Do(ctx context.Context, method, path string, query url.Values, body any) (mcptools.Response, error) {
@@ -84,10 +90,12 @@ func (e *engineInvoker) Do(ctx context.Context, method, path string, query url.V
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	// The routes still check the token; the caller reached this transport by
-	// presenting it, so it is passed on rather than the check being skipped.
-	if token := strings.TrimSpace(os.Getenv("API_TOKEN")); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	// The routes still check the token. The caller reached this transport by
+	// presenting one, so their header is passed on rather than the check being
+	// skipped — which also means a tool call is authorized as the person who
+	// made it, not as the instance.
+	if e.authorization != "" {
+		req.Header.Set("Authorization", e.authorization)
 	}
 
 	rec := httptest.NewRecorder()

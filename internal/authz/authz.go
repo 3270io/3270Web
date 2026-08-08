@@ -161,20 +161,35 @@ func ParseMode(value string) (Mode, error) {
 	}
 }
 
-// ServiceUserID is the principal behind the instance-wide API token.
-//
-// The token is a single credential shared by every automated client, so it
-// does not identify a person and cannot be scoped to one person's sessions.
-// Naming it here keeps that fact visible in logs and in the authorization
-// rules, rather than leaving API callers indistinguishable from a browser.
-const ServiceUserID = "api-token"
-
 // Service returns the principal for a caller holding the instance-wide API
-// token.
+// token, which only exists where there is a single operator.
+//
+// It is that operator: same UserID as Local, so a session opened in the
+// browser and one opened over the API belong to the same person and each can
+// drive the other — which is the entire point of the API on a single-operator
+// instance. Only Kind differs, so a log line still records that the request
+// arrived on a token rather than in a browser.
+//
+// Where users are separated the shared token does not exist; see Token.
 func Service() Principal {
 	return Principal{
-		UserID: ServiceUserID,
+		UserID: LocalUserID,
 		Role:   RoleAdmin,
 		Kind:   KindAPIToken,
+	}
+}
+
+// Token returns the principal for a caller holding a token issued to an
+// account.
+//
+// It carries that account's own UserID, so a token reaches exactly what its
+// owner reaches — no more, and no less. Scopes narrow it further; an empty
+// list means "whatever the account itself could do".
+func Token(userID string, role Role, scopes []string) Principal {
+	return Principal{
+		UserID: userID,
+		Role:   role,
+		Kind:   KindAPIToken,
+		Scopes: scopes,
 	}
 }
