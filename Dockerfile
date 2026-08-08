@@ -34,6 +34,14 @@ RUN chown -R app:app /app
 
 USER app
 
+# The server binds to 127.0.0.1 by default, which is correct for a desktop or
+# `go run` install but unreachable inside a container: a published port forwards
+# to the container's external interface, so a loopback-only listener refuses
+# every connection from the host while the container still reports healthy.
+# Bind all interfaces here and let the `ports:` mapping decide what is exposed
+# (use "127.0.0.1:8080:8080" to keep it on the host's loopback).
+ENV WEBUI_BIND=0.0.0.0
+
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
