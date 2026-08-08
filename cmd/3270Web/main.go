@@ -208,6 +208,10 @@ func main() {
 	r.GET("/screen/stream", app.ScreenStreamHandler)
 	r.GET("/screen/print", app.PrintScreenHandler)
 	r.GET("/screen/history", app.ScreenHistoryHandler)
+
+	// IND$FILE file transfer. See transfer.go.
+	r.POST("/transfer/send", app.TransferSendHandler)
+	r.POST("/transfer/receive", app.TransferReceiveHandler)
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/submit/async", app.SubmitAsyncHandler)
 	r.POST("/prefs", app.PrefsHandler)
