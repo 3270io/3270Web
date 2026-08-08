@@ -310,6 +310,8 @@ func main() {
 	r.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
 	r.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
 	r.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
+	// Convert a discovered function into a business task draft.
+	r.GET("/chaos/business/task-draft", app.ChaosBusinessToTaskHandler)
 	r.GET("/chaos/insights", app.ChaosInsightsHandler)
 
 	// GitHub Copilot side panel + screen JSON tool endpoint

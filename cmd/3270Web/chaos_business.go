@@ -696,3 +696,39 @@ func respondChaosBusinessWriteError(c *gin.Context, err error) {
 	}
 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 }
+
+// ChaosBusinessToTaskHandler converts a discovered business function into a
+// business task draft, or every function at once when no name is given.
+//
+// This is the join between exploration and use: a chaos run maps an
+// application, a business function names one path through it, and a task makes
+// that path something a person can run from a form. The draft is returned for
+// review rather than saved — it has no outputs, because which part of the
+// final screen is the answer is a judgement a chaos run cannot make, and its
+// notes list every other assumption.
+func (app *App) ChaosBusinessToTaskHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	mm := app.sessionChaosMindMap(s)
+	name := strings.TrimSpace(c.Query("name"))
+
+	if name == "" {
+		drafts, err := chaos.BusinessFunctionsToTaskDrafts(mm)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"drafts": drafts})
+		return
+	}
+
+	draft, err := chaos.BusinessFunctionToTask(mm, name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, draft)
+}

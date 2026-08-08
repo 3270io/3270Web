@@ -345,3 +345,17 @@ func slugify(label string) string {
 	}
 	return out
 }
+
+// DeriveGuard exposes the anchor heuristic so other producers of tasks — the
+// chaos mind-map importer, for one — derive guards the same way a recording
+// does. Two implementations of "what identifies this screen" would drift, and
+// the difference would show up as a task that fails only when imported one way.
+func DeriveGuard(screenText string) (Expect, bool) {
+	return deriveAnchor(screenText)
+}
+
+// SuggestParameterName turns a label into a machine name that satisfies
+// Validate, uniquely within used. Shared for the same reason as DeriveGuard.
+func SuggestParameterName(label string, used map[string]bool) string {
+	return uniqueParamName(label, 0, 0, used)
+}

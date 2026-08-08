@@ -46,10 +46,11 @@ Newest first. Every item here is live and documented.
   [Host Compatibility Profiler](host-profiler.md) and
   [Chaos Mind-Map Compare](chaos-compare.md).
 
-## Guided Business Tasks — what is left
+## Guided Business Tasks
 
-The flagship capability and its authoring wizard are both shipping. What is
-left is distribution and integration rather than the core experience.
+Complete: authoring from a recording, running from a form, the
+token-authenticated API, export/import, and conversion from a chaos run. See
+[Guided Business Tasks](business-tasks.md).
 
 - [x] **Authoring wizard** — *shipped: record a flow, confirm the derived
       inputs, mark the answer by dragging on the final screen, save. See
@@ -61,9 +62,10 @@ left is distribution and integration rather than the core experience.
 - [x] **Task API** — *shipped: `POST /api/v1/sessions/{id}/tasks/run`,
       token-authenticated and synchronous, so a bot gets the answer in the
       response. See [REST API](rest-api.md)*
-- [ ] **Chaos import** — convert a discovered `BusinessFunction` into a
-      task, so chaos becomes a way of *finding* tasks rather than a separate
-      tool
+- [x] **Chaos import** — *shipped: `GET /chaos/business/task-draft` converts
+      a discovered `BusinessFunction` into a task draft, deriving guards from
+      the screen text the run captured. See
+      [Guided Business Tasks](business-tasks.md)*
 
 ## Daily-use fidelity
 
