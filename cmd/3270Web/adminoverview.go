@@ -8,6 +8,7 @@ import (
 
 	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/users"
 )
 
 // The administration area's front door. Accounts, the audit trail and the
@@ -41,9 +42,12 @@ func (app *App) AdminOverviewHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the account list"})
 			return
 		}
+		groupRoles := app.groupRolesOrNone()
 		var admins, disabled, mustChange, external int
 		for _, u := range list {
-			if u.Role == authz.RoleAdmin {
+			// Effective administrators: one whose role comes from a group
+			// belongs in this count exactly as much as one appointed directly.
+			if users.EffectiveRole(u, groupRoles) == authz.RoleAdmin {
 				admins++
 			}
 			if u.Disabled {

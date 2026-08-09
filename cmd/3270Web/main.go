@@ -370,6 +370,14 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.GET("/api/admin/menu-branding", app.AdminMenuBrandingHandler)
 	admin.POST("/api/admin/menu-branding", app.AdminSaveMenuBrandingHandler)
 	admin.GET("/api/admin/menu-preview", app.AdminPreviewMenuHandler)
+	// The session-selection screen as a managed thing: its preset host
+	// entries, who each is for, and a role a group grants its members.
+	// See adminprofiles.go and grouproles.go.
+	admin.GET("/admin/session-screen", app.AdminSessionScreenPageHandler)
+	admin.GET("/api/admin/profiles", app.AdminListProfilesHandler)
+	admin.POST("/api/admin/profiles", app.AdminSaveProfileHandler)
+	admin.POST("/api/admin/profiles/delete", app.AdminDeleteProfileHandler)
+	admin.POST("/api/admin/group-roles", app.AdminSetGroupRoleHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)

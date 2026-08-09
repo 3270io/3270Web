@@ -312,7 +312,10 @@ func (app *App) SSOCallbackHandler(c *gin.Context) {
 	if existing := getCookieValue(c, authCookieName); existing != "" {
 		app.authSessions.Delete(existing)
 	}
-	sess, err := app.authSessions.Create(user.ID, user.Username, user.Role, clientIP, false)
+	// The effective role: the account's own (which a directory claim may have
+	// just refreshed), or one a group grants — directory groups included,
+	// since they were written to the account a moment ago.
+	sess, err := app.authSessions.Create(user.ID, user.Username, app.effectiveRoleFor(user), clientIP, false)
 	if err != nil {
 		log.Printf("auth: could not create a session for %q: %v", user.Username, err)
 		app.failSSO(c, clientIP, "session creation failed", "Could not start a session. Try again.")

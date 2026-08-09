@@ -114,6 +114,9 @@ func (app *App) accountFor(c *gin.Context) (users.User, bool) {
 	if err != nil || !found {
 		return users.User{}, false
 	}
+	// The role field carries the effective role, so a profile assigned to
+	// administrators reaches somebody whose administration comes from a group.
+	account.Role = app.effectiveRoleFor(account)
 	return account, true
 }
 

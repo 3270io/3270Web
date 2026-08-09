@@ -184,38 +184,43 @@ func (s *Store) Path() string { return s.path }
 
 type fileFormat struct {
 	Users []User `json:"users"`
+	// GroupRoles maps a group name to the role its members inherit. An account
+	// holds the stronger of its own role and any granted by a group it is in;
+	// see EffectiveRole. Kept beside the accounts rather than in a file of its
+	// own so a backup of one cannot silently disagree with the other.
+	GroupRoles map[string]authz.Role `json:"groupRoles,omitempty"`
 }
 
 // load reads the file. A missing file is an empty store, not an error: that is
 // the state before the first account is created.
-func (s *Store) load() ([]User, error) {
+func (s *Store) load() (fileFormat, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return fileFormat{}, nil
 		}
-		return nil, fmt.Errorf("read user store: %w", err)
+		return fileFormat{}, fmt.Errorf("read user store: %w", err)
 	}
 	if len(strings.TrimSpace(string(data))) == 0 {
-		return nil, nil
+		return fileFormat{}, nil
 	}
 	var parsed fileFormat
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return nil, fmt.Errorf("parse user store: %w", err)
+		return fileFormat{}, fmt.Errorf("parse user store: %w", err)
 	}
-	return parsed.Users, nil
+	return parsed, nil
 }
 
 // save writes the file atomically at 0600.
 //
 // A torn write here would lock every account out at once, so the temp-file
 // and rename dance is not optional.
-func (s *Store) save(list []User) error {
+func (s *Store) save(f fileFormat) error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create user store dir: %w", err)
 	}
-	data, err := json.MarshalIndent(fileFormat{Users: list}, "", "  ")
+	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode user store: %w", err)
 	}
@@ -252,12 +257,12 @@ func (s *Store) save(list []User) error {
 func (s *Store) List() ([]User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]User, 0, len(list))
-	for _, u := range list {
+	out := make([]User, 0, len(f.Users))
+	for _, u := range f.Users {
 		out = append(out, u.Redacted())
 	}
 	return out, nil
@@ -267,22 +272,22 @@ func (s *Store) List() ([]User, error) {
 func (s *Store) Count() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return 0, err
 	}
-	return len(list), nil
+	return len(f.Users), nil
 }
 
 // ByID looks up an account. The hash is stripped.
 func (s *Store) ByID(id string) (User, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return User{}, false, err
 	}
-	for _, u := range list {
+	for _, u := range f.Users {
 		if u.ID == id {
 			return u.Redacted(), true, nil
 		}
@@ -308,11 +313,11 @@ func (s *Store) Add(username, password string, role authz.Role, mustChange bool)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return User{}, err
 	}
-	for _, u := range list {
+	for _, u := range f.Users {
 		if strings.EqualFold(u.Username, username) {
 			return User{}, ErrUserExists
 		}
@@ -332,7 +337,8 @@ func (s *Store) Add(username, password string, role authz.Role, mustChange bool)
 		CreatedAt:          now,
 		PasswordChangedAt:  now,
 	}
-	if err := s.save(append(list, u)); err != nil {
+	f.Users = append(f.Users, u)
+	if err := s.save(f); err != nil {
 		return User{}, err
 	}
 	return u.Redacted(), nil
@@ -375,10 +381,11 @@ func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return User{}, err
 	}
+	list := f.Users
 
 	for i := range list {
 		if list[i].Issuer != issuer || list[i].Subject != subject {
@@ -406,13 +413,13 @@ func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role
 			// Demoting the last administrator is refused here as everywhere: an
 			// instance nobody can administer can only be repaired by hand.
 			if !(role == authz.RoleUser && list[i].Role == authz.RoleAdmin &&
-				countEnabledAdmins(list) <= 1 && !list[i].Disabled) {
+				!list[i].Disabled && wouldLoseLastAdmin(f, i, func(u *User) { u.Role = authz.RoleUser })) {
 				list[i].Role = role
 				changed = true
 			}
 		}
 		if changed {
-			if err := s.save(list); err != nil {
+			if err := s.save(f); err != nil {
 				return User{}, err
 			}
 		}
@@ -446,7 +453,8 @@ func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role
 		CreatedAt:         now,
 		PasswordChangedAt: now,
 	}
-	if err := s.save(append(list, u)); err != nil {
+	f.Users = append(f.Users, u)
+	if err := s.save(f); err != nil {
 		return User{}, err
 	}
 	return u.Redacted(), nil
@@ -473,11 +481,11 @@ func (s *Store) AddFirstAdmin(username, password string) (User, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return User{}, err
 	}
-	if len(list) > 0 {
+	if len(f.Users) > 0 {
 		return User{}, ErrNotFirstUser
 	}
 
@@ -494,7 +502,8 @@ func (s *Store) AddFirstAdmin(username, password string) (User, error) {
 		CreatedAt:         now,
 		PasswordChangedAt: now,
 	}
-	if err := s.save([]User{u}); err != nil {
+	f.Users = []User{u}
+	if err := s.save(f); err != nil {
 		return User{}, err
 	}
 	return u.Redacted(), nil
@@ -511,10 +520,11 @@ func (s *Store) SetRole(username string, role authz.Role) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
+	list := f.Users
 
 	idx := indexOfUsername(list, username)
 	if idx < 0 {
@@ -523,34 +533,36 @@ func (s *Store) SetRole(username string, role authz.Role) error {
 	if list[idx].Role == role {
 		return nil
 	}
-	if role == authz.RoleUser && list[idx].Role == authz.RoleAdmin {
-		if countEnabledAdmins(list) <= 1 && !list[idx].Disabled {
+	if role == authz.RoleUser && list[idx].Role == authz.RoleAdmin && !list[idx].Disabled {
+		if wouldLoseLastAdmin(f, idx, func(u *User) { u.Role = authz.RoleUser }) {
 			return errors.New("users: refusing to demote the only enabled admin")
 		}
 	}
 
 	list[idx].Role = role
-	return s.save(list)
+	return s.save(f)
 }
 
 // Delete removes an account permanently.
 func (s *Store) Delete(username string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
+	list := f.Users
 
 	idx := indexOfUsername(list, username)
 	if idx < 0 {
 		return ErrUserNotFound
 	}
-	if list[idx].Role == authz.RoleAdmin && !list[idx].Disabled && countEnabledAdmins(list) <= 1 {
+	if !list[idx].Disabled && wouldLoseLastAdmin(f, idx, func(u *User) { u.Disabled = true }) {
 		return errors.New("users: refusing to delete the only enabled admin")
 	}
 
-	return s.save(append(list[:idx:idx], list[idx+1:]...))
+	f.Users = append(list[:idx:idx], list[idx+1:]...)
+	return s.save(f)
 }
 
 func indexOfUsername(list []User, username string) int {
@@ -572,6 +584,23 @@ func countEnabledAdmins(list []User) int {
 	return n
 }
 
+// wouldLoseLastAdmin reports whether applying change to the account at idx
+// takes the store from having an enabled administrator to having none —
+// counting the roles that groups grant, so an instance that runs its
+// administrators through a group can still demote the one direct
+// administrator it started with. A store that already has no administrator
+// (a test fixture, a half-built instance) is not made worse by any change,
+// so nothing is refused there.
+func wouldLoseLastAdmin(f fileFormat, idx int, change func(*User)) bool {
+	if countEffectiveAdmins(f.Users, f.GroupRoles) == 0 {
+		return false
+	}
+	trial := make([]User, len(f.Users))
+	copy(trial, f.Users)
+	change(&trial[idx])
+	return countEffectiveAdmins(trial, f.GroupRoles) == 0
+}
+
 // Authenticate verifies a username and password.
 //
 // A missing user still costs a full hash comparison. Returning early would
@@ -579,11 +608,12 @@ func countEnabledAdmins(list []User) int {
 // login endpoint into an oracle for which accounts exist.
 func (s *Store) Authenticate(username, password string) (User, error) {
 	s.mu.Lock()
-	list, err := s.load()
+	f, err := s.load()
 	s.mu.Unlock()
 	if err != nil {
 		return User{}, err
 	}
+	list := f.Users
 
 	var found *User
 	for i := range list {
@@ -629,10 +659,11 @@ func (s *Store) SetPassword(username, password string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
+	list := f.Users
 	for i := range list {
 		if strings.EqualFold(list[i].Username, username) {
 			// Giving an identity provider's account a local password would add
@@ -644,7 +675,7 @@ func (s *Store) SetPassword(username, password string) error {
 			list[i].PasswordHash = hash
 			list[i].PasswordChangedAt = s.now()
 			list[i].MustChangePassword = false
-			return s.save(list)
+			return s.save(f)
 		}
 	}
 	return ErrUserNotFound
@@ -658,16 +689,16 @@ var ErrExternalAccount = errors.New("users: this account signs in through the id
 func (s *Store) SetGroups(username string, groups []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
-	idx := indexOfUsername(list, username)
+	idx := indexOfUsername(f.Users, username)
 	if idx < 0 {
 		return ErrUserNotFound
 	}
-	list[idx].Groups = NormaliseGroups(groups)
-	return s.save(list)
+	f.Users[idx].Groups = NormaliseGroups(groups)
+	return s.save(f)
 }
 
 // Groups returns every group name any account belongs to, sorted.
@@ -679,12 +710,20 @@ func (s *Store) SetGroups(username string, groups []string) error {
 func (s *Store) Groups() ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return nil, err
 	}
 	seen := make(map[string]string)
-	for _, u := range list {
+	// A group with a role assigned exists even while nobody is in it: the
+	// assignment is the membership that keeps the name alive.
+	for g := range f.GroupRoles {
+		key := strings.ToLower(strings.TrimSpace(g))
+		if key != "" && seen[key] == "" {
+			seen[key] = strings.TrimSpace(g)
+		}
+	}
+	for _, u := range f.Users {
 		for _, g := range u.Groups {
 			key := strings.ToLower(strings.TrimSpace(g))
 			if key != "" && seen[key] == "" {
@@ -707,23 +746,24 @@ func (s *Store) Groups() ([]string, error) {
 func (s *Store) SetDisabled(username string, disabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
+	list := f.Users
 
 	idx := indexOfUsername(list, username)
 	if idx < 0 {
 		return ErrUserNotFound
 	}
-	if disabled && list[idx].Role == authz.RoleAdmin && !list[idx].Disabled {
-		if countEnabledAdmins(list) <= 1 {
+	if disabled && !list[idx].Disabled {
+		if wouldLoseLastAdmin(f, idx, func(u *User) { u.Disabled = true }) {
 			return errors.New("users: refusing to disable the only enabled admin")
 		}
 	}
 
 	list[idx].Disabled = disabled
-	return s.save(list)
+	return s.save(f)
 }
 
 // ValidateUsername enforces a conservative name.
@@ -796,16 +836,131 @@ func GeneratePassword() (string, error) {
 func (s *Store) RequirePasswordChange(username string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, err := s.load()
+	f, err := s.load()
 	if err != nil {
 		return err
 	}
-	idx := indexOfUsername(list, username)
+	idx := indexOfUsername(f.Users, username)
 	if idx < 0 {
 		return ErrUserNotFound
 	}
-	list[idx].MustChangePassword = true
-	return s.save(list)
+	f.Users[idx].MustChangePassword = true
+	return s.save(f)
+}
+
+/* ---------------------------------------------------------------------
+   Group roles: a role an account inherits from a group it is in.
+
+   The role on the account says what that person may do; a group role says
+   what everyone on a team may do, and follows people as they join and leave
+   the team. An account holds the STRONGER of the two — a group can grant
+   administration to its members, but being in a group never takes away a
+   role an account holds in its own right. Subtractive inheritance would
+   make adding somebody to a team a way to quietly demote them, which is
+   never what adding somebody to a team means.
+   --------------------------------------------------------------------- */
+
+// GroupRoles returns the group-to-role assignments.
+func (s *Store) GroupRoles() (map[string]authz.Role, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]authz.Role, len(f.GroupRoles))
+	for g, r := range f.GroupRoles {
+		out[g] = r
+	}
+	return out, nil
+}
+
+// SetGroupRole assigns a role to a group, or removes the assignment when the
+// role is RoleUser — user is what membership means with no assignment, so
+// storing it would be a second spelling of "nothing".
+//
+// Removing the last assignment that keeps any administrator enabled is
+// refused, exactly as demoting or disabling the last administrator is: an
+// instance nobody can administer can only be repaired by hand.
+func (s *Store) SetGroupRole(group string, role authz.Role) error {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return errors.New("users: a group name is required")
+	}
+	if len(group) > maxGroupNameLength {
+		return fmt.Errorf("users: group name is longer than %d characters", maxGroupNameLength)
+	}
+	if role != authz.RoleAdmin && role != authz.RoleUser {
+		return fmt.Errorf("users: unknown role %q", role)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := s.load()
+	if err != nil {
+		return err
+	}
+
+	// One entry per name regardless of how it is capitalised, matching how
+	// group names compare everywhere else.
+	next := make(map[string]authz.Role, len(f.GroupRoles)+1)
+	for g, r := range f.GroupRoles {
+		if !strings.EqualFold(g, group) {
+			next[g] = r
+		}
+	}
+	if role == authz.RoleAdmin {
+		next[group] = role
+	}
+	if len(next) == 0 {
+		next = nil
+	}
+
+	if countEffectiveAdmins(f.Users, next) == 0 && countEffectiveAdmins(f.Users, f.GroupRoles) > 0 {
+		return errors.New("users: refusing to remove the assignment that keeps the only enabled admin")
+	}
+
+	f.GroupRoles = next
+	return s.save(f)
+}
+
+// EffectiveRole is the role an account actually holds: its own, or one a
+// group it belongs to grants, whichever is stronger.
+func EffectiveRole(u User, groupRoles map[string]authz.Role) authz.Role {
+	if u.Role == authz.RoleAdmin {
+		return authz.RoleAdmin
+	}
+	for g, r := range groupRoles {
+		if r == authz.RoleAdmin && u.InGroup(g) {
+			return authz.RoleAdmin
+		}
+	}
+	return u.Role
+}
+
+// RoleGrantingGroups names the groups that grant this account a role beyond
+// its own, so a page can say where an inherited role came from.
+func RoleGrantingGroups(u User, groupRoles map[string]authz.Role) []string {
+	var out []string
+	for g, r := range groupRoles {
+		if r == authz.RoleAdmin && u.InGroup(g) {
+			out = append(out, g)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// countEffectiveAdmins counts enabled accounts whose effective role is
+// administrator under the given assignments.
+func countEffectiveAdmins(list []User, groupRoles map[string]authz.Role) int {
+	n := 0
+	for _, u := range list {
+		if !u.Disabled && EffectiveRole(u, groupRoles) == authz.RoleAdmin {
+			n++
+		}
+	}
+	return n
 }
 
 // sameGroups reports whether two normalised group lists hold the same names,

@@ -292,7 +292,10 @@ func (app *App) LoginHandler(c *gin.Context) {
 		app.authSessions.Delete(existing)
 	}
 
-	sess, err := app.authSessions.Create(user.ID, user.Username, user.Role, clientIP, user.MustChangePassword)
+	// The login carries the effective role — the account's own, or one a
+	// group it is in grants — because the session is where the role is read
+	// from on every request that follows.
+	sess, err := app.authSessions.Create(user.ID, user.Username, app.effectiveRoleFor(user), clientIP, user.MustChangePassword)
 	if err != nil {
 		log.Printf("auth: could not create session for %q: %v", username, err)
 		app.failLogin(c, "Could not start a session. Try again.", http.StatusInternalServerError)
@@ -417,7 +420,7 @@ func (app *App) ChangePasswordHandler(c *gin.Context) {
 		map[string]string{"otherSessions": "ended"})
 
 	// Issue a fresh login so the person who just changed it stays signed in.
-	sess, err := app.authSessions.Create(user.ID, user.Username, user.Role, reqsec.ClientIP(c.Request), false)
+	sess, err := app.authSessions.Create(user.ID, user.Username, app.effectiveRoleFor(user), reqsec.ClientIP(c.Request), false)
 	if err != nil {
 		app.setAuthCookie(c, "")
 		c.Redirect(http.StatusFound, loginPath)

@@ -1178,6 +1178,112 @@ table.admin-table {
   color: var(--fg-muted);
 }
 
+/* Where an inherited role came from, under the role pill. */
+.admin-role-via {
+  margin-top: 3px;
+  font-size: 0.68rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+}
+
+/* The group-roles dialog: one row per group, the select applying as it
+   changes. */
+.group-roles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.group-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  background: color-mix(in srgb, var(--panel-2) 45%, var(--panel));
+}
+
+.group-role-row select {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 6px 8px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs, 6px);
+}
+
+/* Preset audience tags: groups wear the shared tag; users and roles are
+   tinted so a mixed audience reads as three kinds, not one list. */
+.admin-tag--user {
+  background: color-mix(in srgb, var(--term-color-green, #5fcb96) 10%, transparent);
+}
+
+.admin-tag--role {
+  background: color-mix(in srgb, var(--term-color-yellow, #ffd166) 10%, transparent);
+}
+
+/* The preset dialog: two columns where there is room, one where there is
+   not, and the audience fieldset drawn as its own bordered panel. */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.preset-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+.preset-check input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.preset-audience {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px);
+  padding: 14px 16px 16px;
+  margin: 0 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preset-audience legend {
+  padding: 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.preset-audience .field-hint {
+  margin: 0;
+}
+
+.presets-table .presets-conn {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
 /* Version, uptime, mode: the footer facts a support ticket asks for. */
 .admin-meta {
   display: flex;

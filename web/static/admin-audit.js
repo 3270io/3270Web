@@ -30,6 +30,9 @@
     'account.updated': 'Account changed',
     'account.deleted': 'Account deleted',
     'account.first_admin_created': 'First administrator created',
+    'group.role_changed': 'Group role changed',
+    'profile.published': 'Host preset published',
+    'profile.removed': 'Host preset removed',
     'token.issued': 'API token issued',
     'token.revoked': 'API token revoked',
     'token.refused': 'API token refused',
@@ -47,7 +50,8 @@
     'session': ['session.opened', 'session.denied', 'session.closed', 'file.transfer'],
     'admin': ['account.created', 'account.updated', 'account.deleted',
               'account.first_admin_created', 'settings.saved', 'app.restarted',
-              'logs.access_changed', 'token.issued', 'token.revoked']
+              'logs.access_changed', 'token.issued', 'token.revoked',
+              'group.role_changed', 'profile.published', 'profile.removed']
   };
 
   function setStatus(message, state) {

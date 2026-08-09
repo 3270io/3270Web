@@ -89,8 +89,11 @@ followed by the most recent audit entries. The numbers refresh themselves
 every half minute while the page is open.
 
 Every page in the area carries the same navigation — **Overview**,
-**Accounts**, **Audit trail** and **Logs** — so nothing administrative is
-more than one click from anything else.
+**Accounts**, **Session screen**, **Audit trail** and **Logs** — so nothing
+administrative is more than one click from anything else. The Session screen
+page manages what the [session-selection screen](session-manager.md) offers
+and to whom: the published host presets, each with the users, groups or roles
+it is for, and the branding at the top of the screen.
 
 ### Live terminal sessions
 
@@ -145,6 +148,41 @@ person already has open** — it does not wait for them to sign in again, and it
 does not sign them out. Demotion is the direction that matters: a demoted
 administrator who kept the role until their session expired could restore it
 from the Accounts page they were still standing on.
+
+### Roles from groups
+
+A role can be assigned to a group, under **Accounts → Group roles**. Everyone
+in the group then holds that role *on top of* whatever their account holds in
+its own right — an account's effective role is the stronger of the two.
+Inheritance is additive only: being in a group never takes a role away, so
+adding somebody to a team cannot quietly demote them.
+
+The Accounts page shows the result honestly. Somebody who is an administrator
+because of a group wears the same Administrator badge, with *via ‹group›*
+under it, and the administrator count on the page and the overview counts
+them. Assigning, revoking, joining and leaving all take effect immediately in
+sessions that are already open, exactly as a direct role change does.
+
+The self-lockout rules extend to cover inheritance:
+
+- You cannot clear a group's role assignment if your own administrator role
+  depends on it, and you cannot remove your own account from such a group —
+  both are self-demotion wearing different clothes.
+- The assignment that keeps the instance's *only* enabled administrator
+  cannot be removed, just as that administrator cannot be demoted, disabled
+  or deleted. The guard counts inherited roles, so a deployment may
+  legitimately demote its last direct administrator while a group keeps the
+  instance administrable.
+
+Under [single sign-on](#single-sign-on-oidc) with a groups claim mapped, the
+groups arrive from the directory at each sign-in — so a role assigned here to
+a directory group follows the directory's own membership, which is the point
+of managing teams centrally. (`OIDC_ADMIN_GROUPS` still works and is checked
+independently; group roles are this instance's own mapping, visible and
+editable on the page.)
+
+Every change is written to the audit trail as `group.role_changed`, with the
+group and the role it now grants.
 
 ### From the command line
 

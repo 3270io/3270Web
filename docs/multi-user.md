@@ -383,6 +383,8 @@ against that host, and when* — which has to survive being asked months later.
 | Sign-out, password changed | account, address |
 | First administrator created, or a wrong setup code | address |
 | Account created, changed, deleted | who did it, and to whom |
+| Group role assigned or cleared | who did it, the group, the role it now grants |
+| Host preset published or removed | who did it, the preset, who it is offered to |
 | API token issued, revoked, or refused | token id, account, scopes |
 | Session opened, or refused | account, target host, and why it was refused |
 | Session disconnected by an administrator | who did it, whose session, target host |

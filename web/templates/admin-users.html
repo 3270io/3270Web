@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=16">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=6">
     <script src="/static/theme.js?v=9" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -30,7 +30,6 @@
                     </div>
                 </div>
                 <div class="toolbar">
-                    <button type="button" data-branding-open>Session screen</button>
                     <a class="button-link" href="/">Back to 3270Web</a>
                 </div>
             </div>
@@ -66,6 +65,7 @@
                         <option value="external">Single sign-on</option>
                     </select>
                     <button type="button" data-admin-refresh>Refresh</button>
+                    <button type="button" data-admin-group-roles>Group roles</button>
                     <button type="button" data-admin-add>Add account</button>
                 </div>
             </div>
@@ -225,47 +225,27 @@
         </div>
     </div>
 
-    <!-- Session-selection screen branding -->
-    <div class="admin-dialog" data-dialog="branding" hidden>
-        <div class="admin-dialog-content admin-dialog-content--wide" role="dialog"
-             aria-modal="true" aria-labelledby="branding-title">
-            <h2 id="branding-title">Session selection screen</h2>
-            <p class="admin-dialog-desc">
-                What an operator meets when their account can reach more than one
-                mainframe. It is a 3270 screen, so what you type here is drawn on a
-                character grid — printable ASCII only.
-            </p>
-
-            <div class="branding-preview-wrap">
-                <pre class="branding-preview" data-branding-preview aria-label="Preview of the selection screen"></pre>
+    <!-- Roles granted by group membership -->
+    <div class="admin-dialog" data-dialog="group-roles" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="group-roles-title">
+            <div class="admin-dialog-head">
+                <h2 id="group-roles-title">Group roles</h2>
+                <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
             </div>
-
-            <form class="auth-form" data-branding-form>
-                <div class="field">
-                    <label for="branding-title-input">Title</label>
-                    <input type="text" id="branding-title-input" name="title" maxlength="40"
-                           autocomplete="off" spellcheck="false">
-                </div>
-                <div class="field">
-                    <label for="branding-banner">Banner</label>
-                    <textarea id="branding-banner" name="banner" rows="6" spellcheck="false"
-                              autocapitalize="none" autocorrect="off"
-                              aria-describedby="branding-banner-hint"></textarea>
-                    <div class="field-hint" id="branding-banner-hint" data-branding-limits></div>
-                </div>
-                <div class="field">
-                    <label for="branding-footer">Footer <span class="subtle">optional</span></label>
-                    <input type="text" id="branding-footer" name="footer" maxlength="78"
-                           autocomplete="off" spellcheck="false"
-                           placeholder="Support: extension 4400">
-                </div>
-                <div class="auth-alert auth-alert--warn" data-branding-notes hidden><span></span></div>
-                <div class="admin-dialog-actions">
-                    <button type="button" data-branding-reset>Restore the default</button>
-                    <button type="button" data-dialog-cancel>Cancel</button>
-                    <button type="submit">Save</button>
-                </div>
-            </form>
+            <p class="admin-dialog-desc">
+                A role assigned to a group is held by everyone in it, on top of
+                whatever each account holds in its own right — being in a group
+                never takes a role away. The change reaches people who are
+                already signed in.
+            </p>
+            <div class="group-roles-list" data-group-roles-list></div>
+            <p class="field-hint" data-group-roles-empty hidden>
+                No groups exist yet. Put an account in a group and it will
+                appear here.
+            </p>
+            <div class="admin-dialog-actions">
+                <button type="button" data-dialog-cancel>Done</button>
+            </div>
         </div>
     </div>
 
@@ -282,6 +262,6 @@
     </div>
 
     <script src="/static/auth-form.js?v=2" defer></script>
-    <script src="/static/admin-users.js?v=3" defer></script>
+    <script src="/static/admin-users.js?v=4" defer></script>
 </body>
 </html>

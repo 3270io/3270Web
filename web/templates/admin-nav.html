@@ -9,6 +9,7 @@
 <nav class="admin-nav" aria-label="Administration sections">
     <a href="/admin" {{ if eq . "overview" }}aria-current="page"{{ end }}>Overview</a>
     <a href="/admin/users" {{ if eq . "accounts" }}aria-current="page"{{ end }}>Accounts</a>
+    <a href="/admin/session-screen" {{ if eq . "session-screen" }}aria-current="page"{{ end }}>Session screen</a>
     <a href="/admin/audit" {{ if eq . "audit" }}aria-current="page"{{ end }}>Audit trail</a>
     <a href="/logs">Logs</a>
 </nav>

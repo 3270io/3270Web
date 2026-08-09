@@ -69,8 +69,12 @@ system 21 is 21 on whichever page it is found.
 Host profiles are published once by an administrator; the audience decides who
 each one is for.
 
-Open **Profiles** on the connect page as an administrator, tick **Share with
-everyone**, and fill in *Who this host is for*:
+The administration area manages these directly: **Admin → Session screen**
+lists every published preset with the audience it carries, and adds, edits and
+removes them in place. The same thing can be done from the connect page — open
+**Profiles** as an administrator, tick **Share with everyone** — and both
+routes write the same store, so a preset made in one room is editable in the
+other. Either way, *Who this host is for* takes three lists:
 
 | Field | Meaning |
 |---|---|
@@ -91,13 +95,18 @@ given gets the same answer as naming one that does not exist.
 
 ### Groups
 
-Groups are teams, kept on the account. They say nothing about permission on
-their own — the role does that — and exist so access can be decided for a team
-rather than a person at a time.
+Groups are teams, kept on the account. On their own they say nothing about
+permission — they decide which mainframes an account is offered — and exist so
+access can be decided for a team rather than a person at a time.
 
 Set them on the **Accounts** page. A group exists because somebody is in it, so
 typing a new name creates one; the field offers the names already in use so the
 same team is not spelled two ways.
+
+A group *can* carry a role, when an administrator assigns one under
+**Accounts → Group roles**: everyone in the group then holds that role on top
+of their own, for as long as they are in it. See
+[roles from groups](authentication.md#roles-from-groups).
 
 Under [`AUTH_MODE=oidc`](authentication.md#single-sign-on-oidc) with
 `OIDC_GROUPS_CLAIM` set, these are the **directory's own groups**, refreshed at
@@ -110,7 +119,7 @@ sign-in would overwrite the change.
 ## Branding it
 
 An operator meets this screen before anything of their own organisation's, so
-it carries the instance's name. **Accounts → Session screen** sets it, with a
+it carries the instance's name. **Admin → Session screen** sets it, with a
 live preview of the real screen beside the fields.
 
 | Field | |
