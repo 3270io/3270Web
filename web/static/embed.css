@@ -39,17 +39,16 @@ body.embedded .card {
 
 /* The title block and the session tab bar are both about a page; a frame
  * shows one session and the page around it says whose it is. */
-body.embedded .card-header,
 body.embedded [data-chrome-title],
 body.embedded [data-session-tabs] {
   display: none !important;
 }
 
-/* The toolbar stays available but starts collapsed: an integrator who wants
- * the controls can show them with the class below from their own page, and
- * the common case — a read-only or task-driven frame — gets the screen and
+/* The menus stay available but start hidden: an integrator who wants the
+ * controls can show them with the class below from their own page, and the
+ * common case — a read-only or task-driven frame — gets the screen and
  * nothing else. */
-body.embedded:not(.embedded-toolbar) [data-main-toolbar] {
+body.embedded:not(.embedded-toolbar) .appbar {
   display: none !important;
 }
 

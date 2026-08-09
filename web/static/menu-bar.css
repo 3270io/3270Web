@@ -1,0 +1,917 @@
+/* =====================================================================
+   3270Web — the menu bar
+   ---------------------------------------------------------------------
+   Loaded after style.css and ui-polish.css, and built from the same
+   design tokens (--panel, --accent, --hairline, --elev-*, --r-*), so
+   every built-in theme and every user-authored one picks it up with no
+   per-theme work.
+
+   The session used to carry three separate control surfaces: a page
+   header with ten buttons, a toolbar row with twenty-five more, and a
+   floating tools panel pinned over the top-right corner of the terminal.
+   This is the one bar that replaced them — named drop-downs on the left,
+   a small cluster of primary actions on the right, session tabs beneath,
+   and nothing at all over the screen itself.
+   ===================================================================== */
+
+body {
+  --appbar-h: 46px;
+  --appmenu-panel-w: 268px;
+}
+
+/* ---------------------------------------------------------------------
+   The bar
+   --------------------------------------------------------------------- */
+.appbar {
+  position: relative;
+  z-index: 20;
+  margin-bottom: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1), inset 0 1px 0 var(--top-sheen);
+}
+
+.appbar-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--appbar-h);
+  padding: 4px 8px;
+}
+
+.appbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding-inline: 4px 6px;
+  min-width: 0;
+}
+
+.appbar-brand .brand-mark {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.appbar-wordmark {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+/* A hairline between the brand and the menus: the mark is identity, the
+   menus are controls, and the eye should not read them as one group. */
+.appbar-menus {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-left: 6px;
+  border-left: 1px solid var(--hairline-soft);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.appbar-menus::-webkit-scrollbar {
+  display: none;
+}
+
+/* The scroll hint from ui-polish.js, restyled for this surface. Its default
+   fades to var(--panel) — the page's flat panel colour — which over the bar's
+   lit gradient reads as a grey block with a hard edge rather than as the row
+   running out of room. Same affordance, narrower, in the bar's own colour. */
+.appbar-menus.polish-hscroll::before,
+.appbar-menus.polish-hscroll::after {
+  width: 22px;
+}
+
+.appbar-menus.polish-hscroll::before {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--panel-2) 82%, var(--fg) 3%),
+    transparent
+  );
+}
+
+.appbar-menus.polish-hscroll::after {
+  background: linear-gradient(
+    to left,
+    color-mix(in srgb, var(--panel-2) 82%, var(--fg) 3%),
+    transparent
+  );
+}
+
+/* In the focus rail the brand is hidden, so the divider it separated from has
+   nothing on its left to divide. */
+body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
+  border-left: none;
+  padding-left: 0;
+}
+
+.appbar-menus > * {
+  flex: 0 0 auto;
+}
+
+/* Which host this is. Muted, monospace, and the first thing to go when the
+   bar gets tight — it is reassurance, not a control. */
+.appbar-host {
+  flex: 0 1 auto;
+  margin-left: auto;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border: 1px solid var(--hairline-soft);
+  color: var(--fg-muted);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 26ch;
+}
+
+.appbar-host-port {
+  opacity: 0.7;
+}
+
+.appbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.appbar-host + .appbar-actions {
+  margin-left: 8px;
+}
+
+/* The one labelled action on the right. Business users come to the session
+   looking for "Tasks" by name, so it says so. */
+.appbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.appbar-action svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+.appbar-action:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.appbar-action:active {
+  transform: translateY(1px);
+}
+
+.appbar-actions .icon-button {
+  width: 32px;
+  height: 32px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.appbar-actions .icon-button:hover {
+  border-color: var(--hairline);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.appbar-actions .icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---------------------------------------------------------------------
+   Menu triggers
+   --------------------------------------------------------------------- */
+.appmenu {
+  position: relative;
+  display: inline-flex;
+}
+
+.appmenu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+
+/* The disclosure caret. Drawn rather than shipped as an icon so it inherits
+   the trigger's colour and rotates with the open state. */
+.appmenu-trigger::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-left: 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0.55;
+  transition: transform var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+}
+
+.appmenu-trigger:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.appmenu.is-open > .appmenu-trigger {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.appmenu.is-open > .appmenu-trigger::after {
+  transform: translateY(1px) rotate(225deg);
+  opacity: 0.9;
+}
+
+.appmenu-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The account/system trigger is an avatar or a kebab, not a word. */
+.appmenu-trigger-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+.appmenu-trigger-icon::after {
+  display: none;
+}
+
+.appmenu-trigger-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.appmenu-trigger-icon .admin-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 0.72rem;
+}
+
+/* ---------------------------------------------------------------------
+   Panels
+   ---------------------------------------------------------------------
+   position:fixed, placed by menu-bar.js. Fixed rather than absolute so no
+   ancestor's overflow can clip a panel — the bar itself scrolls sideways
+   on a narrow screen, and an absolutely positioned panel inside it would
+   be cut off at the bar's edge.
+   --------------------------------------------------------------------- */
+.appmenu-panel {
+  position: fixed;
+  z-index: 60;
+  min-width: var(--appmenu-panel-w);
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--glass-strong);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--elev-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: appmenu-in var(--dur-1) var(--ease-out);
+}
+
+.appmenu-panel-wide {
+  min-width: 320px;
+  max-width: min(400px, calc(100vw - 16px));
+}
+
+/* The View panel carries a slider and a theme picker, not just a list. */
+.appmenu-panel-view {
+  min-width: 320px;
+}
+
+@keyframes appmenu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appmenu-panel {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Items
+   --------------------------------------------------------------------- */
+.appmenu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.82rem;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.appmenu-item:hover,
+.appmenu-item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--fg);
+  outline: none;
+}
+
+.appmenu-item:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 62%, transparent);
+}
+
+.appmenu-item[disabled],
+.appmenu-item.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.appmenu-icon {
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+  fill: var(--fg-muted);
+  transition: fill var(--dur-1) var(--ease-out);
+}
+
+.appmenu-item:hover .appmenu-icon,
+.appmenu-item:focus-visible .appmenu-icon {
+  fill: var(--accent);
+}
+
+.appmenu-icon-record {
+  fill: color-mix(in srgb, var(--danger) 78%, var(--fg-muted));
+}
+
+.appmenu-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The second line: what the item is for, when the name alone does not say.
+   Small enough that somebody who already knows reads straight past it. */
+.appmenu-sub {
+  font-size: 0.7rem;
+  font-weight: 450;
+  line-height: 1.3;
+  color: var(--fg-muted);
+  white-space: normal;
+}
+
+.appmenu-key {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  padding: 1px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+  color: var(--fg-muted);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.appmenu-item-danger:hover,
+.appmenu-item-danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.appmenu-item-danger:hover .appmenu-icon,
+.appmenu-item-danger:focus-visible .appmenu-icon {
+  fill: var(--danger);
+}
+
+/* Checked toggles. A tick on the right rather than a filled control on the
+   left: the icon column already belongs to the item's own glyph, and moving
+   it would make every menu jump between checked and unchecked states. */
+[role="menuitemcheckbox"].appmenu-item::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+
+[role="menuitemcheckbox"][aria-checked="true"].appmenu-item::after {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+
+/* Separators and headings */
+.appmenu-sep {
+  display: block;
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--hairline);
+  border: none;
+}
+
+.appmenu-sep[hidden] {
+  display: none;
+}
+
+.appmenu-heading {
+  padding: 8px 9px 4px;
+  color: var(--fg-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* A heading that follows another group rules itself off from it; the first
+   heading in a panel has nothing above it to separate from. */
+.appmenu-heading {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+}
+
+.appmenu-panel > *:first-child > .appmenu-heading:first-child,
+.appmenu-panel > .appmenu-heading:first-child {
+  margin-top: 0;
+  padding-top: 3px;
+  border-top: none;
+}
+
+.appmenu-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px 6px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline-soft);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  color: var(--fg-muted);
+  font-size: 0.73rem;
+}
+
+.appmenu-note svg {
+  width: 15px;
+  height: 15px;
+  fill: var(--accent);
+  flex: 0 0 auto;
+}
+
+.appmenu-note-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appmenu-note-text strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Rows that hold a control rather than an action — the size slider, the
+   theme picker. */
+.appmenu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 9px;
+}
+
+.appmenu-row-label {
+  flex: 0 0 auto;
+  color: var(--fg-muted);
+  font-size: 0.76rem;
+}
+
+.appmenu-row-buttons {
+  gap: 6px;
+  padding-top: 0;
+}
+
+.appmenu-chip {
+  flex: 1 1 auto;
+  padding: 5px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+
+.appmenu-chip:hover {
+  color: var(--fg);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.appmenu-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.76rem;
+}
+
+/* The zoom group, now that it is menu furniture rather than a floating
+   panel: the slider takes the room, the steppers stay square. */
+.appmenu-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.appmenu-size .icon-button {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.appmenu-size .icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.appmenu-size .terminal-size-slider {
+  flex: 1 1 auto;
+  min-width: 60px;
+}
+
+.appmenu-size .terminal-size-label {
+  flex: 0 0 auto;
+  min-width: 4ch;
+  text-align: right;
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The account block at the head of the system menu. */
+.appmenu-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px 8px;
+}
+
+.appmenu-account .admin-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.appmenu-account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.appmenu-account-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The Automation panel is two labelled groups in one menu. The wrappers are
+   kept because ui.js addresses them by name — it hides a section's divider
+   when every control in it is hidden — and so are the <form> elements the
+   recording and playback routes post through. All of them were laid out as
+   rows of icons on a toolbar; in a menu they are plain blocks. */
+.appmenu-panel .recording-controls,
+.appmenu-panel .chaos-controls,
+.appmenu-panel .recording-controls-section,
+.appmenu-panel .chaos-controls-section,
+.appmenu-panel .workflow-controls,
+.appmenu-panel .workflow-form {
+  display: block;
+  gap: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
+.appmenu-panel .recording-controls[hidden],
+.appmenu-panel .chaos-controls[hidden],
+.appmenu-panel .workflow-form[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Session tabs, attached to the bar
+   --------------------------------------------------------------------- */
+.appbar .session-tab-bar {
+  margin: 0;
+  padding: 0 10px;
+  border-top: 1px solid var(--hairline-soft);
+  border-bottom: none;
+}
+
+.appbar .session-tab {
+  margin-bottom: 0;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+}
+
+.appbar .session-tab.is-active {
+  box-shadow: inset 0 -2px 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: transparent;
+}
+
+/* ---------------------------------------------------------------------
+   The context bar — only there while something is running
+   --------------------------------------------------------------------- */
+.context-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.context-bar:empty {
+  display: none;
+}
+
+.context-bar .active-run-toolbar-row {
+  margin: 0 0 12px;
+  flex: 1 1 320px;
+}
+
+.playback-transport {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.playback-transport[hidden] {
+  display: none;
+}
+
+.playback-transport-label {
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.context-bar .record-download-link,
+.context-bar .sample-status {
+  margin-bottom: 12px;
+}
+
+/* ---------------------------------------------------------------------
+   Collapsed — the bar's own chevron
+   ---------------------------------------------------------------------
+   body.chrome-hidden is the state theme.js already persisted for "hide the
+   header and toolbar". What it hides now is one bar, and it leaves the
+   chevron that brings it back: a mode with no visible way out is a trap.
+   --------------------------------------------------------------------- */
+body.chrome-hidden .appbar,
+body.authentic-chrome-hidden .appbar {
+  margin-bottom: 8px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body.chrome-hidden .appbar-bar,
+body.authentic-chrome-hidden .appbar-bar {
+  min-height: 0;
+  padding: 0;
+  justify-content: flex-end;
+}
+
+body.chrome-hidden .appbar-brand,
+body.chrome-hidden .appbar-menus,
+body.chrome-hidden .appbar-host,
+body.chrome-hidden .appbar .session-tab-bar,
+body.chrome-hidden .appbar-actions > *:not([data-chrome-toggle]),
+body.authentic-chrome-hidden .appbar-brand,
+body.authentic-chrome-hidden .appbar-menus,
+body.authentic-chrome-hidden .appbar-host,
+body.authentic-chrome-hidden .appbar .session-tab-bar,
+body.authentic-chrome-hidden .appbar-actions > *:not([data-chrome-toggle]) {
+  display: none;
+}
+
+body.chrome-hidden .chrome-toggle-button,
+body.authentic-chrome-hidden .chrome-toggle-button {
+  opacity: 0.45;
+}
+
+body.chrome-hidden .chrome-toggle-button:hover,
+body.authentic-chrome-hidden .chrome-toggle-button:hover {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------
+   Focus mode
+   ---------------------------------------------------------------------
+   The rail is a single fixed strip that slides down from the top edge.
+   The bar is its only child now, so it lays itself out along the rail
+   instead of three separate blocks having to be re-ordered.
+   --------------------------------------------------------------------- */
+body[data-focus="on"] [data-focus-rail-zone] .appbar {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  min-width: 0;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .appbar-bar {
+  flex: 0 1 auto;
+  min-height: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .appbar .session-tab-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border-top: none;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .appmenu-trigger {
+  padding-block: 3px;
+  font-size: 0.75rem;
+}
+
+body[data-focus="on"] [data-focus-rail-zone] .appbar-action {
+  padding-block: 4px;
+  font-size: 0.72rem;
+}
+
+/* ---------------------------------------------------------------------
+   Embedded mode
+   ---------------------------------------------------------------------
+   An embedded terminal is somebody else's page furniture; it gets the
+   terminal and nothing else. embed.css hid the old header the same way.
+   --------------------------------------------------------------------- */
+body.embedded .appbar-brand,
+body.embedded .appbar-host {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Narrow screens
+   ---------------------------------------------------------------------
+   The bar sheds identity before it sheds controls: the wordmark goes
+   first, then the host chip, then the Tasks label — the buttons
+   themselves are the last thing to change.
+   --------------------------------------------------------------------- */
+@media (max-width: 1080px) {
+  .appbar-wordmark {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .appbar-host {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .appbar-action span {
+    display: none;
+  }
+
+  .appbar-action {
+    padding: 6px 9px;
+  }
+
+  .appmenu-trigger {
+    padding-inline: 8px;
+  }
+}
+
+/* On a phone a drop-down anchored to its trigger is a column of items in a
+   third of the screen. Let the panels use the width they have. */
+@media (max-width: 560px) {
+  .appmenu-panel,
+  .appmenu-panel-wide,
+  .appmenu-panel-view {
+    min-width: min(320px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+  }
+
+  /* On a phone the menus lose the tug of war with the action cluster and end
+     up in a sideways-scrolling peephole a trigger and a half wide. Give them
+     their own row instead: it costs 34px of height and turns four half-hidden
+     menus back into four menus. */
+  .appbar-bar {
+    gap: 4px;
+    padding: 4px;
+    flex-wrap: wrap;
+  }
+
+  .appbar-menus {
+    order: 3;
+    flex: 1 1 100%;
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--hairline-soft);
+    padding-top: 4px;
+  }
+
+  .appbar-actions {
+    margin-left: auto;
+  }
+}
+
+/* Coarse pointers get bigger targets — the same rule touch.css applies to
+   the rest of the session. */
+body.touch-device .appmenu-item {
+  padding-block: 10px;
+}
+
+body.touch-device .appmenu-trigger {
+  padding-block: 9px;
+}

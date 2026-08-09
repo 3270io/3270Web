@@ -435,9 +435,7 @@ body.theme-custom .screen-oia {
 }
 
 body.chrome-hidden [data-chrome-title],
-body.authentic-chrome-hidden [data-chrome-title],
-body.chrome-hidden [data-main-toolbar],
-body.authentic-chrome-hidden [data-main-toolbar] {
+body.authentic-chrome-hidden [data-chrome-title] {
   display: none;
 }
 
@@ -529,26 +527,6 @@ body.terminal-fit-active .card {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-}
-
-[data-main-toolbar] {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-[data-main-toolbar]::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.header-chrome-actions {
-  margin-left: auto;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
 }
 
 .status-indicator {
@@ -719,192 +697,6 @@ body.terminal-fit-active .card {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-}
-
-.recording-controls {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  height: 48px;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: linear-gradient(135deg, var(--panel-2), transparent);
-}
-
-.recording-controls-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-
-.recording-controls-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.recording-controls-toggle:hover {
-  color: var(--fg);
-}
-
-.recording-controls-panel {
-  overflow: hidden;
-  max-width: 900px;
-  opacity: 1;
-  transform: translateX(0);
-  transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.recording-controls.is-collapsed .recording-controls-panel {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  max-width: 0;
-  width: 0;
-  opacity: 0;
-  transform: translateX(10px);
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.recording-controls-section {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.recording-controls-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  opacity: 0.9;
-}
-
-.recording-controls .status-indicator {
-  font-size: 0.76rem;
-}
-
-.recording-controls .workflow-controls {
-  gap: 8px;
-}
-
-.chaos-controls {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  height: 48px;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: linear-gradient(135deg, var(--panel-2), transparent);
-}
-
-.chaos-controls-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-
-.chaos-controls-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.chaos-controls-toggle:hover {
-  color: var(--fg);
-}
-
-.toolbar-section-toggle-icon {
-  width: 14px;
-  height: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: currentColor;
-  transform: rotate(0deg);
-  transition: transform 0.2s ease;
-}
-
-.toolbar-section-toggle-icon svg {
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-}
-
-.terminal-tools-toggle .toolbar-section-toggle-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.recording-controls-toggle[aria-expanded="true"] .toolbar-section-toggle-icon,
-.chaos-controls-toggle[aria-expanded="true"] .toolbar-section-toggle-icon,
-.terminal-tools-widget:not(.is-collapsed) .terminal-tools-toggle .toolbar-section-toggle-icon {
-  transform: rotate(180deg);
-}
-
-.chaos-controls-panel {
-  overflow: hidden;
-  max-width: 900px;
-  opacity: 1;
-  transform: translateX(0);
-  transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.chaos-controls.is-collapsed .chaos-controls-panel {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  max-width: 0;
-  width: 0;
-  opacity: 0;
-  transform: translateX(10px);
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.chaos-controls-section {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chaos-controls-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  opacity: 0.9;
-}
-
-.chaos-controls .status-indicator {
-  font-size: 0.76rem;
 }
 
 .workflow-status {
@@ -2067,9 +1859,8 @@ pre, pre input, textarea {
   min-width: 0;
 }
 
-.terminal-width-column > .card-header,
-.terminal-width-column > [data-main-toolbar],
-.terminal-width-column > .active-run-toolbar-row,
+.terminal-width-column > .appbar,
+.terminal-width-column > .context-bar,
 /* The sample-app chip sizes to its content — see the note in
    ui-polish.css. It used to be stretched to the terminal's full width as a
    banner. */
@@ -2083,73 +1874,6 @@ pre, pre input, textarea {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.terminal-tools-widget {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.terminal-tools-panel {
-  overflow: hidden;
-  max-width: 1100px;
-  opacity: 1;
-  transform: translateX(0);
-  transition: max-width 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
-}
-
-/* visibility:hidden, as the recording and chaos panels above already do.
-   Without it the collapsed panel is merely clipped to zero width: its seven
-   controls stay in the tab order, so a keyboard user tabs to five buttons and
-   a slider sitting off the side of the viewport, with no way to see where the
-   focus went. pointer-events:none hid them from the mouse only. */
-.terminal-tools-widget.is-collapsed .terminal-tools-panel {
-  max-width: 0;
-  /* And no height either.
-     max-width:0 with overflow:hidden clips the panel horizontally but still
-     lays its seven controls out — in a zero-width column, so each one wraps
-     onto its own line and the "collapsed" panel is 170px tall. It is
-     invisible, but a position:fixed box at the top right corner of the
-     viewport still swallows every tap that lands on it, and what is under it
-     is the right-hand end of the header: Accounts, Sign out, Settings. The
-     symptom is a header whose buttons do nothing, with nothing on screen to
-     explain why. */
-  height: 0;
-  opacity: 0;
-  transform: translateX(10px);
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.terminal-tools-toggle {
-  width: 36px;
-  height: 36px;
-}
-
-.terminal-tools-widget:not(.is-collapsed) .terminal-tools-toggle {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.terminal-controls-floating {
-  flex-wrap: nowrap;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 10px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
-}
-
-.toolbar-terminal-controls {
-  margin-left: auto;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 /* WCAG 1.4.10. Below roughly a tablet the 80-column grid is wider than the
@@ -2174,24 +1898,6 @@ pre, pre input, textarea {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* The floating pill keeps its controls on one line while they fit, which is
-   what nowrap was for — but nowrap also means they keep going when they do
-   not fit, off the side of the viewport. That failed WCAG 1.4.10 at 320px and
-   1.4.4 at 200% text, where the size controls left the screen entirely and
-   could not be reached at all. wrap is identical while there is room. */
-.terminal-controls-floating .terminal-controls-group {
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.terminal-controls-floating .terminal-size-control {
-  min-width: 0;
-}
-
-.terminal-controls-floating .terminal-size-slider {
-  min-width: 0;
 }
 
 .terminal-size-control {
@@ -2251,98 +1957,11 @@ pre, pre input, textarea {
 }
 
 @media (max-width: 980px) {
-  .terminal-tools-widget {
-    top: 10px;
-    right: 10px;
-  }
-
-  .terminal-controls-floating {
-    padding: 6px 8px;
-  }
-
   .terminal-size-slider {
     width: 110px;
   }
 
-  /* One scrolling row, not three wrapped ones.
-
-     The header action row is nowrap and, with every icon button plus the
-     BUSINESS/Profiles/Connection/About labels, comfortably wider than a
-     phone — and wider than a portrait tablet too, which is the case this
-     used to miss: the fix below only applied under 560px, so anything from
-     a small tablet up to just short of this 980px query still pushed the
-     document sideways. And since a position:fixed box is sized from the
-     initial containing block, that stretched the fixed tools widget and
-     bottom action bar along with it.
-
-     Wrapping would keep the document inside the viewport but spends height
-     doing it: eleven controls at 44px each becomes a tall block, and with
-     the brand lockup, the account chip and the Disconnect row above it the
-     terminal itself starts well down the screen — a 24x80 screen squeezed
-     into whatever is left, which is a terminal nobody can read.
-
-     A nowrap row inside an overflow-x:auto container costs one row and does
-     not widen the page, because the overflow is the container's to scroll
-     and not the document's. The controls stay in the same order and the
-     same DOM, so tooltips, the command palette and focus mode are
-     untouched. */
-  .header-chrome-actions,
-  .toolbar[data-main-toolbar] {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    margin-left: 0;
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    /* Room for the scrollbar on the platforms that reserve one, so the last
-       row of buttons is not clipped in half. */
-    padding-bottom: 2px;
-  }
-
-  .header-chrome-actions::-webkit-scrollbar,
-  .toolbar[data-main-toolbar]::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Scrollable rows only work if their children refuse to be squeezed. */
-  .header-chrome-actions > *,
-  .toolbar[data-main-toolbar] > * {
-    flex: 0 0 auto;
-  }
-
-  /* The header row itself has to wrap here, not only on a phone.
-
-     It holds three items — the brand lockup, the account chip and the action
-     group — and only the first two can shrink. On a portrait tablet that left
-     the lockup squeezed to nothing with its mark and wordmark spilling out
-     under the chip, and the scrollable action group reduced to a peephole a
-     couple of buttons wide, its first label sliced down the middle.
-
-     Giving the actions their own full-width row costs one row of height and
-     gives the lockup its natural width back, and the scrollable strip gets
-     the whole card to scroll in. Focus mode is excluded: there the same
-     header is laid out along a single slim rail, which wrapping would turn
-     into a two-row band across the top of the terminal. */
-  body:not([data-focus="on"]) .card-header {
-    flex-wrap: wrap;
-    row-gap: 10px;
-  }
-
-  body:not([data-focus="on"]) .card-header .brand-lockup {
-    flex: 1 1 auto;
-  }
-
-  body:not([data-focus="on"]) .card-header .user-chip {
-    margin-left: auto;
-  }
-
-  body:not([data-focus="on"]) .card-header .header-chrome-actions {
-    flex: 1 1 100%;
-    order: 3;
-  }
+    }
 }
 
 /* Phone widths.
@@ -2379,50 +1998,6 @@ pre, pre input, textarea {
     font-size: 0.82rem;
   }
 
-  /* Only the expanded widget spans the screen. Collapsed it must stay a bare
-     toggle in the corner — stretching it there turns it into a full-width
-     empty panel, and letting its hidden controls wrap inside a zero-width box
-     makes that panel hundreds of pixels tall. */
-  .terminal-tools-widget:not(.is-collapsed) {
-    left: 10px;
-    right: 10px;
-    justify-content: flex-end;
-    align-items: flex-start;
-  }
-
-  /* Flex items default to min-width:auto — never narrower than their
-     min-content width. That is what kept the widget 545px wide despite being
-     pinned to both edges of a 412px viewport: the controls inside set a floor
-     the box could not go below. Release the floor down the whole chain so the
-     pinning decides the width and the rows wrap instead. */
-  .terminal-tools-widget:not(.is-collapsed),
-  .terminal-tools-widget:not(.is-collapsed) .terminal-tools-panel,
-  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-floating,
-  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-group,
-  .terminal-tools-widget:not(.is-collapsed) .terminal-size-control {
-    min-width: 0;
-  }
-
-  .terminal-tools-widget:not(.is-collapsed) .terminal-tools-panel {
-    flex: 1 1 auto;
-  }
-
-  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-floating,
-  .terminal-tools-widget:not(.is-collapsed) .terminal-controls-group {
-    flex-wrap: wrap;
-  }
-
-  /* The slider is the only elastic control; give it its own row and let it
-     take whatever width is left rather than forcing the row over-wide. */
-  .terminal-tools-widget:not(.is-collapsed) .terminal-size-control {
-    flex: 1 1 100%;
-  }
-
-  .terminal-tools-widget:not(.is-collapsed) .terminal-size-slider {
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
-  }
 }
 
 /* Label, host field and four buttons. The row must wrap: laid out nowrap it

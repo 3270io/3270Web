@@ -51,7 +51,7 @@ round-trip from every Tab and arrow keypress. See
 | Screen history / scrollback — the last 50 screens per session | ✅ |
 | Hotspots — clickable PF/PA legends and URLs printed by the application | ✅ |
 | Print screen | ✅ |
-| Focus mode — the terminal fills the display, with an auto-hiding toolbar rail | ✅ |
+| Focus mode — the terminal fills the display, with an auto-hiding menu rail | ✅ |
 | Business and Engineering workspace modes | ✅ |
 | Command palette over every control | ✅ |
 

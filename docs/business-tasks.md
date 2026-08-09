@@ -36,7 +36,7 @@ Account balance enquiry                          2.4 s
 
 ## Running a task
 
-Open **Tasks** from the toolbar (the checklist icon) or the command palette.
+Open **Tasks** from the menu bar (the labelled button on the right) or the command palette.
 Tasks are business-user surface, so the control stays visible in Business
 mode.
 

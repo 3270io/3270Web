@@ -124,7 +124,7 @@ workflow recording do the heavy lifting.
 
     ---
 
-    Press ++ctrl+k++ from anywhere — even mid-keystroke in the terminal — to search every toolbar and modal action, jump into buried chaos and recording controls, and switch themes without opening Settings.
+    Press ++ctrl+k++ from anywhere — even mid-keystroke in the terminal — to search every menu and modal action, jump straight to a chaos or recording control, and switch themes without opening Settings.
 
     [:octicons-arrow-right-24: Command Palette](keyboard-and-controls.md#command-palette)
 
@@ -146,7 +146,7 @@ workflow recording do the heavy lifting.
 
 <figure markdown>
   ![Command palette](images/command-palette.png)
-  <figcaption>++ctrl+k++ searches every action, including controls in collapsed toolbar groups.</figcaption>
+  <figcaption>++ctrl+k++ searches every action, including everything inside the menus.</figcaption>
 </figure>
 
 <figure markdown>

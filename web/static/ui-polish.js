@@ -55,7 +55,7 @@
     // run:, not sel: — the settings button lives inside the chat panel, so a
     // selector entry would only be reachable once the panel is already open.
     { label: "AI provider settings", group: "Session", icon: "gear", hint: "Choose Copilot, Claude, OpenAI, Ollama, …", run: () => window.CopilotPanel && window.CopilotPanel.settings() },
-    { label: "Hide header & toolbar", group: "Session", sel: "[data-chrome-toggle]", icon: "eye", hint: "Distraction-free terminal" },
+    { label: "Collapse the menu bar", group: "Session", sel: "[data-chrome-toggle]", icon: "eye", hint: "Distraction-free terminal" },
 
     // Recording
     { label: "Start recording", group: "Recording", sel: "[data-recording-start] button[type=submit]", icon: "record" },
@@ -167,6 +167,11 @@
     // Walk up looking for a [hidden] ancestor — several controls are
     // toggled by hiding their wrapping <form>/<span> rather than themselves.
     for (let node = el; node && node !== document.body; node = node.parentElement) {
+      // A closed menu panel is hidden, and everything the menus hold would
+      // therefore drop out of the palette — which is most of the session.
+      // "Not on screen right now" is not the same as "not available": the
+      // palette exists precisely so you do not have to go and open the menu.
+      if (node.hasAttribute && node.hasAttribute("data-app-menu-panel")) continue;
       if (node.hasAttribute && node.hasAttribute("hidden")) return false;
     }
     return true;
@@ -308,18 +313,10 @@
       const el = document.querySelector(cmd.sel);
       if (!isRunnable(el)) return;
       out.push(Object.assign({}, cmd, {
-        run: () => {
-          // Expand the collapsed toolbar section first so the click has a
-          // visible effect, then activate on the next frame.
-          const section = el.closest(".recording-controls, .chaos-controls");
-          if (section && section.classList.contains("is-collapsed")) {
-            const toggle = section.querySelector("[data-recording-toggle], [data-chaos-toggle]");
-            if (toggle) toggle.click();
-            requestAnimationFrame(() => el.click());
-            return;
-          }
-          el.click();
-        }
+        // Clicking the real control, wherever it lives. A control inside a
+        // closed menu panel still runs when clicked — the panel is chrome,
+        // not a gate — so there is nothing to open first.
+        run: () => el.click()
       }));
     });
     return out.concat(sessionCommands()).concat(themeCommands());
@@ -721,7 +718,7 @@
      reachable by swiping, and nothing says so. Fade whichever edge still has
      something behind it. */
   function initToolbarScrollHints() {
-    document.querySelectorAll("[data-main-toolbar], .header-chrome-actions").forEach((el) => {
+    document.querySelectorAll(".appbar-menus").forEach((el) => {
       el.classList.add("polish-hscroll");
       const update = () => {
         const max = el.scrollWidth - el.clientWidth;

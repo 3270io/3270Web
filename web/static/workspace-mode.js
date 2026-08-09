@@ -16,17 +16,17 @@
   var BUSINESS = "business";
   var ENGINEERING = "engineering";
 
-  // Toolbar groups that belong to the automation surface. The workflow status
-  // widget is deliberately NOT here: workflow.js shows it whenever a run is
-  // live and hides it otherwise, which is the right rule in both modes — an
-  // operator in Business mode still needs to see what is driving their
+  // What belongs to the automation surface: the Automation menu (recording,
+  // playback and chaos, all of it) and the sample-app chip. The workflow
+  // status widget is deliberately NOT here — workflow.js shows it whenever a
+  // run is live and hides it otherwise, which is the right rule in both modes:
+  // an operator in Business mode still needs to see what is driving their
   // terminal when Copilot starts a run.
-  // The sample-app chip is here for the same reason: which local test server
-  // is running and on which port is a development detail, not something a
-  // business user reads.
+  // The sample-app chip is here for the same reason as the menu: which local
+  // test server is running and on which port is a development detail, not
+  // something a business user reads.
   var AUTOMATION_SELECTORS = [
-    "[data-recording-controls]",
-    "[data-chaos-controls]",
+    "[data-menu-automation]",
     "[data-sample-status]"
   ];
 
@@ -60,14 +60,16 @@
     var toggle = document.querySelector("[data-workspace-toggle]");
     if (toggle) {
       toggle.setAttribute("aria-pressed", String(automationVisible));
-      var label = automationVisible ? "Engineering" : "Business";
+      var label = automationVisible
+        ? "Engineering — recording and chaos shown"
+        : "Business — terminal only";
       var labelEl = toggle.querySelector("[data-workspace-label]");
       if (labelEl) {
         labelEl.textContent = label;
       }
       var hint = automationVisible
-        ? "Engineering mode — recording and chaos tools shown. Click for Business mode."
-        : "Business mode — terminal only. Click for Engineering mode (recording, chaos).";
+        ? "Engineering mode — the Automation menu is shown. Switch off for Business mode."
+        : "Business mode — terminal only. Switch on for the Automation menu (recording, chaos).";
       toggle.setAttribute("aria-label", hint);
       toggle.setAttribute("title", hint);
       if (toggle.hasAttribute("data-tippy-content")) {
@@ -87,8 +89,8 @@
     if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
       window.ThreeSeventyWeb.notify(
         next === ENGINEERING
-          ? "Engineering mode — recording and chaos tools are available."
-          : "Business mode — automation tools hidden.",
+          ? "Engineering mode — the Automation menu is available."
+          : "Business mode — the Automation menu is hidden.",
         "info",
         { duration: 2500 }
       );

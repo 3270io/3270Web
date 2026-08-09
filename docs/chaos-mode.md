@@ -15,9 +15,9 @@ Chaos mode explores host screens by filling input fields with generated values a
    bundled application with enough menus, forms and guarded screens to give
    a run something to map — see
    [Bundled Sample Applications](sample-apps.md).
-2. Click **Start chaos exploration** in the toolbar.
+2. Click **Automation → Start exploration**.
 3. Watch run activity in:
-   - the toolbar (`CHAOS` indicator + stats), and
+   - the active-run strip under the menu bar, and
    - the Workflow Status widget (attempts, writes, transitions, and errors).
 
 ## During the Run
@@ -35,7 +35,7 @@ You can stop the run at any time with **Stop chaos exploration**.
 
 When chaos mode ends, the UI shows completed state:
 
-- `CHAOS COMPLETE` indicator in the toolbar
+- `CHAOS COMPLETE` in the active-run strip
 - Final run statistics (steps, transitions, unique screens/inputs)
 - Completion details in the Workflow Status widget
 
@@ -43,7 +43,7 @@ This gives immediate confirmation that the run finished and data is ready for ex
 
 ## Download the JSON Output
 
-After a run has data, click **Download chaos workflow JSON** in the toolbar.
+After a run has data, click **Automation → Download workflow JSON**.
 
 - The exported file is a workflow JSON compatible with workflow load/playback **and with [3270Connect](https://github.com/3270io/3270Connect) for volume testing** — drop the file into `3270Connect run -config workflow.json` to replay it as a load test against any host. The schema (`Host`, `Port`, `Steps[]` with `Connect`/`FillString`/`PressEnter`/`PressPF<n>`/`Disconnect`) has not changed; only the discovery metadata embedded under `ChaosDiscovery` has new fields (which 3270Connect ignores).
 - If a run ID is available, the filename includes it for easier future reference.
@@ -61,7 +61,7 @@ You can reuse previous chaos results:
 You can also seed chaos mode directly from a loaded recording:
 
 1. Load a recording in the recording section.
-2. Click **Load recording into chaos** in the chaos toolbar section.
+2. Click **Automation → Load the recording into chaos**.
 3. Start or resume chaos exploration.
 
 When chaos output is saved, its filename is kept separate from the loaded recording filename to avoid overwriting the recording JSON.
@@ -70,7 +70,7 @@ When chaos output is saved, its filename is kept separate from the loaded record
 
 Chaos Hints let you guide generated input values during exploration.
 
-1. Click **Edit chaos hints** in the chaos toolbar.
+1. Click **Automation → Edit hints**.
 2. Add hint rows with:
    - `Transaction` values (for example, known transaction codes), and/or
    - `Known data` values (comma or newline separated), and/or
@@ -117,7 +117,7 @@ Use small limits first when testing new host flows, then increase limits for bro
 
 ## Discovery Report
 
-Click **View chaos discovery report** in the toolbar, or call `POST /chaos/report`, for a Markdown summary of the current run:
+Click **Automation → Discovery report**, or call `POST /chaos/report`, for a Markdown summary of the current run:
 
 - Summary line: steps, transitions, unique screens/inputs, termination reason (`max_steps`, `time_budget`, `saturated`, `stopped`, or `error`)
 - Coverage stats: new screens and transitions in the last 10 steps, current saturation streak
@@ -176,11 +176,11 @@ Set `CHAOS_TRANSITION_LOG_PATH` (or `transition_log_path` in the JSON config bod
 
 ## Running Chaos via AI Chat
 
-You can drive chaos exploration entirely through the [AI Chat side panel](ai-chat.md) instead of the toolbar. The two approaches share the same underlying engine; the difference is in how you control it.
+You can drive chaos exploration entirely through the [AI Chat side panel](ai-chat.md) instead of the menus. The two approaches share the same underlying engine; the difference is in how you control it.
 
-### Manual toolbar flow vs. AI Chat
+### Manual flow vs. AI Chat
 
-| | Manual (toolbar) | AI Chat panel |
+| | Manual (Automation menu) | AI Chat panel |
 |---|---|---|
 | Start / stop | Toolbar buttons | Chat message or tool call |
 | Monitor progress | Toolbar stats + Workflow Status widget | `chaos_status` tool, streamed to chat |
@@ -205,8 +205,8 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
 
 Manual and AI-driven chaos use the same run state, so you can mix the two freely:
 
-- Start a run from the toolbar, then ask the AI: *"What screens have been found so far?"* — the AI calls `chaos_status` against the active run.
-- Let the AI start a run in Auto Mode overnight, then use the toolbar to review and export results the next morning.
+- Start a run from the Automation menu, then ask the AI: *"What screens have been found so far?"* — the AI calls `chaos_status` against the active run.
+- Let the AI start a run in Auto Mode overnight, then use the Automation menu to review and export results the next morning.
 - Add hints through the modal, then tell the AI to resume and push further.
 
 ## API Field Naming
@@ -216,7 +216,7 @@ Chaos HTTP/MCP tools accept **both** snake_case (the documented public form) and
 ## Running chaos from an AI client
 
 Chaos exploration is available over the [MCP Server](mcp.md), so an assistant
-outside the browser can drive it. Two things differ from the toolbar:
+outside the browser can drive it. Two things differ from the menu:
 
 - The tools are in the `full` tier, which is not the default. Exploration
   presses keys unattended, so it is opted into rather than out of.

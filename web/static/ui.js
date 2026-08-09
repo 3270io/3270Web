@@ -1771,7 +1771,7 @@
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
-    const recordingStartButton = document.querySelector('form[data-recording-start] .icon-button');
+    const recordingStartButton = document.querySelector('form[data-recording-start] button');
     const workflowLoadButton = document.querySelector('[data-workflow-trigger]');
     const logsToggleCheckbox = document.querySelector('[data-logs-toggle-checkbox]');
 

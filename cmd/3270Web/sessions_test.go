@@ -510,15 +510,15 @@ func TestNewSessionControlLivesInTheTabBar(t *testing.T) {
 	src := templateSource(t, "screen.html")
 
 	bar := strings.Index(src, `class="session-tab-bar"`)
-	toolbar := strings.Index(src, "data-main-toolbar")
+	closing := strings.Index(src, "</header>")
 	trigger := strings.Index(src, "data-session-new")
-	if bar < 0 || toolbar < 0 || trigger < 0 {
-		t.Fatal("screen.html: tab bar, toolbar or new-session control is gone")
+	if bar < 0 || closing < 0 || trigger < 0 {
+		t.Fatal("screen.html: tab bar, menu bar or new-session control is gone")
 	}
-	// Between the bar's opening tag and the toolbar that follows it — which
-	// is the tab bar's own markup, without depending on its exact shape.
-	if trigger < bar || trigger > toolbar {
+	// Between the bar's opening tag and the end of the menu bar that holds it —
+	// which is the tab bar's own markup, without depending on its exact shape.
+	if trigger < bar || trigger > closing {
 		t.Error("screen.html: the new-session control left the tab bar — " +
-			"beside the tabs it reads as 'add one of these'; back in the icon row it reads as nothing")
+			"beside the tabs it reads as 'add one of these'; anywhere else it reads as nothing")
 	}
 }

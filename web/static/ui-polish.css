@@ -120,9 +120,8 @@ body {
   font-weight: 650;
 }
 
-/* Uppercase micro-labels used across toolbars and panels. */
-.recording-controls-label,
-.chaos-controls-label,
+/* Uppercase micro-labels used across the menus and panels. */
+.appmenu-heading,
 .copilot-panel-title,
 .settings-subgroup-legend,
 .active-run-label {
@@ -344,7 +343,7 @@ button.danger:hover:not(:disabled) {
 /* A destructive button focused for confirmation should not be ringed in the
    "safe" accent colour. */
 button.danger:focus-visible,
-[data-main-toolbar] > [data-disconnect-open]:focus-visible {
+.appmenu-item-danger:focus-visible {
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--danger) 78%, transparent);
 }
 
@@ -456,142 +455,11 @@ button.danger:focus-visible,
 }
 
 /* ---------------------------------------------------------------------
-   5. Toolbars — one cohesive command bar
+   5. The menu bar
+   ---------------------------------------------------------------------
+   The bar itself lives in menu-bar.css. What stays here is the handful of
+   controls that sit on it and are styled with the rest of the system.
    --------------------------------------------------------------------- */
-[data-main-toolbar] {
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid var(--hairline-soft);
-  border-radius: var(--r-lg);
-  background: var(--glass);
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
-  box-shadow: var(--elev-1), inset 0 1px 0 var(--top-sheen);
-  scroll-behavior: smooth;
-}
-
-/* Disconnect stops being a bare underlined link amongst pill buttons. */
-[data-main-toolbar] > [data-disconnect-open] {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 14px;
-  border-radius: var(--r-sm);
-  border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border));
-  color: var(--danger);
-  text-decoration: none;
-  font-size: 0.88rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--danger) 12%, transparent), transparent);
-  transition: transform var(--dur-1) var(--ease-out),
-    background-color var(--dur-2) var(--ease-out),
-    color var(--dur-2) var(--ease-out),
-    box-shadow var(--dur-2) var(--ease-out);
-}
-
-[data-main-toolbar] > [data-disconnect-open]::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  flex: none;
-  background: currentColor;
-  -webkit-mask: var(--icon-power) center / contain no-repeat;
-  mask: var(--icon-power) center / contain no-repeat;
-}
-
-[data-main-toolbar] > [data-disconnect-open]:hover {
-  background: var(--danger);
-  color: var(--bg);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--danger) 70%, transparent);
-}
-
-/* Grouped sections (RECORDING / CHAOS) read as one segmented control. */
-.recording-controls,
-.chaos-controls {
-  border-radius: var(--r-md);
-  border: 1px solid var(--hairline-soft);
-  background: color-mix(in srgb, var(--panel-2) 55%, transparent);
-  padding: 3px;
-  transition: border-color var(--dur-2) var(--ease-out),
-    box-shadow var(--dur-2) var(--ease-out);
-}
-
-.recording-controls:hover,
-.chaos-controls:hover {
-  border-color: var(--hairline);
-}
-
-.recording-controls:not(.is-collapsed),
-.chaos-controls:not(.is-collapsed) {
-  border-color: var(--accent-line);
-  box-shadow: inset 0 0 0 1px var(--accent-softer), var(--glow-sm);
-}
-
-.recording-controls-toggle,
-.chaos-controls-toggle {
-  border-radius: var(--r-xs);
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 6px 10px;
-  color: var(--fg-muted);
-  background: transparent;
-  border-color: transparent;
-}
-
-.recording-controls-toggle:hover,
-.chaos-controls-toggle:hover {
-  color: var(--accent);
-  background: var(--accent-softer);
-  transform: none;
-  box-shadow: none;
-}
-
-.recording-controls-toggle[aria-expanded="true"],
-.chaos-controls-toggle[aria-expanded="true"] {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.toolbar-section-toggle-icon svg {
-  transition: transform var(--dur-3) var(--ease-spring);
-}
-
-.recording-controls-divider,
-.chaos-controls-divider {
-  background: var(--hairline);
-}
-
-/* Panels expand with a smooth reveal instead of snapping. */
-.recording-controls-panel,
-.chaos-controls-panel,
-.terminal-tools-panel {
-  transition: opacity var(--dur-3) var(--ease-out),
-    transform var(--dur-3) var(--ease-out),
-    max-width var(--dur-3) var(--ease-out);
-}
-
-.recording-controls.is-collapsed .recording-controls-panel,
-.chaos-controls.is-collapsed .chaos-controls-panel {
-  transform: translateX(-6px);
-}
-
-/* Header chrome actions sit in their own subtle group. */
-.header-chrome-actions {
-  gap: 6px;
-  padding: 4px;
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--panel-2) 46%, transparent);
-  border: 1px solid var(--hairline-soft);
-}
-
-.header-chrome-actions > [data-about-open] {
-  font-size: 0.84rem;
-  padding: 7px 13px;
-  border-radius: var(--r-xs);
-}
-
 /* Copilot toggle is the panel's primary entry point — give it presence. */
 .copilot-toggle-button[data-copilot-toggle] {
   color: var(--accent);
@@ -818,27 +686,6 @@ body.theme-authentic .screen-container::after {
 /* ---------------------------------------------------------------- */
 /* Reads as a state label rather than a button: which surface you are on
    matters more than the fact that it can be clicked. */
-.workspace-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.74rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.workspace-toggle svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-
-.workspace-toggle[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-}
-
 /* ================================================================== */
 /* Focus mode                                                         */
 /* ================================================================== */
@@ -995,33 +842,13 @@ body[data-focus="on"][data-focus-rail="shown"] [data-focus-rail-zone]::after {
   opacity: 0;
 }
 
-/* Inside the rail everything sits on one line: header actions, tabs and
-   toolbar, in that reading order. */
-body[data-focus="on"] [data-focus-rail-zone] .card-header {
-  order: 1;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  flex: 0 0 auto;
-}
-
+/* Inside the rail the menu bar lays itself out along one line; see
+   menu-bar.css for the rest of it. */
 body[data-focus="on"] [data-focus-rail-zone] .session-tab-bar {
-  order: 2;
   margin: 0;
   border-bottom: none;
   flex: 1 1 auto;
   min-width: 0;
-}
-
-body[data-focus="on"] [data-focus-rail-zone] [data-main-toolbar] {
-  order: 3;
-  margin: 0 !important;
-  padding: 0;
-  border: none;
-  background: none;
-  box-shadow: none;
-  flex: 0 0 auto;
 }
 
 /* The wordmark is the first thing to go — you know which application you
@@ -1044,12 +871,6 @@ body[data-focus="on"] [data-focus-rail-zone] .session-tab-new-label {
 body[data-focus="on"] [data-focus-rail-zone] .session-tab-new {
   margin-left: 6px;
   padding-inline: 6px;
-}
-
-/* Floating widgets have to clear the rail when it is out. */
-body[data-focus="on"][data-focus-rail="shown"] .terminal-tools-widget {
-  transform: translateY(52px);
-  transition: transform var(--dur-2) var(--ease-out);
 }
 
 /* Scale the rail's controls down to fit its height without cramping. */
@@ -2781,16 +2602,6 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   border-radius: var(--r-xs);
 }
 
-/* Terminal tools widget */
-.terminal-tools-widget {
-  border-radius: var(--r-md);
-  border: 1px solid var(--hairline-soft);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--elev-2);
-}
-
 .terminal-control-btn.is-active,
 .terminal-control-btn-primary {
   border-color: var(--accent-line);
@@ -3339,17 +3150,14 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
    drag-resizable. */
 /* The run-status widget is anchored bottom-LEFT and so needs no offset;
    only the right-hand furniture has to step aside for the panel. */
-body.copilot-open .terminal-tools-widget,
 body.copilot-open #h3270-notification-container {
   right: calc(var(--copilot-panel-width) + 20px);
 }
 
-.terminal-tools-widget,
 #h3270-notification-container {
   transition: right var(--dur-2) var(--ease-out);
 }
 
-body.copilot-resizing .terminal-tools-widget,
 body.copilot-resizing #h3270-notification-container,
 body.copilot-resizing .page-wrap {
   transition: none;
@@ -3658,8 +3466,7 @@ body.copilot-resizing {
 
   button:hover:not(:disabled),
   .h3270-key:hover,
-  .copilot-example-chip:hover,
-  [data-main-toolbar] > [data-disconnect-open]:hover {
+  .copilot-example-chip:hover {
     transform: none;
   }
 }
@@ -3667,12 +3474,11 @@ body.copilot-resizing {
 /* Backdrop blur is expensive on low-end GPUs and unsupported in a few
    engines; the solid fallbacks below keep everything legible. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  [data-main-toolbar],
+  .appmenu-panel,
   .copilot-panel-header,
   .copilot-panel-form,
   .h3270-notification,
-  .controls.h3270-keypad,
-  .terminal-tools-widget {
+  .controls.h3270-keypad {
     background: var(--panel-2);
   }
 

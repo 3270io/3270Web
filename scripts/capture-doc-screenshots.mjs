@@ -59,7 +59,7 @@ async function dismissTooltips(page) {
 /** Hide chrome that would otherwise overlap a tightly-cropped region. */
 async function setDistractionsHidden(page, hidden) {
   await page.evaluate((hide) => {
-    const ids = ['.bg-overlay', '[data-status-widget]', '.terminal-tools-widget'];
+    const ids = ['.bg-overlay', '[data-status-widget]'];
     ids.forEach((sel) => {
       document.querySelectorAll(sel).forEach((el) => {
         el.style.visibility = hide ? 'hidden' : '';
@@ -85,11 +85,11 @@ async function ready(page) {
 }
 
 /**
- * Business mode is the default surface and hides the recording and chaos
- * groups, so the automation screenshots have to ask for Engineering mode
- * first — otherwise every toolbar callout resolves to a zero-size node.
- * The connect and session shots are deliberately left in Business mode:
- * that is what a new user actually opens.
+ * Business mode is the default surface and hides the Automation menu, so the
+ * automation screenshots have to ask for Engineering mode first — otherwise
+ * every callout inside that menu resolves to a zero-size node. The connect
+ * and session shots are deliberately left in Business mode: that is what a
+ * new user actually opens.
  */
 async function setWorkspaceMode(page, mode) {
   await page.evaluate((next) => {
@@ -99,27 +99,45 @@ async function setWorkspaceMode(page, mode) {
   await settle(page, 500);
 }
 
-/** Expand a collapsible toolbar group if it is not already open. */
-async function expandGroup(page, selector) {
-  const toggle = page.locator(selector).first();
-  if (!(await toggle.count())) return;
-  if ((await toggle.getAttribute('aria-expanded')) === 'false') {
-    await toggle.click();
+/** Open a drop-down in the menu bar by its label, and leave it open. */
+async function openMenu(page, label) {
+  const trigger = page.locator(`.appmenu-trigger:has-text("${label}")`).first();
+  if (!(await trigger.count())) return;
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+    await trigger.click();
     await settle(page, 400);
   }
+}
+
+/** Open the account and settings menu at the right-hand end of the bar. */
+async function openAccountMenu(page) {
+  const trigger = page.locator('.appmenu-end .appmenu-trigger').first();
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+    await trigger.click();
+    await settle(page, 350);
+  }
+}
+
+/** Close whichever menu is open. */
+async function closeMenus(page) {
+  await page.evaluate(() => {
+    const api = window.ThreeSeventyWeb;
+    if (api && api.menuBar) api.menuBar.close();
+  });
+  await settle(page, 250);
 }
 
 async function ensureScreen(page) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await settle(page, 800);
   if (/\/screen(?:$|\?)/.test(page.url())) {
-    await page.waitForSelector('[data-settings-open]', { timeout: 15000 });
+    await page.waitForSelector('[data-appbar]', { timeout: 15000 });
     return;
   }
   await page.fill('#hostname-input', `sampleapp:${sampleApp}:${samplePort}`);
   await page.click('#connect-btn');
   await page.waitForURL(/\/screen/, { timeout: 40000 });
-  await page.waitForSelector('[data-settings-open]', { timeout: 15000 });
+  await page.waitForSelector('[data-appbar]', { timeout: 15000 });
   await ready(page);
 }
 
@@ -301,29 +319,24 @@ async function main() {
   await page.keyboard.press('Escape');
   await settle(page, 400);
 
-  /* ---- Toolbar callouts ------------------------------------------ */
-  // The recording and chaos groups only exist on the Engineering surface.
+  /* ---- Menu bar callouts ------------------------------------------ */
+  // The Automation menu only exists on the Engineering surface.
   await setWorkspaceMode(page, 'engineering');
-  // Expand both collapsible groups so every control is visible.
-  await expandGroup(page, '[data-recording-toggle]');
-  await expandGroup(page, '[data-chaos-toggle]');
   await settle(page, 600);
   await dismissTooltips(page);
   await setDistractionsHidden(page, true);
   await annotate(page, [
-    { selector: '[data-disconnect-open]', label: 1, place: 'above' },
-    // Above, not below: the sample-app chip sits under this row in
-    // Engineering mode and a downward badge lands on top of its label.
-    { selector: '[data-logs-open]', label: 2, place: 'above' },
-    { selector: '[data-print-screen]', label: 3, place: 'above', gap: 44 },
-    { selector: '[data-recording-toggle]', label: 4 },
-    { selector: '[data-chaos-toggle]', label: 5, place: 'above' },
-    { selector: '[data-command-palette-open]', label: 6 },
-    { selector: '[data-copilot-toggle]', label: 7, place: 'above' },
-    { selector: '[data-settings-open]', label: 8 },
-    { selector: '[data-workspace-toggle]', label: 9, place: 'above' },
+    { selector: '.appmenu-trigger:has-text("Session")', label: 1, place: 'above' },
+    { selector: '.appmenu-trigger:has-text("Terminal")', label: 2, place: 'above', gap: 44 },
+    { selector: '.appmenu-trigger:has-text("View")', label: 3, place: 'above' },
+    { selector: '.appmenu-trigger:has-text("Automation")', label: 4, place: 'above', gap: 44 },
+    { selector: '[data-tasks-open]', label: 5 },
+    { selector: '[data-copilot-toggle]', label: 6, place: 'above' },
+    { selector: '[data-command-palette-open]', label: 7 },
+    { selector: '.appmenu-end .appmenu-trigger', label: 8, place: 'above' },
+    { selector: '[data-chrome-toggle]', label: 9 },
   ]);
-  await shotRegion(page, 'toolbar-real.png', ['.card-header', '[data-main-toolbar]'], 24);
+  await shotRegion(page, 'toolbar-real.png', ['.appbar'], 24);
   await clearAnnotations(page);
   await setDistractionsHidden(page, false);
 
@@ -332,39 +345,36 @@ async function main() {
   if (await fileInput.count()) {
     await fileInput.setInputFiles(workflowFile);
     await page.waitForURL(/\/screen/, { timeout: 20000 });
-    await page.waitForSelector('[data-modal-open]', { timeout: 15000 });
+    await page.waitForSelector('[data-appbar]', { timeout: 15000 });
     await ready(page);
     // Loading a recording navigates, which drops the injected style tag.
     // The workspace mode survives (it is stored per browser), but re-assert
     // it so the shot does not depend on that.
     await suppressToasts(page);
     await setWorkspaceMode(page, 'engineering');
-    await expandGroup(page, '[data-recording-toggle]');
   }
-  // workflow.js shows the status widget only while a run is live, so callout 6
-  // would point at nothing. Reveal it for the shot rather than starting a
-  // playback: this recording ends in Disconnect, which would tear down the
-  // session every later screenshot still needs.
-  await page.evaluate(() => {
-    const widget = document.querySelector('[data-status-widget]');
-    if (!widget) return;
-    widget.hidden = false;
-    widget.classList.remove('is-minimized');
-  });
   await settle(page, 400);
+  await openMenu(page, 'Automation');
   await dismissTooltips(page);
   await annotate(page, [
-    { selector: '[data-recording-start] button[type=submit]', label: 1, place: 'above' },
-    { selector: 'form[action="/workflow/play"] button', label: 2 },
-    { selector: 'form[action="/workflow/debug"] button', label: 3, place: 'above' },
-    { selector: '.workflow-controls [data-modal-open]', label: 4 },
-    { selector: 'form[action="/workflow/remove"] button', label: 5, place: 'above' },
-    { selector: '[data-status-widget]', label: 6, place: 'left' },
+    { selector: '[data-recording-start] button[type=submit]', label: 1, place: 'right' },
+    { selector: 'form[action="/workflow/play"] button', label: 2, place: 'right' },
+    { selector: 'form[action="/workflow/debug"] button', label: 3, place: 'right' },
+    { selector: '.workflow-controls [data-modal-open]', label: 4, place: 'right' },
+    { selector: 'form[action="/workflow/remove"] button', label: 5, place: 'right' },
+    { selector: '[data-wizard-open]', label: 6, place: 'right' },
   ]);
-  await shotRegion(page, 'workflow-controls-real.png', ['[data-main-toolbar]', '[data-status-widget]'], 24);
+  await shotRegion(
+    page,
+    'workflow-controls-real.png',
+    ['.appbar', '[data-app-menu].is-open [data-app-menu-panel]'],
+    24
+  );
   await clearAnnotations(page);
+  await closeMenus(page);
 
   /* ---- Settings modal -------------------------------------------- */
+  await openAccountMenu(page);
   await page.locator('[data-settings-open]').click();
   await page.waitForSelector('[data-settings-modal]:not([hidden])');
   await page.waitForSelector('.settings-tab');
@@ -389,6 +399,7 @@ async function main() {
   /* ---- Logs modal ------------------------------------------------- */
   const logsBtn = page.locator('[data-logs-open]').first();
   if ((await logsBtn.count()) && (await logsBtn.isEnabled())) {
+    await openAccountMenu(page);
     await logsBtn.click();
     const shown = await page
       .waitForSelector('.logs-modal:not([hidden]) .logs-modal-content', { timeout: 6000 })

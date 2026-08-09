@@ -18,7 +18,10 @@ description: >-
 3. Debug recording
 4. View recording JSON
 5. Remove loaded recording
-6. Workflow status indicator/widget
+6. Save the recording as a business task
+
+While a run is live, its progress shows in the strip under the menu bar and
+in the Workflow Status widget.
 
 ## Record a Session
 
@@ -32,14 +35,14 @@ description: >-
 
 1. Click **Load recording**.
 2. Choose a `.json` file.
-3. Confirm the filename appears as loaded in the toolbar.
+3. Confirm the filename appears as loaded in the Automation menu.
 4. Click **View recording** to inspect the full JSON.
 
 ## Play a Recording
 
 1. Load a recording.
 2. Click **Play recording**.
-3. Watch playback status in the toolbar and Workflow Status widget.
+3. Watch playback status in the strip under the menu bar and the Workflow Status widget.
 4. Use **Pause/Resume** in play mode if needed.
 5. Click **Stop playback** to end execution.
 
@@ -138,7 +141,7 @@ Parameters whose value lands in a hidden (password-style) field, or in a field t
 
 Use Chaos mode when you need to discover unknown screen paths or generate new workflow steps automatically.
 
-- Start/stop chaos from the toolbar
+- Start/stop chaos from the Automation menu
 - Review granular attempt status in the Workflow Status widget
 - Export the generated JSON and load it back as a standard workflow
 

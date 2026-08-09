@@ -112,35 +112,47 @@ func TestTerminalCarriesTheMainLandmark(t *testing.T) {
 	}
 }
 
-// A collapsed disclosure whose controls stay in the tab order sends focus to
-// things nobody can see. The recording and chaos panels have always used
-// visibility:hidden for this; the terminal tools widget did not, and its seven
-// controls sat off the side of the viewport, focusable.
-func TestCollapsedPanelsLeaveTheTabOrder(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "web", "static", "style.css"))
-	if err != nil {
-		t.Fatalf("read style.css: %v", err)
-	}
-	css := string(b)
+// A closed disclosure whose controls stay in the tab order sends focus to
+// things nobody can see. The toolbar's collapsible sections used to need a
+// visibility:hidden rule for this, and the floating tools widget was missed —
+// its seven controls sat off the side of the viewport, focusable.
+//
+// The menu panels replaced all of it, and they close with the hidden
+// attribute: display:none, out of the tab order, no stylesheet required. What
+// is worth pinning is that they are rendered closed — a panel that ships open
+// is one that a keyboard user tabs through on every page load.
+func TestMenuPanelsAreRenderedClosed(t *testing.T) {
+	src := templateSource(t, "screen.html")
 
-	for _, selector := range []string{
-		".recording-controls.is-collapsed .recording-controls-panel",
-		".chaos-controls.is-collapsed .chaos-controls-panel",
-		".terminal-tools-widget.is-collapsed .terminal-tools-panel",
-	} {
-		idx := strings.Index(css, selector)
+	const marker = "data-app-menu-panel"
+	panels := strings.Count(src, marker)
+	if panels == 0 {
+		t.Fatal("screen.html: no menu panels found; this test proves nothing")
+	}
+
+	for _, tag := range splitTags(src, marker) {
+		if !strings.Contains(tag, " hidden") {
+			t.Errorf("screen.html: a menu panel is not rendered closed, so its "+
+				"controls are in the tab order from page load: %s", tag)
+		}
+	}
+}
+
+// splitTags returns the source of every tag containing marker.
+func splitTags(src, marker string) []string {
+	var out []string
+	for rest := src; ; {
+		idx := strings.Index(rest, marker)
 		if idx < 0 {
-			t.Errorf("%s: rule not found", selector)
-			continue
+			return out
 		}
-		end := strings.Index(css[idx:], "}")
-		if end < 0 {
-			t.Errorf("%s: rule not closed", selector)
-			continue
+		start := strings.LastIndex(rest[:idx], "<")
+		end := strings.Index(rest[idx:], ">")
+		if start < 0 || end < 0 {
+			return out
 		}
-		if !strings.Contains(css[idx:idx+end], "visibility: hidden") {
-			t.Errorf("%s: collapsed panel keeps its controls focusable; it needs visibility: hidden", selector)
-		}
+		out = append(out, rest[start:idx+end+1])
+		rest = rest[idx+end+1:]
 	}
 }
 
