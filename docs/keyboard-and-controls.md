@@ -311,6 +311,21 @@ line that wrapped would be a line that lied. Use the zoom control in the
 terminal tools for a size that suits the device — it scales the grid, which
 keeps it a grid.
 
+**The landscape suggestion.** A phone held upright fits those 80 columns into
+about 320 pixels, which works out at a four-pixel character cell. Turned
+sideways the same screen gets half again as much width, so a note below the
+terminal suggests it.
+
+It is a suggestion and behaves like one. It never covers the terminal — it
+sits in the space portrait leaves empty underneath, which is space the screen
+cannot grow into anyway. It is not a dialog and never takes focus, so it
+cannot interrupt typing. It appears because the screen is measurably cramped
+rather than because the device is a phone: a tablet held upright has room for
+a nine-pixel cell and is never asked to rotate. Turning the phone retires it.
+Dismissing it retires it for good — somebody with rotation locked, a mounted
+device, or one hand free has answered the question, and asking again on the
+next screen is how a hint becomes a nag.
+
 The full [virtual keypad](#virtual-keyboard-keypad) is still available from
 the terminal tools widget, if a tablet has room for it.
 
