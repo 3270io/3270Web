@@ -29,10 +29,13 @@ interface.
 
 The full licence text, together with a note on where each 3270Web distribution
 obtains its s3270 binary, is reproduced in
-[`THIRD-PARTY-NOTICES.md`](https://github.com/3270io/3270Web/blob/main/THIRD-PARTY-NOTICES.md)
+[`THIRD-PARTY-LICENSES.md`](https://github.com/3270io/3270Web/blob/main/THIRD-PARTY-LICENSES.md)
 in the repository.
 
 !!! note "Not an endorsement"
 
-    The x3270 authors do not endorse 3270Web. The credit above is attribution,
-    and gratitude, and nothing more.
+    The licence's third clause reserves the authors' names: they may not be
+    used to endorse or promote products derived from the software. The x3270
+    authors have no involvement in 3270Web and have not reviewed, approved or
+    promoted it. Naming them above states what this software uses, which the
+    licence requires, and thanks them for it.

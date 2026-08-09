@@ -401,7 +401,7 @@ emulators, which 3270Web runs as a child process. Three decades of faithful
 anyone to build on — 3270Web would not exist without it. Our thanks to them.
 
 s3270 is BSD 3-Clause licensed; the full text and the per-distribution details
-are in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+are in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
 
 ## Brand
 

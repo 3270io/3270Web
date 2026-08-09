@@ -71,6 +71,11 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-Neither Paul Mattes, Don Russell, Dick Altenbern, Jeff Sparkes, GTRC, nor the
-x3270 contributors endorse 3270Web. The attribution above is exactly that —
-attribution.
+### On the third clause
+
+The licence's third clause reserves the authors' names: they may not be used to
+endorse or promote products derived from the software without prior written
+permission. Nothing here is offered as an endorsement. The x3270 authors have no
+involvement in 3270Web and have not reviewed, approved or promoted it. Naming them
+above is a statement of what this software uses, which the licence requires, and
+our thanks for it.
