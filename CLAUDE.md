@@ -51,7 +51,7 @@ go test -v -cover ./...
 
 # Docker
 docker build -t 3270web .
-docker-compose up          # dev: maps to localhost:8080
+docker-compose up          # dev: maps to localhost:3270
 
 # Windows .exe (PowerShell)
 .\scripts\build-windows.ps1
