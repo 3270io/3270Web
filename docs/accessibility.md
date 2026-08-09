@@ -17,7 +17,7 @@ under [Known issues](#known-issues) below.
 | --- | --- |
 | Standard | Web Content Accessibility Guidelines 2.1 |
 | Conformance level | AA (partial — see Known issues) |
-| Scope | The 3270Web browser interface: the connect page, the terminal, and every dialog reachable from it |
+| Scope | The 3270Web browser interface: the connect page, the terminal, every dialog reachable from it, and the account pages under `AUTH_MODE=local` |
 | Out of scope | The content of the host application. See [What 3270Web cannot fix](#what-3270web-cannot-fix) |
 | Last reviewed | This release |
 
@@ -27,11 +27,17 @@ Two passes, because neither alone is worth much.
 
 **Automated.** axe-core 4.13 against the rulesets `wcag2a`, `wcag2aa`,
 `wcag21a` and `wcag21aa`, driven through a real Chromium browser, over
-**thirteen surfaces**: the connect page, the connected terminal, and eleven
-dialogs — settings, about, connection profiles, find on screen, screen
-history, keyboard mapping, tasks, file transfer, connection details, logs and
-disconnect. Dialogs were opened before being scanned, because a hidden dialog
-is a dialog nothing checks.
+**eighteen surfaces**:
+
+- the connect page and the connected terminal
+- eleven dialogs — settings, about, connection profiles, find on screen,
+  screen history, keyboard mapping, tasks, file transfer, connection details,
+  logs and disconnect
+- the five account pages that appear under `AUTH_MODE=local` — first-run
+  setup, sign-in, password change, account administration and the audit log
+
+Dialogs were opened before being scanned, because a hidden dialog is a dialog
+nothing checks.
 
 **Manual.** The criteria automation cannot decide:
 
@@ -46,7 +52,7 @@ is a dialog nothing checks.
 ## What conforms
 
 Automated testing reports **zero WCAG 2.1 A or AA violations across all
-thirteen surfaces**. The manual pass adds:
+eighteen surfaces**. The manual pass adds:
 
 **Keyboard operation (2.1.1, 2.4.3, 2.4.7).** Every control is reachable and
 operable from the keyboard. All 45 tab stops sampled on the terminal page
@@ -72,8 +78,8 @@ character grid, and 3270Web reconstructs it.
 panel and the notification toasts are live regions, so a change in keyboard
 state, a completed step or a failure is announced without moving focus.
 
-**Bypass blocks (2.4.1).** The terminal carries a `main` landmark, and focus
-starts inside it on page load — the header, session tabs and toolbar are
+**Bypass blocks (2.4.1).** Every page carries a `main` landmark. On the
+terminal, focus starts inside it on page load — the header, session tabs and toolbar are
 already behind you. There is deliberately no skip link; see
 [Design decisions](#design-decisions).
 
@@ -86,6 +92,15 @@ of your own making is your own to check.
 
 **Reduced motion (2.3.3).** Animation is suppressed under
 `prefers-reduced-motion`.
+
+### Keeping this current
+
+A conformance statement is a measurement, and the thing measured keeps
+growing: the account pages above did not exist when the first audit ran, and
+each arrived without a `lang` attribute or a landmark. So the checks that can
+be automated are, and they enumerate the templates on disk rather than a list
+of names — a list only covers the pages somebody remembered to add to it. A
+new page that ships without them fails the build.
 
 ## Known issues
 

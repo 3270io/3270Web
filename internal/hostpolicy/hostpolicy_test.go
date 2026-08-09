@@ -30,7 +30,7 @@ func TestMatching(t *testing.T) {
 	}
 
 	for _, host := range []string{
-		"corp.example.test",         // the glob needs a label before it
+		"corp.example.test", // the glob needs a label before it
 		"tso.corp.example.test.evil.test",
 		"other-lpar",
 		"10.1.0.5",
