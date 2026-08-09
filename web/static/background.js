@@ -60,7 +60,11 @@
     "theme-minimal": { mode: "characters", density: 0.9, speed: 0.85 },
     "theme-slick": { mode: "pixels", density: 0.9, speed: 0.95 },
     "theme-yorkshire": { mode: "blocks", density: 0.6, speed: 0.6 },
-    "theme-not3270": { mode: "characters", density: 0.6, speed: 0.55 }
+    "theme-not3270": { mode: "characters", density: 0.6, speed: 0.55 },
+    "theme-io-phosphor": { mode: "characters", density: 0.7, speed: 0.6 },
+    "theme-io-amber": { mode: "characters", density: 0.7, speed: 0.6 },
+    "theme-io-ice": { mode: "pixels", density: 0.85, speed: 0.8 },
+    "theme-io-daylight": { mode: "characters", density: 0.5, speed: 0.5 }
   };
 
   var state = {

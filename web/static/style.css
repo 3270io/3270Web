@@ -324,6 +324,111 @@ body.theme-authentic .screen-container {
   box-shadow: none;
 }
 
+/* ---------------------------------------------------------------------
+   3270.io palettes
+
+   The project site and both docs sites share one four-palette design
+   system — phosphor green, amber CRT, ice and daylight — switched by a
+   GRN / AMB / ICE / DAY control. These four themes carry the same colour
+   values into the terminal so a reader who picks a palette on the site
+   finds it here as well.
+
+   Token mapping, kept the same for all four:
+     --bg              ← site --bg
+     --panel/--panel-2 ← site --surface-solid, one step lighter
+     --border          ← site --line
+     --fg/--fg-muted   ← site --text / --text-2
+     --accent(-2)      ← site --accent / --accent-2
+     --accent-contrast ← site --accent-ink
+     --aurora-1..3     ← site aurora wash, painted by .bg-overlay::before
+   --------------------------------------------------------------------- */
+
+body.theme-io-phosphor {
+  --bg: #03110d;
+  --panel: #06201a;
+  --panel-2: #0a2b22;
+  --border: rgba(78, 255, 176, 0.16);
+  --fg: #e6fff5;
+  --fg-muted: #9fe6c8;
+  --accent: #4effb3;
+  --accent-2: #7cf9d0;
+  --accent-contrast: #02130a;
+  --aurora-1: rgba(78, 255, 176, 0.18);
+  --aurora-2: rgba(90, 210, 255, 0.12);
+  --aurora-3: rgba(185, 140, 255, 0.1);
+  --bg-overlay-opacity: 0.9;
+}
+
+body.theme-io-amber {
+  --bg: #150c02;
+  --panel: #1e1204;
+  --panel-2: #291a06;
+  --border: rgba(255, 183, 77, 0.18);
+  --fg: #fff3dc;
+  --fg-muted: #e9c48a;
+  --accent: #ffb84d;
+  --accent-2: #ffd489;
+  --accent-contrast: #1a0f01;
+  --aurora-1: rgba(255, 183, 77, 0.2);
+  --aurora-2: rgba(255, 122, 89, 0.12);
+  --aurora-3: rgba(255, 231, 143, 0.08);
+  --bg-overlay-opacity: 0.9;
+}
+
+body.theme-io-ice {
+  --bg: #050b16;
+  --panel: #0a1830;
+  --panel-2: #10203f;
+  --border: rgba(120, 200, 255, 0.16);
+  --fg: #eaf5ff;
+  --fg-muted: #a7c9e8;
+  --accent: #5ad2ff;
+  --accent-2: #9be6ff;
+  --accent-contrast: #021019;
+  --aurora-1: rgba(90, 210, 255, 0.2);
+  --aurora-2: rgba(120, 140, 255, 0.14);
+  --aurora-3: rgba(80, 255, 220, 0.08);
+  --bg-overlay-opacity: 0.9;
+}
+
+/* The one light palette of the four. Terminal colours are darkened the same
+   way Paper Terminal darkens them: the host's bright 3270 primaries are
+   unreadable on a near-white screen. */
+body.theme-io-daylight {
+  --bg: #eef2f0;
+  --panel: #ffffff;
+  --panel-2: #f6f9f7;
+  --border: rgba(12, 60, 45, 0.16);
+  --fg: #082019;
+  --fg-muted: #3d5c51;
+  --accent: #00875a;
+  --accent-2: #00a76f;
+  --accent-contrast: #ffffff;
+  --aurora-1: rgba(0, 160, 105, 0.12);
+  --aurora-2: rgba(0, 130, 190, 0.08);
+  --aurora-3: rgba(140, 100, 220, 0.06);
+  --term-color-blue: #0b6fa4;
+  --term-color-red: #c0392b;
+  --term-color-pink: #9c3f86;
+  --term-color-green: #12805a;
+  --term-color-turquoise: #0f7f8f;
+  --term-color-yellow: #a16207;
+  --term-color-white: #2b3b35;
+  --bg-overlay-opacity: 0.9;
+}
+
+/* Aurora wash — the same three-radial recipe the site paints behind its
+   content, tinted by each palette's --aurora tokens. */
+body.theme-io-phosphor .bg-overlay::before,
+body.theme-io-amber .bg-overlay::before,
+body.theme-io-ice .bg-overlay::before,
+body.theme-io-daylight .bg-overlay::before {
+  background:
+    radial-gradient(120% 90% at 12% -10%, var(--aurora-1), transparent 58%),
+    radial-gradient(110% 80% at 88% 0%, var(--aurora-2), transparent 55%),
+    radial-gradient(120% 120% at 50% 120%, var(--aurora-3), transparent 60%);
+}
+
 body.theme-custom .screen-container,
 body.theme-custom .screen-oia {
   border-radius: 0;
@@ -4771,7 +4876,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
 }
 
 /* Light theme adjustments */
-body.theme-light #h3270-notification-container .h3270-notification {
+body.theme-light #h3270-notification-container .h3270-notification,
+body.theme-io-daylight #h3270-notification-container .h3270-notification {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent);
   background: color-mix(in srgb, var(--panel) 98%, transparent);
 }
