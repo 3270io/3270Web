@@ -1197,6 +1197,10 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		// cannot break out.
 		"ThemesJSON": themesJSON,
 		"Auth":       app.authView(c),
+		// Absolute origin for the connect page's social preview tags. Empty on
+		// a request with no usable Host, in which case the template emits no
+		// card rather than one pointing at a URL that cannot be fetched.
+		"BaseURL": pageBaseURL(c),
 	})
 }
 

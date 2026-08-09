@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<!--
+  Source of record for the social preview card that Slack, LinkedIn, X, Discord
+  and iMessage render when someone posts a 3270Web link. Two copies are built
+  from it: docs/assets/og-image.png for 3270web.3270.io, and
+  web/static/og-image.png, which the running app advertises so an instance URL
+  pasted into a team chat also renders as a card.
+
+  It is committed as HTML rather than only as a PNG so the card can be edited in
+  a text editor and regenerated, instead of being reconstructed in a drawing
+  tool from memory. Regenerate after editing:
+
+    node scripts/build-og-card.mjs
+    node scripts/build-og-card.mjs brand/og-card.html web/static/og-image.png 1
+
+  The card is 1200x630 — the size every scraper lays out. The docs copy is
+  captured at @2x, which is what keeps the type crisp on the retina phone
+  screens where most links are actually opened; the copy that ships inside the
+  binary is @1x, because 300 KB of retina detail is not worth carrying there.
+
+  The mark is the same drawing as brand/3270web-mark.svg, inlined so the card is
+  a single file with no asset paths to break. Fonts come from the network when
+  it is available and from the local Inter / JetBrains Mono otherwise — both
+  render the card correctly; only the letterforms differ.
+-->
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>3270Web — social preview card</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #03110d;
+      --accent: #4effb3;
+      --accent-2: #7cf9d0;
+      --ice: #6fd6ff;
+      --text: #eafff6;
+      --muted: #8fd9be;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 1200px;
+      height: 630px;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: 'Inter', system-ui, sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Phosphor bloom top-left, a colder wash bottom-right: the same lighting
+       the sites use, so the card reads as part of the suite and not as a
+       separate poster. */
+    .card {
+      position: relative;
+      width: 1200px;
+      height: 630px;
+      padding: 52px 64px;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(ellipse 70% 60% at 12% 0%, rgba(78, 255, 179, .16) 0%, transparent 62%),
+        radial-gradient(ellipse 60% 70% at 100% 110%, rgba(111, 214, 255, .10) 0%, transparent 60%),
+        var(--bg);
+    }
+
+    /* Terminal grid. Kept under 4% opacity — on a phone-sized preview it should
+       read as texture, never as lines competing with the headline. */
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(78, 255, 179, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(78, 255, 179, .035) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    .card>* {
+      position: relative;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .lockup {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .lockup svg {
+      width: 68px;
+      height: 62px;
+    }
+
+    .wordmark {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-weight: 700;
+      font-size: 42px;
+      letter-spacing: -.01em;
+    }
+
+    .chip {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: .14em;
+      color: var(--accent);
+      border: 1px solid rgba(78, 255, 179, .38);
+      border-radius: 999px;
+      padding: 12px 26px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(78, 255, 179, .05);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    h1 {
+      font-size: 64px;
+      line-height: 1.08;
+      font-weight: 800;
+      letter-spacing: -.028em;
+      max-width: 17ch;
+    }
+
+    /* The gradient runs green to ice across the emphasised clause, which is the
+       same accent ramp the docs headers use. */
+    .grad {
+      background: linear-gradient(96deg, var(--accent-2) 0%, var(--accent) 38%, var(--ice) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .lede {
+      margin-top: 24px;
+      font-size: 24px;
+      line-height: 1.45;
+      color: var(--muted);
+      max-width: 40ch;
+    }
+
+    .foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tags {
+      display: flex;
+      gap: 14px;
+    }
+
+    .tag {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 19px;
+      font-weight: 500;
+      padding: 12px 22px;
+      border-radius: 12px;
+      background: rgba(78, 255, 179, .10);
+      border: 1px solid rgba(78, 255, 179, .22);
+      color: var(--accent-2);
+    }
+
+    .tag.solid {
+      background: var(--accent);
+      color: #03110d;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+
+    .domain {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 24px;
+      color: rgba(143, 217, 190, .55);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="top">
+      <div class="lockup">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" fill="none" role="img" aria-label="3270Web">
+          <defs>
+            <linearGradient id="face" x1="0" y1="0" x2="0.35" y2="1">
+              <stop offset="0" stop-color="#7cf9d0" />
+              <stop offset="1" stop-color="#4effb3" />
+            </linearGradient>
+            <linearGradient id="spec" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0" stop-color="#fff" stop-opacity="0.26" />
+              <stop offset="0.5" stop-color="#fff" stop-opacity="0.03" />
+              <stop offset="1" stop-color="#fff" stop-opacity="0" />
+            </linearGradient>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="5" stdDeviation="6" flood-opacity="0.45"
+                style="flood-color:#4effb3" />
+            </filter>
+            <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+              <rect width="128" height="128" fill="#fff" />
+              <g fill="#000">
+                <path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000"
+                  stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+              </g>
+            </mask>
+            <clipPath id="face-clip">
+              <rect x="30" y="46" width="70" height="46" rx="11" />
+            </clipPath>
+          </defs>
+          <rect x="52" y="32" width="54" height="46" rx="9" fill="#4effb3" fill-opacity="0.2" />
+          <rect x="41" y="39" width="62" height="46" rx="10" fill="#4effb3" fill-opacity="0.38" />
+          <g filter="url(#glow)">
+            <rect x="30" y="46" width="70" height="46" rx="11" fill="url(#face)" mask="url(#cut)" />
+          </g>
+          <g clip-path="url(#face-clip)">
+            <path d="M30 46h70v20L30 84Z" fill="url(#spec)" />
+          </g>
+        </svg>
+        <span class="wordmark">3270Web</span>
+      </div>
+      <div class="chip"><span class="dot"></span> OPEN SOURCE · MIT</div>
+    </div>
+
+    <div class="body">
+      <h1>The mainframe, <span class="grad">in a browser tab.</span></h1>
+      <p class="lede">
+        Connect to any TN3270 host from the browser — no emulator install — then
+        let AI Chat, chaos exploration and session recording do the heavy lifting.
+      </p>
+    </div>
+
+    <div class="foot">
+      <div class="tags">
+        <span class="tag solid">TN3270</span>
+        <span class="tag">AI Chat</span>
+        <span class="tag">Chaos Mode</span>
+        <span class="tag">REST API</span>
+      </div>
+      <span class="domain">3270web.3270.io</span>
+    </div>
+  </div>
+</body>
+
+</html>

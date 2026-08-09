@@ -1,3 +1,9 @@
+---
+description: >-
+  3270 screen sizes by terminal model: rows, columns, and where each model
+  is typically used.
+---
+
 # Screen Size and Model Guide
 
 3270 screen size depends on the terminal model in use.

@@ -1,9 +1,16 @@
 ﻿site_name: 3270Web
-site_description: User Guide for the 3270Web terminal client
+# Doubles as the fallback <meta name="description"> and the og:description on
+# any page without its own `description:` front matter, so it is written as a
+# sentence a search result can show rather than a shelf label.
+site_description: >-
+  Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no
+  emulator install, then record sessions, explore with AI Chat and replay them.
 site_author: 3270.io
 copyright: "(c) Since 2023 3270.io"
-site_url: https://3270Web.3270.io
-repo_url: https://github.com/jnnngs/3270Web
+# Lower-case: GitHub Pages serves this host in lower case, and the canonical
+# URL Material builds from it has to match the address readers actually land on.
+site_url: https://3270web.3270.io
+repo_url: https://github.com/3270io/3270Web
 repo_name: GitHub
 edit_uri: edit/main/docs/
 site_dir: site
@@ -129,6 +136,10 @@ extra:
   version: 1.8.6
   CNAME: 3270.io
   generator: false
+  # Short enough to sit next to the product name in a social card title, where
+  # site_description would be cut off. overrides/main.html uses it for the home
+  # page's og:title and for the preview image's alt text.
+  tagline: the mainframe in a browser tab
   social:
     # Sibling sites first, so every page in the suite offers the same way back
     # out to 3270.io and across to the other tool's guide.

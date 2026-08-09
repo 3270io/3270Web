@@ -1,3 +1,10 @@
+---
+description: >-
+  3270Web has no sign-in by default. AUTH_MODE=local adds accounts, per-user
+  passwords and expiring sessions — turn it on whenever more than one person
+  can reach the port.
+---
+
 # User Accounts and Sign-In
 
 By default 3270Web has no sign-in. It assumes one operator on a machine they

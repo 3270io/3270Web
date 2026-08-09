@@ -1,3 +1,9 @@
+---
+description: >-
+  What 3270Web provides today, capability by capability — a checklist to
+  take into an evaluation rather than a roadmap.
+---
+
 # Terminal Capabilities
 
 What an enterprise 3270 terminal is expected to do, and what 3270Web

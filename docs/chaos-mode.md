@@ -1,3 +1,10 @@
+---
+description: >-
+  Chaos mode explores host screens by filling input fields and submitting
+  AID keys, discovering navigation paths and producing reusable workflow
+  JSON.
+---
+
 # Chaos Mode
 
 Chaos mode explores host screens by filling input fields with generated values and submitting AID keys (`Enter`, `Tab`, `PF*`, and others). It is useful for discovering navigation paths and producing reusable workflow JSON.

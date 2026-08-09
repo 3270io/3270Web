@@ -1,3 +1,10 @@
+---
+description: >-
+  Turn a recorded screen flow into a guided task with named inputs and a
+  named answer, so someone can get a result without navigating a green
+  screen.
+---
+
 # Guided Business Tasks
 
 A task is a recorded screen flow with **named inputs** and a **named

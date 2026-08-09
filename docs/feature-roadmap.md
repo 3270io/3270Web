@@ -1,3 +1,9 @@
+---
+description: >-
+  Candidates for what 3270Web may do next. A menu, not a schedule — for what
+  it does today, read Terminal Capabilities.
+---
+
 # Feature Roadmap
 
 What may come next. This page is a **menu, not a schedule** — an unchecked

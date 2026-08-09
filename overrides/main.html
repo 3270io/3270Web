@@ -3,13 +3,20 @@
 {#
   3270.io documentation theme — template override.
 
+  Two things live in the head block below: the palette bootstrap, and the
+  social-preview and structured-data tags Material's community edition does
+  not emit.
+
   Material loads `extra_javascript` at the end of the body, which is too late
   to decide a palette: the reader would see a frame of phosphor green before
-  their stored choice applied. This block runs in the head, before first
+  their stored choice applied. The first block runs in the head, before first
   paint, and sets the same attributes `javascripts/3270-theme.js` maintains
   for the rest of the visit.
 
   Keep this file byte-identical between the 3270Connect and 3270Web repos.
+  Everything it emits is read out of `mkdocs.yml` and page front matter, so
+  there is nothing per-repo in here to diverge — if the two copies differ,
+  one of them is behind.
 #}
 {% block extrahead %}
   {{ super() }}
@@ -29,6 +36,119 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
+
+  {#
+    Social preview and structured data.
+
+    Material's community edition emits a title, a description and a canonical
+    link, and stops there — the built-in social card generator is an Insiders
+    feature. So a docs page posted into Slack, LinkedIn, X, Discord or iMessage
+    renders as a bare grey rectangle with a URL under it. Everything below is
+    what turns that into a card, and it is all derived from `mkdocs.yml` and
+    page front matter so it stays correct as pages are added.
+
+    Three vocabularies, because no single one is read by everything: Open Graph
+    (Slack, LinkedIn, Discord, iMessage, WhatsApp), the twitter:* pair (X), and
+    JSON-LD for search engines.
+
+    Every URL here is absolute. Scrapers fetch the image out of band, with no
+    document to resolve a relative path against, so `assets/og-image.png` would
+    silently not render — the single most common way a link ends up posting as
+    a grey box.
+  #}
+  {%- if config.site_url %}
+    {%- set base = config.site_url if config.site_url.endswith("/") else config.site_url ~ "/" %}
+    {%- set page_url = page.canonical_url if page and page.canonical_url else base %}
+    {%- set og_image = base ~ "assets/og-image.png" %}
+    {%- set description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
+    {%- set tagline = config.extra.tagline if config.extra and config.extra.tagline else config.site_description %}
+    {#- The home page has no useful <h1> to borrow — it is a hero — so it is
+        titled with the product and its tagline instead of "Home". -#}
+    {%- if page and page.is_homepage %}
+      {%- set title = config.site_name ~ " — " ~ tagline %}
+    {%- else %}
+      {%- set title = (page.title | striptags) ~ " — " ~ config.site_name %}
+    {%- endif %}
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="{{ "website" if page and page.is_homepage else "article" }}">
+    <meta property="og:site_name" content="{{ config.site_name }}">
+    <meta property="og:url" content="{{ page_url }}">
+    <meta property="og:title" content="{{ title }}">
+    <meta property="og:description" content="{{ description }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:image:secure_url" content="{{ og_image }}">
+    <meta property="og:image:type" content="image/png">
+    {#- The file is 2400x1260 so it stays crisp on a retina phone; the tags
+        declare the 1200x630 it is laid out at, which is what lets a client
+        reserve the large-card slot before the bytes arrive. -#}
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ config.site_name }} — {{ tagline }}">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="{{ title }}">
+    <meta name="twitter:description" content="{{ description }}">
+    <meta name="twitter:image" content="{{ og_image }}">
+    <meta name="twitter:image:alt" content="{{ config.site_name }} — {{ tagline }}">
+
+    {#- One @graph per page rather than several loose blocks, so the nodes can
+        reference each other by @id: the home page describes the product, every
+        other page is one article within the documentation, and both name the
+        same publisher. The Organization is written out in full on each page
+        instead of pointing at 3270.io — a bare cross-origin @id is a reference
+        a validator cannot resolve, and the node is three lines. -#}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": {{ (base ~ "#website") | tojson }},
+          "name": {{ config.site_name | tojson }},
+          "url": {{ base | tojson }},
+          "description": {{ config.site_description | tojson }},
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {%- if page and page.is_homepage %}
+        {
+          "@type": "SoftwareApplication",
+          "name": {{ config.site_name | tojson }},
+          "url": {{ base | tojson }},
+          "applicationCategory": "DeveloperApplication",
+          "description": {{ config.site_description | tojson }},
+          "license": "https://opensource.org/licenses/MIT",
+          "codeRepository": {{ config.repo_url | tojson }},
+          "softwareVersion": {{ (config.extra.version | string) | tojson }},
+          "publisher": { "@id": "https://3270.io/#organization" },
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        }
+        {%- else %}
+        {
+          "@type": "TechArticle",
+          "headline": {{ (page.title | striptags) | tojson }},
+          "description": {{ description | tojson }},
+          "url": {{ page_url | tojson }},
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": {{ (base ~ "#website") | tojson }} },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+        {%- endif %}
+      ]
+    }
+    </script>
+  {%- endif %}
 {% endblock %}
 
 {#

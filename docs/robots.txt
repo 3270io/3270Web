@@ -1,0 +1,13 @@
+# 3270Web documentation — 3270web.3270.io
+#
+# Files at the top of docs_dir are copied to the site root verbatim, so this
+# lands at /robots.txt.
+#
+# The whole guide is meant to be indexed; the file exists to point crawlers at
+# the sitemap MkDocs generates on every build, and to answer with a 200 rather
+# than a 404 that some crawlers read as "no rules could be fetched".
+
+User-agent: *
+Allow: /
+
+Sitemap: https://3270web.3270.io/sitemap.xml
