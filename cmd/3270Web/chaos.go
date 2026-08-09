@@ -845,7 +845,7 @@ func (app *App) applyChaosEnvSettings(cfg *chaos.Config) {
 	if app == nil || cfg == nil {
 		return
 	}
-	settings, _, err := app.settingsSnapshot()
+	settings, _, _, err := app.settingsSnapshot()
 	if err != nil {
 		return
 	}
@@ -919,7 +919,7 @@ func (app *App) chaosExportSuccessBalanceSetting() float64 {
 	if app == nil {
 		return defaultBalance
 	}
-	settings, _, err := app.settingsSnapshot()
+	settings, _, _, err := app.settingsSnapshot()
 	if err != nil {
 		return defaultBalance
 	}

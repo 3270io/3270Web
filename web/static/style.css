@@ -2312,6 +2312,37 @@ pre, pre input, textarea {
   .toolbar[data-main-toolbar] > * {
     flex: 0 0 auto;
   }
+
+  /* The header row itself has to wrap here, not only on a phone.
+
+     It holds three items — the brand lockup, the account chip and the action
+     group — and only the first two can shrink. On a portrait tablet that left
+     the lockup squeezed to nothing with its mark and wordmark spilling out
+     under the chip, and the scrollable action group reduced to a peephole a
+     couple of buttons wide, its first label sliced down the middle.
+
+     Giving the actions their own full-width row costs one row of height and
+     gives the lockup its natural width back, and the scrollable strip gets
+     the whole card to scroll in. Focus mode is excluded: there the same
+     header is laid out along a single slim rail, which wrapping would turn
+     into a two-row band across the top of the terminal. */
+  body:not([data-focus="on"]) .card-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  body:not([data-focus="on"]) .card-header .brand-lockup {
+    flex: 1 1 auto;
+  }
+
+  body:not([data-focus="on"]) .card-header .user-chip {
+    margin-left: auto;
+  }
+
+  body:not([data-focus="on"]) .card-header .header-chrome-actions {
+    flex: 1 1 100%;
+    order: 3;
+  }
 }
 
 /* Phone widths.
@@ -2394,8 +2425,13 @@ pre, pre input, textarea {
   }
 }
 
+/* Label, host field and four buttons. The row must wrap: laid out nowrap it
+   is wider than the card on anything narrower than a laptop, and since the
+   overflow is nobody's to scroll the Connect button simply hangs off the edge
+   of the screen — the one control the page exists for. */
 .connect-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 14px;
@@ -2412,7 +2448,11 @@ pre, pre input, textarea {
 }
 
 .connect-row input {
-  flex: 1;
+  /* min-width:0 as well as a basis: an input carries an intrinsic minimum
+     width of its size attribute, which is what pushed the row past the card
+     before it would give any of it back. */
+  flex: 1 1 200px;
+  min-width: 0;
   background-color: var(--panel);
   border: 1px solid var(--border);
   color: var(--fg);
@@ -2421,6 +2461,20 @@ pre, pre input, textarea {
 .connect-row button {
   white-space: nowrap;
   padding: 10px 16px;
+  flex: 0 0 auto;
+}
+
+/* Tablet widths: host field on its own line, the buttons together beneath it,
+   rather than a ragged wrap that strands Connect on a line of its own. */
+@media (max-width: 900px) {
+  .connect-row label,
+  .connect-row input {
+    flex: 1 1 100%;
+  }
+
+  .connect-row button {
+    flex: 1 1 auto;
+  }
 }
 
 .saved-hosts-row {
@@ -4342,6 +4396,11 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-wrap: wrap;
   overflow-x: hidden;
   padding-bottom: 4px;
+  /* The form is a flex column with overflow:hidden, so a row left to shrink
+     is a row that gets cut in half when the modal is short — which is every
+     modal on a tablet held upright. The scrolling panel of fields is the one
+     row that should give up height; the tab strip is how you reach it. */
+  flex: 0 0 auto;
 }
 
 .settings-tab {
@@ -4569,6 +4628,22 @@ html.workflow-status-minimized .workflow-status-widget-header {
   line-height: 1.3;
 }
 
+/* A setting the API refuses to write is shown as the value it has, not as an
+   edit the save is going to reject. See applyReadOnly in ui.js. */
+.settings-field.is-readonly label {
+  opacity: 0.75;
+}
+
+.settings-field.is-readonly input,
+.settings-field.is-readonly select {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-readonly-note {
+  font-style: italic;
+}
+
 .settings-error {
   font-size: 0.8rem;
   color: #ff8b8b;
@@ -4577,6 +4652,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-actions {
   display: flex;
   justify-content: flex-end;
+  /* Same reason as .settings-tabs: Save must not be the row that shrinks. */
+  flex: 0 0 auto;
   position: sticky;
   bottom: 0;
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--panel) 92%, transparent) 18%);
