@@ -24,7 +24,10 @@
   "use strict";
 
   var BAR_ID = "touch-action-bar";
+  var KEYS_ID = "touch-action-bar-keys";
   var EXPANDED_KEY = "3270Web.touchBarExpanded";
+  var COLLAPSED_KEY = "3270Web.touchBarCollapsed";
+  var HEIGHT_VAR = "--touch-bar-height";
 
   // PRIMARY is what ends a screen: submit it, move between fields, clear it,
   // recover from an operator error. PF3 is here rather than in the drawer
@@ -90,12 +93,79 @@
     return btn;
   }
 
+  function readFlag(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (_) {
+      // Private browsing; the caller falls back to its default.
+      return null;
+    }
+  }
+
+  function writeFlag(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (_) {
+      // As above: the preference simply does not persist.
+    }
+  }
+
+  // The collapse handle. The bar is the only permanently docked furniture on a
+  // touch device, and a 3270 screen it covers is a screen an operator cannot
+  // read — most visibly the AI chat panel, whose input sits at the bottom of
+  // its own column and so lands underneath the keys. Collapsing is the same
+  // gesture the terminal tools widget offers at the top of the screen: the
+  // panel folds away and a labelled pill stays behind to bring it back.
+  function makeHandle() {
+    var handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "touch-bar-handle";
+    handle.setAttribute("aria-controls", KEYS_ID);
+
+    var icon = document.createElement("span");
+    icon.className = "touch-bar-handle-icon";
+    icon.setAttribute("aria-hidden", "true");
+
+    var label = document.createElement("span");
+    label.className = "touch-bar-handle-label";
+    label.textContent = "Keys";
+
+    handle.appendChild(icon);
+    handle.appendChild(label);
+
+    // Same reason as the keys: taking focus would close the software keyboard
+    // and move the active element off the field being typed into.
+    handle.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+    });
+    return handle;
+  }
+
+  function setCollapsed(bar, handle, collapsed) {
+    bar.classList.toggle("is-collapsed", collapsed);
+    handle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    var label = collapsed ? "Show terminal keys" : "Hide terminal keys";
+    handle.setAttribute("aria-label", label);
+    handle.setAttribute("title", label);
+  }
+
   function buildBar() {
     var bar = document.createElement("div");
     bar.id = BAR_ID;
     bar.className = "touch-action-bar";
     bar.setAttribute("role", "toolbar");
     bar.setAttribute("aria-label", "Terminal keys");
+
+    var handleRow = document.createElement("div");
+    handleRow.className = "touch-bar-handle-row";
+    var handle = makeHandle();
+    handleRow.appendChild(handle);
+    bar.appendChild(handleRow);
+
+    var keys = document.createElement("div");
+    keys.id = KEYS_ID;
+    keys.className = "touch-bar-keys";
+    bar.appendChild(keys);
 
     var row = document.createElement("div");
     row.className = "touch-key-row touch-key-row--primary";
@@ -110,7 +180,7 @@
     more.setAttribute("aria-expanded", "false");
     more.setAttribute("aria-label", "More keys");
     row.appendChild(more);
-    bar.appendChild(row);
+    keys.appendChild(row);
 
     var drawer = document.createElement("div");
     drawer.className = "touch-key-row touch-key-row--drawer";
@@ -119,7 +189,7 @@
     for (var j = 0; j < specs.length; j++) {
       drawer.appendChild(makeKeyButton(specs[j]));
     }
-    bar.appendChild(drawer);
+    keys.appendChild(drawer);
 
     more.addEventListener("pointerdown", function (event) {
       event.preventDefault();
@@ -128,23 +198,57 @@
       var nowOpen = drawer.hidden;
       drawer.hidden = !nowOpen;
       more.setAttribute("aria-expanded", nowOpen ? "true" : "false");
-      try {
-        window.localStorage.setItem(EXPANDED_KEY, nowOpen ? "1" : "0");
-      } catch (_) {
-        // Private browsing; the drawer simply does not persist.
-      }
+      writeFlag(EXPANDED_KEY, nowOpen ? "1" : "0");
     });
 
-    try {
-      if (window.localStorage.getItem(EXPANDED_KEY) === "1") {
-        drawer.hidden = false;
-        more.setAttribute("aria-expanded", "true");
-      }
-    } catch (_) {
-      // As above.
+    if (readFlag(EXPANDED_KEY) === "1") {
+      drawer.hidden = false;
+      more.setAttribute("aria-expanded", "true");
     }
 
+    // Expanded by default: the keys are the reason the bar exists, and an
+    // operator who has never collapsed it should not have to find the handle
+    // before they can press Enter.
+    setCollapsed(bar, handle, readFlag(COLLAPSED_KEY) === "1");
+    handle.addEventListener("click", function () {
+      var nextCollapsed = !bar.classList.contains("is-collapsed");
+      setCollapsed(bar, handle, nextCollapsed);
+      writeFlag(COLLAPSED_KEY, nextCollapsed ? "1" : "0");
+    });
+
     return bar;
+  }
+
+  // How much of the bottom of the viewport the bar is standing on, published
+  // as a custom property so anything else docked down there can get out of the
+  // way. A fixed number would not do: the height changes when the PF drawer
+  // opens, when the bar is collapsed, when the device rotates, and it has to
+  // include the software keyboard the bar is riding on top of — the AI chat
+  // panel's input is exactly the thing that ends up underneath otherwise.
+  var occludedPx = 0;
+
+  function publishHeight(bar) {
+    var height = bar.offsetHeight + occludedPx;
+    document.documentElement.style.setProperty(HEIGHT_VAR, height + "px");
+  }
+
+  function trackHeight(bar) {
+    var republish = function () {
+      publishHeight(bar);
+    };
+    if (window.ResizeObserver) {
+      new window.ResizeObserver(republish).observe(bar);
+    } else {
+      // No ResizeObserver: the drawer and collapse toggles are the only things
+      // that change the height under their own steam, so catch them on the way
+      // back out of the click handlers.
+      bar.addEventListener("click", function () {
+        window.setTimeout(republish, 0);
+      });
+    }
+    window.addEventListener("resize", republish);
+    window.addEventListener("orientationchange", republish);
+    republish();
   }
 
   // keepAboveSoftwareKeyboard tracks the visual viewport so the bar sits on
@@ -157,8 +261,9 @@
       return;
     }
     function reposition() {
-      var occluded = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      bar.style.transform = occluded > 0 ? "translateY(-" + occluded + "px)" : "";
+      occludedPx = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      bar.style.transform = occludedPx > 0 ? "translateY(-" + occludedPx + "px)" : "";
+      publishHeight(bar);
     }
     vv.addEventListener("resize", reposition);
     vv.addEventListener("scroll", reposition);
@@ -228,6 +333,7 @@
 
     var bar = buildBar();
     document.body.appendChild(bar);
+    trackHeight(bar);
     keepAboveSoftwareKeyboard(bar);
     installCursorTap();
 

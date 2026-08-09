@@ -15,12 +15,89 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));
   background: var(--surface-raised, rgba(20, 22, 28, 0.96));
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
   /* Repositioned by touch.js when the software keyboard opens; the transition
    * keeps that from reading as a jump. */
   transition: transform 120ms ease-out;
+}
+
+.touch-bar-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- Collapsing the bar --------------------------------------------- */
+
+/* The bar is the only permanently docked furniture on a touch device, so
+ * whatever it covers is simply unreachable — most visibly the AI chat panel,
+ * whose input is the bottom of its own column and so ends up behind the keys.
+ * Collapsed, the panel folds away and only the handle is left, in the same
+ * shape the terminal tools widget uses at the top of the screen. */
+.touch-bar-handle-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 0;
+}
+
+.touch-bar-handle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Smaller than the 44px the keys use. It is a chrome control rather than
+   * something pressed mid-transaction, and the keys it sits above are what the
+   * space at the bottom of the screen is for. */
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.18));
+  background: var(--surface-raised, rgba(20, 22, 28, 0.96));
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-bar-handle-icon {
+  display: inline-block;
+  /* Points at what the press does: down to put the keys away, up to bring
+   * them back. */
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+}
+
+.touch-action-bar.is-collapsed .touch-bar-handle-icon {
+  border-top: 0;
+  border-bottom: 5px solid currentColor;
+}
+
+/* display:none rather than a clip: a collapsed key row that is merely
+ * invisible keeps 30 buttons in the tab order, and every one of them sends an
+ * AID to the host if it is reached and pressed. */
+.touch-action-bar.is-collapsed .touch-bar-keys {
+  display: none;
+}
+
+/* Collapsed, the bar itself stops being a surface — otherwise a full-width
+ * plate stays across the bottom of the screen with a single pill on it, which
+ * is most of the room the collapse was meant to give back. The handle keeps
+ * its own background, so it stays legible over the terminal. */
+.touch-action-bar.is-collapsed {
+  background: transparent;
+  border-top-color: transparent;
+  pointer-events: none;
+}
+
+.touch-action-bar.is-collapsed .touch-bar-handle {
+  pointer-events: auto;
+  opacity: 0.92;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .touch-key-row {
@@ -91,9 +168,36 @@
 
 /* The bar is fixed over the page, so the page needs room to scroll clear of
  * it — otherwise the last rows of an 24-line screen are permanently behind
- * the keys. */
+ * the keys. --touch-bar-height is published by touch.js and tracks the real
+ * height: the PF drawer, the collapse handle and the software keyboard all
+ * change it, and a fixed 120px was wrong in every one of those states. */
 body.touch-device .page-wrap {
-  padding-bottom: 120px;
+  padding-bottom: calc(var(--touch-bar-height, 120px) + 16px);
+}
+
+/* The AI chat panel is a full-height fixed column, so its input and its hint
+ * sit at the very bottom of the viewport — underneath the bar, which is where
+ * this started: a chat panel that can be read and scrolled but not typed
+ * into. Ending the panel where the bar begins gives the input back, and
+ * because --touch-bar-height includes the software keyboard offset, it stays
+ * given back while the operator is typing. */
+body.touch-device .copilot-panel {
+  height: auto;
+  bottom: var(--touch-bar-height, 0px);
+}
+
+/* Same fix for the other bottom-docked widgets, which are anchored to the
+ * viewport rather than to the page and so do not benefit from the padding
+ * above. */
+body.touch-device #h3270-notification-container {
+  bottom: calc(var(--touch-bar-height, 120px) + 12px);
+}
+
+/* Below the 16px iOS Safari zooms the page in on focus and does not zoom back
+ * out — and the chat input is the one field on this screen somebody types a
+ * sentence into. */
+body.touch-device .copilot-panel-form textarea {
+  font-size: 16px;
 }
 
 /* ---- Reaching the rest of the interface ------------------------------ */

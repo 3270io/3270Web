@@ -30,7 +30,7 @@
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=3">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=4">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -87,7 +87,7 @@
     <script src="/static/embed.js?v=1" defer></script>
     <!-- The thumb-reachable AID keys and tap-to-place-cursor. Loads after
          screen-grid.js, whose cell geometry it uses. -->
-    <script src="/static/touch.js?v=1" defer></script>
+    <script src="/static/touch.js?v=2" defer></script>
     <!-- Suggests landscape on a phone holding an 80-column screen upright.
          Also after screen-grid.js: whether to suggest anything is decided by
          measuring the character cell, not by guessing from the device. -->
