@@ -79,12 +79,44 @@ before starting the server. Setup does not arm when an account already exists:
 3270Web user add root --admin
 ```
 
+## The administration area
+
+Administrators get an **Admin** button in the web interface header, which
+opens the administration area at `/admin`. Its front page is an overview of
+the instance: how many accounts exist, who holds a live login, the terminal
+sessions currently running, and refusals recorded in the last 24 hours,
+followed by the most recent audit entries. The numbers refresh themselves
+every half minute while the page is open.
+
+Every page in the area carries the same navigation — **Overview**,
+**Accounts**, **Audit trail** and **Logs** — so nothing administrative is
+more than one click from anything else.
+
+### Live terminal sessions
+
+The overview lists every terminal session the instance is running: whose it
+is, which mainframe it is connected to, and when it was last touched. Each
+row offers **Disconnect**, which drops the mainframe connection and frees the
+session's slot under the caps — useful for a session somebody left connected
+to a production region, or for reclaiming capacity when the instance is at
+its limit. A session running an unattended chaos exploration or workflow
+playback is marked **Automation running**, and the confirmation says the run
+will be interrupted.
+
+Disconnecting ends the terminal only. The owner stays signed in, and their
+browser learns the terminal has gone the next time it asks. What an
+administrator cannot do, deliberately, is see the session's screen or type
+into it — administering the instance is not the same power as sitting at
+somebody's authenticated mainframe terminal. Every administrative disconnect
+is written to the audit trail: who did it, whose session, and the host.
+
 ## Managing accounts
 
-Administrators get an **Accounts** page in the web interface, reachable from
-the button beside their name in the header, or directly at `/admin/users`. From
-there you can add accounts, change roles, reset passwords, disable and re-enable
-people, and delete accounts.
+The **Accounts** page, at `/admin/users`, is where you add accounts, change
+roles, reset passwords, disable and re-enable people, and delete accounts.
+The list can be filtered by name or group, or narrowed to administrators,
+disabled accounts, accounts that still owe a password change, or accounts
+that arrive by single sign-on.
 
 A few actions are deliberately unavailable, because each would strand you on a
 page you could no longer use, with no way back except the CLI:

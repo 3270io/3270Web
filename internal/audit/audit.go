@@ -47,12 +47,16 @@ const (
 	EventTokenRevoked Event = "token.revoked"
 	EventTokenRefused Event = "token.refused"
 
-	// Opening is recorded; closing is not. Sessions end in three ways —
-	// the person closes one, the idle reaper takes it, the server restarts —
-	// and only the first has anybody to attribute it to. A trail with close
-	// lines for some of them would read as though the others were still open.
+	// Opening is recorded; routine closing is not. Sessions end in four ways —
+	// the person closes one, the idle reaper takes it, the server restarts, an
+	// administrator disconnects it — and only the first and last have anybody
+	// to attribute them to. A trail with close lines for some of them would
+	// read as though the others were still open, so EventSessionClosed is
+	// written only for the administrative disconnect, where who did it to
+	// whose session is exactly what the trail is for.
 	EventSessionOpened Event = "session.opened"
 	EventSessionDenied Event = "session.denied"
+	EventSessionClosed Event = "session.closed"
 
 	EventFileTransfer  Event = "file.transfer"
 	EventSettingsSaved Event = "settings.saved"

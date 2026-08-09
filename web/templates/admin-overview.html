@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>3270Web - Administration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/favicon-32.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=15">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
+    <script src="/static/theme.js?v=9" defer></script>
+    <script src="/static/background.js" defer></script>
+</head>
+<body data-auth-enabled="{{ .AuthEnabled }}">
+    <script src="/static/early-theme-init.js"></script>
+    <div class="bg-overlay" aria-hidden="true">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="admin-page admin-page--wide">
+        <div class="card" role="main">
+            <div class="card-header">
+                <div class="brand-lockup">
+                    {{ template "brand-mark" }}
+                    <div>
+                        <h1>Administration</h1>
+                        <div class="subtle">This 3270Web instance at a glance</div>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <button type="button" data-overview-refresh>Refresh</button>
+                    <a class="button-link" href="/">Back to 3270Web</a>
+                </div>
+            </div>
+
+            {{ template "admin-nav" "overview" }}
+
+            <div class="admin-status" data-overview-status aria-live="polite"></div>
+
+            {{ if not .AuthEnabled }}
+            <div class="auth-alert auth-alert--info">
+                <span>
+                    This instance runs as a single local operator — no accounts,
+                    no sign-ins. Set <code>AUTH_MODE=local</code> and restart to
+                    separate users.
+                </span>
+            </div>
+            {{ end }}
+
+            <div class="admin-stats">
+                <div class="admin-stat">
+                    <div class="admin-stat-label">Accounts</div>
+                    <div class="admin-stat-value" data-stat="accounts">–</div>
+                    <div class="admin-stat-sub" data-stat-sub="accounts"></div>
+                </div>
+                <div class="admin-stat">
+                    <div class="admin-stat-label">Signed in</div>
+                    <div class="admin-stat-value" data-stat="signedIn">–</div>
+                    <div class="admin-stat-sub" data-stat-sub="signedIn"></div>
+                </div>
+                <div class="admin-stat">
+                    <div class="admin-stat-label">Terminal sessions</div>
+                    <div class="admin-stat-value" data-stat="sessions">–</div>
+                    <div class="admin-stat-sub" data-stat-sub="sessions"></div>
+                </div>
+                <div class="admin-stat" data-stat-tile="refused">
+                    <div class="admin-stat-label">Refusals, 24 h</div>
+                    <div class="admin-stat-value" data-stat="refused">–</div>
+                    <div class="admin-stat-sub" data-stat-sub="refused"></div>
+                </div>
+            </div>
+
+            <section class="admin-section" aria-labelledby="sessions-title">
+                <div class="admin-section-head">
+                    <h2 id="sessions-title">Live terminal sessions</h2>
+                    <span class="admin-count" data-sessions-count></span>
+                </div>
+                <div class="admin-table-wrap">
+                    <div class="admin-table-scroll">
+                        <table class="admin-table sessions-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Operator</th>
+                                    <th scope="col">Mainframe</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Last activity</th>
+                                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody data-sessions-rows>
+                                <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                                <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-section" aria-labelledby="activity-title">
+                <div class="admin-section-head">
+                    <h2 id="activity-title">Recent activity</h2>
+                    <a class="button-link" href="/admin/audit">Open the audit trail</a>
+                </div>
+                <ol class="admin-activity" data-overview-activity>
+                    <li class="admin-activity-empty">Loading…</li>
+                </ol>
+            </section>
+
+            <div class="admin-meta" data-overview-meta hidden>
+                <span>3270Web <span data-meta="version"></span></span>
+                <span>Up <span data-meta="uptime"></span></span>
+                <span>Authentication: <span data-meta="authMode"></span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm disconnect -->
+    <div class="admin-dialog" data-dialog="confirm" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h2 id="confirm-title" data-confirm-title>Are you sure?</h2>
+            <p class="admin-dialog-desc" data-confirm-desc></p>
+            <div class="admin-dialog-actions">
+                <button type="button" data-dialog-cancel>Cancel</button>
+                <button type="button" class="danger" data-confirm-accept>Disconnect</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/admin-overview.js?v=1" defer></script>
+</body>
+</html>

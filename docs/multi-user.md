@@ -385,6 +385,7 @@ against that host, and when* — which has to survive being asked months later.
 | Account created, changed, deleted | who did it, and to whom |
 | API token issued, revoked, or refused | token id, account, scopes |
 | Session opened, or refused | account, target host, and why it was refused |
+| Session disconnected by an administrator | who did it, whose session, target host |
 | File transfer | direction and the host-side dataset name |
 | Settings changed | which keys — never their values |
 | Server restarted, log access changed | who did it |

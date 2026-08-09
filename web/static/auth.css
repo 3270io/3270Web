@@ -998,6 +998,198 @@ table.admin-table {
   opacity: 0.6;
 }
 
+/* ---------------------------------------------------------------------
+   9. Administration area shell: navigation, overview tiles, activity
+   --------------------------------------------------------------------- */
+
+/* One strip of tabs on every admin page, so moving between the sections is
+   one click and the underline answers "where am I". Anchors restate colour
+   and font-style because a theme may style every link (see .auth-sso). */
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 0 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-nav a {
+  padding: 9px 14px 8px;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--fg-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: var(--r-xs, 6px) var(--r-xs, 6px) 0 0;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.admin-nav a:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.admin-nav a[aria-current="page"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* The overview's headline numbers. Tiles rather than a sentence because the
+   reading is a glance: four numbers, and only an odd one detains the eye. */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.admin-stat {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px);
+  background: color-mix(in srgb, var(--panel-2) 55%, var(--panel));
+}
+
+.admin-stat-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.admin-stat-value {
+  margin: 5px 0 3px;
+  font-family: var(--mono);
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-stat-sub {
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+
+/* A refusal count above zero is the one number the page exists to surface. */
+.admin-stat[data-state="warn"] {
+  border-color: color-mix(in srgb, var(--term-color-red, #ff6b6b) 45%, var(--border));
+  background: color-mix(in srgb, var(--term-color-red, #ff6b6b) 7%, var(--panel));
+}
+
+.admin-stat[data-state="warn"] .admin-stat-value {
+  color: var(--term-color-red, #ff6b6b);
+}
+
+.admin-section {
+  margin-top: 26px;
+}
+
+.admin-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-section-head h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+/* The last few audit lines, as a list rather than a table: three facts per
+   row, and the full six-column view is one click away on the audit page. */
+.admin-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.admin-activity li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 0.84rem;
+}
+
+.admin-activity li:last-child {
+  border-bottom: 0;
+}
+
+.admin-activity li[data-outcome] {
+  background: color-mix(in srgb, #e5534b 5%, transparent);
+}
+
+.admin-activity time {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 7.5ch;
+}
+
+.admin-activity-text {
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-activity-empty {
+  justify-content: center;
+  color: var(--fg-muted);
+  padding: 24px 14px;
+}
+
+/* The live-session table's supporting facts. The ID is a correlation handle
+   for log lines, not a name, so it stays small and quiet. */
+.admin-session-id {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.05em;
+}
+
+.sessions-table .sessions-host {
+  overflow-wrap: anywhere;
+  max-width: 30ch;
+}
+
+.sessions-table .sessions-when {
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+/* Version, uptime, mode: the footer facts a support ticket asks for. */
+.admin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
 /* The selection screen preview. A character grid drawn in the terminal font,
    because it is one: a proportional preview of a 3270 screen would line up
    nowhere and mislead about the artwork. */

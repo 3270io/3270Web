@@ -22,26 +22,30 @@ import (
 // recording why. Either way the test says which, so the list cannot quietly
 // drift from the router.
 var adminOnlyRoutes = map[string]bool{
-	"GET /api/settings":             true,
-	"POST /api/settings":            true,
-	"POST /app/restart":             true,
-	"GET /logs":                     true,
-	"GET /logs/access":              true,
-	"POST /logs/access":             true,
-	"POST /logs/toggle":             true,
-	"POST /logs/clear":              true,
-	"GET /logs/download":            true,
-	"GET /admin/users":              true,
-	"GET /api/admin/users":          true,
-	"POST /api/admin/users":         true,
-	"PATCH /api/admin/users/:id":    true,
-	"DELETE /api/admin/users/:id":   true,
-	"GET /admin/audit":              true,
-	"GET /api/admin/audit":          true,
-	"GET /api/admin/audit/download": true,
-	"GET /api/admin/menu-branding":  true,
-	"POST /api/admin/menu-branding": true,
-	"GET /api/admin/menu-preview":   true,
+	"GET /api/settings":              true,
+	"POST /api/settings":             true,
+	"POST /app/restart":              true,
+	"GET /logs":                      true,
+	"GET /logs/access":               true,
+	"POST /logs/access":              true,
+	"POST /logs/toggle":              true,
+	"POST /logs/clear":               true,
+	"GET /logs/download":             true,
+	"GET /admin":                     true,
+	"GET /api/admin/overview":        true,
+	"GET /api/admin/sessions":        true,
+	"DELETE /api/admin/sessions/:id": true,
+	"GET /admin/users":               true,
+	"GET /api/admin/users":           true,
+	"POST /api/admin/users":          true,
+	"PATCH /api/admin/users/:id":     true,
+	"DELETE /api/admin/users/:id":    true,
+	"GET /admin/audit":               true,
+	"GET /api/admin/audit":           true,
+	"GET /api/admin/audit/download":  true,
+	"GET /api/admin/menu-branding":   true,
+	"POST /api/admin/menu-branding":  true,
+	"GET /api/admin/menu-preview":    true,
 }
 
 // A signed-in account is not the same as an entitled one. The existing
@@ -138,6 +142,7 @@ func TestAdminRoutesWorkForAnAdministrator(t *testing.T) {
 	// delete accounts, none of which a test wants as a side effect.
 	for _, path := range []string{
 		"/api/admin/users", "/api/admin/audit", "/api/settings", "/logs/access",
+		"/api/admin/overview", "/api/admin/sessions",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Accept", "application/json")
