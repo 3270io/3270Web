@@ -139,9 +139,13 @@ Controls the look of the terminal and surrounding UI.
 
 Includes:
 
-- **Theme** — seven built-in themes plus any custom themes you define:
+- **Theme** — eleven built-in themes plus any custom themes you define:
   Yorkshire Mainframe Terminal (default), Authentic 3270, Amber Phosphor,
-  Midnight Cyan, Paper Terminal, Neon Grid, and Ocean Ops
+  Midnight Cyan, Paper Terminal, Neon Grid, and Ocean Ops, followed by the
+  four palettes shared with the project site and the documentation sites —
+  3270.io Phosphor Green, 3270.io Amber CRT, 3270.io Ice and
+  3270.io Daylight. Picking one of those four gives the terminal the same
+  colours as the GRN / AMB / ICE / DAY control on those sites.
 - **Terminal Font** — the three bundled IBM 3270-style fonts
 - A custom theme editor for authoring your own palette
 

@@ -8,7 +8,11 @@
             "theme-dark": true,
             "theme-light": true,
             "theme-modern": true,
-            "theme-slick": true
+            "theme-slick": true,
+            "theme-io-phosphor": true,
+            "theme-io-amber": true,
+            "theme-io-ice": true,
+            "theme-io-daylight": true
         };
         var themeId = localStorage.getItem("3270Web.theme") || localStorage.getItem("3270Web.defaultTheme") || "theme-yorkshire";
         themeId = themeAliases[themeId] || themeId;
