@@ -179,6 +179,10 @@ var sampleAppConfigs = []SampleAppConfig{
 	{ID: "app1", Name: "Sample App 1 - Name Entry & Validation"},
 	{ID: "app2", Name: "Sample App 2 - RSS Newsreader"},
 	{ID: "app3", Name: "Sample App 3 - BMS Field Attribute Test Matrix"},
+	{ID: "wordle", Name: "Game - Word Guess"},
+	{ID: "tictactoe", Name: "Game - Noughts & Crosses"},
+	{ID: "snake", Name: "Game - Snake"},
+	{ID: "pong", Name: "Game - Bat & Ball"},
 }
 
 // defaultSampleAppID is what "mock" and "demo" reach, and what the sample app
@@ -4214,7 +4218,9 @@ func sampleAppConfig(id string) (SampleAppConfig, bool) {
 	return SampleAppConfig{}, false
 }
 
-var allowedSampleAppPortsList = []int{3271, 3272, 3273, 3274, 3275}
+// One port per bundled sample, so every one of them can be running at once
+// and a demonstration never has to stop one to start another.
+var allowedSampleAppPortsList = []int{3271, 3272, 3273, 3274, 3275, 3276, 3277, 3278}
 
 var allowedSampleAppPortSet = buildAllowedSampleAppPortSet()
 

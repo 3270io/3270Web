@@ -92,6 +92,14 @@ func handlerFor(appID string) handler {
 		return handleApp2
 	case "app3":
 		return handleApp3
+	case "wordle":
+		return handleWordle
+	case "tictactoe":
+		return handleTicTacToe
+	case "snake":
+		return handleSnake
+	case "pong":
+		return handlePong
 	default:
 		return nil
 	}

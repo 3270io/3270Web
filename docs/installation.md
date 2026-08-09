@@ -193,7 +193,7 @@ Whichever you choose, 3270Web listens on **port 3270** by default. Open
     that install's `.env` to stay where you were.
 
     3270 is also the well-known TN3270 port, so the bundled sample apps moved
-    up one — they now offer 3271–3275, with 3271 as the default — and the two
+    up one — they now offer 3271–3278, with 3271 as the default — and the two
     no longer collide on a host running both. Nothing about connecting to a
     *real* mainframe changed: that port comes from the host you type in.
 
