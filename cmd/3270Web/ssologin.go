@@ -289,7 +289,8 @@ func (app *App) SSOCallbackHandler(c *gin.Context) {
 	}
 
 	user, err := app.userStore().UpsertExternal(
-		app.oidcProvider.Issuer(), token.Subject, username, app.ssoRole(token))
+		app.oidcProvider.Issuer(), token.Subject, username,
+		app.ssoRole(token), app.ssoGroups(token))
 	if err != nil {
 		log.Printf("auth: could not resolve %q from the identity provider: %v", username, err)
 		message := "Your account could not be set up on this instance."
@@ -417,6 +418,28 @@ func (app *App) ssoRole(token *oidc.IDToken) authz.Role {
 	// the authority on who administers, leaving somebody an administrator
 	// after they left the group would be the provider failing to revoke.
 	return authz.RoleUser
+}
+
+// ssoGroups is the directory's group list for this identity, or nil where the
+// deployment maps no claim.
+//
+// nil rather than empty, because the two mean different things to the account
+// store: nil leaves whatever an administrator set here, empty says the
+// directory is the authority and this person is in nothing.
+func (app *App) ssoGroups(token *oidc.IDToken) []string {
+	if app.sso.GroupsClaim == "" {
+		return nil
+	}
+	groups := token.ClaimList(app.sso.GroupsClaim)
+	if groups == nil {
+		// The claim is configured but absent from the token. Treated as "in
+		// nothing" rather than "say nothing": a provider that stopped sending
+		// the claim has removed the person from every group as far as anyone
+		// here can tell, and keeping stale membership would keep access it
+		// was meant to withdraw.
+		return []string{}
+	}
+	return groups
 }
 
 // ssoGroupsAllowSignIn reports whether the identity may sign in at all.

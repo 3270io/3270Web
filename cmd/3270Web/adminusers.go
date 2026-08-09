@@ -72,6 +72,9 @@ type adminUserView struct {
 	// than offering a control that cannot work.
 	External bool   `json:"external"`
 	Issuer   string `json:"issuer,omitempty"`
+	// Groups the account belongs to, so a profile audience can be written
+	// against a team rather than a list of people.
+	Groups []string `json:"groups"`
 }
 
 func toAdminUserView(u users.User, selfID string) adminUserView {
@@ -86,6 +89,7 @@ func toAdminUserView(u users.User, selfID string) adminUserView {
 		Self:               u.ID == selfID,
 		External:           u.External(),
 		Issuer:             u.Issuer,
+		Groups:             u.Groups,
 	}
 }
 
@@ -107,7 +111,16 @@ func (app *App) AdminListUsersHandler(c *gin.Context) {
 	for _, u := range list {
 		out = append(out, toAdminUserView(u, selfID))
 	}
-	c.JSON(http.StatusOK, gin.H{"authEnabled": true, "users": out})
+	c.JSON(http.StatusOK, gin.H{
+		"authEnabled": true,
+		"users":       out,
+		// Every group in use, so the page can offer them rather than relying
+		// on somebody spelling one the same way twice.
+		"groups": app.knownGroups(),
+		// Where groups come from, so the page can say why it will not let
+		// them be edited on a directory-owned account.
+		"groupsFromProvider": app.ssoEnabled() && app.sso.GroupsClaim != "",
+	})
 }
 
 type adminCreateUserRequest struct {
@@ -166,6 +179,9 @@ type adminUpdateUserRequest struct {
 	Role     *string `json:"role"`
 	Disabled *bool   `json:"disabled"`
 	Password *string `json:"password"`
+	// Groups replaces the whole membership list. A pointer for the same
+	// reason: "not mentioned" must not clear it, and an empty list must.
+	Groups *[]string `json:"groups"`
 }
 
 // AdminUpdateUserHandler changes a role, enabled state or password.
@@ -230,6 +246,25 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 		log.Printf("auth: %s set %q disabled=%v", adminActor(c), target.Username, *req.Disabled)
 		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
 			map[string]string{"change": "disabled", "disabled": strconv.FormatBool(*req.Disabled)})
+	}
+
+	if req.Groups != nil {
+		// Refused on an account the directory owns, rather than written and
+		// then overwritten at the next sign-in — which would look like the
+		// change had worked until somebody noticed it had not.
+		if target.External() && app.sso.GroupsClaim != "" && app.ssoEnabled() {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "this account's groups come from the identity provider; change them there",
+			})
+			return
+		}
+		if err := app.userStore().SetGroups(target.Username, *req.Groups); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+			return
+		}
+		log.Printf("auth: %s set groups for %q", adminActor(c), target.Username)
+		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
+			map[string]string{"change": "groups", "groups": strings.Join(users.NormaliseGroups(*req.Groups), " ")})
 	}
 
 	if req.Password != nil {

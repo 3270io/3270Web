@@ -515,7 +515,7 @@ func TestRequirePasswordChange(t *testing.T) {
 func TestExternalAccountIsFoundByIdentityNotByName(t *testing.T) {
 	store := newTestStore(t)
 
-	first, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "")
+	first, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", nil)
 	if err != nil {
 		t.Fatalf("first sign-in: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestExternalAccountIsFoundByIdentityNotByName(t *testing.T) {
 
 	// Renamed at the provider. Same person, same account, same ID — which is
 	// what keeps their saved work theirs, since the data directory is the ID.
-	renamed, err := store.UpsertExternal("https://idp.example", "sub-1", "alice.smith", "")
+	renamed, err := store.UpsertExternal("https://idp.example", "sub-1", "alice.smith", "", nil)
 	if err != nil {
 		t.Fatalf("sign-in after a rename: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestExternalAccountIsFoundByIdentityNotByName(t *testing.T) {
 	}
 
 	// A different subject is a different person, whatever they are called.
-	other, err := store.UpsertExternal("https://idp.example", "sub-2", "bob", "")
+	other, err := store.UpsertExternal("https://idp.example", "sub-2", "bob", "", nil)
 	if err != nil {
 		t.Fatalf("second person: %v", err)
 	}
@@ -558,16 +558,16 @@ func TestExternalSignInWillNotClaimALocalAccountsName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.UpsertExternal("https://idp.example", "sub-9", "root", ""); !errors.Is(err, ErrNameHeldLocally) {
+	if _, err := store.UpsertExternal("https://idp.example", "sub-9", "root", "", nil); !errors.Is(err, ErrNameHeldLocally) {
 		t.Fatalf("err = %v, want ErrNameHeldLocally", err)
 	}
 	// And a rename into a taken name leaves the account as it was rather than
 	// producing two accounts answering to "root".
-	u, err := store.UpsertExternal("https://idp.example", "sub-9", "alice", "")
+	u, err := store.UpsertExternal("https://idp.example", "sub-9", "alice", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpsertExternal("https://idp.example", "sub-9", "root", ""); err != nil {
+	if _, err := store.UpsertExternal("https://idp.example", "sub-9", "root", "", nil); err != nil {
 		t.Fatalf("rename into a taken name should be ignored, not fail: %v", err)
 	}
 	again, _, err := store.ByID(u.ID)
@@ -581,7 +581,7 @@ func TestExternalSignInWillNotClaimALocalAccountsName(t *testing.T) {
 
 func TestExternalAccountHasNoLocalPassword(t *testing.T) {
 	store := newTestStore(t)
-	u, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "")
+	u, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +612,7 @@ func TestExternalRoleFollowsTheMappingOnlyWhenThereIsOne(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", authz.RoleAdmin); err != nil {
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", authz.RoleAdmin, nil); err != nil {
 		t.Fatal(err)
 	}
 	u, _, _ := store.ByID(mustFindID(t, store, "alice"))
@@ -621,7 +621,7 @@ func TestExternalRoleFollowsTheMappingOnlyWhenThereIsOne(t *testing.T) {
 	}
 
 	// Mapping now says otherwise: the provider is the authority.
-	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", authz.RoleUser); err != nil {
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", authz.RoleUser, nil); err != nil {
 		t.Fatal(err)
 	}
 	if u, _, _ = store.ByID(u.ID); u.Role != authz.RoleUser {
@@ -633,7 +633,7 @@ func TestExternalRoleFollowsTheMappingOnlyWhenThereIsOne(t *testing.T) {
 	if err := store.SetRole("alice", authz.RoleAdmin); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", ""); err != nil {
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	if u, _, _ = store.ByID(u.ID); u.Role != authz.RoleAdmin {
@@ -654,4 +654,84 @@ func mustFindID(t *testing.T, store *Store, username string) string {
 	}
 	t.Fatalf("no account named %q", username)
 	return ""
+}
+
+func TestGroupsAreNormalisedAndDiscoverable(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Add("alice", testPassword, authz.RoleUser, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Whitespace, duplicates in different cases, and empties all come from a
+	// human typing a comma-separated list.
+	if err := store.SetGroups("alice", []string{" ops ", "OPS", "", "payments"}); err != nil {
+		t.Fatal(err)
+	}
+	u, _, _ := store.ByID(mustFindID(t, store, "alice"))
+	if len(u.Groups) != 2 || u.Groups[0] != "ops" || u.Groups[1] != "payments" {
+		t.Fatalf("Groups = %v, want the list trimmed and de-duplicated", u.Groups)
+	}
+
+	// Membership is what a profile audience will ask about, and it must not
+	// turn on how the name was capitalised.
+	for _, name := range []string{"ops", "OPS", " Ops "} {
+		if !u.InGroup(name) {
+			t.Errorf("InGroup(%q) = false", name)
+		}
+	}
+	if u.InGroup("finance") || u.InGroup("") {
+		t.Error("InGroup matched a group the account is not in")
+	}
+
+	groups, err := store.Groups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 2 || groups[0] != "ops" || groups[1] != "payments" {
+		t.Errorf("Groups() = %v, want every group in use, sorted", groups)
+	}
+}
+
+// The directory is the authority on which team somebody is on, where the
+// deployment says so — and silent about it where it does not.
+func TestExternalGroupsFollowTheDirectoryOnlyWhenItSpeaks(t *testing.T) {
+	store := newTestStore(t)
+
+	u, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", []string{"ops", "ops"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(u.Groups) != 1 || u.Groups[0] != "ops" {
+		t.Fatalf("Groups = %v on first sign-in", u.Groups)
+	}
+
+	// Moved teams at the provider.
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", []string{"payments"}); err != nil {
+		t.Fatal(err)
+	}
+	again, _, _ := store.ByID(u.ID)
+	if len(again.Groups) != 1 || again.Groups[0] != "payments" {
+		t.Errorf("Groups = %v, want the move followed through", again.Groups)
+	}
+
+	// Removed from everything: access that was granted by a group has to go
+	// with it, so an empty list is applied rather than ignored.
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", []string{}); err != nil {
+		t.Fatal(err)
+	}
+	if again, _, _ = store.ByID(u.ID); len(again.Groups) != 0 {
+		t.Errorf("Groups = %v, want them cleared", again.Groups)
+	}
+
+	// nil is different: the deployment maps no claim, so what an administrator
+	// set here stands.
+	if err := store.SetGroups("alice", []string{"ops"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpsertExternal("https://idp.example", "sub-1", "alice", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if again, _, _ = store.ByID(u.ID); len(again.Groups) != 1 || again.Groups[0] != "ops" {
+		t.Errorf("Groups = %v, want the administrator's list kept", again.Groups)
+	}
 }

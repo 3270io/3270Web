@@ -204,7 +204,7 @@ func TestCallbacksThatMustNotSignAnybodyIn(t *testing.T) {
 func TestAPasswordDoesNotWorkForAnExternalAccount(t *testing.T) {
 	app, r := newSSOTestApp(t)
 	addUser(t, app, "root", authz.RoleAdmin, false)
-	if _, err := app.userStore().UpsertExternal("https://idp.example", "sub-1", "alice", ""); err != nil {
+	if _, err := app.userStore().UpsertExternal("https://idp.example", "sub-1", "alice", "", nil); err != nil {
 		t.Fatal(err)
 	}
 

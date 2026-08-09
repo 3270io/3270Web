@@ -39,6 +39,9 @@ var adminOnlyRoutes = map[string]bool{
 	"GET /admin/audit":              true,
 	"GET /api/admin/audit":          true,
 	"GET /api/admin/audit/download": true,
+	"GET /api/admin/menu-branding":  true,
+	"POST /api/admin/menu-branding": true,
+	"GET /api/admin/menu-preview":   true,
 }
 
 // A signed-in account is not the same as an entitled one. The existing

@@ -80,6 +80,13 @@ type App struct {
 	authAbsoluteTimeout time.Duration
 	// setup tracks whether the instance still needs its first administrator.
 	setup setupState
+	// menuStore holds the 3270 selection screen a session is looking at,
+	// where the account has more than one mainframe to choose from.
+	menuStore *menuStore
+	menuOnce  sync.Once
+	// brandingStore holds what the selection screen says at the top.
+	brandingStore *brandingStore
+	brandingOnce  sync.Once
 	// ownerStores caches each account's own file stores.
 	ownerStores *ownerStores
 	storesOnce  sync.Once
@@ -328,6 +335,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// Signing in through an identity provider. Both are reachable without a
 	// login for the obvious reason, and both do nothing unless AUTH_MODE=oidc
 	// configured one.
+	// The host list this account was assigned, for a client that wants to show
+	// it without driving a terminal through the selection screen.
+	r.GET("/api/hosts", app.APISelectionScreen)
+
 	r.GET(ssoStartPath, app.SSOStartHandler)
 	r.GET(ssoCallbackPath, app.SSOCallbackHandler)
 
@@ -338,6 +349,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.POST("/api/admin/users", app.AdminCreateUserHandler)
 	admin.PATCH("/api/admin/users/:id", app.AdminUpdateUserHandler)
 	admin.DELETE("/api/admin/users/:id", app.AdminDeleteUserHandler)
+	// The selection screen's branding: instance-wide, so an administrator's.
+	admin.GET("/api/admin/menu-branding", app.AdminMenuBrandingHandler)
+	admin.POST("/api/admin/menu-branding", app.AdminSaveMenuBrandingHandler)
+	admin.GET("/api/admin/menu-preview", app.AdminPreviewMenuHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
@@ -1057,6 +1072,9 @@ func (app *App) cleanupSession(s *session.Session) {
 		return
 	}
 	cleanupRecordingFile(s)
+	// The selection screen is a listener this session owns; it has to close
+	// with the session or the port stays bound for the life of the process.
+	app.menus().stop(s.ID)
 	// Told to stop before the engine is unregistered and the removed mark is
 	// cleared below. Those two together used to leave the status goroutine
 	// with no exit condition at all: it polled a detached engine, and wrote
@@ -1176,6 +1194,14 @@ func (app *App) HomeHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
+	// What this account was assigned comes first: a configured TargetHost is
+	// the instance's answer for everyone, and an assignment is the answer for
+	// this person, which is the more specific of the two.
+	if app.firstScreenFor(c) {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+
 	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
@@ -1357,6 +1383,15 @@ func mergeOIA(payload gin.H, screen *host.Screen) gin.H {
 func (app *App) ScreenHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	// Before the screen is read, so the operator who has just chosen a system
+	// on the selection screen sees that system rather than one more frame of
+	// the menu.
+	app.settleSelection(c, s)
+	if s.Host == nil {
+		// settleSelection ended the session — PF3 on the menu.
 		c.Redirect(http.StatusFound, "/")
 		return
 	}
@@ -1592,6 +1627,11 @@ func (app *App) SubmitAsyncHandler(c *gin.Context) {
 }
 
 func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
+	// A selection made on the previous submit is settled before this one is
+	// sent, so a key pressed straight after Enter reaches the mainframe rather
+	// than the menu the terminal has already left.
+	app.settleSelection(c, s)
+
 	key := c.PostForm("key")
 	cursorRow := strings.TrimSpace(c.PostForm("cursor_row"))
 	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))

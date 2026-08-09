@@ -57,6 +57,18 @@ type ConnectionProfile struct {
 	// CodePage is an s3270 code page, e.g. "cp037" or "cp1140".
 	CodePage    string `json:"codePage,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Audience decides who a published profile is for. It has no meaning on a
+	// profile somebody saved for themselves, which is already theirs alone.
+	//
+	// All three empty means everyone, which is what every profile in an
+	// existing deployment is: turning this on must not quietly take a host
+	// list away from the people using it. Naming any of them narrows it to
+	// those who match at least one — the three are an or, not an and, because
+	// "the payments team, plus Dave who covers for them" is the shape these
+	// lists actually come in.
+	Users  []string `json:"users,omitempty"`
+	Groups []string `json:"groups,omitempty"`
+	Roles  []string `json:"roles,omitempty"`
 	// Shared marks a profile that came from the published set rather than the
 	// caller's own. Output only: it is derived from which store held the
 	// profile, so a client cannot promote one by asserting it.
@@ -304,7 +316,16 @@ func (p ConnectionProfile) overrideArgs() []string {
 /* ---------------------------------------------------------------- */
 
 func (app *App) ProfilesListHandler(c *gin.Context) {
-	profiles, err := app.visibleProfiles(c)
+	// An administrator sees the whole published set, because they are the one
+	// who assigns it and cannot edit a profile the page will not show them.
+	// Everybody else sees what they may actually reach: a host list is more
+	// useful for being short, and there is no reason to name mainframes at
+	// somebody who will be refused them.
+	lister := app.assignedProfiles
+	if principalFrom(c).IsAdmin() {
+		lister = app.visibleProfiles
+	}
+	profiles, err := lister(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
 		return
@@ -312,6 +333,9 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"profiles": profiles,
 		"canShare": principalFrom(c).IsAdmin() && app.publishedProfiles(c) != nil,
+		// The group names in use, so the audience editor can offer them
+		// instead of relying on somebody remembering the spelling.
+		"groups": app.knownGroups(),
 	})
 }
 
@@ -366,8 +390,13 @@ func (app *App) visibleProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 }
 
 // findVisibleProfile resolves a profile by name across both sets.
+//
+// It reads the assigned list rather than the visible one, which is what makes
+// an audience a restriction rather than a display filter: both paths that
+// connect by name come through here, so naming a profile you were not given
+// finds nothing — the same answer as naming one that does not exist.
 func (app *App) findVisibleProfile(c *gin.Context, name string) (ConnectionProfile, bool) {
-	profiles, err := app.visibleProfiles(c)
+	profiles, err := app.assignedProfiles(c)
 	if err != nil {
 		return ConnectionProfile{}, false
 	}
@@ -396,6 +425,15 @@ func (app *App) ProfilesSaveHandler(c *gin.Context) {
 	if err := validateProfile(&profile); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	// An audience only decides who a published profile reaches, so it is
+	// dropped from a private save rather than stored where nothing reads it —
+	// otherwise publishing that profile later would silently apply a list
+	// somebody wrote in a different context.
+	if payload.Publish {
+		normaliseAudience(&profile)
+	} else {
+		profile.Users, profile.Groups, profile.Roles = nil, nil, nil
 	}
 
 	store, err := app.profileStoreForWrite(c, payload.Publish)

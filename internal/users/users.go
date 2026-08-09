@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -70,9 +71,18 @@ type User struct {
 	// to reuse or recycle. Matching on the name instead would hand a renamed
 	// person a brand-new account — and, worse, hand the next person given that
 	// name the previous holder's saved work.
-	Issuer   string `json:"issuer,omitempty"`
-	Subject  string `json:"subject,omitempty"`
-	Disabled bool   `json:"disabled,omitempty"`
+	Issuer  string `json:"issuer,omitempty"`
+	Subject string `json:"subject,omitempty"`
+	// Groups the account belongs to. Groups say nothing about permission on
+	// their own — the role does that — and exist so that what somebody may
+	// reach can be decided for a team rather than a person at a time.
+	//
+	// On an account that signs in through an identity provider these are the
+	// directory's own groups, refreshed at each sign-in where the deployment
+	// maps a claim to them. That is the point: the team somebody is on is
+	// already recorded somewhere, and it is not here.
+	Groups   []string `json:"groups,omitempty"`
+	Disabled bool     `json:"disabled,omitempty"`
 	// MustChangePassword marks an account whose password was issued by the
 	// system rather than chosen by its owner.
 	MustChangePassword bool      `json:"mustChangePassword,omitempty"`
@@ -89,6 +99,62 @@ func (u User) Redacted() User {
 // External reports whether the account is authenticated by an identity
 // provider rather than by a password held here.
 func (u User) External() bool { return u.Issuer != "" && u.Subject != "" }
+
+// InGroup reports whether the account belongs to the named group.
+//
+// Compared without regard to case, because a group name arrives from three
+// places — an administrator typing it, a directory claim, and a profile's
+// audience — and none of them agrees with the others about capitals.
+func (u User) InGroup(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	for _, g := range u.Groups {
+		if strings.EqualFold(strings.TrimSpace(g), name) {
+			return true
+		}
+	}
+	return false
+}
+
+// maxGroupsPerUser and maxGroupNameLength bound what a directory claim can
+// write into the account file. A provider is not this server's to trust with
+// unbounded input, however friendly it is.
+const (
+	maxGroupsPerUser   = 64
+	maxGroupNameLength = 64
+)
+
+// NormaliseGroups trims, de-duplicates and bounds a group list.
+//
+// Exported because the same cleaning has to happen to a list an administrator
+// typed and to one an identity provider sent, and two implementations of
+// "what counts as the same group" is exactly how a profile audience stops
+// matching the account it was written for.
+func NormaliseGroups(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, raw := range in {
+		name := strings.TrimSpace(raw)
+		if name == "" || len(name) > maxGroupNameLength {
+			continue
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, name)
+		if len(out) >= maxGroupsPerUser {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
 
 // Principal converts the account into the actor used for authorization.
 func (u User) Principal(kind authz.Kind) authz.Principal {
@@ -294,7 +360,7 @@ var ErrNameHeldLocally = errors.New("users: a local account already uses that na
 // on the Accounts page survive the next sign-in on a deployment that has not
 // mapped roles from a claim. Where a claim is mapped, it is passed in and wins
 // every time, which is the point of managing roles centrally.
-func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role) (User, error) {
+func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role, groups []string) (User, error) {
 	issuer = strings.TrimSpace(issuer)
 	subject = strings.TrimSpace(subject)
 	if issuer == "" || subject == "" {
@@ -325,6 +391,16 @@ func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role
 		if !strings.EqualFold(list[i].Username, username) && indexOfUsername(list, username) < 0 {
 			list[i].Username = username
 			changed = true
+		}
+		// nil means the deployment maps no group claim, so whatever an
+		// administrator set here is left alone. A non-nil empty list is
+		// different: it means the directory says this person is in nothing.
+		if groups != nil {
+			cleaned := NormaliseGroups(groups)
+			if !sameGroups(list[i].Groups, cleaned) {
+				list[i].Groups = cleaned
+				changed = true
+			}
 		}
 		if role != "" && list[i].Role != role {
 			// Demoting the last administrator is refused here as everywhere: an
@@ -364,6 +440,7 @@ func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role
 		Role:     role,
 		Issuer:   issuer,
 		Subject:  subject,
+		Groups:   NormaliseGroups(groups),
 		// No PasswordHash. The account has no local password, and Authenticate
 		// refuses one rather than treating an empty hash as a match.
 		CreatedAt:         now,
@@ -577,6 +654,52 @@ func (s *Store) SetPassword(username, password string) error {
 // account with a local password.
 var ErrExternalAccount = errors.New("users: this account signs in through the identity provider")
 
+// SetGroups replaces an account's group membership.
+func (s *Store) SetGroups(username string, groups []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+	idx := indexOfUsername(list, username)
+	if idx < 0 {
+		return ErrUserNotFound
+	}
+	list[idx].Groups = NormaliseGroups(groups)
+	return s.save(list)
+}
+
+// Groups returns every group name any account belongs to, sorted.
+//
+// There is no separate registry of groups: a group exists because somebody is
+// in it. A registry would be a second place for a name to live and a second
+// way for it to be spelled, and the only thing it would add is the ability to
+// create an empty group — which reaches nobody by definition.
+func (s *Store) Groups() ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]string)
+	for _, u := range list {
+		for _, g := range u.Groups {
+			key := strings.ToLower(strings.TrimSpace(g))
+			if key != "" && seen[key] == "" {
+				seen[key] = strings.TrimSpace(g)
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for _, name := range seen {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
 // SetDisabled enables or disables an account.
 //
 // Disabling the last enabled admin is refused: an instance with no way to
@@ -683,4 +806,18 @@ func (s *Store) RequirePasswordChange(username string) error {
 	}
 	list[idx].MustChangePassword = true
 	return s.save(list)
+}
+
+// sameGroups reports whether two normalised group lists hold the same names,
+// so a sign-in that changes nothing does not rewrite the account file.
+func sameGroups(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !strings.EqualFold(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }
