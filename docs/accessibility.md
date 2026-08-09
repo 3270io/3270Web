@@ -86,7 +86,7 @@ panel and the notification toasts are live regions, so a change in keyboard
 state, a completed step or a failure is announced without moving focus.
 
 **Bypass blocks (2.4.1).** Every page carries a `main` landmark. On the
-terminal, focus starts inside it on page load — the header, session tabs and toolbar are
+terminal, focus starts inside it on page load — the menu bar and session tabs are
 already behind you. There is deliberately no skip link; see
 [Design decisions](#design-decisions).
 

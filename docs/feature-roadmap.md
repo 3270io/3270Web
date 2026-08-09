@@ -76,7 +76,7 @@ Newest first. Every item here is live and documented.
   real OIA (`X SYSTEM`, `X -f`, insert indicator), numeric-field
   enforcement with an operator-error lock, insert/overtype, and type-ahead.
 - **Focus mode and workspace modes** — the terminal fills the display with
-  an auto-hiding toolbar rail; Business is the default surface and
+  an auto-hiding menu rail; Business is the default surface and
   Engineering is one click away.
 - **Chaos exploration hardening** — saturation detection, structural screen
   dedup, smarter value generation, automatic exit-key blocking, a Markdown

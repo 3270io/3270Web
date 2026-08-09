@@ -457,8 +457,8 @@
   const recordingStart = document.querySelector('[data-recording-start]');
   const recordingStartDisabled = document.querySelector('[data-recording-start-disabled]');
   const workflowLoadTrigger = document.querySelector('[data-workflow-trigger]');
-  const workflowPlayButton = document.querySelector('form[action="/workflow/play"] .icon-button');
-  const workflowDebugButton = document.querySelector('form[action="/workflow/debug"] .icon-button');
+  const workflowPlayButton = document.querySelector('form[action="/workflow/play"] button');
+  const workflowDebugButton = document.querySelector('form[action="/workflow/debug"] button');
   const workflowStatusFileIcon = document.querySelector('.workflow-status-file-icon');
   const playbackIndicator = document.querySelector('[data-playback-indicator]');
   const playbackComplete = document.querySelector('[data-playback-complete]');
@@ -479,6 +479,11 @@
 
   const ensureButtonTooltip = (button) => {
     if (!button || button.hasAttribute('data-tippy-content')) {
+      return;
+    }
+    // Menu items already say what they do, on the item, in words. A tooltip
+    // repeating the label a few pixels away is noise on every drop-down.
+    if (button.closest('[data-app-menu-panel]')) {
       return;
     }
     const aria = button.getAttribute('aria-label');

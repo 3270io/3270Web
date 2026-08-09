@@ -1,14 +1,50 @@
 ---
 description: >-
-  Toolbar controls, keyboard mappings, focus mode, the command palette and
-  the virtual keypad — everything an operator drives 3270Web with.
+  The menu bar, keyboard mappings, focus mode, the command palette and the
+  virtual keypad — everything an operator drives 3270Web with.
 ---
 
 # Keyboard and Controls
 
-This page explains toolbar controls, keyboard mappings, and the virtual keypad.
+This page explains the menu bar, keyboard mappings, and the virtual keypad.
 
-## Toolbar Controls
+## The menu bar
+
+Everything you can do to a session lives in one bar across the top: named
+drop-downs on the left, a small cluster of the actions you reach for most on
+the right, and the session tabs beneath.
+
+| Menu | Holds |
+|---|---|
+| **Session** | Connection profiles, connection details, reconnect, print screen, disconnect |
+| **Terminal** | Find on screen, copy screen, screen history, file transfer, keyboard mapping |
+| **View** | Focus mode, hotspots, virtual keypad, terminal size, theme |
+| **Automation** | Recording, playback and chaos exploration (Engineering mode only) |
+
+To the right of the menus: **Tasks**, the AI chat panel, the command palette,
+an account and settings menu, and the chevron that collapses the whole bar.
+
+![Menu bar screenshot](images/toolbar-real.png){: .doc-medal }
+{: .doc-medal-wrap }
+
+The bar works from the keyboard the way a desktop menu bar does. Tab to a
+menu, then:
+
+| Key | Does |
+|---|---|
+| ++down++ / ++up++ | Open the menu, and move through its items |
+| ++left++ / ++right++ | Move to the menu either side, open |
+| ++enter++ | Run the highlighted item |
+| a–z | Jump to the next item starting with that letter |
+| ++esc++ | Close the menu; again to hand the keyboard back to the terminal |
+
+While a menu is open the terminal does not see your keystrokes — the arrows
+walk the menu rather than moving the 3270 cursor — and when you run an item
+the keyboard goes straight back to the screen.
+
+**Collapse the bar** with the chevron at the right-hand end when you want the
+height back. A single chevron stays behind to bring it out again, and the
+choice is remembered per browser. For the whole screen, use focus mode below.
 
 ### Focus mode
 
@@ -16,8 +52,8 @@ This page explains toolbar controls, keyboard mappings, and the virtual keypad.
 gives the terminal the whole screen. It is the long-standing full-screen
 convention for terminal emulators.
 
-- The page header, card framing, background and application chip all go.
-- The toolbar and session tabs move into a slim rail at the top that stays
+- The card framing, background and application chip all go.
+- The menu bar and session tabs move into a slim rail at the top that stays
   hidden until you move the pointer to the top edge or tab into it. A small
   accent mark at the top centre shows where it is.
 - The terminal grows to fill the space, and the browser goes true
@@ -34,8 +70,8 @@ covered when the rail slides out.
 
 ### File transfer (IND$FILE)
 
-The **transfer** button on the toolbar (also in the command palette) sends a
-file to the host or receives one, using IND$FILE.
+**Terminal → File transfer** (also in the command palette) sends a file to
+the host or receives one, using IND$FILE.
 
 - **Host file** is the dataset or file name — `USER.DATA(MEMBER)` for a PDS
   member.
@@ -139,19 +175,19 @@ for scripted checks.
 ### Sessions and tabs
 
 You can keep up to six host sessions open at once. The tab bar sits directly
-above the toolbar and is there from the moment you connect, showing the one
+under the menu bar and is there from the moment you connect, showing the one
 session you have and a **+ New session** button at the end of the row.
 
 - **+ New session** opens another one. Where you sign in to a
   [selection screen](session-manager.md), it opens another selection screen —
   that is the host list you were given, and a second one beside it would only
-  disagree with it. Otherwise it asks in the same picker the **Profiles**
-  button uses: your connection profiles, the bundled sample apps, or an
-  address you type.
+  disagree with it. Otherwise it asks in the same picker
+  **Session → Connection profiles** uses: your connection profiles, the
+  bundled sample apps, or an address you type.
 - Click a tab to switch to it.
 - The **×** on a tab closes that session; the others keep running. A single
   tab has no **×** — closing your only session is a disconnect, and
-  **Disconnect** is right below it.
+  **Session → Disconnect** is where that lives.
 - **Disconnect** ends only the session you are looking at — the confirmation
   names it. If other tabs are open you land on one of them rather than back at
   the connect page.
@@ -195,49 +231,34 @@ opened them.
 
 ### Workspace modes
 
-The toolbar has two surfaces, chosen by the **Business / Engineering**
-button in the header. The choice is remembered per browser.
+The bar has two surfaces, chosen by **Engineering tools** in the account and
+settings menu. The choice is remembered per browser.
 
-**Business** is the default and shows only what you need to use a
-mainframe application:
+**Business** is the default and shows only what you need to use a mainframe
+application: the Session, Terminal and View menus, Tasks, AI chat, the
+command palette and settings.
 
-- Disconnect and Reconnect
-- View logs
-- Print screen
-- Copy screen
-- Command palette, AI chat, and settings
-
-**Engineering** adds the automation surface on top:
-
-- Start/stop recording
-- Load recording; play, debug, view or remove it
-- Playback pause/resume/stop controls (when active)
-- Chaos exploration controls
-- The workflow status widget
-
-![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
-{: .doc-medal-wrap }
+**Engineering** adds the **Automation** menu on top — recording, playback and
+chaos exploration, in two labelled groups within the one menu.
 
 Nothing is removed in Business mode — switching modes is one click, and
-everything in Engineering mode remains reachable from the command palette
-once you are there.
+everything in the Automation menu remains reachable from the command palette
+either way.
 
 !!! note "Runs are always visible"
 
     If a recording, playback or chaos run starts while you are in
     Business mode — the AI assistant can start one — the workflow status widget
     appears anyway, and goes away again when the run ends. You are never
-    left watching a terminal move on its own with no way to see why.
-
-The **Recording** and **Chaos** labels are group toggles — click one to
-expand its controls, and the choice is remembered. Anything hidden inside
-a collapsed group is still reachable from the command palette.
+    left watching a terminal move on its own with no way to see why. The
+    playback transport (step, pause, stop) appears under the bar for the same
+    reason: controls you need in a hurry do not belong behind a drop-down.
 
 ## Command Palette
 
 Press ++ctrl+k++ (++cmd+k++ on macOS) anywhere in the session — including
 while the terminal has keyboard focus — to open a searchable list of
-every toolbar and modal action.
+every menu and modal action.
 
 ![Command palette screenshot](images/command-palette.png)
 
@@ -402,8 +423,7 @@ dialog below can give them one.
 
 Years of muscle memory from another terminal emulator does not transfer to
 a fixed key layout, so every one of these actions can be rebound. Open
-**Keyboard mapping** from the toolbar (the keyboard icon, next to Profiles
-and Settings) or from the command palette.
+**Terminal → Keyboard mapping**, or find it in the command palette.
 
 - **Rebind** puts the row into capture: press the combination you want and
   it is recorded. Escape cancels; the terminal never sees the keystroke.
@@ -556,7 +576,7 @@ With hotspots on (the default), those are clickable: click `F3` on the
 screen and 3270Web sends PF3. URLs printed on a screen are clickable too
 and open in a new tab.
 
-Toggle them from the toolbar or the command palette; the choice is
+Toggle them from **View → Hotspots** or the command palette; the choice is
 remembered per browser.
 
 Two rules keep hotspots from doing anything surprising:
@@ -569,7 +589,7 @@ Two rules keep hotspots from doing anything surprising:
 
 ## Find on screen
 
-++ctrl+f++ (or the toolbar's magnifier) opens a find bar over the
+++ctrl+f++ (or **Terminal → Find on screen**) opens a find bar over the
 terminal. ++enter++ moves to the next match, ++shift+enter++ the
 previous, ++esc++ closes.
 
@@ -588,8 +608,8 @@ Outside the terminal — in the AI chat panel, in a settings field —
 ## Screen history
 
 A 3270 screen is repainted in place, so once the host moves on, whatever
-was there is gone. The **Screen history** toolbar button (also in the
-command palette) opens a read-only view of recent screens.
+was there is gone. **Terminal → Screen history** (also in the command
+palette) opens a read-only view of recent screens.
 
 - ++left++ / ++right++ or the Older / Newer buttons move between screens.
 - **Copy** puts the displayed screen on the clipboard.
@@ -609,7 +629,7 @@ The screen is rendered as text with input fields spliced into it, so
 dragging across it with the mouse produces mangled output — the input
 values drop out of the selection. Use these instead:
 
-- **Copy screen** (toolbar, or the command palette) copies the whole
+- **Terminal → Copy screen** (or the command palette) copies the whole
   screen as text, including anything you have typed but not yet
   submitted. Values in hidden password fields are never copied, since
   they were never displayed.
@@ -624,7 +644,7 @@ If the host drops the connection, 3270Web notices, shows
 `X DISCONNECTED` in the OIA, and retries automatically with a backoff
 (1s, 2s, 4s, 8s, 15s). If it comes back, the page reloads on the new
 connection. If it does not, a banner offers a manual **Reconnect**, which
-is also on the toolbar and in the command palette.
+is also in the Session menu and the command palette.
 
 Reconnecting starts a new host session, so recording and chaos state from
 the dead connection does not survive — the host-side conversation those

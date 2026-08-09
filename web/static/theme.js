@@ -185,7 +185,7 @@
     if (!toggle) {
       return;
     }
-    var label = hidden ? "Show header & toolbar" : "Hide header & toolbar";
+    var label = hidden ? "Show the menu bar" : "Collapse the menu bar";
     toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
     toggle.setAttribute("aria-label", label);
     toggle.setAttribute("title", label);

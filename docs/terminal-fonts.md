@@ -26,7 +26,7 @@ same origin as the app (no CDN, no external request). See
 
 ## Switching the terminal font
 
-1. Open **Settings** from the toolbar.
+1. Open **Settings** from the account and settings menu.
 2. Switch to the **App** (or theme) tab.
 3. Pick the desired font from the **Terminal Font** dropdown.
 4. Click **Save settings** — the session re-renders immediately.

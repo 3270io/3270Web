@@ -24,7 +24,7 @@ you pick. See [AI Providers](ai-providers.md) to set one up.
 ## Open the Panel
 
 1. Connect to a host.
-2. Click the **Open AI chat** button in the toolbar (the chat bubble icon), or press ++ctrl+k++ and run *Toggle AI chat*.
+2. Click the **Open AI chat** button in the menu bar (the chat bubble icon), or press ++ctrl+k++ and run *Toggle AI chat*.
 3. The side panel slides open on the right.
 
 ![AI chat panel screenshot](images/copilot-panel.png)
@@ -114,7 +114,7 @@ The AI can perform the following actions on your 3270 session:
 
 ## Chaos Integration
 
-The AI can run and monitor chaos exploration directly from the chat panel. This gives you the same capability as the toolbar controls, but driven by conversation.
+The AI can run and monitor chaos exploration directly from the chat panel. This gives you the same capability as the Automation menu, but driven by conversation.
 
 | Chat command | Tool used | What it does |
 |---|---|---|
@@ -127,7 +127,7 @@ The AI can run and monitor chaos exploration directly from the chat panel. This 
 
 The default system prompt uses a five-phase workflow: read the screen → review existing hints → ask you to choose run mode → start exploration → export results. You can override this by writing your own instructions.
 
-Manual toolbar controls and the AI panel share the same run state — you can freely mix both. See [Chaos Mode](chaos-mode.md) for full details on toolbar controls, settings, and the discovery report format, and see [Running Chaos via AI Chat](chaos-mode.md#running-chaos-via-ai-chat) for a side-by-side comparison.
+The Automation menu and the AI panel share the same run state — you can freely mix both. See [Chaos Mode](chaos-mode.md) for full details on the menu controls, settings, and the discovery report format, and see [Running Chaos via AI Chat](chaos-mode.md#running-chaos-via-ai-chat) for a side-by-side comparison.
 
 ## Business Understanding
 
@@ -168,7 +168,7 @@ Click **Clear** in the panel header to remove all messages from the current chat
 ## Keyboard Shortcut
 
 Press ++ctrl+k++ (++cmd+k++ on macOS) and run *Toggle AI chat* to
-show or hide the panel without reaching for the toolbar; *AI provider
+show or hide the panel without reaching for the menu bar; *AI provider
 settings* in the same palette opens the provider dialog. All other 3270
 key bindings remain active while the panel is open; see
 [Keyboard and Controls](keyboard-and-controls.md).

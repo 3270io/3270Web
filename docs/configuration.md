@@ -22,7 +22,7 @@ If autoconnect is enabled, 3270Web will connect automatically on startup.
 
 ## Open Settings
 
-1. Click the Settings icon in the toolbar.
+1. Open **Settings** from the account and settings menu at the right-hand end of the menu bar.
 2. Use tabs to switch sections.
 3. Edit values.
 4. Click **Save settings**.
@@ -34,32 +34,28 @@ You can also use:
 - **Reset to defaults** inside each settings section
 - **Maximize** for easier editing of long values
 
-## Toolbar Callouts
+## Menu Bar Callouts
 
-![Toolbar screenshot](images/toolbar-real.png){: .doc-medal }
+![Menu bar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
-1. **Disconnect** — end the session (asks for confirmation)
-2. **Logs** — open the log viewer (only enabled when `Allow log access` is on)
-3. **Print screen** — render the current screen for printing
-4. **Recording** — expand the recording and playback group
-5. **Chaos** — expand the chaos exploration group
-6. **Command palette** — search every action (++ctrl+k++)
-7. **AI chat** — show or hide the AI side panel
-8. **Settings** — open the settings modal
-9. **Workspace mode** — switch between Business and Engineering
-
-The eye icon to the left of the palette button hides the header and
-toolbar for a distraction-free terminal; click it again to bring them
-back.
+1. **Session** — profiles, connection details, reconnect, print, disconnect
+2. **Terminal** — find, copy, screen history, file transfer, keyboard mapping
+3. **View** — focus mode, hotspots, virtual keypad, terminal size, theme
+4. **Automation** — recording, playback and chaos exploration
+5. **Tasks** — run a guided business task
+6. **AI chat** — show or hide the AI side panel
+7. **Command palette** — search every action (++ctrl+k++)
+8. **Account and settings** — settings, logs, workspace mode, about, sign out
+9. **Collapse** — fold the bar away for a distraction-free terminal
 
 !!! note "Business mode is the default"
 
-    The screenshot above is **Engineering** mode, which is why callouts 4
-    and 5 are visible. In **Business** mode — what you get on a fresh
-    browser — the recording and chaos groups are hidden and the toolbar
-    carries only what an application user needs. Callout 9 switches
-    between them, and the choice persists per browser. See
+    The screenshot above is **Engineering** mode, which is why callout 4 is
+    visible. In **Business** mode — what you get on a fresh browser — the
+    Automation menu is hidden and the bar carries only what an application
+    user needs. **Engineering tools** in menu 8 switches between them, and
+    the choice persists per browser. See
     [Keyboard and Controls](keyboard-and-controls.md) for the full
     breakdown.
 
@@ -218,24 +214,23 @@ where the rest of the deployment is described.
 
 A few quality-of-life behaviours worth knowing about:
 
-- **Collapsible toolbar sections** — the Recording and Chaos toolbar
-  groups collapse with a chevron and remember their state, so a busy
-  toolbar can be trimmed to just the controls you care about.
+- **A collapsible menu bar** — the chevron at the right-hand end folds the
+  whole bar away and remembers the choice, so a session that needs the
+  height can have it without leaving anything behind.
 - **Required hostname input** — the connect form marks the hostname
   field as required and announces missing-value errors to assistive
   tech, so it is harder to accidentally submit an empty form.
 - **Saved host deletion confirmation** — removing a saved host profile
   pops a confirmation modal; the destructive action cannot fire on a
   single mis-click.
-- **Destructive disconnect styling** — the Disconnect toolbar button is
-  visually tagged as destructive (warning tint at rest) so it is
-  distinct from the safer navigation buttons next to it.
+- **Destructive disconnect styling** — Disconnect is tagged as destructive
+  in the Session menu so it never reads like the items above it.
 - **Toast notifications** — short-lived theme-aware toasts surface the
   result of background actions (save, export, error) without taking
   focus.
-- **Command palette** — ++ctrl+k++ opens a searchable list of every
-  toolbar and modal action, including controls inside collapsed Recording
-  and Chaos groups, plus one-key theme switching. See
+- **Command palette** — ++ctrl+k++ opens a searchable list of every menu
+  and modal action, reaching controls without opening the menu they live
+  in, plus one-key theme switching. See
   [Command Palette](keyboard-and-controls.md#command-palette).
 - **Operator information area** — the status bar under the terminal
   reports keyboard state, model, screen size and cursor position. The
@@ -247,7 +242,7 @@ A few quality-of-life behaviours worth knowing about:
 
 ## Log Access
 
-If log access is enabled in settings, you can open the Logs modal from the toolbar and:
+If log access is enabled in settings, you can open the Logs modal from the account and settings menu and:
 
 - Turn verbose logging on/off
 - Refresh logs

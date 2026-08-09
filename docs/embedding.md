@@ -96,8 +96,8 @@ the thing that is missing.
 ></iframe>
 ```
 
-`?embed=1` renders the terminal without the header, the toolbar, the session
-tab bar or the animated background — the page around the frame has its own.
+`?embed=1` renders the terminal without the menu bar, the session tab bar or
+the animated background — the page around the frame has its own.
 The screen, its operator information area and all the keyboard handling are
 untouched: a terminal that cannot be typed into is not a smaller terminal.
 
@@ -109,9 +109,9 @@ does not survive a redirect. `?embed=0` clears it.
 server is decided by `EMBED_ORIGINS` and enforced by the browser — so it does
 not matter that anyone can add it to a URL.
 
-### Showing the toolbar
+### Showing the menu bar
 
-Add the `embedded-toolbar` class to the frame's `<body>` to keep the toolbar.
+Add the `embedded-toolbar` class to the frame's `<body>` to keep the menu bar.
 The simplest way is a second query parameter your page appends and a small
 stylesheet of your own; the default is the screen and nothing else, because
 the common case is a portal that has its own controls.
@@ -187,7 +187,7 @@ Rows and columns are 0-indexed, matching what `getScreen` reports.
 | `result` | The answer to one command, carrying the `id` that command was sent with. |
 
 Nothing here is a new capability: each command calls the same endpoint the
-toolbar calls, so a page around the frame can do what the person looking at
+menus call, so a page around the frame can do what the person looking at
 the frame could already do, and nothing beyond it.
 
 ## Without an iframe: calling the API directly

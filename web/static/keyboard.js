@@ -687,6 +687,17 @@
         return true;
       }
     }
+    // An open drop-down in the menu bar is not a dialog, but for this
+    // handler's purposes it wants the same answer. While a menu is open the
+    // arrows walk its items, Enter runs the one under the cursor and a letter
+    // jumps to the item starting with it — every one of which this handler
+    // would otherwise have sent to the host as an AID key or a keystroke. The
+    // focus lock has to stand down for the same reason: it exists to keep
+    // typing in the terminal, and an open menu is the one time typing is not
+    // meant for the terminal.
+    if (document.querySelector("[data-app-menu].is-open")) {
+      return true;
+    }
     return false;
   }
 
@@ -738,7 +749,12 @@
     if (target.closest("[data-terminal-escape-hatch]")) {
       return false;
     }
-    if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
+    // A menu trigger has to take the focus it is clicked with, or the menu it
+    // opens has nothing to arrow away from.
+    if (target.closest("[data-app-menu]")) {
+      return false;
+    }
+    if (target.closest("[data-terminal-controls]")) {
       return true;
     }
     var control = target.closest(
@@ -757,9 +773,9 @@
     if (!shouldKeepTerminalFocus(target)) {
       return false;
     }
-    // Allow terminal tools interactions (size buttons, fit, reset, widget toggle)
-    // to run normally; focus is restored on click handler.
-    if (target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
+    // Allow terminal size interactions (steppers, slider, fit, reset) to run
+    // normally; focus is restored on click handler.
+    if (target.closest("[data-terminal-controls]")) {
       return false;
     }
     return true;
@@ -827,7 +843,7 @@
         if (event.target.closest("[data-terminal-size-slider]")) {
           return;
         }
-        if (event.target.closest("[data-terminal-controls], [data-terminal-tools-toggle]")) {
+        if (event.target.closest("[data-terminal-controls], [data-app-menu]")) {
           return;
         }
         if (event.target.matches && event.target.matches('input[type="range"]')) {
@@ -1814,6 +1830,16 @@
     // Never intercept keystrokes when focus is inside a non-terminal editable
     // element (e.g. the Copilot chat textarea, settings inputs).
     if (isEditableTarget(event.target) && !isScreenInput(event.target)) {
+      return;
+    }
+
+    // Focus inside the menu bar belongs to the menu bar. isModalOpen() above
+    // already covers an OPEN menu; this covers the trigger a keyboard user has
+    // just tabbed to, where nothing is open yet and ArrowDown is the key that
+    // opens it. Without this the default keymap claims the arrows first — it
+    // binds them to cursor movement, which it does wherever focus happens to
+    // be — and the menu can only be opened with a mouse.
+    if (event.target && typeof event.target.closest === "function" && event.target.closest("[data-app-menu]")) {
       return;
     }
 
