@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>3270Web - Groups</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/favicon-32.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
+    <script src="/static/theme.js?v=9" defer></script>
+    <script src="/static/background.js" defer></script>
+</head>
+<body data-auth-enabled="{{ .AuthEnabled }}">
+    <script src="/static/early-theme-init.js"></script>
+    <div class="bg-overlay" aria-hidden="true">
+        <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="admin-page admin-page--wide">
+        <div class="card" role="main">
+            <div class="card-header">
+                <div class="brand-lockup">
+                    {{ template "brand-mark" }}
+                    <div>
+                        <h1>Groups</h1>
+                        <div class="subtle">The teams accounts belong to, and the mainframes each team reaches</div>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <a class="button-link" href="/">Back to 3270Web</a>
+                </div>
+            </div>
+
+            {{ template "admin-nav" "groups" }}
+
+            {{ if not .AuthEnabled }}
+            <div class="auth-alert auth-alert--warn">
+                <span>
+                    Authentication is turned off, so this instance has one
+                    operator and nothing to separate. Set
+                    <code>AUTH_MODE=local</code> and restart to have accounts,
+                    and groups to put them in.
+                </span>
+            </div>
+            {{ else }}
+
+            <div class="admin-status" data-groups-status aria-live="polite"></div>
+
+            <p class="admin-dialog-desc" style="margin-top:0">
+                A group is a team: put accounts in it, assign it the host presets
+                its members should be offered, and — where a team administers this
+                instance — give it the administrator role. A group may be empty, so
+                the teams can be prepared before the people arrive.
+            </p>
+
+            <div class="admin-toolbar">
+                <span class="admin-count" data-groups-count>Loading…</span>
+                <div class="toolbar audit-filters">
+                    <label class="visually-hidden" for="groups-filter">Filter groups</label>
+                    <input type="search" id="groups-filter" data-groups-filter
+                           placeholder="Filter by group, member or host"
+                           autocomplete="off" autocapitalize="none" spellcheck="false">
+                    <button type="button" data-groups-refresh>Refresh</button>
+                    <button type="button" data-groups-add>Add group</button>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <div class="admin-table-scroll">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Group</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">Members</th>
+                                <th scope="col">Hosts offered</th>
+                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody data-groups-rows>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+    </div>
+
+    <!-- Add / edit a group -->
+    <div class="admin-dialog" data-dialog="group" hidden>
+        <div class="admin-dialog-content admin-dialog-content--wide" role="dialog"
+             aria-modal="true" aria-labelledby="group-dialog-title">
+            <div class="admin-dialog-head">
+                <h2 id="group-dialog-title" data-group-dialog-title>Add group</h2>
+                <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
+            </div>
+            <form class="auth-form" data-group-form>
+                <div class="preset-grid">
+                    <div class="field">
+                        <label for="group-name">Name</label>
+                        <input type="text" id="group-name" name="name" maxlength="{{ .MaxNameLen }}" required
+                               autocomplete="off" autocapitalize="none" spellcheck="false"
+                               placeholder="payments" aria-describedby="group-name-hint">
+                        <div class="field-hint" id="group-name-hint">
+                            No commas — a comma separates one group from the next
+                            everywhere a list of them is typed.
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="group-description">Description <span class="subtle">optional</span></label>
+                        <input type="text" id="group-description" name="description" maxlength="{{ .MaxDescLen }}"
+                               autocomplete="off" spellcheck="false"
+                               placeholder="Covers the overnight batch">
+                    </div>
+                    <div class="field">
+                        <label for="group-role">Role granted</label>
+                        <select id="group-role" name="role" aria-describedby="group-role-hint">
+                            <option value="user" selected>No extra role</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                        <div class="field-hint" id="group-role-hint">
+                            Held by everyone in the group on top of whatever each
+                            account holds of its own — being in a group never takes
+                            a role away.
+                        </div>
+                    </div>
+                </div>
+
+                <fieldset class="preset-audience">
+                    <legend>Members</legend>
+                    <p class="field-hint">
+                        The accounts in this group. A group with no members is still
+                        a group; it simply reaches nobody yet.
+                    </p>
+                    <div class="auth-alert auth-alert--info" data-group-provider-note hidden>
+                        <span>
+                            Accounts marked <em>single sign-on</em> take their groups
+                            from the identity provider, refreshed at every sign-in.
+                            They are shown here but changed there.
+                        </span>
+                    </div>
+                    <label class="visually-hidden" for="group-member-filter">Filter accounts</label>
+                    <input type="search" id="group-member-filter" data-group-member-filter
+                           placeholder="Filter accounts" autocomplete="off"
+                           autocapitalize="none" spellcheck="false">
+                    <div class="picker-list" data-group-members></div>
+                    <p class="field-hint" data-group-members-empty hidden>
+                        No accounts yet. Add one on the Accounts page and it can join
+                        this group.
+                    </p>
+                </fieldset>
+
+                <fieldset class="preset-audience">
+                    <legend>Hosts offered</legend>
+                    <p class="field-hint">
+                        The published presets this group's members are offered on the
+                        session manager. Ticking one adds this group to that preset's
+                        audience; a preset that ends up naming nobody is offered to
+                        everyone.
+                    </p>
+                    <div class="picker-list" data-group-hosts></div>
+                    <p class="field-hint" data-group-hosts-empty hidden>
+                        No host presets published yet. Add one on the
+                        <a href="/admin/session-screen">Session screen</a> page.
+                    </p>
+                </fieldset>
+
+                <div class="admin-dialog-actions">
+                    <button type="button" data-dialog-cancel>Cancel</button>
+                    <button type="submit" data-group-save>Save group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm removal -->
+    <div class="admin-dialog" data-dialog="confirm" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h2 id="confirm-title" data-confirm-title>Are you sure?</h2>
+            <p class="admin-dialog-desc" data-confirm-desc></p>
+            <div class="admin-dialog-actions">
+                <button type="button" data-dialog-cancel>Cancel</button>
+                <button type="button" class="danger" data-confirm-accept>Remove</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/admin-groups.js?v=1" defer></script>
+</body>
+</html>

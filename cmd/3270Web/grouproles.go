@@ -88,28 +88,11 @@ func (app *App) AdminSetGroupRoleHandler(c *gin.Context) {
 	// lock you out of the page you are standing on, exactly like demoting
 	// yourself — and it is refused the same way. The store's own guard only
 	// protects the last administrator; this one protects the caller.
-	//
-	// Read straight from the store: accountFor elevates the role to the
-	// effective one, and it is precisely the difference between the two that
-	// this guard exists to notice.
-	if role != authz.RoleAdmin {
-		account, found, err := app.userStore().ByID(principalFrom(c).UserID)
-		if err == nil && found && account.Role != authz.RoleAdmin {
-			current := app.groupRolesOrNone()
-			next := make(map[string]authz.Role, len(current))
-			for g, r := range current {
-				if !strings.EqualFold(g, group) {
-					next[g] = r
-				}
-			}
-			if users.EffectiveRole(account, current) == authz.RoleAdmin &&
-				users.EffectiveRole(account, next) != authz.RoleAdmin {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "your own administrator role comes from this group; another administrator has to change it",
-				})
-				return
-			}
-		}
+	if role != authz.RoleAdmin && app.selfAdminDependsOnGroup(c, group) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "your own administrator role comes from this group; another administrator has to change it",
+		})
+		return
 	}
 
 	if err := app.userStore().SetGroupRole(group, role); err != nil {

@@ -1228,6 +1228,48 @@ table.admin-table {
   background: color-mix(in srgb, var(--term-color-yellow, #ffd166) 10%, transparent);
 }
 
+/* The group dialog's member and host pickers. A scrolling column of
+   checkboxes: an instance with two hundred accounts must not push the save
+   button off the bottom of the dialog, and a team is chosen by ticking names
+   rather than by spelling each one the same way it was spelled elsewhere. */
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+}
+
+.picker-list .preset-check {
+  align-items: flex-start;
+  padding: 5px 4px;
+  border-radius: var(--r-xs, 6px);
+}
+
+.picker-list .preset-check:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.picker-list .preset-check input[type="checkbox"] {
+  margin-top: 3px;
+}
+
+/* A locked row is one the identity provider owns. Dimmed rather than hidden:
+   "why is this person not in the list" is a worse question than "why can I not
+   tick this", which the note above the list answers. */
+.picker-list .preset-check--locked {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.picker-list .admin-role-via {
+  display: block;
+}
+
 /* The preset dialog: two columns where there is room, one where there is
    not, and the audience fieldset drawn as its own bordered panel. */
 .preset-grid {

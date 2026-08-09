@@ -51,6 +51,13 @@ const (
 	// do, so it is recorded with the same weight as changing an account.
 	EventGroupRoleSet Event = "group.role_changed"
 
+	// Maintaining a group is maintaining who reaches which mainframe: its
+	// membership decides that, and so does the host list assigned to it. Each
+	// change is recorded with the group as its target.
+	EventGroupCreated Event = "group.created"
+	EventGroupUpdated Event = "group.updated"
+	EventGroupDeleted Event = "group.deleted"
+
 	// The published host list: what the session-selection screen offers, and
 	// to whom. Private profiles are not recorded — they are one person's own.
 	EventProfilePublished Event = "profile.published"

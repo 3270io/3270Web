@@ -378,6 +378,13 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.POST("/api/admin/profiles", app.AdminSaveProfileHandler)
 	admin.POST("/api/admin/profiles/delete", app.AdminDeleteProfileHandler)
 	admin.POST("/api/admin/group-roles", app.AdminSetGroupRoleHandler)
+	// Groups as things in their own right: made, named, filled and pointed at
+	// mainframes from one page instead of three. See admingroups.go.
+	admin.GET(adminGroupsPath, app.AdminGroupsPageHandler)
+	admin.GET("/api/admin/groups", app.AdminListGroupsHandler)
+	admin.POST("/api/admin/groups", app.AdminCreateGroupHandler)
+	admin.PATCH("/api/admin/groups/:name", app.AdminUpdateGroupHandler)
+	admin.DELETE("/api/admin/groups/:name", app.AdminDeleteGroupHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
