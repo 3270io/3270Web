@@ -78,6 +78,7 @@ nav:
   - Terminal Capabilities: terminal-capabilities.md
   - Accessibility: accessibility.md
   - Feature Roadmap: feature-roadmap.md
+  - Acknowledgements: acknowledgements.md
 
 plugins:
   - search

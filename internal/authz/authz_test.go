@@ -150,7 +150,7 @@ func TestParseMode(t *testing.T) {
 // A mode this build cannot implement must stop startup. Accepting it would
 // leave an operator believing the instance is authenticated when it is not.
 func TestParseModeRejectsUnsupported(t *testing.T) {
-	for _, in := range []string{"oidc", "proxy", "true", "off", "ldap", "yes"} {
+	for _, in := range []string{"proxy", "true", "off", "ldap", "yes", "saml"} {
 		if got, err := ParseMode(in); err == nil {
 			t.Errorf("ParseMode(%q) = %q, want an error", in, got)
 		}

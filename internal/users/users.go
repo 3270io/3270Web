@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -58,9 +59,30 @@ type User struct {
 	ID       string     `json:"id"`
 	Username string     `json:"username"`
 	Role     authz.Role `json:"role"`
-	// PasswordHash is a PHC-format Argon2id string.
+	// PasswordHash is a PHC-format Argon2id string. Empty on an account that
+	// signs in through an identity provider: there is no local password to
+	// hash, and an empty hash verifies nothing rather than verifying anything.
 	PasswordHash string `json:"passwordHash"`
-	Disabled     bool   `json:"disabled,omitempty"`
+	// Issuer and Subject link the account to an identity provider. Both empty
+	// on a local account.
+	//
+	// The pair is the identity, not the username: a directory may rename
+	// somebody, and the subject claim is the one thing an issuer promises not
+	// to reuse or recycle. Matching on the name instead would hand a renamed
+	// person a brand-new account — and, worse, hand the next person given that
+	// name the previous holder's saved work.
+	Issuer  string `json:"issuer,omitempty"`
+	Subject string `json:"subject,omitempty"`
+	// Groups the account belongs to. Groups say nothing about permission on
+	// their own — the role does that — and exist so that what somebody may
+	// reach can be decided for a team rather than a person at a time.
+	//
+	// On an account that signs in through an identity provider these are the
+	// directory's own groups, refreshed at each sign-in where the deployment
+	// maps a claim to them. That is the point: the team somebody is on is
+	// already recorded somewhere, and it is not here.
+	Groups   []string `json:"groups,omitempty"`
+	Disabled bool     `json:"disabled,omitempty"`
 	// MustChangePassword marks an account whose password was issued by the
 	// system rather than chosen by its owner.
 	MustChangePassword bool      `json:"mustChangePassword,omitempty"`
@@ -72,6 +94,66 @@ type User struct {
 func (u User) Redacted() User {
 	u.PasswordHash = ""
 	return u
+}
+
+// External reports whether the account is authenticated by an identity
+// provider rather than by a password held here.
+func (u User) External() bool { return u.Issuer != "" && u.Subject != "" }
+
+// InGroup reports whether the account belongs to the named group.
+//
+// Compared without regard to case, because a group name arrives from three
+// places — an administrator typing it, a directory claim, and a profile's
+// audience — and none of them agrees with the others about capitals.
+func (u User) InGroup(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	for _, g := range u.Groups {
+		if strings.EqualFold(strings.TrimSpace(g), name) {
+			return true
+		}
+	}
+	return false
+}
+
+// maxGroupsPerUser and maxGroupNameLength bound what a directory claim can
+// write into the account file. A provider is not this server's to trust with
+// unbounded input, however friendly it is.
+const (
+	maxGroupsPerUser   = 64
+	maxGroupNameLength = 64
+)
+
+// NormaliseGroups trims, de-duplicates and bounds a group list.
+//
+// Exported because the same cleaning has to happen to a list an administrator
+// typed and to one an identity provider sent, and two implementations of
+// "what counts as the same group" is exactly how a profile audience stops
+// matching the account it was written for.
+func NormaliseGroups(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, raw := range in {
+		name := strings.TrimSpace(raw)
+		if name == "" || len(name) > maxGroupNameLength {
+			continue
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, name)
+		if len(out) >= maxGroupsPerUser {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Principal converts the account into the actor used for authorization.
@@ -260,6 +342,116 @@ func (s *Store) Add(username, password string, role authz.Role, mustChange bool)
 // already has accounts.
 var ErrNotFirstUser = errors.New("users: accounts already exist")
 
+// ErrNameHeldLocally is returned when an identity provider offers a username
+// that a local account already holds.
+var ErrNameHeldLocally = errors.New("users: a local account already uses that name")
+
+// UpsertExternal resolves an identity provider's user into a local account,
+// creating it on first sign-in and keeping it current afterwards.
+//
+// The account is found by issuer and subject, never by name. A directory
+// renames people, and the subject is the one claim an issuer promises not to
+// recycle; matching on the name would give a renamed person an empty new
+// account, and would eventually give somebody else's saved work to whoever
+// inherited their username.
+//
+// role empty means "leave it alone" — a new account gets RoleUser, an existing
+// one keeps whatever it has. That is what makes an administrator's promotion
+// on the Accounts page survive the next sign-in on a deployment that has not
+// mapped roles from a claim. Where a claim is mapped, it is passed in and wins
+// every time, which is the point of managing roles centrally.
+func (s *Store) UpsertExternal(issuer, subject, username string, role authz.Role, groups []string) (User, error) {
+	issuer = strings.TrimSpace(issuer)
+	subject = strings.TrimSpace(subject)
+	if issuer == "" || subject == "" {
+		return User{}, errors.New("users: an external account needs both an issuer and a subject")
+	}
+	if err := ValidateUsername(username); err != nil {
+		return User{}, err
+	}
+	if role != "" && role != authz.RoleAdmin && role != authz.RoleUser {
+		return User{}, fmt.Errorf("users: unknown role %q", role)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return User{}, err
+	}
+
+	for i := range list {
+		if list[i].Issuer != issuer || list[i].Subject != subject {
+			continue
+		}
+		changed := false
+		// A rename at the provider follows through to here, unless the new name
+		// is one somebody else already answers to — in which case the account
+		// keeps the name it had rather than two accounts sharing one.
+		if !strings.EqualFold(list[i].Username, username) && indexOfUsername(list, username) < 0 {
+			list[i].Username = username
+			changed = true
+		}
+		// nil means the deployment maps no group claim, so whatever an
+		// administrator set here is left alone. A non-nil empty list is
+		// different: it means the directory says this person is in nothing.
+		if groups != nil {
+			cleaned := NormaliseGroups(groups)
+			if !sameGroups(list[i].Groups, cleaned) {
+				list[i].Groups = cleaned
+				changed = true
+			}
+		}
+		if role != "" && list[i].Role != role {
+			// Demoting the last administrator is refused here as everywhere: an
+			// instance nobody can administer can only be repaired by hand.
+			if !(role == authz.RoleUser && list[i].Role == authz.RoleAdmin &&
+				countEnabledAdmins(list) <= 1 && !list[i].Disabled) {
+				list[i].Role = role
+				changed = true
+			}
+		}
+		if changed {
+			if err := s.save(list); err != nil {
+				return User{}, err
+			}
+		}
+		return list[i].Redacted(), nil
+	}
+
+	// First sign-in. A name a local account already holds is refused rather
+	// than linked: linking would let anyone who can be named in the directory
+	// take over a local account, including the break-glass administrator.
+	if indexOfUsername(list, username) >= 0 {
+		return User{}, ErrNameHeldLocally
+	}
+
+	id, err := newID()
+	if err != nil {
+		return User{}, err
+	}
+	if role == "" {
+		role = authz.RoleUser
+	}
+	now := s.now()
+	u := User{
+		ID:       id,
+		Username: username,
+		Role:     role,
+		Issuer:   issuer,
+		Subject:  subject,
+		Groups:   NormaliseGroups(groups),
+		// No PasswordHash. The account has no local password, and Authenticate
+		// refuses one rather than treating an empty hash as a match.
+		CreatedAt:         now,
+		PasswordChangedAt: now,
+	}
+	if err := s.save(append(list, u)); err != nil {
+		return User{}, err
+	}
+	return u.Redacted(), nil
+}
+
 // AddFirstAdmin creates the initial administrator, but only while the store is
 // empty.
 //
@@ -401,7 +593,11 @@ func (s *Store) Authenticate(username, password string) (User, error) {
 		}
 	}
 
-	if found == nil {
+	// An account with no local password cannot be signed in with one. Spending
+	// the decoy's work first, as for a missing account: answering an external
+	// account instantly would make the login form a way to ask which names are
+	// managed by the identity provider.
+	if found == nil || found.PasswordHash == "" {
 		// Compare against a real hash of a throwaway value so the work done
 		// matches the found-user path.
 		_, _ = VerifyPassword(decoyHash(), password)
@@ -439,6 +635,12 @@ func (s *Store) SetPassword(username, password string) error {
 	}
 	for i := range list {
 		if strings.EqualFold(list[i].Username, username) {
+			// Giving an identity provider's account a local password would add
+			// a second way in that the provider knows nothing about, and so
+			// cannot disable when it disables the person.
+			if list[i].External() {
+				return ErrExternalAccount
+			}
 			list[i].PasswordHash = hash
 			list[i].PasswordChangedAt = s.now()
 			list[i].MustChangePassword = false
@@ -446,6 +648,56 @@ func (s *Store) SetPassword(username, password string) error {
 		}
 	}
 	return ErrUserNotFound
+}
+
+// ErrExternalAccount is returned by operations that only make sense on an
+// account with a local password.
+var ErrExternalAccount = errors.New("users: this account signs in through the identity provider")
+
+// SetGroups replaces an account's group membership.
+func (s *Store) SetGroups(username string, groups []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+	idx := indexOfUsername(list, username)
+	if idx < 0 {
+		return ErrUserNotFound
+	}
+	list[idx].Groups = NormaliseGroups(groups)
+	return s.save(list)
+}
+
+// Groups returns every group name any account belongs to, sorted.
+//
+// There is no separate registry of groups: a group exists because somebody is
+// in it. A registry would be a second place for a name to live and a second
+// way for it to be spelled, and the only thing it would add is the ability to
+// create an empty group — which reaches nobody by definition.
+func (s *Store) Groups() ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]string)
+	for _, u := range list {
+		for _, g := range u.Groups {
+			key := strings.ToLower(strings.TrimSpace(g))
+			if key != "" && seen[key] == "" {
+				seen[key] = strings.TrimSpace(g)
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for _, name := range seen {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // SetDisabled enables or disables an account.
@@ -554,4 +806,18 @@ func (s *Store) RequirePasswordChange(username string) error {
 	}
 	list[idx].MustChangePassword = true
 	return s.save(list)
+}
+
+// sameGroups reports whether two normalised group lists hold the same names,
+// so a sign-in that changes nothing does not rewrite the account file.
+func sameGroups(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !strings.EqualFold(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }

@@ -32,6 +32,11 @@
             </div>
             {{ end }}
 
+            {{ if .SSO.Enabled }}
+            <a class="auth-submit auth-sso" href="{{ .SSO.StartPath }}">Sign in with your organisation account</a>
+            <div class="auth-divider"><span>or sign in with a password</span></div>
+            {{ end }}
+
             <form action="/login" method="post" class="auth-form" data-auth-form>
                 <div class="field">
                     <label for="username">Username</label>

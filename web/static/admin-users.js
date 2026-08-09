@@ -137,6 +137,14 @@
     var nameWrap = el('div');
     nameWrap.appendChild(el('div', 'admin-username', user.username));
     if (user.self) nameWrap.appendChild(el('span', 'admin-self-tag', 'you'));
+    // Where the account comes from, when it is not from here. It explains the
+    // absent password controls below, and it is what tells an administrator
+    // that renaming this person happens in the directory rather than here.
+    if (user.external) {
+      var origin = el('span', 'admin-origin-tag', 'single sign-on');
+      if (user.issuer) origin.title = 'Signs in through ' + user.issuer;
+      nameWrap.appendChild(origin);
+    }
     wrap.appendChild(nameWrap);
     accountCell.appendChild(wrap);
     tr.appendChild(accountCell);
@@ -162,9 +170,15 @@
     var actionsCell = el('td', 'admin-actions-cell');
     var actions = el('div', 'admin-actions');
 
-    actions.appendChild(actionButton('Reset password', '', function () {
-      openReset(user);
-    }));
+    // An account that signs in through the identity provider has no local
+    // password, and the server refuses to give it one — a second door the
+    // provider knows nothing about is one it cannot close. So the control is
+    // absent rather than present and failing.
+    if (!user.external) {
+      actions.appendChild(actionButton('Reset password', '', function () {
+        openReset(user);
+      }));
+    }
 
     // Each of these would lock the administrator out of the page they are
     // standing on, so the server refuses them and the UI does not offer them.

@@ -139,6 +139,14 @@ const (
 	ModeNone Mode = "none"
 	// ModeLocal authenticates against the server's own account store.
 	ModeLocal Mode = "local"
+	// ModeOIDC authenticates against an external identity provider, while
+	// still accepting a password for accounts that have one.
+	//
+	// Both, rather than either: the local account is the way back in when the
+	// provider is unreachable or misconfigured, and an instance whose only
+	// door depends on a service it does not run is an instance that can be
+	// locked out of itself by somebody else's outage.
+	ModeOIDC Mode = "oidc"
 )
 
 // ModeEnv names the environment variable that selects the mode.
@@ -156,8 +164,10 @@ func ParseMode(value string) (Mode, error) {
 		return ModeNone, nil
 	case string(ModeLocal):
 		return ModeLocal, nil
+	case string(ModeOIDC):
+		return ModeOIDC, nil
 	default:
-		return "", fmt.Errorf("unsupported %s %q (supported: %s, %s)", ModeEnv, value, ModeNone, ModeLocal)
+		return "", fmt.Errorf("unsupported %s %q (supported: %s, %s, %s)", ModeEnv, value, ModeNone, ModeLocal, ModeOIDC)
 	}
 }
 

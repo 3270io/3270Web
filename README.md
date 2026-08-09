@@ -391,6 +391,18 @@ pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
+## Acknowledgements
+
+3270Web does not speak TN3270 itself. Every screen it renders and every key it
+sends is carried by **s3270**, the scripting member of the
+[**x3270**](https://x3270.miraheze.org/wiki/Main_Page) family of 3270 terminal
+emulators, which 3270Web runs as a child process. Three decades of faithful
+3270 protocol work by Paul Mattes and the x3270 contributors, given away for
+anyone to build on — 3270Web would not exist without it. Our thanks to them.
+
+s3270 is BSD 3-Clause licensed; the full text and the per-distribution details
+are in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
+
 ## Brand
 
 The 3270Web mark and its lockups live in [`brand/`](brand/) — SVG, PNG and
@@ -407,3 +419,11 @@ The favicon and touch icon (`web/static/favicon-32.png`,
 site) are the kit's `*-icon.*` files, which carry the daylight green rather than
 phosphor. A tab strip is a surface this app does not own and cannot theme, and
 phosphor — tuned for a dark terminal — goes milky against white tab chrome.
+
+## License
+
+3270Web is released under the MIT License — see [`LICENSE`](LICENSE).
+
+That covers 3270Web's own code. The s3270 binary it bundles and the other
+third-party components it ships stay under their own terms; those are recorded
+in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
