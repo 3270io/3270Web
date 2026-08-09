@@ -48,6 +48,9 @@ DRY_RUN=0
 API_TOKEN_ARG=""          # --api-token: empty, "auto", or a literal token
 API_TOKEN_VALUE=""        # resolved token; empty leaves /api/v1 and MCP off
 MCP_TOOLS="interactive"   # --mcp-tools: readonly | interactive | full
+AUTH_MODE_ARG=""          # --auth: "", none or local
+AUTH_MODE_VALUE="none"    # resolved: none (one operator) or local (accounts)
+EXISTING_STACK=0          # 1 when this run is updating an install already here
 
 # ==========================================================================
 # 1. Palette
@@ -677,6 +680,7 @@ install_docker() {
 
   local tag="latest"
   [ "$VERSION" != "latest" ] && tag="$VERSION"
+  choose_auth_mode
   resolve_api_token
 
   DATA_DIR_PATH="${DATA_DIR_PATH:-${HOME}/.3270web/data}"
@@ -685,6 +689,7 @@ install_docker() {
   step "name" "$CONTAINER_NAME"
   step "listen" "${BIND}:${PORT} → 8080"
   step "data" "${DATA_DIR_PATH} → /data"
+  step_auth
   step_api
   printf '\n'
 
@@ -728,6 +733,9 @@ install_docker() {
   local -a env_args=(-e GIN_MODE=release -e WEBUI_BIND=0.0.0.0)
   if [ -n "$API_TOKEN_VALUE" ]; then
     env_args+=(-e "API_TOKEN=${API_TOKEN_VALUE}" -e "MCP_TOOLS=${MCP_TOOLS}")
+  fi
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    env_args+=(-e "AUTH_MODE=local")
   fi
 
   prepare_data_dir "$DATA_DIR_PATH" || true
@@ -839,6 +847,108 @@ report_data_upgrade() {
 }
 
 # ==========================================================================
+# 7c. Accounts, and re-running over an install that is already here
+# ==========================================================================
+
+# read_setting <file> <NAME> — the value of NAME= in an existing compose file,
+# ignoring commented-out lines. Empty when absent.
+read_setting() {
+  [ -r "$1" ] || return 0
+  sed -n "s/^[[:space:]]*-[[:space:]]*$2=\\(.*\\)$/\\1/p" "$1" | tail -1
+}
+
+# adopt_existing <compose-file> <env-file> — carry a previous run's choices
+# forward, so re-running the installer updates an install rather than quietly
+# reconfiguring it.
+#
+# Someone re-running this to take a new image should not lose their accounts
+# setting, their port, or their API token because they typed a shorter command
+# the second time. Anything given explicitly on the command line still wins.
+adopt_existing() {
+  local file="$1" envfile="$2"
+  [ -e "$file" ] || return 0
+  EXISTING_STACK=1
+
+  local previous_auth previous_token previous_tools
+  previous_auth="$(read_setting "$file" AUTH_MODE)"
+  previous_tools="$(read_setting "$file" MCP_TOOLS)"
+  if [ -z "$AUTH_MODE_ARG" ] && [ -n "$previous_auth" ]; then
+    AUTH_MODE_VALUE="$previous_auth"
+    AUTH_MODE_ARG="$previous_auth"
+  fi
+  [ -n "$previous_tools" ] && [ "$MCP_TOOLS" = "interactive" ] && MCP_TOOLS="$previous_tools"
+
+  # The token lives in .env, never in the stack file. Reusing it matters more
+  # than the rest: regenerating one silently breaks every client that has it.
+  if [ -z "$API_TOKEN_ARG" ] && [ -r "$envfile" ]; then
+    previous_token="$(sed -n 's/^API_TOKEN=\\(.*\\)$/\\1/p' "$envfile" | tail -1)"
+    if [ -n "$previous_token" ]; then
+      API_TOKEN_ARG="$previous_token"
+      step "kept" "the API token already in .env" "ok"
+    fi
+  fi
+}
+
+# choose_auth_mode — decide whether this instance has accounts.
+#
+# Asked rather than defaulted on, because turning it on is a decision about
+# who the instance is for: with it off there is one operator and no sign-in,
+# which is right for a laptop and wrong for a shared port.
+choose_auth_mode() {
+  if [ -n "$AUTH_MODE_ARG" ]; then
+    AUTH_MODE_VALUE="$AUTH_MODE_ARG"
+  elif [ "$TTY_OK" -eq 0 ] || [ "$ASSUME_YES" -eq 1 ]; then
+    AUTH_MODE_VALUE="none"
+  else
+    printf '\n'
+    eyebrow "ACCOUNTS"
+    note "Off:  one operator, no sign-in. Right for a laptop."
+    note "On:   a sign-in page, an account each, and one person's terminal"
+    note "      sessions and saved work kept from another's. Turn it on"
+    note "      whenever more than one person can reach the port."
+    note "      ${DOCS_URL}/multi-user/"
+    printf '\n'
+    if confirm "Require a sign-in? (accounts)"; then
+      AUTH_MODE_VALUE="local"
+    else
+      AUTH_MODE_VALUE="none"
+    fi
+    printf '\n'
+  fi
+
+  # A single shared API_TOKEN reaches every account's sessions, so an instance
+  # with accounts refuses to start with one set. Catching it here beats
+  # writing a stack that will not come up.
+  if [ "$AUTH_MODE_VALUE" = "local" ] && [ -n "$API_TOKEN_ARG" ]; then
+    warn "--api-token cannot be combined with accounts."
+    note "One shared token would reach every account's sessions, so 3270Web"
+    note "refuses to start with both. With accounts, each client gets its own:"
+    note "  3270Web token add <username> <name>"
+    note "Dropping the shared token from this stack."
+    printf '\n'
+    API_TOKEN_ARG=""
+  fi
+}
+
+# The line the install panels print for accounts.
+step_auth() {
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    step "accounts" "sign-in required ${GLYPH_SEP} first start prints a setup code" "on"
+  else
+    step "accounts" "off ${GLYPH_SEP} --auth local to require a sign-in" "n/a" "$C_FAINT"
+  fi
+}
+
+# What to do next when the instance has accounts and none exist yet.
+success_auth() {
+  [ "$AUTH_MODE_VALUE" = "local" ] || return 0
+  printf '\n'
+  step "first run" "open the URL above and create the first administrator"
+  step "setup code" "$1"
+  step "accounts" "${DOCS_URL}/authentication/"
+}
+
+# ==========================================================================
 # 8. Method: Docker Compose
 # ==========================================================================
 
@@ -858,6 +968,8 @@ install_compose() {
   local file="${COMPOSE_DIR}/docker-compose.yml"
   local envfile="${COMPOSE_DIR}/.env"
   DATA_DIR_PATH="${COMPOSE_DIR}/data"
+  adopt_existing "$file" "$envfile"
+  choose_auth_mode
   resolve_api_token
 
   step "file" "$file"
@@ -865,25 +977,26 @@ install_compose() {
   step "listen" "${BIND}:${PORT} → 8080"
   step "compose" "$DOCKER_COMPOSE"
   step "data" "${DATA_DIR_PATH} → /data"
+  step_auth
   step_api
   printf '\n'
 
   report_data_upgrade "$file"
 
-  if [ -e "$file" ]; then
-    warn "${file} already exists."
-    confirm "Overwrite it?" || die "Cancelled." 130
+  # Re-running is the ordinary way to take a new image or change a setting, so
+  # it explains what it is about to do rather than asking whether to overwrite
+  # a file the person may not remember writing. Nothing in ./data is touched.
+  if [ "$EXISTING_STACK" -eq 1 ]; then
+    note "Updating the stack already in ${COMPOSE_DIR}."
+    note "Settings not given on the command line are carried over, and"
+    note "${DATA_DIR_PATH} — accounts, tokens, the audit trail — is left alone."
     printf '\n'
-  fi
-
-  if [ -n "$API_TOKEN_VALUE" ] && [ -e "$envfile" ]; then
-    warn "${envfile} already exists and holds the API token."
-    confirm "Overwrite it?" || die "Cancelled." 130
+    confirm "Rewrite the stack file and restart?" || die "Cancelled." 130
     printf '\n'
-  fi
-
-  if ! confirm "Write the stack and bring it up?"; then
-    die "Cancelled." 130
+  else
+    if ! confirm "Write the stack and bring it up?"; then
+      die "Cancelled." 130
+    fi
   fi
   printf '\n'
 
@@ -917,6 +1030,22 @@ volumes:
   # The API block is built here rather than inline so the stack reads the same
   # either way: the variables are always named and always explained, and the
   # only difference is whether they are commented out.
+  local auth_env
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    auth_env="      # Accounts. A sign-in page, an account each, and one person's
+      # terminal sessions and saved work kept from another's. The first
+      # start prints a setup code to the log for creating the first
+      # administrator:  ${DOCKER_COMPOSE} logs ${CONTAINER_NAME}
+      # See ${DOCS_URL}/multi-user/
+      - AUTH_MODE=local"
+  else
+    auth_env="      # One operator, no sign-in. Turn on accounts whenever more than one
+      # person can reach the port -- re-run the installer with --auth local,
+      # or uncomment this and restart.
+      # See ${DOCS_URL}/multi-user/
+      # - AUTH_MODE=local"
+  fi
+
   local mcp_env
   if [ -n "$API_TOKEN_VALUE" ]; then
     mcp_env="      # Turns on /api/v1 and, under the same prefix, MCP over HTTP at
@@ -973,6 +1102,7 @@ services:
       # terminal is exposed to is decided by "ports:" above, not by this
       # line -- do not change it to 127.0.0.1 to keep the terminal private.
       - WEBUI_BIND=0.0.0.0
+${auth_env}
 ${mcp_env}
       # Any S3270_* option can be set here, for example:
       # - S3270_MODEL=3279-2-E
@@ -1014,6 +1144,7 @@ success_compose() {
   step "logs" "${DOCKER_COMPOSE} logs -f"
   step "stop" "${DOCKER_COMPOSE} down"
   step "docs" "${DOCS_URL}/installation/"
+  success_auth "${DOCKER_COMPOSE} logs ${CONTAINER_NAME} | grep 'setup code'"
   success_mcp
   printf '\n'
 }
@@ -1127,7 +1258,12 @@ Options
                                     (default: ./3270web)
   --api-token <value|auto>          Enable /api/v1 and MCP over HTTP with this
                                     token; "auto" generates one (docker and
-                                    compose methods; default: off)
+                                    compose methods; default: off). Not valid
+                                    with --auth local, which uses a token per
+                                    account instead
+  --auth <none|local>               none: one operator, no sign-in (default).
+                                    local: accounts, sign-in page, per-user
+                                    separation. Ask when not given
   --mcp-tools <readonly|interactive|full>
                                     MCP tool tier (default: interactive)
   --system                          Binary install to /opt + /usr/local/bin
@@ -1161,6 +1297,8 @@ parse_args() {
       --api-token=*) API_TOKEN_ARG="${1#*=}"; shift ;;
       --mcp-tools)   MCP_TOOLS="${2:-}"; shift 2 ;;
       --mcp-tools=*) MCP_TOOLS="${1#*=}"; shift ;;
+      --auth)    AUTH_MODE_ARG="${2:-}"; shift 2 ;;
+      --auth=*)  AUTH_MODE_ARG="${1#*=}"; shift ;;
       --theme)   THEME="${2:-}"; shift 2 ;;
       --theme=*) THEME="${1#*=}"; shift ;;
       --system)  SYSTEM_INSTALL="yes"; shift ;;
@@ -1177,6 +1315,11 @@ parse_args() {
   case "$METHOD" in
     ""|binary|docker|compose) : ;;
     *) printf 'Unknown --method: %s (want binary, docker or compose)\n' "$METHOD" >&2; exit 2 ;;
+  esac
+
+  case "$AUTH_MODE_ARG" in
+    ""|none|local) : ;;
+    *) printf 'Unknown --auth: %s (want none or local)\n' "$AUTH_MODE_ARG" >&2; exit 2 ;;
   esac
 
   case "$PORT" in

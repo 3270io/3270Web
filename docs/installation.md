@@ -49,6 +49,7 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 | `--port <port>` | `8080` | Host port to serve on |
 | `--bind <address>` | `127.0.0.1` | Host interface to publish on |
 | `--dir <path>` | `./3270web` | Compose project directory |
+| `--auth <none\|local>` | ask | Require a sign-in and give each person an account (`local`), or run with one operator (`none`). See [Running a shared instance](multi-user.md) |
 | `--api-token <value\|auto>` | off | Turn on `/api/v1` and [MCP over HTTP](mcp.md); `auto` generates a token |
 | `--mcp-tools <readonly\|interactive\|full>` | `interactive` | MCP tool tier |
 | `--system` | off | Binary install to `/opt` + `/usr/local/bin` |
@@ -57,6 +58,19 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 | `--no-color` / `--color` | auto | Force colour off or on |
 | `--yes`, `-y` | off | Accept every prompt — use in CI |
 | `--dry-run` | off | Report what would happen, change nothing |
+
+!!! tip "Re-running it is the way to upgrade"
+    Run the installer again in the same place to take a new image or change a
+    setting. It updates the stack rather than replacing your install: settings
+    you do not pass are carried over from the existing file, the API token in
+    `.env` is kept — regenerating one would break every client holding it —
+    and the data folder is never touched.
+
+    `--auth local` and `--api-token` cannot be combined. One shared token
+    would reach every account's sessions, so an instance with accounts refuses
+    to start with one set; the installer says so and drops the token rather
+    than writing a stack that will not come up. With accounts, each client
+    gets [its own token](multi-user.md#api-tokens).
 | `--help`, `-h` | | Usage |
 
 Non-interactive by design: with no TTY (a CI job, a provisioning script) the
