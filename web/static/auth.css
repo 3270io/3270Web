@@ -300,6 +300,67 @@
 }
 
 /* ---------------------------------------------------------------------
+   4b. Generate / reveal / copy
+
+   An administrator setting somebody else's temporary password has to invent
+   one and then read it out. Left to themselves people reuse a house password
+   across every account they create, so the button that invents a good one has
+   to be right there — and useless unless the result can also be seen and
+   copied, which is why the three ship together.
+   --------------------------------------------------------------------- */
+
+.pw-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.pw-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pw-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* 44px is the smallest target most people hit reliably with a thumb, and these
+   sit next to each other where a mis-hit reveals a password instead of
+   generating one. */
+.pw-tool {
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.pw-row .pw-tool {
+  flex: 0 0 auto;
+}
+
+.pw-tool[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pw-note {
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--accent);
+}
+
+/* A generated password is read back character by character, so it is set in
+   the mono face and allowed to break rather than scroll out of the box. */
+.pw-row input[type="text"] {
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.02em;
+}
+
+/* ---------------------------------------------------------------------
    5. Account administration
    --------------------------------------------------------------------- */
 
@@ -309,6 +370,27 @@
   padding: 28px 20px 64px;
   position: relative;
   z-index: 1;
+}
+
+/* The shared .card is sized for the connect and terminal pages: width:
+   fit-content over a min-width of min(920px, 100%) — "as wide as my content
+   wants, and at least 920px where there is room".
+
+   Here the content is an account table whose four action buttons make it about
+   740px wide at every viewport, so fit-content asked for 740px on a 412px
+   phone, the card took it, and the document went with it. Everything then
+   panned sideways — including the add-account dialog, which is position:fixed
+   and therefore sized from that same over-wide initial containing block. Its
+   right-hand end, where Cancel and Create account live, sat off the side of
+   the screen: nothing to scroll, and no way back out of the dialog short of
+   reloading the page.
+
+   This page brings its own width (.admin-page above) and the table brings its
+   own scroller, so the card here only ever needs to be as wide as the page. */
+.admin-page > .card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-toolbar {
@@ -331,12 +413,21 @@
   border: 1px solid var(--border);
   border-radius: var(--r-md, 12px);
   overflow: hidden;
+  /* Paint containment as well as clipping.
+     overflow:hidden stops the table from being *drawn* outside this box, but
+     the 740px of table inside the scroller below still counted towards the
+     scrollable overflow of every ancestor up to the document — which made a
+     412px phone report a 654px page and pan sideways over it. Containment is
+     what actually ends the propagation, and it changes nothing visible: the
+     box already clipped to exactly this area. */
+  contain: paint;
   background: var(--panel);
   box-shadow: var(--elev-2, none);
 }
 
 .admin-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table.admin-table {
@@ -556,13 +647,29 @@ table.admin-table {
   display: none;
 }
 
+/* The backdrop scrolls, the panel does not stretch.
+
+   place-items:center on its own overflows in both directions when the panel is
+   taller than the viewport, and an overflowing fixed box cannot be scrolled to
+   — which on a phone put Cancel and Create below the fold with no way to reach
+   either, and no way out of the dialog but a page reload. The software
+   keyboard makes it worse: opening it for the password box halves the space
+   the dialog was already too tall for.
+
+   So the backdrop is the scroller (safe-area padding included, since the panel
+   can now reach the bottom edge), and the panel is centred by auto margins,
+   which — unlike centring alignment — leave the top reachable when it does not
+   fit. dvh rather than vh so the browser's collapsing address bar is counted. */
 .admin-dialog {
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: grid;
-  place-items: center;
+  display: flex;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   backdrop-filter: blur(3px);
 }
@@ -570,6 +677,10 @@ table.admin-table {
 .admin-dialog-content {
   width: 100%;
   max-width: 420px;
+  /* Centred without alignment: auto margins shrink to zero rather than going
+     negative, so a panel taller than the viewport starts at the top. */
+  margin: auto;
+  min-height: min-content;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-lg, 16px);
@@ -583,11 +694,58 @@ table.admin-table {
   font-weight: 600;
 }
 
+/* A title row with its own close control. The dialog already had Cancel, but
+   Cancel is at the far end of a form — on a phone that is a scroll away, and
+   "how do I get out of this" should never need one. */
+.admin-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-dialog-close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  border-radius: 999px;
+}
+
 .admin-dialog-desc {
   margin: 0 0 18px;
   color: var(--fg-muted);
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+/* Finger-sized controls wherever a finger is what there is.
+   These pages do not load touch.css — that is the terminal's — so the query
+   stands in for it. font-size:16px is not cosmetic: below it iOS Safari zooms
+   the page in when a field takes focus and never zooms back out, which leaves
+   the right-hand half of the dialog off the side of the screen. */
+@media (pointer: coarse) {
+  .admin-dialog input,
+  .admin-dialog select,
+  .admin-dialog button,
+  .admin-page .toolbar button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .admin-dialog input,
+  .admin-dialog select {
+    font-size: 16px;
+  }
+
+  .admin-dialog-close {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
 }
 
 .admin-dialog-actions {

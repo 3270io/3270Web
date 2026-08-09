@@ -49,7 +49,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"collect_raw": true}' \
-  http://127.0.0.1:8080/api/v1/sessions/$SESSION_ID/profile
+  http://127.0.0.1:3270/api/v1/sessions/$SESSION_ID/profile
 ```
 
 Response:
@@ -85,7 +85,7 @@ endpoint to read it back without re-querying the host:
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$SESSION_ID/profile
+  http://127.0.0.1:3270/api/v1/sessions/$SESSION_ID/profile
 ```
 
 The cache is cleared when the session ends.

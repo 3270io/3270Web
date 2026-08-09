@@ -186,7 +186,7 @@ func findRunningInstance() (string, string) {
 	}
 	port := strings.TrimSpace(os.Getenv("WEBUI_PORT"))
 	if port == "" {
-		port = "8080"
+		port = defaultWebUIPort
 	}
 	url := "http://127.0.0.1:" + port
 	client := &http.Client{Timeout: 750 * time.Millisecond}
@@ -223,7 +223,7 @@ func startOwnInstance(conversation string) (target, func(), error) {
 		return target{}, nil, fmt.Errorf(
 			"%s=%s is set, so this instance requires an account and cannot be started with a generated token.\n"+
 				"Issue one with `3270Web token add <username> mcp`, then run:\n"+
-				"  3270Web mcp --url http://127.0.0.1:8080 --token <token>",
+				"  3270Web mcp --url http://127.0.0.1:3270 --token <token>",
 			authz.ModeEnv, mode)
 	}
 

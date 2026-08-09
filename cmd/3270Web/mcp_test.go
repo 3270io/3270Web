@@ -286,7 +286,7 @@ func TestMCPConnectSessionOpensAndRemembers(t *testing.T) {
 	inv := newFakeInvoker()
 	session := connectMCP(t, inv, mcptools.TierInteract)
 
-	text, isErr := callText(t, session, "connect_session", map[string]any{"hostname": "sampleapp:app1:3270"})
+	text, isErr := callText(t, session, "connect_session", map[string]any{"hostname": "sampleapp:app1:3271"})
 	if isErr {
 		t.Fatalf("connect_session failed: %s", text)
 	}

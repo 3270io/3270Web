@@ -28,7 +28,7 @@ services:
   3270Web:
     image: ghcr.io/3270io/3270web:latest
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3270:3270"
     environment:
       - AUTH_MODE=local
 ```
@@ -95,6 +95,17 @@ page you could no longer use, with no way back except the CLI:
 Disabling an account, resetting its password or deleting it signs that person
 out everywhere immediately. A password an administrator sets is temporary: its
 owner is asked to choose their own the next time they sign in.
+
+The **Add account** and **Reset password** dialogs both offer **Generate**,
+which invents a 20-character password from the browser's cryptographic random
+source and reveals it so you can read it out or hand it over — **Copy** puts it
+on the clipboard. It is worth using: the alternative is a password you thought
+of, which in practice is the same one for every account you create. The
+generated alphabet leaves out `O`/`0` and `I`/`l`/`1`, because a temporary
+password exists to be transcribed by somebody else.
+
+Nothing shows the password again after the account is saved. If it is lost
+before it reaches its owner, reset it — that is what **Reset password** is for.
 
 ### From the command line
 

@@ -37,7 +37,7 @@ workflow recording do the heavy lifting.
   </div>
   <pre class="term-body"><span class="sig">$</span> curl -fsSL <span class="cmt">https://3270Web.3270.io/install.sh</span> | bash
 <span class="sig">›</span> method     binary · docker · compose  <span class="tag">[ask]</span>
-<span class="sig">›</span> listening  http://localhost:8080      <span class="tag">[up]</span>
+<span class="sig">›</span> listening  http://localhost:3270      <span class="tag">[up]</span>
 <span class="sig">›</span> connect    mvs.example.com:992        <span class="tag">[ok]</span>
 <span class="sig">›</span> negotiate  IBM-3278-2-E              <span class="tag info">[tn3270e]</span>
 <span class="sig">›</span> recording  12 actions captured       <span class="tag info">[rec]</span>
@@ -165,7 +165,7 @@ workflow recording do the heavy lifting.
 ## First Session
 
 1. Get 3270Web running — native Linux binary, Docker, or Docker Compose.
-2. Open 3270Web in your browser (`http://localhost:8080`).
+2. Open 3270Web in your browser (`http://localhost:3270`).
 3. Enter your TN3270 host and port on the connect screen.
 4. Use the terminal — keyboard shortcuts, PF keys, and field navigation all work as expected.
 5. Optional: hit **Start recording** to capture the session for replay later.

@@ -250,7 +250,7 @@ An AI client that launches `3270Web mcp` itself cannot sign in, so on an
 instance with accounts it needs a token and an explicit URL:
 
 ```bash
-3270Web mcp --url http://127.0.0.1:8080 --token "$MY_TOKEN"
+3270Web mcp --url http://127.0.0.1:3270 --token "$MY_TOKEN"
 ```
 
 Tool calls then act as that account: `list_sessions` shows its sessions, and

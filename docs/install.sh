@@ -35,7 +35,7 @@ BINARY_ASSET="3270Web"
 
 METHOD=""                 # binary | docker | compose
 VERSION="latest"
-PORT="8080"
+PORT="3270"
 BIND="127.0.0.1"
 THEME="grn"
 ASSUME_YES=0
@@ -306,7 +306,18 @@ spin_stop() { # spin_stop <label> <value> [tag]
     SPIN_PID=""
     [ -t 1 ] && printf '\r%s\r' "$(repeat ' ' "$((WIDTH + 6))")"
   fi
-  [ "$#" -gt 0 ] && step "$@"
+  if [ "$#" -gt 0 ]; then
+    step "$@"
+  fi
+  # Always succeed.
+  #
+  # This was `[ "$#" -gt 0 ] && step "$@"` as the function's last command, so
+  # stopping the spinner with no label -- which is what every failure path
+  # does, right before explaining itself -- returned 1. Under `set -e` that
+  # ended the script on the spot, so the explanation never printed and a failed
+  # `compose up`, a failed pull or a failed download all came out as the same
+  # bare "installation did not complete", with the actual reason discarded.
+  return 0
 }
 
 cleanup() {
@@ -395,10 +406,22 @@ detect_docker() {
   else
     DOCKER="docker"   # present but the daemon check failed; reported later
   fi
+  # Compose has to talk to the daemon the same way `docker` does.
+  #
+  # `docker compose version` prints a version without going near the socket, so
+  # it succeeds for a user who is not in the docker group -- and the plain
+  # "docker compose" that check blessed then failed at `up -d` with a
+  # permission error on /var/run/docker.sock, on a host where every other step
+  # had just worked through sudo. Carry the prefix that was actually resolved
+  # above rather than deciding again from a check that cannot see the problem.
+  local prefix=""
+  case "$DOCKER" in
+    "sudo "*) prefix="sudo " ;;
+  esac
   if docker compose version >/dev/null 2>&1 </dev/null; then
-    DOCKER_COMPOSE="docker compose"
+    DOCKER_COMPOSE="${prefix}docker compose"
   elif have docker-compose; then
-    DOCKER_COMPOSE="docker-compose"
+    DOCKER_COMPOSE="${prefix}docker-compose"
   fi
 }
 
@@ -593,9 +616,9 @@ success_binary() {
   printf '\n'
   # --bind/--port describe a published container port, which this method does
   # not have: the native binary takes its listen address from WEBUI_BIND and
-  # WEBUI_PORT, defaulting to 127.0.0.1:8080. Show the env vars that actually
+  # WEBUI_PORT, defaulting to 127.0.0.1:3270. Show the env vars that actually
   # apply them rather than printing a URL the binary would not be serving.
-  if [ "$PORT" != "8080" ] || [ "$BIND" != "127.0.0.1" ]; then
+  if [ "$PORT" != "3270" ] || [ "$BIND" != "127.0.0.1" ]; then
     step "start" "WEBUI_BIND=${BIND} WEBUI_PORT=${PORT} 3270web"
     note "Set them in $(short_path "$APP_DIR")/.env to drop the prefix."
   else
@@ -687,7 +710,7 @@ install_docker() {
 
   step "image" "${IMAGE}:${tag}"
   step "name" "$CONTAINER_NAME"
-  step "listen" "${BIND}:${PORT} → 8080"
+  step "listen" "${BIND}:${PORT} → 3270"
   step "data" "${DATA_DIR_PATH} → /data"
   step_auth
   step_api
@@ -743,7 +766,7 @@ install_docker() {
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
-    -p "${BIND}:${PORT}:8080" \
+    -p "${BIND}:${PORT}:3270" \
     "${env_args[@]}" \
     -v "${DATA_DIR_PATH}:/data" \
     "${IMAGE}:${tag}" >/dev/null </dev/null
@@ -974,7 +997,7 @@ install_compose() {
 
   step "file" "$file"
   step "image" "${IMAGE}:${tag}"
-  step "listen" "${BIND}:${PORT} → 8080"
+  step "listen" "${BIND}:${PORT} → 3270"
   step "compose" "$DOCKER_COMPOSE"
   step "data" "${DATA_DIR_PATH} → /data"
   step_auth
@@ -1092,8 +1115,8 @@ services:
     container_name: ${CONTAINER_NAME}
     ports:
       # Bound to ${BIND} so the terminal is not exposed to the network by
-      # default. Change to "${PORT}:8080" to publish on every interface.
-      - "${BIND}:${PORT}:8080"
+      # default. Change to "${PORT}:3270" to publish on every interface.
+      - "${BIND}:${PORT}:3270"
     environment:
       - GIN_MODE=release
       # Listen on all interfaces *inside* the container. A published port
@@ -1123,11 +1146,33 @@ ${mcp_env}
 YAML
   step "wrote" "$file" "ok"
 
+  # The output is kept, not discarded.
+  #
+  # This used to send both streams to /dev/null and then say "run it yourself
+  # to see why" -- which is the installer telling somebody to do the
+  # installer's job, at the one moment it holds the answer and they do not.
+  # Compose is specific about its failures (a port already bound, a permission
+  # error on the socket, an image it cannot pull), and every one of those is
+  # actionable if it is on screen.
+  local compose_log status=0
+  compose_log="$(mktemp "${TMPDIR:-/tmp}/3270web-compose.XXXXXX")"
   spin_start "Starting the stack"
-  if ! (cd "$COMPOSE_DIR" && $DOCKER_COMPOSE up -d >/dev/null 2>&1 </dev/null); then
+  (cd "$COMPOSE_DIR" && $DOCKER_COMPOSE up -d >"$compose_log" 2>&1 </dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
     spin_stop
-    die "${DOCKER_COMPOSE} up failed. Run it in ${COMPOSE_DIR} to see why."
+    printf '\n'
+    warn "${DOCKER_COMPOSE} up -d failed (exit ${status}). It said:"
+    printf '\n'
+    # The tail, because compose repeats its progress lines and the reason is
+    # the last thing it prints. Indented so it reads as quoted output.
+    sed -e 's/^/      /' "$compose_log" | tail -n 12 >&2
+    printf '\n'
+    note "The stack file is written and unchanged; fix the cause and re-run:"
+    note "  cd ${COMPOSE_DIR} && ${DOCKER_COMPOSE} up -d"
+    rm -f "$compose_log"
+    die "Could not start the stack."
   fi
+  rm -f "$compose_log"
   spin_stop "started" "${DOCKER_COMPOSE} up -d" "up"
 
   wait_for_health
@@ -1252,7 +1297,7 @@ usage() {
 Options
   --method <binary|docker|compose>  Installation method (default: ask)
   --version <tag>                   Release tag, e.g. v0.3.2 (default: latest)
-  --port <port>                     Host port to serve on (default: 8080)
+  --port <port>                     Host port to serve on (default: 3270)
   --bind <address>                  Host interface to bind (default: 127.0.0.1)
   --dir <path>                      Compose project directory
                                     (default: ./3270web)

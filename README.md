@@ -111,7 +111,7 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method compose --ye
 |---|---|---|
 | `--method <binary\|docker\|compose>` | ask | Installation method |
 | `--version <tag>` | `latest` | Release tag, e.g. `v0.3.2` |
-| `--port <port>` | `8080` | Host port to serve on |
+| `--port <port>` | `3270` | Host port to serve on |
 | `--bind <address>` | `127.0.0.1` | Host interface to publish on |
 | `--dir <path>` | `./3270web` | Compose project directory |
 | `--system` / `--user` | `--user` | Binary install to `/opt` or under `$HOME` |
@@ -141,7 +141,7 @@ Full details in [docs/installation.md](docs/installation.md).
 ```bash
 go run ./cmd/3270Web
 ```
-Then open http://localhost:8080
+Then open http://localhost:3270
 
 ## Build Windows EXE
 ```powershell
@@ -165,12 +165,12 @@ Use `-Goarch arm64` or `-Goos linux -Goarch arm64` for cross-compiles.
 
 ## Docker
 ```bash
-# Published image — serves on http://localhost:8080
-docker run --rm -p 8080:8080 ghcr.io/3270io/3270web:latest
+# Published image — serves on http://localhost:3270
+docker run --rm -p 3270:3270 ghcr.io/3270io/3270web:latest
 
 # Or build it yourself:
 docker build -t 3270web .
-docker run --rm -p 8080:8080 3270web
+docker run --rm -p 3270:3270 3270web
 ```
 The image is published multi-arch (`linux/amd64`, `linux/arm64`) to
 `ghcr.io/3270io/3270web`. It installs the `s3270` package (available at `/usr/bin/s3270`),
@@ -182,7 +182,7 @@ container's `HEALTHCHECK` polls.
 | Variable | Default | |
 |---|---|---|
 | `WEBUI_BIND` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Interface to listen on |
-| `WEBUI_PORT` | `8080` | Port to listen on |
+| `WEBUI_PORT` | `3270` | Port to listen on |
 
 Outside a container the server binds to loopback, so the UI — which has no
 password of its own — is not published to your local network by default.
@@ -191,8 +191,8 @@ The Docker image sets `WEBUI_BIND=0.0.0.0`, because a published port forwards to
 the container's *external* interface: a loopback-only listener inside the
 container refuses every connection from the host while the container still
 reports healthy (its `HEALTHCHECK` curls `127.0.0.1` from inside). Control
-exposure with the port mapping instead — `-p 127.0.0.1:8080:8080` keeps it on
-the host's loopback, `-p 8080:8080` publishes it on every interface. Do not set
+exposure with the port mapping instead — `-p 127.0.0.1:3270:3270` keeps it on
+the host's loopback, `-p 3270:3270` publishes it on every interface. Do not set
 `WEBUI_BIND=127.0.0.1` in a container; nothing outside will be able to reach it.
 
 ## Docker Compose
@@ -207,9 +207,9 @@ services:
     image: ghcr.io/3270io/3270web:latest
     container_name: 3270web
     ports:
-      # 127.0.0.1 keeps the terminal off the network. Use "8080:8080" to
+      # 127.0.0.1 keeps the terminal off the network. Use "3270:3270" to
       # publish on every interface.
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3270:3270"
     environment:
       - GIN_MODE=release
       # Any S3270_* option can be set here:
@@ -233,7 +233,7 @@ docker compose down
 ```
 
 The container `HEALTHCHECK` is inherited automatically, so `docker compose ps`
-shows health without extra configuration. `curl -fsS http://localhost:8080/healthz`
+shows health without extra configuration. `curl -fsS http://localhost:3270/healthz`
 returns `{"status":"ok","version":"..."}` once it is ready.
 
 Configure 3270Web with environment variables rather than bind-mounting `/app` —
@@ -345,14 +345,14 @@ Probe the active session and capture a `CompatibilityProfile` JSON document with
 
 ```bash
 # Cookie auth — from the browser session
-curl -X POST -b "$SESSION_COOKIE" http://127.0.0.1:8080/profile
+curl -X POST -b "$SESSION_COOKIE" http://127.0.0.1:3270/profile
 
 # Bearer auth — from external automation
 curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"collect_raw": true}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+  http://127.0.0.1:3270/api/v1/sessions/$ID/profile
 ```
 
 The schema is shared byte-for-byte with `3270Connect -profile`, so profiles produced by either tool diff cleanly against each other — see [docs/host-profiler.md](docs/host-profiler.md) and [docs/compatibility-profile-schema.md](docs/compatibility-profile-schema.md).

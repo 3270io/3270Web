@@ -53,7 +53,7 @@ GitHub Enterprise is supported, but there is no button for it in the UI. Point
 3270Web at your instance by calling the REST endpoint **before** signing in:
 
 ```bash
-curl -X POST http://localhost:8080/api/copilot/enterprise \
+curl -X POST http://localhost:3270/api/copilot/enterprise \
   -H 'Content-Type: application/json' \
   -d '{"url":"ghe.example.com"}'
 ```
@@ -164,15 +164,15 @@ the full endpoint reference. In brief:
 
 ```bash
 # What can I choose, and what is chosen now?
-curl http://localhost:8080/api/ai/providers
+curl http://localhost:3270/api/ai/providers
 
 # Select Claude and store a key
-curl -X POST http://localhost:8080/api/ai/config \
+curl -X POST http://localhost:3270/api/ai/config \
   -H 'Content-Type: application/json' \
   -d '{"provider":"anthropic","apiKey":"sk-ant-...","model":"claude-opus-5"}'
 
 # Is it ready to answer?
-curl http://localhost:8080/api/ai/status
+curl http://localhost:3270/api/ai/status
 ```
 
 ## Troubleshooting

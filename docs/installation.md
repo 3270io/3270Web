@@ -46,7 +46,7 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 |---|---|---|
 | `--method <binary\|docker\|compose>` | ask | Installation method |
 | `--version <tag>` | `latest` | Release tag, for example `v0.3.2` |
-| `--port <port>` | `8080` | Host port to serve on |
+| `--port <port>` | `3270` | Host port to serve on |
 | `--bind <address>` | `127.0.0.1` | Host interface to publish on |
 | `--dir <path>` | `./3270web` | Compose project directory |
 | `--auth <none\|local>` | ask | Require a sign-in and give each person an account (`local`), or run with one operator (`none`). See [Running a shared instance](multi-user.md) |
@@ -94,7 +94,7 @@ file itself carries no secret. Either way the installer prints the token and
 the MCP URL when it finishes:
 
 ```
-  › mcp url    http://localhost:8080/api/v1/mcp
+  › mcp url    http://localhost:3270/api/v1/mcp
   › token      e436b3d930c2ce7f51c9a05fb1a9494…
 ```
 
@@ -146,9 +146,33 @@ project directory.
 | [Docker](#run-with-docker) | Containerized / cloud deployments | No — the image installs it |
 | [Docker Compose](#run-with-docker-compose) | One-command local stack | No — the image installs it |
 
-Whichever you choose, 3270Web listens on **port 8080** by default. Open
-[http://localhost:8080](http://localhost:8080) once it is up and continue with
+Whichever you choose, 3270Web listens on **port 3270** by default. Open
+[http://localhost:3270](http://localhost:3270) once it is up and continue with
 [Connect and Use 3270Web](configuration.md).
+
+!!! warning "Upgrading from a build that served 8080"
+
+    The default listen port changed from `8080` to `3270`. A container
+    published as `"8080:8080"` maps the host port onto a container port
+    nothing is listening on any more, so the page stops loading after the
+    pull even though the container is running.
+
+    Re-running the installer rewrites the mapping for you. To fix a stack you
+    edit by hand, change the container side of the mapping and restart:
+
+    ```yaml
+    ports:
+      - "127.0.0.1:8080:3270"   # keep the host port you already use
+      - "127.0.0.1:3270:3270"   # or move to the new one
+    ```
+
+    A binary install takes the port from `WEBUI_PORT`; set it to `8080` in
+    that install's `.env` to stay where you were.
+
+    3270 is also the well-known TN3270 port, so the bundled sample apps moved
+    up one — they now offer 3271–3275, with 3271 as the default — and the two
+    no longer collide on a host running both. Nothing about connecting to a
+    *real* mainframe changed: that port comes from the host you type in.
 
 The rest of this page is what the installer does, by hand — useful when you want
 a different layout, are packaging 3270Web yourself, or are working offline.
@@ -190,7 +214,7 @@ Use `-Goarch arm64` or `-Goos linux -Goarch arm64` for cross-compiles.
 
 ```bash
 ./3270Web
-# → serving on http://localhost:8080  (Ctrl+C / SIGTERM to stop)
+# → serving on http://localhost:3270  (Ctrl+C / SIGTERM to stop)
 ```
 
 The process runs in the foreground and serves the full UI and REST API. There is
@@ -247,19 +271,19 @@ in-app **Settings** modal.
 
 The image is published **multi-arch** (`linux/amd64`, `linux/arm64`) to
 `ghcr.io/3270io/3270web`. It installs the `s3270` package (`/usr/bin/s3270`), runs
-as a non-root `app` user, exposes port 8080, and ships a container `HEALTHCHECK`.
+as a non-root `app` user, exposes port 3270, and ships a container `HEALTHCHECK`.
 
 ### Use the published image
 
 ```bash
-docker run --rm -p 8080:8080 ghcr.io/3270io/3270web:latest
+docker run --rm -p 3270:3270 ghcr.io/3270io/3270web:latest
 ```
 
 ### Build it yourself
 
 ```bash
 docker build -t 3270web .
-docker run --rm -p 8080:8080 3270web
+docker run --rm -p 3270:3270 3270web
 ```
 
 ### Environment variables
@@ -267,7 +291,7 @@ docker run --rm -p 8080:8080 3270web
 Pass `s3270`/app options with `-e`:
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 3270:3270 \
   -e GIN_MODE=release \
   -e S3270_MODEL=3279-2-E \
   -e S3270_CODE_PAGE=bracket \
@@ -278,7 +302,7 @@ To serve the [REST API](rest-api.md) and [MCP](mcp.md) as well as the browser
 UI, add a token:
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 3270:3270 \
   -e GIN_MODE=release \
   -e API_TOKEN="$API_TOKEN" \
   -e MCP_TOOLS=interactive \
@@ -312,7 +336,7 @@ all of it:
 ```bash
 mkdir -p ./data && sudo chown -R 10001:10001 ./data
 
-docker run -d -p 8080:8080 \
+docker run -d -p 3270:3270 \
   -v ./data:/data \
   ghcr.io/3270io/3270web:latest
 ```
@@ -341,7 +365,7 @@ alternative is writing state somewhere the next deploy deletes.
 | Variable | Default | Meaning |
 |---|---|---|
 | `WEBUI_BIND` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Interface to listen on |
-| `WEBUI_PORT` | `8080` | Port to listen on |
+| `WEBUI_PORT` | `3270` | Port to listen on |
 
 Outside a container the server binds to loopback, so the UI — which has no
 password of its own — is not published to your local network by default.
@@ -356,7 +380,7 @@ from *inside* the container. Control exposure with the port mapping instead.
     Do not set `WEBUI_BIND=127.0.0.1` in a container. The container will start and
     pass its healthcheck, but the browser will get a connection refused / "empty
     response" no matter how the ports are mapped. To keep the terminal off your
-    network, restrict the **host** side of the mapping — `"127.0.0.1:8080:8080"` —
+    network, restrict the **host** side of the mapping — `"127.0.0.1:3270:3270"` —
     not the bind address inside the container.
 
 ---
@@ -364,13 +388,13 @@ from *inside* the container. Control exposure with the port mapping instead.
 ## Run with Docker Compose
 
 The repository ships a `docker-compose.yml` that builds the image locally and
-binds it to `127.0.0.1:8080`.
+binds it to `127.0.0.1:3270`.
 
 ### Quick start
 
 ```bash
 docker compose up --build
-# → http://127.0.0.1:8080
+# → http://127.0.0.1:3270
 ```
 
 The shipped file:
@@ -381,7 +405,7 @@ services:
     build: .
     image: ghcr.io/3270io/3270web:local
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3270:3270"
     environment:
       - GIN_MODE=release
       # - API_TOKEN=${API_TOKEN}
@@ -421,11 +445,11 @@ docker compose up -d
 set -a; . ./.env; set +a
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions
+  http://127.0.0.1:3270/api/v1/sessions
 ```
 
 `200` means the API is live and MCP with it, at
-`http://127.0.0.1:8080/api/v1/mcp`. `503` means the token is not reaching the
+`http://127.0.0.1:3270/api/v1/mcp`. `503` means the token is not reaching the
 container; `401` means it is, but not the value you sent.
 [MCP Server](mcp.md#docker-compose-and-remote-clients) covers connecting a
 client to that endpoint, and the tool tiers `MCP_TOOLS` selects.
@@ -447,7 +471,7 @@ services:
   3270Web:
     image: ghcr.io/3270io/3270web:latest
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3270:3270"
     environment:
       - GIN_MODE=release
     restart: unless-stopped
@@ -460,7 +484,7 @@ docker compose up -d
 
 ### Customising
 
-- **Expose beyond localhost** — change the port mapping to `"8080:8080"`. Change
+- **Expose beyond localhost** — change the port mapping to `"3270:3270"`. Change
   the *host* side of the mapping only; leave `WEBUI_BIND` at the image default.
 
     !!! warning "Require a sign-in before you do this"
@@ -486,8 +510,8 @@ docker compose up -d
 ## Verify it's running
 
 ```bash
-curl -fsS http://localhost:8080/healthz   # {"status":"ok",...}
+curl -fsS http://localhost:3270/healthz   # {"status":"ok",...}
 ```
 
-Then open [http://localhost:8080](http://localhost:8080) and head to
+Then open [http://localhost:3270](http://localhost:3270) and head to
 [Connect and Use 3270Web](configuration.md) to connect to your first host.

@@ -32,6 +32,21 @@
     }
     setWidgetState(widget, toggle, collapsed);
 
+    function collapse(persist) {
+      if (widget.classList.contains("is-collapsed")) {
+        return;
+      }
+      setWidgetState(widget, toggle, true);
+      if (!persist) {
+        return;
+      }
+      try {
+        localStorage.setItem(storageKey, "1");
+      } catch (err) {
+        // ignore storage failures
+      }
+    }
+
     toggle.addEventListener("click", function () {
       var nextCollapsed = !widget.classList.contains("is-collapsed");
       setWidgetState(widget, toggle, nextCollapsed);
@@ -40,6 +55,35 @@
       } catch (err) {
         // ignore storage failures
       }
+    });
+
+    // Expanded, the panel is a floating box over the page. On a wide screen it
+    // sits in the corner beside everything else; on a phone it spans the width
+    // and covers the header underneath it, so the controls it covers stop
+    // responding with nothing on screen to say a panel is in the way.
+    //
+    // Treating it as the popover it looks like fixes that without moving it:
+    // a tap anywhere else, or Escape, puts it away. Not persisted — dismissing
+    // a panel to get at what is behind it is not a decision to keep it shut
+    // next time.
+    document.addEventListener("pointerdown", function (event) {
+      if (widget.classList.contains("is-collapsed")) {
+        return;
+      }
+      if (event.target && widget.contains(event.target)) {
+        return;
+      }
+      collapse(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
+      if (widget.classList.contains("is-collapsed")) {
+        return;
+      }
+      collapse(false);
     });
   }
 

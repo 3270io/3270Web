@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
@@ -281,5 +282,144 @@ func TestThemeListHandler_RequiresSession(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("no-session themes request: status = %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+}
+
+// An administrator is entitled to instance settings without holding a terminal
+// session. The two are unrelated: settings belong to the deployment, a session
+// belongs to one connection, and requiring both meant Settings answered "no
+// session" on the connect page — before there is anything to connect to, which
+// is exactly when somebody opens it.
+//
+// The relaxation is bounded by accounts being on. Under AUTH_MODE=none every
+// request is authz.Local(), an administrator by construction, so admitting
+// admins there would admit everyone; the paired test below pins that.
+func TestSettingsHandler_AdminNeedsNoTerminalSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(envPath, []byte("S3270_MODEL=3279-2-E\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		SessionManager: session.NewManager(),
+		envPath:        envPath,
+		authMode:       authz.ModeLocal,
+	}
+
+	r := gin.New()
+	r.GET("/api/settings", func(c *gin.Context) {
+		c.Set(principalContextKey, authz.Principal{
+			UserID: "u1", Role: authz.RoleAdmin, Kind: authz.KindWeb,
+		})
+		app.SettingsHandler(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	req.RemoteAddr = "127.0.0.1:54321"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("admin without a terminal session: status = %d, want %d, body=%s",
+			w.Code, http.StatusOK, w.Body.String())
+	}
+}
+
+// The same request from an ordinary account is still refused. RequireAdmin
+// stops it in production; this pins the handler's own check so the two cannot
+// drift apart.
+func TestSettingsHandler_NonAdminStillNeedsASession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		envPath:        filepath.Join(t.TempDir(), ".env"),
+		authMode:       authz.ModeLocal,
+	}
+
+	r := gin.New()
+	r.GET("/api/settings", func(c *gin.Context) {
+		c.Set(principalContextKey, authz.Principal{
+			UserID: "u2", Role: authz.RoleUser, Kind: authz.KindWeb,
+		})
+		app.SettingsHandler(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	req.RemoteAddr = "127.0.0.1:54321"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("ordinary account without a session: status = %d, want %d",
+			w.Code, http.StatusUnauthorized)
+	}
+}
+
+// With accounts off there is no signed-in administrator to relax the rule for:
+// authz.Local() is an administrator for every request that arrives, so the
+// terminal session cookie is the only thing standing between an unauthenticated
+// visitor and the instance's settings. It must keep standing there.
+func TestSettingsHandler_AuthModeNoneStillNeedsASession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		envPath:        filepath.Join(t.TempDir(), ".env"),
+		authMode:       authz.ModeNone,
+	}
+
+	r := gin.New()
+	r.GET("/api/settings", func(c *gin.Context) {
+		// Exactly what resolvePrincipal produces under AUTH_MODE=none.
+		c.Set(principalContextKey, authz.Local())
+		app.SettingsHandler(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	req.RemoteAddr = "127.0.0.1:54321"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("AUTH_MODE=none without a session: status = %d, want %d",
+			w.Code, http.StatusUnauthorized)
+	}
+}
+
+// The templates gate Settings and the log viewer on Auth.CanAdminister, so what
+// that field means is load-bearing: too narrow and the default single-operator
+// deployment loses its own Settings button, too wide and every ordinary account
+// is offered controls the server will refuse.
+func TestAuthViewCanAdminister(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	view := func(mode authz.Mode, principal *authz.Principal) authView {
+		app := &App{authMode: mode}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+		if principal != nil {
+			c.Set(principalContextKey, *principal)
+		}
+		return app.authView(c)
+	}
+
+	admin := authz.Principal{UserID: "u1", Role: authz.RoleAdmin, Kind: authz.KindWeb}
+	user := authz.Principal{UserID: "u2", Role: authz.RoleUser, Kind: authz.KindWeb}
+
+	if got := view(authz.ModeNone, nil); !got.CanAdminister {
+		t.Error("AUTH_MODE=none: the single operator must be offered the admin controls")
+	} else if got.Enabled {
+		t.Error("AUTH_MODE=none: there is no account to show a chip for")
+	}
+	if got := view(authz.ModeLocal, &admin); !got.CanAdminister {
+		t.Error("a signed-in administrator must be offered the admin controls")
+	}
+	if got := view(authz.ModeLocal, &user); got.CanAdminister {
+		t.Error("an ordinary account must not be offered controls the server refuses")
+	}
+	if got := view(authz.ModeLocal, nil); got.CanAdminister {
+		t.Error("an anonymous caller must not be offered the admin controls")
 	}
 }

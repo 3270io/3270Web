@@ -450,20 +450,31 @@ type authView struct {
 	Enabled  bool
 	Username string
 	IsAdmin  bool
+	// CanAdminister is what a template should ask before rendering a control
+	// that only an administrator may use — Settings, the log viewer, restart.
+	//
+	// It is not IsAdmin. Under AUTH_MODE=none there is no principal to be an
+	// administrator, but the single operator may do everything, which is
+	// exactly what RequireAdmin allows. A template gating on IsAdmin would
+	// hide Settings from the one person the default deployment is for; one
+	// gating on Enabled would offer it to every ordinary account. This says
+	// what the templates actually mean.
+	CanAdminister bool
 }
 
 func (app *App) authView(c *gin.Context) authView {
 	if app.authMode == authz.ModeNone {
-		return authView{}
+		return authView{CanAdminister: true}
 	}
 	principal := principalFrom(c)
 	if principal.IsAnonymous() {
 		return authView{}
 	}
 	return authView{
-		Enabled:  true,
-		Username: usernameFrom(c),
-		IsAdmin:  principal.IsAdmin(),
+		Enabled:       true,
+		Username:      usernameFrom(c),
+		IsAdmin:       principal.IsAdmin(),
+		CanAdminister: principal.IsAdmin(),
 	}
 }
 

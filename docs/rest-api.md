@@ -19,7 +19,7 @@ When `API_TOKEN` is unset or empty, every `/api/v1/*` request returns
 configured"}`. This is the default so the API can't be accidentally
 exposed.
 
-The 3270Web server binds to `127.0.0.1:8080` by default, so the API is
+The 3270Web server binds to `127.0.0.1:3270` by default, so the API is
 only reachable from the local host. The Bearer token is additional
 defense-in-depth for any deployment that changes the bind address via
 `WEBUI_BIND` — including the Docker image, which sets `WEBUI_BIND=0.0.0.0`
@@ -33,7 +33,7 @@ Bad or missing tokens get `401 Unauthorized`.
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions
+  http://127.0.0.1:3270/api/v1/sessions
 ```
 
 ### On an instance with accounts
@@ -103,7 +103,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"host":"mainframe.example.com:23"}' \
-  http://127.0.0.1:8080/api/v1/sessions
+  http://127.0.0.1:3270/api/v1/sessions
 ```
 
 Response:
@@ -118,7 +118,7 @@ Refreshes the screen and returns its full structure.
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/screen
+  http://127.0.0.1:3270/api/v1/sessions/$ID/screen
 ```
 
 Response:
@@ -159,7 +159,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"key":"PF3"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/key
+  http://127.0.0.1:3270/api/v1/sessions/$ID/key
 ```
 
 ### `POST /api/v1/sessions/:id/field`
@@ -172,7 +172,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"row":3,"col":10,"text":"USER01"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/field
+  http://127.0.0.1:3270/api/v1/sessions/$ID/field
 ```
 
 ### `POST /api/v1/sessions/:id/submit`
@@ -186,7 +186,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"aid":"Enter"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/submit
+  http://127.0.0.1:3270/api/v1/sessions/$ID/submit
 ```
 
 ### `DELETE /api/v1/sessions/:id`
@@ -196,7 +196,7 @@ Disconnect from the host and remove the session.
 ```sh
 curl -X DELETE \
   -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID
+  http://127.0.0.1:3270/api/v1/sessions/$ID
 ```
 
 ### `POST /api/v1/sessions/:id/profile`
@@ -211,7 +211,7 @@ curl -X POST \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"collect_raw": true}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+  http://127.0.0.1:3270/api/v1/sessions/$ID/profile
 ```
 
 Supported body fields: `ind_file_probe`, `collect_raw`,
@@ -228,7 +228,7 @@ session. `404 Not Found` if no probe has run.
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/profile
+  http://127.0.0.1:3270/api/v1/sessions/$ID/profile
 ```
 
 ### `GET /api/v1/sessions/:id/query`
@@ -245,7 +245,7 @@ what we specified".
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/query
+  http://127.0.0.1:3270/api/v1/sessions/$ID/query
 ```
 
 ```json
@@ -274,7 +274,7 @@ the canonical spelling:
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  "http://127.0.0.1:8080/api/v1/sessions/$ID/query?name=terminalname"
+  "http://127.0.0.1:3270/api/v1/sessions/$ID/query?name=terminalname"
 ```
 
 ```json
@@ -311,7 +311,7 @@ failed and one that tells you why.
 ```sh
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" -d '{"name":"before"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/snapshots
+  http://127.0.0.1:3270/api/v1/sessions/$ID/snapshots
 ```
 
 ```json
@@ -333,7 +333,7 @@ the screen as it stands now, which is the shape this is usually used in:
 ```sh
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" -d '{"left":"before"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/snapshots/diff
+  http://127.0.0.1:3270/api/v1/sessions/$ID/snapshots/diff
 ```
 
 ```json
@@ -370,7 +370,7 @@ what the terminal will actually do.
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/toggles
+  http://127.0.0.1:3270/api/v1/sessions/$ID/toggles
 ```
 
 ```json
@@ -391,7 +391,7 @@ windowed terminal does.
 ```sh
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" -d '{"name":"monoCase","value":true}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/toggles
+  http://127.0.0.1:3270/api/v1/sessions/$ID/toggles
 ```
 
 The reply carries the toggle as the terminal reports it *afterwards*, not as
@@ -427,7 +427,7 @@ until somebody turns it on. Without the flag, the start call returns `403`.
 ```sh
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" -d '{"format":"text"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/screen-trace
+  http://127.0.0.1:3270/api/v1/sessions/$ID/screen-trace
 ```
 
 ```json
@@ -485,7 +485,7 @@ built around:
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"function":6,"text":"First Name"}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/hllapi
+  http://127.0.0.1:3270/api/v1/sessions/$ID/hllapi
 ```
 
 ```json
@@ -561,7 +561,7 @@ Typing a name into two fields and pressing Enter:
 ```sh
 post() { curl -s -X POST -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" -d "$1" \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/hllapi; }
+  http://127.0.0.1:3270/api/v1/sessions/$ID/hllapi; }
 
 post '{"function":6,"text":"First Name"}'                  # find the prompt
 post '{"function":33,"position":341,"text":"GRACE"}'       # fill its field
@@ -583,7 +583,7 @@ The catalogue is deployment-wide, which is why it is not under
 
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/api/v1/tasks | jq '.tasks'
+  http://127.0.0.1:3270/api/v1/tasks | jq '.tasks'
 ```
 
 ### `POST /api/v1/sessions/:id/tasks/run`
@@ -595,7 +595,7 @@ silently become two path segments.
 ```sh
 curl -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
   -d '{"name":"Account balance enquiry","parameters":{"account_number":"40218855"}}' \
-  http://127.0.0.1:8080/api/v1/sessions/$ID/tasks/run
+  http://127.0.0.1:3270/api/v1/sessions/$ID/tasks/run
 ```
 
 ```json
@@ -665,11 +665,11 @@ so a shared instance keeps each person's credentials to themselves. See
 
 ```bash
 # Point AI Chat at a local Ollama and confirm it is usable
-curl -X POST http://127.0.0.1:8080/api/ai/config \
+curl -X POST http://127.0.0.1:3270/api/ai/config \
   -H 'Content-Type: application/json' \
   -d '{"provider":"ollama","baseUrl":"http://localhost:11434/v1","model":"qwen3"}'
 
-curl http://127.0.0.1:8080/api/ai/status
+curl http://127.0.0.1:3270/api/ai/status
 ```
 
 The GitHub-specific `/api/copilot/*` routes (`status`, `login/start`,
