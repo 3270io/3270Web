@@ -391,6 +391,18 @@ pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
+## Acknowledgements
+
+3270Web does not speak TN3270 itself. Every screen it renders and every key it
+sends is carried by **s3270**, the scripting member of the
+[**x3270**](https://x3270.miraheze.org/wiki/Main_Page) family of 3270 terminal
+emulators, which 3270Web runs as a child process. Three decades of faithful
+3270 protocol work by Paul Mattes and the x3270 contributors, given away for
+anyone to build on — 3270Web would not exist without it. Our thanks to them.
+
+s3270 is BSD 3-Clause licensed; the full text and the per-distribution details
+are in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ## Brand
 
 The 3270Web mark and its lockups live in [`brand/`](brand/) — SVG, PNG and
