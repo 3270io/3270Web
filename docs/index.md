@@ -180,6 +180,8 @@ workflow recording do the heavy lifting.
 | Section | What you'll find |
 |---|---|
 | [Install and Run](installation.md) | Run the native Linux binary, Docker image, or Docker Compose |
+| [User Accounts and Sign-In](authentication.md) | Turn on accounts, create the first administrator, manage people |
+| [Running a Shared Instance](multi-user.md) | What one account is kept from another, API tokens, host allowlist, rate limits, the audit trail |
 | [Connect and Use 3270Web](configuration.md) | Host configuration, startup options, UI tour |
 | [Recordings and Playback](workflow.md) | Record, load, play, debug, and export workflows |
 | [Chaos Mode](chaos-mode.md) | Automated screen exploration and load-test export |
@@ -193,3 +195,4 @@ workflow recording do the heavy lifting.
 | [Terminal Fonts](terminal-fonts.md) | Bundled IBM 3270-style web fonts and how to switch between them |
 | [Compatibility Profile Schema](compatibility-profile-schema.md) | Field-by-field reference for the shared profile JSON (v1.0.0) |
 | [Feature Roadmap](feature-roadmap.md) | Planned and in-progress features |
+| [Acknowledgements](acknowledgements.md) | s3270 and the x3270 family, whose protocol work 3270Web is built on |

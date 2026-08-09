@@ -52,8 +52,15 @@ auth: setup code: EJWQ-RUYN-7XL3-PT3O
 auth: the code is required once, and stops working as soon as the account exists
 ```
 
-Under Docker, read it with `docker compose logs 3270Web`. Case, spaces and
-dashes are all ignored, so it can be typed however it was copied.
+The code goes to the server's log file and to its standard error, so under
+Docker `docker compose logs 3270Web` shows it. Case, spaces and dashes are all
+ignored, so it can be typed however it was copied.
+
+!!! warning "Put the data directory on a volume first"
+    A container keeps its accounts in the image layer unless told otherwise, so
+    the next deploy would delete the administrator you are about to create and
+    reopen first-run setup. See
+    [Keeping the state](multi-user.md#keeping-the-state).
 
 Open 3270Web in a browser, enter the code, and choose your own username and
 password. You are signed in immediately, and setup closes for good — the page

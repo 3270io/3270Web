@@ -30,7 +30,18 @@ RUN apt-get update \
 COPY --from=build /out/3270Web /app/3270Web
 COPY web/ ./web/
 
-RUN chown -R app:app /app
+# State goes somewhere the image does not, because the image is replaced on
+# every deploy. Accounts, API tokens, the audit trail and everyone's saved work
+# live here; /app holds only the program and its web assets. Without this,
+# `docker compose pull && up -d` destroys every account and brings the instance
+# back up in first-run setup for whoever reaches it first.
+ENV DATA_DIR=/data
+RUN mkdir -p /data && chown -R app:app /app /data
+
+# Declared so that an instance started without an explicit volume still keeps
+# its accounts across a container replacement. Name it in compose (see
+# docker-compose.yml) to keep track of which volume is which.
+VOLUME ["/data"]
 
 USER app
 

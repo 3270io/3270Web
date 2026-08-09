@@ -39,7 +39,7 @@ func resolveAuditPath() string {
 	if override := strings.TrimSpace(os.Getenv("AUDIT_LOG_PATH")); override != "" {
 		return override
 	}
-	return filepath.Join(resolveBaseDir(), "audit.log")
+	return filepath.Join(resolveStateDir(), "audit.log")
 }
 
 // auditActor describes the caller of a request.

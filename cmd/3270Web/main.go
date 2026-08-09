@@ -81,7 +81,10 @@ type App struct {
 	themeCacheMu sync.RWMutex
 	logFilePath  string
 	envPath      string
+	// baseDir is where state is written; installDir is where the program and
+	// its web assets live. The same directory unless DATA_DIR says otherwise.
 	baseDir      string
+	installDir   string
 	shutdown     func()
 	chaosEngines *chaosEngineStore
 	// chaosSync counts the running chaos status goroutines so shutdown — and
@@ -128,7 +131,7 @@ func (app *App) connectionProfiles() *connectionProfileStore {
 	app.connProfilesOnce.Do(func() {
 		base := strings.TrimSpace(app.baseDir)
 		if base == "" {
-			base = resolveBaseDir()
+			base = resolveStateDir()
 		}
 		app.connProfiles = newConnectionProfileStore(base)
 	})
@@ -180,11 +183,25 @@ const defaultSampleAppPort = 3270
 // go build -ldflags "-X main.appVersion=v1.2.3"
 var appVersion = "0.3.2"
 
-// newApp loads configuration from baseDir and constructs the application
-// state. It is separate from main() so that other entry points into the same
-// binary — the `mcp` subcommand — can boot an identical App without
-// duplicating the .env, config-fallback and directory conventions.
+// newApp constructs the application with its program files and its state in
+// the same directory, which is what a desktop install and `go run` both have.
 func newApp(baseDir string) *App {
+	return newAppAt(baseDir, baseDir)
+}
+
+// newAppAt separates where the program lives from where its state goes.
+//
+// They are the same directory almost everywhere, and deliberately not in a
+// container: the image holds the binary and web/, and a volume holds the
+// accounts, tokens, audit trail and everyone's saved work. Mounting a volume
+// over the program's own directory would hide the program, so the two have to
+// be nameable separately.
+//
+// It is separate from main() so that other entry points into the same binary —
+// the `mcp` subcommand — boot an identical App without duplicating the .env,
+// config-fallback and directory conventions.
+func newAppAt(installDir, dataDir string) *App {
+	baseDir := dataDir
 	envPath := filepath.Join(baseDir, ".env")
 	if err := config.EnsureDotEnv(envPath); err != nil {
 		log.Printf("Warning: could not ensure .env file: %v", err)
@@ -192,7 +209,14 @@ func newApp(baseDir string) *App {
 	if err := config.LoadDotEnv(envPath); err != nil {
 		log.Printf("Warning: could not load .env file: %v", err)
 	}
+	// Looked for beside the state first, so an operator can supply one on the
+	// volume, then beside the program, where the shipped copy lives.
 	configPath := filepath.Join(baseDir, "webapp", "WEB-INF", "3270Web-config.xml")
+	if !fileExists(configPath) {
+		if beside := filepath.Join(installDir, "webapp", "WEB-INF", "3270Web-config.xml"); fileExists(beside) {
+			configPath = beside
+		}
+	}
 	if !fileExists(configPath) {
 		if cwd, err := os.Getwd(); err == nil {
 			fallback := filepath.Join(cwd, "webapp", "WEB-INF", "3270Web-config.xml")
@@ -223,6 +247,7 @@ func newApp(baseDir string) *App {
 		logFilePath:         filepath.Join(baseDir, "3270Web.log"),
 		envPath:             envPath,
 		baseDir:             baseDir,
+		installDir:          installDir,
 		chaosEngines:        newChaosEngineStore(),
 		profiles:            newProfileCache(),
 	}
@@ -257,7 +282,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// After authentication, so a limit applies to the account rather than to
 	// whoever happens to share an address with them.
 	r.Use(app.RateLimit())
-	templatesGlob, tmplErr := resolveTemplatesGlob(app.baseDir)
+	templatesGlob, tmplErr := resolveTemplatesGlob(app.assetDir())
 	if tmplErr == nil {
 		r.LoadHTMLGlob(templatesGlob)
 	} else {
@@ -269,7 +294,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 		r.LoadHTMLFS(http.FS(tmplFS), "*")
 	}
 
-	staticDir, staticErr := resolveStaticDir(app.baseDir)
+	staticDir, staticErr := resolveStaticDir(app.assetDir())
 	if staticErr == nil {
 		r.Static("/static", staticDir)
 	} else {
@@ -455,7 +480,22 @@ func main() {
 		os.Exit(runTokenCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 
-	baseDir := resolveBaseDir()
+	installDir := resolveBaseDir()
+	baseDir, dataErr := resolveDataDir(installDir)
+	if dataErr != nil {
+		// Before the log is opened, because the log lives in the directory
+		// that just turned out to be unusable.
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", dataErr)
+		showFatalError(dataErr.Error())
+		os.Exit(1)
+	}
+	// Before the log is opened, so an older installation's log file is moved
+	// rather than being written to in the place it is about to leave.
+	if err := migrateStateToDataDir(installDir, baseDir); err != nil {
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", err)
+		showFatalError(err.Error())
+		os.Exit(1)
+	}
 	logFile, err := openStartupLog(baseDir)
 	if err == nil {
 		defer logFile.Close()
@@ -469,7 +509,7 @@ func main() {
 			showFatalError(msg)
 		}
 	}()
-	app := newApp(baseDir)
+	app := newAppAt(installDir, baseDir)
 
 	r, err := buildRouter(app)
 	if err != nil {
@@ -626,6 +666,81 @@ func resolveBaseDir() string {
 		return cwd
 	}
 	return "."
+}
+
+// resolveDataDir says where state is written, and refuses rather than guesses.
+//
+// DATA_DIR exists for containers, where the program's own directory is part of
+// an image that is replaced on every deploy. Without it, upgrading a
+// containerised instance destroys every account, every issued token, the audit
+// trail and everyone's saved work — and, with accounts enabled, brings the
+// instance back up in first-run setup for whoever reaches it first.
+//
+// Unset means "beside the program", which is right for a desktop install and
+// for `go run`.
+//
+// Set but unusable is an error, not something to work around. The usual cause
+// is a bind-mounted host directory the container's user cannot write: falling
+// back to the program's directory would put the state exactly where a deploy
+// deletes it, and the instance would look fine until the day it lost
+// everything. Saying so at startup costs one restart; the alternative costs
+// the accounts.
+func resolveDataDir(installDir string) (string, error) {
+	dir := strings.TrimSpace(os.Getenv("DATA_DIR"))
+	if dir == "" {
+		return installDir, nil
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("DATA_DIR %s cannot be created: %w%s", dir, err, dataDirHint())
+	}
+	// MkdirAll succeeds on a directory that already exists and belongs to
+	// somebody else, which is the bind-mount case exactly. Only a write says
+	// whether this will work.
+	probe, err := os.CreateTemp(dir, ".writable-*")
+	if err != nil {
+		return "", fmt.Errorf("DATA_DIR %s is not writable: %w%s", dir, err, dataDirHint())
+	}
+	name := probe.Name()
+	probe.Close()
+	os.Remove(name)
+	return dir, nil
+}
+
+// dataDirHint names the fix for the failure people actually hit: a host
+// directory bind-mounted into a container that runs as an unprivileged user.
+func dataDirHint() string {
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+	return fmt.Sprintf("\nThe server runs as uid %d. For a bind-mounted host directory:\n"+
+		"  mkdir -p ./data && sudo chown -R %d:%d ./data", os.Getuid(), os.Getuid(), os.Getgid())
+}
+
+// resolveStateDir is where state lives, for the callers that have no App to
+// ask — the account and token CLIs, run inside the same container as the
+// server. They must reach the same files the server does, or `3270Web user
+// add` writes an account into the image layer that the running server, reading
+// its data directory, never sees.
+//
+// A CLI that cannot reach the right directory must not fall back to the wrong
+// one and report success, so this ends the process instead.
+func resolveStateDir() string {
+	dir, err := resolveDataDir(resolveBaseDir())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", err)
+		os.Exit(1)
+	}
+	return dir
+}
+
+// assetDir is where web/templates and web/static are read from: beside the
+// program, never from the state directory, which an untrusted volume could
+// otherwise use to replace the pages this server serves.
+func (app *App) assetDir() string {
+	if app.installDir != "" {
+		return app.installDir
+	}
+	return app.baseDir
 }
 
 func openStartupLog(baseDir string) (*os.File, error) {
@@ -2562,7 +2677,7 @@ func themeIDFromFile(fileName string) string {
 // themesDirFor is where this caller's own themes are written.
 func (app *App) themesDirFor(c *gin.Context) string {
 	if strings.TrimSpace(app.baseDir) == "" {
-		return filepath.Join(resolveBaseDir(), "themes")
+		return filepath.Join(resolveStateDir(), "themes")
 	}
 	return app.dataScopeForRequest(c).themesDir()
 }

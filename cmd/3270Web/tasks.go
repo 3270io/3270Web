@@ -115,7 +115,7 @@ func (app *App) taskStore() *task.Store {
 	app.taskStoreOnce.Do(func() {
 		base := strings.TrimSpace(app.baseDir)
 		if base == "" {
-			base = resolveBaseDir()
+			base = resolveStateDir()
 		}
 		app.tasks = task.NewStore(base)
 	})

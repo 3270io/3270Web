@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -140,10 +141,35 @@ func (app *App) beginSetupIfNeeded() error {
 	}
 	app.setup.begin(code)
 
-	log.Printf("auth: no accounts yet — open the web interface to create the first administrator")
-	log.Printf("auth: setup code: %s", formatSetupCode(code))
-	log.Printf("auth: the code is required once, and stops working as soon as the account exists")
+	announceSetupCode(code)
 	return nil
+}
+
+// announceSetupCode puts the code where whoever started the server will look.
+//
+// To the log, and also to stderr — because those are different places. The
+// server redirects its log to a file beside its data, which is exactly where
+// a container's operator cannot see it: `docker compose logs` shows the
+// process's stdout and stderr, so a code that only reaches the file makes the
+// documented first-run flow impossible to complete without exec'ing into the
+// container to read it.
+//
+// On a desktop the two land in the same terminal, so this costs a duplicate
+// line in the one case where nobody needed the help.
+func announceSetupCode(code string) {
+	const (
+		intro  = "auth: no accounts yet — open the web interface to create the first administrator"
+		expiry = "auth: the code is required once, and stops working as soon as the account exists"
+	)
+	line := fmt.Sprintf("auth: setup code: %s", formatSetupCode(code))
+
+	log.Print(intro)
+	log.Print(line)
+	log.Print(expiry)
+
+	fmt.Fprintln(os.Stderr, intro)
+	fmt.Fprintln(os.Stderr, line)
+	fmt.Fprintln(os.Stderr, expiry)
 }
 
 // setupStillPending reports whether the instance is waiting for its first

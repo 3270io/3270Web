@@ -60,3 +60,7 @@ chaos-output*.json
 # its base directory — configuration for an install, not source.
 /profiles.json
 /profiles.json.tmp
+
+# The bind-mounted data folder from docker-compose.yml: accounts, tokens, the
+# audit trail and everyone's saved work.
+/data/

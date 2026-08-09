@@ -68,7 +68,7 @@ func resolveUsersPath() string {
 	if override := strings.TrimSpace(os.Getenv("USERS_PATH")); override != "" {
 		return override
 	}
-	return filepath.Join(resolveBaseDir(), "users.json")
+	return filepath.Join(resolveStateDir(), "users.json")
 }
 
 func userAdd(store *users.Store, args []string, stdout, stderr io.Writer, stdin io.Reader) int {

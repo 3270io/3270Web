@@ -48,6 +48,9 @@ DRY_RUN=0
 API_TOKEN_ARG=""          # --api-token: empty, "auto", or a literal token
 API_TOKEN_VALUE=""        # resolved token; empty leaves /api/v1 and MCP off
 MCP_TOOLS="interactive"   # --mcp-tools: readonly | interactive | full
+AUTH_MODE_ARG=""          # --auth: "", none or local
+AUTH_MODE_VALUE="none"    # resolved: none (one operator) or local (accounts)
+EXISTING_STACK=0          # 1 when this run is updating an install already here
 
 # ==========================================================================
 # 1. Palette
@@ -677,11 +680,16 @@ install_docker() {
 
   local tag="latest"
   [ "$VERSION" != "latest" ] && tag="$VERSION"
+  choose_auth_mode
   resolve_api_token
+
+  DATA_DIR_PATH="${DATA_DIR_PATH:-${HOME}/.3270web/data}"
 
   step "image" "${IMAGE}:${tag}"
   step "name" "$CONTAINER_NAME"
   step "listen" "${BIND}:${PORT} → 8080"
+  step "data" "${DATA_DIR_PATH} → /data"
+  step_auth
   step_api
   printf '\n'
 
@@ -726,16 +734,21 @@ install_docker() {
   if [ -n "$API_TOKEN_VALUE" ]; then
     env_args+=(-e "API_TOKEN=${API_TOKEN_VALUE}" -e "MCP_TOOLS=${MCP_TOOLS}")
   fi
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    env_args+=(-e "AUTH_MODE=local")
+  fi
+
+  prepare_data_dir "$DATA_DIR_PATH" || true
 
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p "${BIND}:${PORT}:8080" \
     "${env_args[@]}" \
-    -v 3270web-chaos:/app/chaos-runs \
+    -v "${DATA_DIR_PATH}:/data" \
     "${IMAGE}:${tag}" >/dev/null </dev/null
   step "started" "container ${CONTAINER_NAME}" "up"
-  step "volume" "3270web-chaos → /app/chaos-runs" "ok"
+  step "data" "${DATA_DIR_PATH} → /data" "ok"
   # `docker inspect` and the daemon's process list both show -e values, so say
   # where the token ended up rather than leaving it to be discovered.
   [ -n "$API_TOKEN_VALUE" ] && step "token" "in the container environment" "ok"
@@ -757,6 +770,184 @@ success_docker() {
   printf '\n'
 }
 
+
+# ==========================================================================
+# 7b. The data folder
+# ==========================================================================
+
+# The uid the container runs as. A bind-mounted host folder keeps the host's
+# ownership — Docker adjusts a named volume's, but not a bind mount's — so the
+# folder has to be handed to this user or the server refuses to start.
+readonly RUNTIME_UID=10001
+readonly RUNTIME_GID=10001
+
+# prepare_data_dir <dir> — create it, hand it to the runtime user, and say so.
+prepare_data_dir() {
+  local dir="$1"
+  local existed=0
+  [ -d "$dir" ] && existed=1
+
+  mkdir -p "$dir" || die "Could not create ${dir}."
+
+  # chown needs root unless the folder is already the right owner, which it is
+  # on a re-run. Checked rather than assumed so a second install is quiet.
+  local owner
+  owner="$(stat -c '%u:%g' "$dir" 2>/dev/null || echo '')"
+  if [ "$owner" != "${RUNTIME_UID}:${RUNTIME_GID}" ]; then
+    local sudo_cmd=""
+    [ "$(id -u)" -ne 0 ] && have sudo && sudo_cmd="sudo"
+    if ! $sudo_cmd chown -R "${RUNTIME_UID}:${RUNTIME_GID}" "$dir" 2>/dev/null; then
+      warn "Could not give ${dir} to uid ${RUNTIME_UID}."
+      note "3270Web runs unprivileged and will refuse to start without it. Run:"
+      note "  sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ${dir}"
+      return 1
+    fi
+  fi
+
+  if [ "$existed" -eq 1 ]; then
+    step "data" "${dir} (kept)" "ok"
+  else
+    step "data" "${dir} (uid ${RUNTIME_UID})" "new"
+  fi
+  return 0
+}
+
+# report_data_upgrade <file-or-empty> — explain the change to somebody whose
+# existing stack predates the data folder.
+#
+# Older stacks persisted only chaos runs, at a named volume on /app/chaos-runs.
+# Everything else — accounts, API tokens, the audit trail, saved tasks — lived
+# in the container and went with it on every upgrade. Whoever is upgrading is
+# entitled to know that, and to know their chaos runs are about to move.
+# LEGACY_CHAOS_VOLUME is set when the stack being replaced used the old
+# chaos-only volume, so the new one can keep it mounted for a single start.
+LEGACY_CHAOS_VOLUME=0
+
+report_data_upgrade() {
+  local previous="$1"
+  LEGACY_CHAOS_VOLUME=0
+  [ -z "$previous" ] && return 0
+  grep -q '3270web-chaos' "$previous" 2>/dev/null || return 0
+  LEGACY_CHAOS_VOLUME=1
+
+  printf '\n'
+  warn "This stack predates the data folder."
+  note "It kept chaos runs in the 3270web-chaos volume and nothing else:"
+  note "accounts, API tokens, the audit trail and saved tasks lived inside"
+  note "the container, so every upgrade deleted them."
+  note ""
+  note "The new stack keeps all of it in ${DATA_DIR_PATH}."
+  note ""
+  note "The old volume stays mounted where it was for one more start, so"
+  note "3270Web can move those runs into the folder itself. It says what it"
+  note "moved. Afterwards the volume is empty and both it and the two lines"
+  note "marked in the file can go:"
+  note "  docker volume rm 3270web-chaos"
+  printf '\n'
+}
+
+# ==========================================================================
+# 7c. Accounts, and re-running over an install that is already here
+# ==========================================================================
+
+# read_setting <file> <NAME> — the value of NAME= in an existing compose file,
+# ignoring commented-out lines. Empty when absent.
+read_setting() {
+  [ -r "$1" ] || return 0
+  sed -n "s/^[[:space:]]*-[[:space:]]*$2=\\(.*\\)$/\\1/p" "$1" | tail -1
+}
+
+# adopt_existing <compose-file> <env-file> — carry a previous run's choices
+# forward, so re-running the installer updates an install rather than quietly
+# reconfiguring it.
+#
+# Someone re-running this to take a new image should not lose their accounts
+# setting, their port, or their API token because they typed a shorter command
+# the second time. Anything given explicitly on the command line still wins.
+adopt_existing() {
+  local file="$1" envfile="$2"
+  [ -e "$file" ] || return 0
+  EXISTING_STACK=1
+
+  local previous_auth previous_token previous_tools
+  previous_auth="$(read_setting "$file" AUTH_MODE)"
+  previous_tools="$(read_setting "$file" MCP_TOOLS)"
+  if [ -z "$AUTH_MODE_ARG" ] && [ -n "$previous_auth" ]; then
+    AUTH_MODE_VALUE="$previous_auth"
+    AUTH_MODE_ARG="$previous_auth"
+  fi
+  [ -n "$previous_tools" ] && [ "$MCP_TOOLS" = "interactive" ] && MCP_TOOLS="$previous_tools"
+
+  # The token lives in .env, never in the stack file. Reusing it matters more
+  # than the rest: regenerating one silently breaks every client that has it.
+  if [ -z "$API_TOKEN_ARG" ] && [ -r "$envfile" ]; then
+    previous_token="$(sed -n 's/^API_TOKEN=\\(.*\\)$/\\1/p' "$envfile" | tail -1)"
+    if [ -n "$previous_token" ]; then
+      API_TOKEN_ARG="$previous_token"
+      step "kept" "the API token already in .env" "ok"
+    fi
+  fi
+}
+
+# choose_auth_mode — decide whether this instance has accounts.
+#
+# Asked rather than defaulted on, because turning it on is a decision about
+# who the instance is for: with it off there is one operator and no sign-in,
+# which is right for a laptop and wrong for a shared port.
+choose_auth_mode() {
+  if [ -n "$AUTH_MODE_ARG" ]; then
+    AUTH_MODE_VALUE="$AUTH_MODE_ARG"
+  elif [ "$TTY_OK" -eq 0 ] || [ "$ASSUME_YES" -eq 1 ]; then
+    AUTH_MODE_VALUE="none"
+  else
+    printf '\n'
+    eyebrow "ACCOUNTS"
+    note "Off:  one operator, no sign-in. Right for a laptop."
+    note "On:   a sign-in page, an account each, and one person's terminal"
+    note "      sessions and saved work kept from another's. Turn it on"
+    note "      whenever more than one person can reach the port."
+    note "      ${DOCS_URL}/multi-user/"
+    printf '\n'
+    if confirm "Require a sign-in? (accounts)"; then
+      AUTH_MODE_VALUE="local"
+    else
+      AUTH_MODE_VALUE="none"
+    fi
+    printf '\n'
+  fi
+
+  # A single shared API_TOKEN reaches every account's sessions, so an instance
+  # with accounts refuses to start with one set. Catching it here beats
+  # writing a stack that will not come up.
+  if [ "$AUTH_MODE_VALUE" = "local" ] && [ -n "$API_TOKEN_ARG" ]; then
+    warn "--api-token cannot be combined with accounts."
+    note "One shared token would reach every account's sessions, so 3270Web"
+    note "refuses to start with both. With accounts, each client gets its own:"
+    note "  3270Web token add <username> <name>"
+    note "Dropping the shared token from this stack."
+    printf '\n'
+    API_TOKEN_ARG=""
+  fi
+}
+
+# The line the install panels print for accounts.
+step_auth() {
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    step "accounts" "sign-in required ${GLYPH_SEP} first start prints a setup code" "on"
+  else
+    step "accounts" "off ${GLYPH_SEP} --auth local to require a sign-in" "n/a" "$C_FAINT"
+  fi
+}
+
+# What to do next when the instance has accounts and none exist yet.
+success_auth() {
+  [ "$AUTH_MODE_VALUE" = "local" ] || return 0
+  printf '\n'
+  step "first run" "open the URL above and create the first administrator"
+  step "setup code" "$1"
+  step "accounts" "${DOCS_URL}/authentication/"
+}
+
 # ==========================================================================
 # 8. Method: Docker Compose
 # ==========================================================================
@@ -776,29 +967,36 @@ install_compose() {
   [ "$VERSION" != "latest" ] && tag="$VERSION"
   local file="${COMPOSE_DIR}/docker-compose.yml"
   local envfile="${COMPOSE_DIR}/.env"
+  DATA_DIR_PATH="${COMPOSE_DIR}/data"
+  adopt_existing "$file" "$envfile"
+  choose_auth_mode
   resolve_api_token
 
   step "file" "$file"
   step "image" "${IMAGE}:${tag}"
   step "listen" "${BIND}:${PORT} → 8080"
   step "compose" "$DOCKER_COMPOSE"
+  step "data" "${DATA_DIR_PATH} → /data"
+  step_auth
   step_api
   printf '\n'
 
-  if [ -e "$file" ]; then
-    warn "${file} already exists."
-    confirm "Overwrite it?" || die "Cancelled." 130
-    printf '\n'
-  fi
+  report_data_upgrade "$file"
 
-  if [ -n "$API_TOKEN_VALUE" ] && [ -e "$envfile" ]; then
-    warn "${envfile} already exists and holds the API token."
-    confirm "Overwrite it?" || die "Cancelled." 130
+  # Re-running is the ordinary way to take a new image or change a setting, so
+  # it explains what it is about to do rather than asking whether to overwrite
+  # a file the person may not remember writing. Nothing in ./data is touched.
+  if [ "$EXISTING_STACK" -eq 1 ]; then
+    note "Updating the stack already in ${COMPOSE_DIR}."
+    note "Settings not given on the command line are carried over, and"
+    note "${DATA_DIR_PATH} — accounts, tokens, the audit trail — is left alone."
     printf '\n'
-  fi
-
-  if ! confirm "Write the stack and bring it up?"; then
-    die "Cancelled." 130
+    confirm "Rewrite the stack file and restart?" || die "Cancelled." 130
+    printf '\n'
+  else
+    if ! confirm "Write the stack and bring it up?"; then
+      die "Cancelled." 130
+    fi
   fi
   printf '\n'
 
@@ -808,10 +1006,46 @@ install_compose() {
   fi
 
   mkdir -p "$COMPOSE_DIR"
+  prepare_data_dir "$DATA_DIR_PATH" || true
+
+  # An upgrade keeps the old chaos volume mounted where it was for one start.
+  # 3270Web migrates anything it finds beside the program into the data
+  # directory, so mounting it is what lets those runs move themselves; drop
+  # the volume and they would be stranded in it instead.
+  local legacy_volume="" legacy_volume_decl=""
+  if [ "$LEGACY_CHAOS_VOLUME" -eq 1 ]; then
+    legacy_volume="
+      # UPGRADE: the old chaos-runs volume, mounted for one start so 3270Web
+      # can move its contents into ./data. Delete this line and the volumes:
+      # block at the end of the file once it has, then:
+      #   docker volume rm 3270web-chaos
+      - 3270web-chaos:/app/chaos-runs"
+    legacy_volume_decl="
+
+volumes:
+  # UPGRADE: see the note above; removable once the runs have moved.
+  3270web-chaos:"
+  fi
 
   # The API block is built here rather than inline so the stack reads the same
   # either way: the variables are always named and always explained, and the
   # only difference is whether they are commented out.
+  local auth_env
+  if [ "$AUTH_MODE_VALUE" = "local" ]; then
+    auth_env="      # Accounts. A sign-in page, an account each, and one person's
+      # terminal sessions and saved work kept from another's. The first
+      # start prints a setup code to the log for creating the first
+      # administrator:  ${DOCKER_COMPOSE} logs ${CONTAINER_NAME}
+      # See ${DOCS_URL}/multi-user/
+      - AUTH_MODE=local"
+  else
+    auth_env="      # One operator, no sign-in. Turn on accounts whenever more than one
+      # person can reach the port -- re-run the installer with --auth local,
+      # or uncomment this and restart.
+      # See ${DOCS_URL}/multi-user/
+      # - AUTH_MODE=local"
+  fi
+
   local mcp_env
   if [ -n "$API_TOKEN_VALUE" ]; then
     mcp_env="      # Turns on /api/v1 and, under the same prefix, MCP over HTTP at
@@ -868,17 +1102,24 @@ services:
       # terminal is exposed to is decided by "ports:" above, not by this
       # line -- do not change it to 127.0.0.1 to keep the terminal private.
       - WEBUI_BIND=0.0.0.0
+${auth_env}
 ${mcp_env}
       # Any S3270_* option can be set here, for example:
       # - S3270_MODEL=3279-2-E
       # - S3270_CODE_PAGE=bracket
-    volumes:
-      # Chaos exploration runs survive a recreate.
-      - 3270web-chaos:/app/chaos-runs
-    restart: unless-stopped
-
-volumes:
-  3270web-chaos:
+    volumes:${legacy_volume}
+      # Accounts, API tokens, the audit trail and everyone's saved work, in a
+      # folder beside this file so it can be backed up and inspected with
+      # ordinary tools. It has to outlive the container: recreating one
+      # without this -- which is what pulling a new image does -- takes every
+      # account with it, and an instance with AUTH_MODE=local comes back up in
+      # first-run setup for whoever reaches it first.
+      #
+      # The server runs unprivileged as uid ${RUNTIME_UID} and a bind mount keeps the
+      # host's ownership, so the folder belongs to that user:
+      #   sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ./data
+      - ./data:/data
+    restart: unless-stopped${legacy_volume_decl}
 YAML
   step "wrote" "$file" "ok"
 
@@ -903,6 +1144,7 @@ success_compose() {
   step "logs" "${DOCKER_COMPOSE} logs -f"
   step "stop" "${DOCKER_COMPOSE} down"
   step "docs" "${DOCS_URL}/installation/"
+  success_auth "${DOCKER_COMPOSE} logs ${CONTAINER_NAME} | grep 'setup code'"
   success_mcp
   printf '\n'
 }
@@ -1016,7 +1258,12 @@ Options
                                     (default: ./3270web)
   --api-token <value|auto>          Enable /api/v1 and MCP over HTTP with this
                                     token; "auto" generates one (docker and
-                                    compose methods; default: off)
+                                    compose methods; default: off). Not valid
+                                    with --auth local, which uses a token per
+                                    account instead
+  --auth <none|local>               none: one operator, no sign-in (default).
+                                    local: accounts, sign-in page, per-user
+                                    separation. Ask when not given
   --mcp-tools <readonly|interactive|full>
                                     MCP tool tier (default: interactive)
   --system                          Binary install to /opt + /usr/local/bin
@@ -1050,6 +1297,8 @@ parse_args() {
       --api-token=*) API_TOKEN_ARG="${1#*=}"; shift ;;
       --mcp-tools)   MCP_TOOLS="${2:-}"; shift 2 ;;
       --mcp-tools=*) MCP_TOOLS="${1#*=}"; shift ;;
+      --auth)    AUTH_MODE_ARG="${2:-}"; shift 2 ;;
+      --auth=*)  AUTH_MODE_ARG="${1#*=}"; shift ;;
       --theme)   THEME="${2:-}"; shift 2 ;;
       --theme=*) THEME="${1#*=}"; shift ;;
       --system)  SYSTEM_INSTALL="yes"; shift ;;
@@ -1066,6 +1315,11 @@ parse_args() {
   case "$METHOD" in
     ""|binary|docker|compose) : ;;
     *) printf 'Unknown --method: %s (want binary, docker or compose)\n' "$METHOD" >&2; exit 2 ;;
+  esac
+
+  case "$AUTH_MODE_ARG" in
+    ""|none|local) : ;;
+    *) printf 'Unknown --auth: %s (want none or local)\n' "$AUTH_MODE_ARG" >&2; exit 2 ;;
   esac
 
   case "$PORT" in
