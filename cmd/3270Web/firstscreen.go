@@ -108,13 +108,26 @@ func (app *App) firstScreenFor(c *gin.Context) bool {
 		return true
 
 	default:
-		return app.startSelectionScreen(c, profiles)
+		_, ok := app.startSelectionScreen(c, profiles)
+		return ok
 	}
 }
 
+// selectionScreenApplies reports whether this account picks its host from the
+// selection screen rather than by naming one.
+//
+// It is the same test firstScreenFor makes, asked without doing anything about
+// it: the tab bar needs to know which chooser this account uses before it
+// offers one.
+func (app *App) selectionScreenApplies(c *gin.Context) bool {
+	profiles, err := app.assignedProfiles(c)
+	return err == nil && len(profiles) > 1
+}
+
 // startSelectionScreen puts a menu on a loopback port and points a new session
-// at it.
-func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfile) bool {
+// at it. The session joins this browser's roster and becomes the active one,
+// so it serves both the first screen and a second tab opened later.
+func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfile) (*session.Session, bool) {
 	entries := make([]sessionmenu.Entry, 0, len(profiles))
 	for _, p := range profiles {
 		// The detail column is there to tell two similarly-named systems
@@ -136,7 +149,7 @@ func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfil
 	menu, err := sessionmenu.Start(app.menuBranding(), entries)
 	if err != nil {
 		log.Printf("first screen: could not start the selection screen: %v", err)
-		return false
+		return nil, false
 	}
 
 	// The session limits still apply — the menu costs an s3270 subprocess like
@@ -155,7 +168,7 @@ func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfil
 	if err != nil {
 		menu.Stop()
 		log.Printf("first screen: %v", err)
-		return false
+		return nil, false
 	}
 	defer release()
 
@@ -166,7 +179,7 @@ func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfil
 		_ = h.Stop()
 		menu.Stop()
 		log.Printf("first screen: could not start the terminal for the selection screen: %v", err)
-		return false
+		return nil, false
 	}
 
 	sess := app.SessionManager.CreateSessionFor(ownerID, h)
@@ -178,7 +191,7 @@ func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfil
 
 	app.auditRequest(c, audit.EventSessionOpened, audit.Success, "selection screen",
 		map[string]string{"sessionId": sess.ID, "hosts": strconv.Itoa(len(entries))})
-	return true
+	return sess, true
 }
 
 // settleSelection moves a session off the menu once its operator has chosen.
