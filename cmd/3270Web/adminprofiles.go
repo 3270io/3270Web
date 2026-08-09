@@ -61,7 +61,7 @@ func (app *App) AdminListProfilesHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"profiles":    profiles,
-		"groups":      app.knownGroups(),
+		"groups":      app.knownGroups(c),
 		"usernames":   usernames,
 		"roles":       []string{string(authz.RoleUser), string(authz.RoleAdmin)},
 		"authEnabled": app.authMode != authz.ModeNone,

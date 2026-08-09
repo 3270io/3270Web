@@ -220,12 +220,22 @@
       nameWrap.appendChild(el('div', 'admin-role-via', group.description));
     }
     if (!group.declared) {
-      // A group nobody declared: it exists because an account carries the name
-      // or a directory sent it. Worth saying, because it is the one thing an
-      // administrator cannot have chosen and may not recognise.
+      // A group nobody declared: it exists because an account carries the name,
+      // a role assignment mentions it, or a host preset offers itself to it.
+      // Worth saying, because it is the one thing an administrator cannot have
+      // chosen and may not recognise.
       var tag = el('span', 'admin-origin-tag', 'in use');
-      tag.title = 'This group has no record of its own — it exists because an account or a role assignment names it. Saving it here gives it one.';
+      tag.title = 'This group has no record of its own — it exists because an account, a role assignment or a host preset names it. Saving it here gives it one.';
       nameWrap.appendChild(tag);
+    }
+    if (group.providerManaged) {
+      // Its membership arrives in a directory claim and is replayed at every
+      // sign-in, so its name and its existence are set there. Everything else
+      // about it is still administered here.
+      var idp = el('span', 'admin-origin-tag', 'identity provider');
+      idp.title = 'This group’s members come from the identity provider, so its name is set there. ' +
+        'Its description, the role it grants and the hosts it reaches can still be changed here.';
+      nameWrap.appendChild(idp);
     }
     nameCell.appendChild(nameWrap);
     tr.appendChild(nameCell);
@@ -263,19 +273,32 @@
     var actionsCell = el('td', 'admin-actions-cell');
     var actions = el('div', 'admin-actions');
     actions.appendChild(actionButton('Edit', '', function () { openGroup(group); }));
-    actions.appendChild(actionButton('Delete', 'danger', function () {
+    var remove = actionButton('Delete', 'danger', function () {
       confirmThen('Delete the group ' + group.name + '?',
         'It is removed from every account in it, from every host preset that offers it, ' +
-        'and loses any role it granted. The accounts themselves are not touched.',
+        'and loses any role it granted. The accounts themselves are not touched. ' +
+        'A preset this group is the only audience for cannot be left naming nobody, ' +
+        'since that would offer it to everyone.',
         function () {
-          api('DELETE', '/api/admin/groups/' + encodeURIComponent(group.name))
+          // The name goes in the body, never the path: a group may be called
+          // "payments/shipping", and no encoding survives a router path
+          // parameter.
+          api('DELETE', '/api/admin/groups', { currentName: group.name })
             .then(function (data) {
               setStatus(group.name + ' deleted.' + noteSuffix(data.notes), 'ok');
               load();
             })
             .catch(function (error) { setStatus(error.message, 'error'); });
         });
-    }));
+    });
+    if (group.providerManaged) {
+      // The server refuses this, so the control says so rather than offering a
+      // deletion that the next sign-in would undo.
+      remove.disabled = true;
+      remove.title = 'This group comes from the identity provider and would be recreated at the ' +
+        'next sign-in. Remove it there.';
+    }
+    actions.appendChild(remove);
     actionsCell.appendChild(actions);
     tr.appendChild(actionsCell);
 
@@ -464,9 +487,20 @@
 
     dialog.querySelector('[data-group-dialog-title]').textContent =
       group ? 'Edit ' + group.name : 'Add group';
-    dialog.querySelector('#group-name').value = group ? group.name : '';
+    var nameInput = dialog.querySelector('#group-name');
+    nameInput.value = group ? group.name : '';
     dialog.querySelector('#group-description').value = group ? (group.description || '') : '';
     dialog.querySelector('#group-role').value = group && group.role === 'admin' ? 'admin' : 'user';
+
+    // The name of a group the directory feeds is set there: renaming it here
+    // would leave the original spelling to come back at the next sign-in, with
+    // the members on it and this one stranded beside it. The description, the
+    // role and the host list are local, and stay editable.
+    var managed = !!(group && group.providerManaged);
+    nameInput.disabled = managed;
+    nameInput.readOnly = managed;
+    var nameNote = dialog.querySelector('[data-group-name-provider-note]');
+    if (nameNote) nameNote.hidden = !managed;
 
     var providerNote = dialog.querySelector('[data-group-provider-note]');
     if (providerNote) providerNote.hidden = !groupsFromProvider;
@@ -491,13 +525,19 @@
         members: memberSelection.slice(),
         hosts: selectedValues('data-group-host')
       };
+      // A disabled input submits nothing, so a provider-managed group keeps
+      // the name it already has rather than being asked to clear it.
+      if (editing && editing.providerManaged) payload.name = editing.name;
       if (!payload.name) {
         setStatus('A group needs a name.', 'error');
         return;
       }
 
+      // Editing names the group in the body rather than the path, so a name
+      // containing "/" is as editable as any other.
+      if (editing) payload.currentName = editing.name;
       var request = editing
-        ? api('PATCH', '/api/admin/groups/' + encodeURIComponent(editing.name), payload)
+        ? api('PATCH', '/api/admin/groups', payload)
         : api('POST', '/api/admin/groups', payload);
 
       var wasEditing = editing;

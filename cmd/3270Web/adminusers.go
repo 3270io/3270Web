@@ -125,7 +125,7 @@ func (app *App) AdminListUsersHandler(c *gin.Context) {
 		"users":       out,
 		// Every group in use, so the page can offer them rather than relying
 		// on somebody spelling one the same way twice.
-		"groups": app.knownGroups(),
+		"groups": app.knownGroups(c),
 		// The role each group grants its members, keyed by group name.
 		"groupRoles": groupRoles,
 		// Where groups come from, so the page can say why it will not let
