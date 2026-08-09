@@ -208,27 +208,32 @@
   // opening a second window onto the same host is a real use case, but so is
   // opening a different one, and silently defaulting would hide the second.
   //
-  // Where connection profiles exist, they are the answer: a profile carries
-  // TLS, LU, model and code page, none of which a typed hostname can express.
-  // The prompt is the fallback for a deployment that has not set any up.
+  // It always asks in the picker, which offers the connection profiles, the
+  // bundled sample apps and a box to type an address into. It used to fall
+  // through to a window.prompt whenever there were no profiles yet, which is
+  // the state a fresh instance is in: the one thing that instance can connect
+  // to is a sample app, and a sample app's address — "sampleapp:<id>" on a
+  // port that is not 3270 — is not something the prompt could tell anybody.
+  // A prompt is also silently refused inside a sandboxed frame, so an
+  // embedded terminal had no second session at all.
   function openNew() {
     if (busy) {
       return;
     }
     var picker = window.ThreeSeventyWeb && window.ThreeSeventyWeb.connectionProfiles;
-    if (picker) {
-      picker
-        .load()
-        .then(function (available) {
-          if (available && available.length) {
-            picker.pick(function (profile) {
-              connect({ profile: profile.name }, profile.name);
-            });
-            return;
-          }
-          promptForHost();
-        })
-        .catch(promptForHost);
+    if (picker && typeof picker.pick === "function") {
+      picker.pick(function (choice) {
+        // A profile is named, and the name is what the server wants: it
+        // carries TLS, LU, model and code page. A sample app or a typed
+        // address is a target and nothing more.
+        if (choice && choice.name) {
+          connect({ profile: choice.name }, choice.label || choice.name);
+          return;
+        }
+        if (choice && choice.target) {
+          connect({ hostname: choice.target }, choice.label || choice.target);
+        }
+      });
       return;
     }
     promptForHost();

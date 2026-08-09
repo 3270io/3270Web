@@ -15,6 +15,7 @@
   var profiles = [];
   var modal = null;
   var listEl = null;
+  var samplesEl = null;
   var formEl = null;
   var statusEl = null;
   var mode = "manage"; // or "pick"
@@ -44,12 +45,16 @@
 
   var canShare = false;
   var knownGroups = [];
+  // The bundled sample apps a profile may point at instead of a mainframe.
+  var sampleApps = [];
 
   function load() {
     return api("/api/profiles").then(function (payload) {
       canShare = !!payload.canShare;
       knownGroups = payload.groups || [];
+      sampleApps = payload.sampleApps || [];
       syncShareVisibility();
+      fillSampleApps();
       profiles = payload && Array.isArray(payload.profiles) ? payload.profiles : [];
       renderList();
       return profiles;
@@ -68,13 +73,20 @@
   // what the operator reads is what actually gets dialled.
   function summarise(p) {
     var target = "";
-    if (p.tls) {
-      target += p.skipVerify ? "L:Y:" : "L:";
+    // Except for a bundled sample app, which is named the way it was chosen:
+    // "sampleapp:petstore:3273" is the address, not something anybody picked.
+    var sample = sampleAppFor(p.host);
+    if (sample) {
+      target = sample.name + " · port " + (p.port || sample.port);
+    } else {
+      if (p.tls) {
+        target += p.skipVerify ? "L:Y:" : "L:";
+      }
+      if (p.luName) {
+        target += p.luName + "@";
+      }
+      target += p.host + ":" + (p.port || 3270);
     }
-    if (p.luName) {
-      target += p.luName + "@";
-    }
-    target += p.host + ":" + (p.port || 3270);
     var extras = [];
     if (p.model) extras.push(p.model);
     if (p.codePage) extras.push(p.codePage);
@@ -89,8 +101,11 @@
     if (!profiles.length) {
       var empty = document.createElement("p");
       empty.className = "subtle";
-      empty.textContent = "No connection profiles yet. Fill in the form below to create one.";
+      empty.textContent = sampleApps.length
+        ? "No connection profiles yet. Pick a bundled sample app below, or fill in the form to create one."
+        : "No connection profiles yet. Fill in the form below to create one.";
       listEl.appendChild(empty);
+      renderSamples();
       return;
     }
 
@@ -164,6 +179,50 @@
 
       listEl.appendChild(row);
     }
+    renderSamples();
+  }
+
+  // renderSamples offers the bundled sample apps as things to connect to, not
+  // just as values to copy into a profile.
+  //
+  // It is only drawn when the modal is picking a session to open. Opening one
+  // used to mean either having a profile already or typing an address into a
+  // browser prompt, and the address of a sample app — "sampleapp:<id>" on a
+  // port that is not 3270 — is not something anybody is told. An instance with
+  // no mainframe to reach is exactly the instance where the second session is
+  // hardest to open, which is the wrong way round.
+  function renderSamples() {
+    if (!samplesEl) {
+      return;
+    }
+    var wrap = modal.querySelector("[data-profiles-samples]");
+    if (!wrap) {
+      return;
+    }
+    wrap.hidden = mode !== "pick" || !sampleApps.length;
+    samplesEl.innerHTML = "";
+    if (wrap.hidden) {
+      return;
+    }
+    sampleApps.forEach(function (app) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "profile-row-main profile-sample-row";
+      button.innerHTML =
+        '<span class="profile-row-name"></span>' +
+        '<span class="profile-row-target"></span>';
+      button.querySelector(".profile-row-name").textContent = app.name;
+      button.querySelector(".profile-row-target").textContent = "port " + app.port;
+      button.setAttribute("aria-label", "Open a session to the " + app.name + " sample app");
+      button.addEventListener("click", function () {
+        chooseTarget({
+          name: "",
+          target: app.host + ":" + app.port,
+          label: app.name
+        });
+      });
+      samplesEl.appendChild(button);
+    });
   }
 
   // syncShareVisibility shows the publishing block only where publishing means
@@ -186,6 +245,79 @@
         list.appendChild(option);
       });
     }
+  }
+
+  /* ------------------------------------------------------------ sample apps
+     A profile can point at one of the bundled sample apps just as well as at
+     a mainframe, and on an instance being evaluated or taught on there is
+     nothing else to point it at. Writing one by hand means knowing that they
+     are addressed as "sampleapp:<id>" and that they do not listen on 3270 —
+     two things nobody is told — so they are offered as a list instead, and
+     choosing one fills the connection in. */
+
+  function fillSampleApps() {
+    if (!formEl) {
+      return;
+    }
+    var field = formEl.querySelector("[data-profiles-sample-field]");
+    var select = formEl.elements.sampleApp;
+    if (!field || !select) {
+      return;
+    }
+    field.hidden = !sampleApps.length;
+    while (select.options.length > 1) {
+      select.remove(1);
+    }
+    sampleApps.forEach(function (app) {
+      var option = document.createElement("option");
+      option.value = app.host;
+      option.textContent = app.name;
+      select.appendChild(option);
+    });
+    syncSampleSelect();
+  }
+
+  function sampleAppFor(hostValue) {
+    var host = String(hostValue || "").trim().toLowerCase();
+    for (var i = 0; i < sampleApps.length; i++) {
+      if (String(sampleApps[i].host).toLowerCase() === host) {
+        return sampleApps[i];
+      }
+    }
+    return null;
+  }
+
+  // The select follows the host field rather than the other way round, so
+  // typing over a filled-in host puts it back to "a mainframe on the network"
+  // instead of claiming a sample app the profile no longer names.
+  function syncSampleSelect() {
+    if (!formEl || !formEl.elements.sampleApp) {
+      return;
+    }
+    var chosen = sampleAppFor(formEl.elements.host.value);
+    formEl.elements.sampleApp.value = chosen ? chosen.host : "";
+  }
+
+  function applySampleApp() {
+    if (!formEl) {
+      return;
+    }
+    var chosen = sampleAppFor(formEl.elements.sampleApp.value);
+    if (!chosen) {
+      return;
+    }
+    formEl.elements.host.value = chosen.host;
+    formEl.elements.port.value = chosen.port;
+    // A sample app is a plaintext listener on loopback that this process
+    // started. TLS against it cannot succeed, so a tick left behind from a
+    // previous edit would only produce a profile that fails to connect.
+    formEl.elements.tls.checked = false;
+    formEl.elements.skipVerify.checked = false;
+    syncSkipVerify();
+    if (!formEl.elements.name.value.trim()) {
+      formEl.elements.name.value = chosen.name;
+    }
+    setStatus("Filled in " + chosen.name + " on port " + chosen.port + ".");
   }
 
   function commaList(value) {
@@ -216,6 +348,8 @@
       formEl.elements.audienceRoles.value = (p.roles || [])[0] || "";
     }
     syncSkipVerify();
+    // After the host, so the picker agrees with the profile actually loaded.
+    syncSampleSelect();
     setStatus("Editing “" + p.name + "”. Saving replaces it.");
     formEl.elements.name.focus();
   }
@@ -227,6 +361,7 @@
     formEl.reset();
     formEl.elements.port.value = 3270;
     syncSkipVerify();
+    syncSampleSelect();
     setStatus("");
   }
 
@@ -301,11 +436,24 @@
     );
   }
 
-  function choose(p) {
+  // What a pick hands back. A profile is named, and the name is what the
+  // server should be given — it carries TLS, LU, model and code page, none of
+  // which "host:port" can express. A sample app or a typed address has no
+  // profile behind it, so it hands back the target alone and leaves name
+  // empty; every caller has to cope with both, because both are ordinary.
+  function chooseTarget(choice) {
     close();
     if (typeof onPick === "function") {
-      onPick(p);
+      onPick(choice);
     }
+  }
+
+  function choose(p) {
+    chooseTarget({
+      name: p.name,
+      target: p.host + ":" + (p.port || 3270),
+      label: p.name
+    });
   }
 
   function open(nextMode, picker) {
@@ -320,6 +468,12 @@
     if (title) {
       title.textContent = mode === "pick" ? "Open a session" : "Connection profiles";
     }
+    var direct = modal.querySelector("[data-profiles-direct]");
+    if (direct) {
+      direct.hidden = mode !== "pick";
+      direct.reset();
+    }
+    renderSamples();
     clearForm();
     // Escape, focus, the Tab trap, the background scroll lock and the focus
     // restore all belong to pushModal/popModal — see modal-utils.js.
@@ -357,7 +511,37 @@
       '    <button type="button" data-profiles-close>Close</button>',
       "  </div>",
       '  <div class="profiles-list" data-profiles-list></div>',
+      // Both of these are for picking a session to open, and are hidden while
+      // the modal is being used to manage the list.
+      '  <div class="profiles-samples" data-profiles-samples hidden>',
+      '    <h4>Bundled sample apps</h4>',
+      '    <p class="subtle">TN3270 servers 3270Web starts itself. Pick one to open a session against it — no mainframe needed.</p>',
+      '    <div class="profiles-sample-list" data-profiles-sample-list></div>',
+      "  </div>",
+      // The typed-address path. It lives in the dialog rather than in a
+      // window.prompt because a prompt cannot be styled, cannot say what a
+      // valid address looks like, and does not open at all inside a sandboxed
+      // frame — which is where an embedded terminal runs.
+      '  <form class="profiles-direct" data-profiles-direct hidden>',
+      '    <div class="profiles-direct-row">',
+      '      <label>Or connect to a host<input name="target" type="text" placeholder="hostname:port" autocomplete="off" autocapitalize="none" spellcheck="false"></label>',
+      '      <button type="submit">Connect</button>',
+      "    </div>",
+      "  </form>",
       '  <form class="profiles-form" data-profiles-form>',
+      // Hidden on an instance with no bundled samples, which is why it is a
+      // wrapper rather than the label itself: .profiles-form label is
+      // display:flex, and [hidden] loses to it.
+      '    <div class="profiles-sample" data-profiles-sample-field hidden>',
+      // No "optional" tag: the default option says so in words, and the tag
+      // would wrap onto its own line above the select.
+      '      <label>Bundled sample app',
+      '        <select name="sampleApp" aria-describedby="profiles-sample-hint">',
+      '          <option value="">A mainframe on the network</option>',
+      "        </select>",
+      "      </label>",
+      '      <p class="subtle profiles-sample-hint" id="profiles-sample-hint">Choosing one fills in the host and port below. The sample apps are TN3270 servers 3270Web starts itself, so a profile naming one connects with no mainframe to reach.</p>',
+      "    </div>",
       '    <div class="profiles-form-grid">',
       '      <label>Name<input name="name" type="text" required maxlength="64" placeholder="CICS Production"></label>',
       '      <label>Host<input name="host" type="text" required placeholder="mainframe.example.com"></label>',
@@ -396,10 +580,27 @@
     listEl = modal.querySelector("[data-profiles-list]");
     formEl = modal.querySelector("[data-profiles-form]");
     statusEl = modal.querySelector("[data-profiles-status]");
+    samplesEl = modal.querySelector("[data-profiles-sample-list]");
+
+    var directForm = modal.querySelector("[data-profiles-direct]");
+    if (directForm) {
+      directForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var typed = directForm.elements.target.value.trim();
+        if (!typed) {
+          directForm.elements.target.focus();
+          return;
+        }
+        chooseTarget({ name: "", target: typed, label: typed });
+      });
+    }
 
     syncShareVisibility();
+    fillSampleApps();
     formEl.addEventListener("submit", save);
     formEl.elements.tls.addEventListener("change", syncSkipVerify);
+    formEl.elements.sampleApp.addEventListener("change", applySampleApp);
+    formEl.elements.host.addEventListener("input", syncSampleSelect);
     modal.querySelector("[data-profiles-clear]").addEventListener("click", clearForm);
     var closers = modal.querySelectorAll("[data-profiles-close]");
     for (var i = 0; i < closers.length; i++) {
@@ -423,7 +624,7 @@
     var pickTrigger = document.querySelector("[data-profiles-connect]");
     if (pickTrigger && connectForm) {
       pickTrigger.addEventListener("click", function () {
-        open("pick", function (profile) {
+        open("pick", function (choice) {
           var field = connectForm.querySelector('input[name="profile"]');
           if (!field) {
             field = document.createElement("input");
@@ -431,12 +632,15 @@
             field.name = "profile";
             connectForm.appendChild(field);
           }
-          field.value = profile.name;
-          // The hostname input is required, so give it the profile's target
-          // to satisfy validation; the server prefers the profile name.
+          // Empty for a sample app or a typed address: there is no profile to
+          // apply, and a stale name left in the field would connect somewhere
+          // else entirely.
+          field.value = choice.name || "";
+          // The hostname input is required, so give it the target to satisfy
+          // validation; the server prefers the profile name when there is one.
           var hostInput = connectForm.querySelector('input[name="hostname"]');
           if (hostInput) {
-            hostInput.value = profile.host + ":" + (profile.port || 3270);
+            hostInput.value = choice.target;
           }
           connectForm.submit();
         });

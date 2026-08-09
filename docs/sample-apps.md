@@ -15,6 +15,17 @@ only. On a shared instance the headless API will not start one unless
     On the connect page, click **Start sample app**, pick an application and a
     port, then **Start sample app**.
 
+=== "From the session picker"
+
+    **Profiles** on the connect page, and **+ New session** in the tab bar,
+    both open a picker that lists every bundled sample app under the
+    connection profiles. Choosing one opens a session against it — this is
+    also how you open a second and third session without a mainframe.
+
+    The same list appears as **Bundled sample app** at the top of the profile
+    editor, where choosing one fills in the host and port for a profile you
+    are saving.
+
 === "By hostname"
 
     Type the sample's target into the hostname box on the connect page:

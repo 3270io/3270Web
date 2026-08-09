@@ -404,6 +404,11 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 		// The group names in use, so the audience editor can offer them
 		// instead of relying on somebody remembering the spelling.
 		"groups": app.knownGroups(c),
+		// The bundled sample apps, so the profile editor can offer one by
+		// name. The host they are dialled by is "sampleapp:<id>" on a port
+		// that is not 3270, and typing that from memory is the reason a
+		// profile pointing at one was the awkward kind to write.
+		"sampleApps": sampleAppPresetOptions(),
 	})
 }
 
