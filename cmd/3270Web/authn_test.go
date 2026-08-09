@@ -74,7 +74,7 @@ func TestPrincipalFrom_HandlesNilAndWrongType(t *testing.T) {
 func TestBuildRouter_RejectsUnsupportedAuthMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	for _, mode := range []string{"oidc", "proxy", "yes"} {
+	for _, mode := range []string{"proxy", "yes", "saml"} {
 		t.Setenv(authz.ModeEnv, mode)
 
 		app := newApp(t.TempDir())

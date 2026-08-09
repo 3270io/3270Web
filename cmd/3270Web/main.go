@@ -35,6 +35,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/oidc"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
@@ -54,6 +55,12 @@ type App struct {
 	usersOnce    sync.Once
 	usersPath    string
 	authSessions *authsession.Store
+	// oidcProvider and sso are the identity-provider client and its settings,
+	// present only under AUTH_MODE=oidc; ssoPending holds sign-ins between the
+	// redirect out and the callback back.
+	oidcProvider *oidc.Provider
+	sso          ssoSettings
+	ssoPending   *pendingLoginStore
 	// apiTokens holds the credentials automated clients present. Consulted
 	// only where users are separated; see authenticateAPIToken.
 	apiTokens     *apitoken.Store
@@ -317,6 +324,12 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET("/api/whoami", app.WhoAmIHandler)
 	r.GET(setupPath, app.SetupPageHandler)
 	r.POST(setupPath, app.SetupHandler)
+
+	// Signing in through an identity provider. Both are reachable without a
+	// login for the obvious reason, and both do nothing unless AUTH_MODE=oidc
+	// configured one.
+	r.GET(ssoStartPath, app.SSOStartHandler)
+	r.GET(ssoCallbackPath, app.SSOCallbackHandler)
 
 	// Account administration.
 	admin := r.Group("", app.RequireAdmin())
@@ -4411,7 +4424,11 @@ func (app *App) configureAuth() error {
 	if strings.TrimSpace(os.Getenv("API_TOKEN")) != "" {
 		return fmt.Errorf("API_TOKEN cannot be used with %s=%s: a single shared token would reach every "+
 			"account's sessions. Unset it and issue a token per account with `3270Web token add <username> <name>`",
-			authz.ModeEnv, authz.ModeLocal)
+			authz.ModeEnv, app.authMode)
+	}
+
+	if err := app.configureSSO(); err != nil {
+		return err
 	}
 
 	// From here on the instance requires accounts, so refuse to start without

@@ -67,6 +67,11 @@ type adminUserView struct {
 	// Self marks the caller's own account, so the UI can grey out the actions
 	// that would lock them out of the instance they are using.
 	Self bool `json:"self"`
+	// External marks an account that signs in through the identity provider.
+	// It has no password to reset, so the page says where it comes from rather
+	// than offering a control that cannot work.
+	External bool   `json:"external"`
+	Issuer   string `json:"issuer,omitempty"`
 }
 
 func toAdminUserView(u users.User, selfID string) adminUserView {
@@ -79,6 +84,8 @@ func toAdminUserView(u users.User, selfID string) adminUserView {
 		CreatedAt:          u.CreatedAt.UTC().Format("2006-01-02 15:04"),
 		PasswordChangedAt:  u.PasswordChangedAt.UTC().Format("2006-01-02 15:04"),
 		Self:               u.ID == selfID,
+		External:           u.External(),
+		Issuer:             u.Issuer,
 	}
 }
 
