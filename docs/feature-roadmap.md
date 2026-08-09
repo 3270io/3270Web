@@ -166,10 +166,21 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
 These gate a production rollout rather than daily usability. A pilot can
 proceed without them; procurement cannot.
 
+- [x] **Accounts and per-user separation** — *shipped: `AUTH_MODE=local`
+      gives a sign-in page, an account each with roles, and one person's
+      terminal sessions, chaos runs, tasks and saved work kept from another's
+      — administrators included. API tokens belong to accounts and reach only
+      what their owner reaches. See
+      [Running a shared instance](multi-user.md)*
+- [x] **Attributable audit logging** — *shipped: who signed in, who opened a
+      session against which host, who changed an account or a setting, and
+      every refusal — in a file of its own, admin-readable at `/admin/audit`,
+      with no switch to turn it off. See
+      [The audit trail](multi-user.md#the-audit-trail)*
 - [ ] **OAuth / SAML / OIDC SSO** — the entry ticket for BYOD and Azure AD
-      organisations. There is no identity model at all today.
-- [ ] **Attributable audit logging** — who accessed which host, when.
-      Session-scoped logs exist; attributable records do not.
+      organisations. Local accounts exist now, and the principal they resolve
+      to is what every authorization check already reads, so this is a second
+      way to establish identity rather than an identity model from scratch.
 - [x] **WCAG 2.1 AA conformance statement** — *shipped: an audit across
       thirteen surfaces, the failures it found fixed, and a statement that
       names what conforms, what does not, and which two apparent failures are
