@@ -98,7 +98,7 @@ func callTool(ctx context.Context, inv mcptools.Invoker, held *sessionHolder, to
 		if tool.Name != "connect_session" {
 			return errorResult(
 				"No 3270 session yet. Call connect_session with a hostname to open one " +
-					"(for example \"sampleapp:app1:3270\" for a bundled sample application), " +
+					"(for example \"sampleapp:petstore\" for the bundled pet store sample), " +
 					"or use_session to attach to one that already exists."), nil
 		}
 		id, err := createSession(ctx, inv, stringFrom(args, "hostname"))

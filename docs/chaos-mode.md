@@ -4,7 +4,10 @@ Chaos mode explores host screens by filling input fields with generated values a
 
 ## Start a Chaos Run
 
-1. Connect to a host.
+1. Connect to a host. With no mainframe to hand, `sampleapp:petstore` is a
+   bundled application with enough menus, forms and guarded screens to give
+   a run something to map — see
+   [Bundled Sample Applications](sample-apps.md).
 2. Click **Start chaos exploration** in the toolbar.
 3. Watch run activity in:
    - the toolbar (`CHAOS` indicator + stats), and

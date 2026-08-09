@@ -175,10 +175,22 @@ type SampleAppOption struct {
 const sampleAppPrefix = "sampleapp:"
 
 var sampleAppConfigs = []SampleAppConfig{
+	{ID: "petstore", Name: "Pet Store - Retail & Back Office (default)"},
 	{ID: "app1", Name: "Sample App 1 - Name Entry & Validation"},
 	{ID: "app2", Name: "Sample App 2 - RSS Newsreader"},
 	{ID: "app3", Name: "Sample App 3 - BMS Field Attribute Test Matrix"},
 }
+
+// defaultSampleAppID is what "mock" and "demo" reach, and what the sample app
+// picker offers first.
+//
+// It is the pet store rather than one of the single-purpose samples because
+// this is the application somebody sees when they are deciding whether 3270Web
+// is worth their time. The others each demonstrate one thing well; a screen
+// graph with a back office behind it is what chaos exploration, screen
+// discovery, natural-language navigation and the model handling all need in
+// order to demonstrate anything at all.
+const defaultSampleAppID = "petstore"
 
 // The sample apps start at 3271, not at 3270.
 //
@@ -3961,7 +3973,7 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
 	} else if hostname == "mock" || hostname == "demo" {
 		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
+		h, err = newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		args := buildS3270Args(app.Config.S3270Options, hostname)
@@ -4098,7 +4110,7 @@ func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, pro
 		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
 	} else if hostname == "mock" || hostname == "demo" {
 		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
+		h, err = newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		// A profile's target carries its own TLS ("L:"), skip-verify ("Y:")
