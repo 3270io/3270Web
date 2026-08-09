@@ -1256,6 +1256,24 @@ func (app *App) HomeHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
+
+	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
+
+	// Somebody who has just disconnected is asked where to go next rather than
+	// being sent back where they came from.
+	//
+	// Everything below this is "take me where I belong", and for an account
+	// assigned exactly one host — which is every account on an instance that
+	// has offered a single preset — that means dialling it again. Disconnect
+	// ended the session, redirected here, and landed the operator in a fresh
+	// one: the button did its job and looked broken doing it. A configured
+	// auto-connect target does the same thing for the same reason, so it is
+	// skipped too.
+	if justDisconnected(c) {
+		app.renderConnectPage(c, http.StatusOK, targetHost, "")
+		return
+	}
+
 	// What this account was assigned comes first: a configured TargetHost is
 	// the instance's answer for everyone, and an assignment is the answer for
 	// this person, which is the more specific of the two.
@@ -1264,7 +1282,6 @@ func (app *App) HomeHandler(c *gin.Context) {
 		return
 	}
 
-	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
@@ -1275,6 +1292,24 @@ func (app *App) HomeHandler(c *gin.Context) {
 		return
 	}
 	app.renderConnectPage(c, http.StatusOK, targetHost, "")
+}
+
+// disconnectedQuery marks the landing page as the end of a disconnect rather
+// than the start of a visit.
+//
+// A query parameter rather than a cookie or a session flag: it describes this
+// one navigation, it survives the redirect that carries it, and it goes away
+// by itself the moment the operator asks for the page again — which is what
+// "take me back to my host" should then do.
+const disconnectedQuery = "disconnected"
+
+func justDisconnected(c *gin.Context) bool {
+	return c.Query(disconnectedQuery) != ""
+}
+
+// homeAfterDisconnect is where every path that ends the last session goes.
+func homeAfterDisconnect() string {
+	return "/?" + disconnectedQuery + "=1"
 }
 
 func (app *App) ConnectHandler(c *gin.Context) {
@@ -1494,8 +1529,12 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	// the menu.
 	app.settleSelection(c, s)
 	if s.Host == nil {
-		// settleSelection ended the session — PF3 on the menu.
-		c.Redirect(http.StatusFound, "/")
+		// settleSelection ended the session — PF3 on the menu, which is "I did
+		// not want any of these". Marked as a disconnect for the same reason
+		// Disconnect is: landing on the page that decides where this account
+		// belongs would draw the menu again, and signing off would be a key
+		// that redisplays the screen it was pressed on.
+		c.Redirect(http.StatusFound, homeAfterDisconnect())
 		return
 	}
 
@@ -1594,6 +1633,18 @@ func (app *App) ScreenHandler(c *gin.Context) {
 func (app *App) ScreenContentHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	// The choice made on the selection screen is settled here as well as on a
+	// page load, because this is the only screen most operators ever ask for:
+	// the terminal submits without navigating and then fetches this. Settling
+	// only on the next submit left somebody who had chosen a system looking at
+	// "the session opens in a moment" until they pressed another key.
+	app.settleSelection(c, s)
+	if s.Host == nil {
+		// PF3 on the menu ended it. Answered the way a session that is gone is
+		// answered, which the terminal already knows how to act on.
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
@@ -1705,7 +1756,14 @@ func limitScreenForDisplay(screen *host.Screen, maxRows, maxCols int) *host.Scre
 func (app *App) SubmitHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.Redirect(http.StatusFound, "/")
+		// A key pressed against a session that no longer exists. The landing
+		// page would dial this account's host and drop the operator into a
+		// brand new session — which is how signing off the selection screen
+		// redrew it: PF3 ends the session, the terminal falls back to a full
+		// submit, and the answer to that submit started everything again.
+		// Somewhere to go from is the right answer; a session nobody asked for
+		// is not.
+		c.Redirect(http.StatusFound, homeAfterDisconnect())
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
@@ -1812,7 +1870,7 @@ func (app *App) DisconnectHandler(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, sessionCookieName, "")
-	c.Redirect(http.StatusFound, "/")
+	c.Redirect(http.StatusFound, homeAfterDisconnect())
 }
 
 // ReconnectHandler re-dials the current session's target host after a drop.

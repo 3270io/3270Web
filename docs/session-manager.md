@@ -54,7 +54,14 @@ for people who know it.
 
 Choosing does not open a second session: the one you are in is re-pointed at
 the mainframe you chose. Same tab, same session, and the host's first screen
-replaces the menu.
+replaces the menu on the same keystroke — the "connecting" frame in between is
+the menu telling you what it is doing, not a screen waiting for another key.
+
+To reach a second mainframe at the same time, use **+ New session** in the tab
+bar. Where the selection screen is what you sign in to, it opens another one —
+so the second tab starts on the same list, and you choose from it the same way.
+Both tabs read *Session manager* until each has been pointed at a system, after
+which each takes that system's name.
 
 ### Keys
 
@@ -62,7 +69,7 @@ replaces the menu.
 |---|---|
 | `Enter` | Connect to the selected system |
 | `PF7` / `PF8` | Back and forward a page, when there is more than one |
-| `PF3` | Sign off — ends the session and returns to the connect form |
+| `PF3` | Sign off — ends the session and returns to the connect form, without redrawing the menu |
 | `PF12` | Clear the selection field |
 
 Paging keys are only offered when there is more than one page. A list longer

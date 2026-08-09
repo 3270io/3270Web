@@ -17,6 +17,9 @@
   var list = null;
   var sessions = [];
   var maxSessions = 6;
+  // Whether this account picks its host from the selection screen. Told by the
+  // server, because the rule is the server's — see selectionScreenApplies.
+  var sessionManager = false;
   var busy = false;
 
   function notify(message, type, options) {
@@ -108,6 +111,44 @@
     }
 
     renderNewButton();
+    watchMenuTabs();
+  }
+
+  // A tab on the selection screen is named for the menu, and stops being one
+  // the moment its operator chooses a system — at which point the tab is
+  // showing a mainframe under a label that says "Session manager".
+  //
+  // Nothing announces the change: the terminal submits without navigating and
+  // paints the new screen itself, so the tab bar would carry the wrong name
+  // until something else reloaded the page. Asking again while any tab is
+  // still on a menu costs a small JSON request every couple of seconds, for
+  // the few seconds somebody spends choosing, and stops on its own the moment
+  // none of them is.
+  var menuWatch = null;
+
+  function watchMenuTabs() {
+    var onMenu = false;
+    for (var i = 0; i < sessions.length; i++) {
+      if (sessions[i].menu) {
+        onMenu = true;
+        break;
+      }
+    }
+    if (!onMenu) {
+      if (menuWatch) {
+        window.clearInterval(menuWatch);
+        menuWatch = null;
+      }
+      return;
+    }
+    if (menuWatch) {
+      return;
+    }
+    menuWatch = window.setInterval(function () {
+      load().catch(function () {
+        /* The bar is stale, not broken; the next tick tries again. */
+      });
+    }, 2000);
   }
 
   // Only the hint moves here — the button's visible words stay put, so its
@@ -145,6 +186,7 @@
         if (payload && typeof payload.max === "number") {
           maxSessions = payload.max;
         }
+        sessionManager = !!(payload && payload.sessionManager);
         render();
         return sessions;
       });
@@ -178,8 +220,10 @@
           window.location.href = "/screen";
           return;
         }
-        // That was the last one; there is no terminal left to show.
-        window.location.href = "/";
+        // That was the last one; there is no terminal left to show. Marked as
+        // a disconnect so the landing page asks where to go next instead of
+        // dialling the one host this account is assigned — see HomeHandler.
+        window.location.href = "/?disconnected=1";
       },
       function (err) {
         busy = false;
@@ -218,6 +262,14 @@
   // embedded terminal had no second session at all.
   function openNew() {
     if (busy) {
+      return;
+    }
+    // Where the selection screen is what this account meets at sign-in, it is
+    // what another session should be too. Offering our own picker instead
+    // would be a second host list beside the one the instance built — branded,
+    // audience-filtered, and the only one an operator here has been taught.
+    if (sessionManager) {
+      connect({ menu: "1" }, "the session manager");
       return;
     }
     var picker = window.ThreeSeventyWeb && window.ThreeSeventyWeb.connectionProfiles;

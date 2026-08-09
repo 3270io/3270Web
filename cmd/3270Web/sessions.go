@@ -170,11 +170,18 @@ func (app *App) replaceSessionInRoster(c *gin.Context, oldID, newID string) {
 	app.setSessionRoster(c, out)
 }
 
+// selectionScreenTabLabel names a tab that is still on the menu.
+const selectionScreenTabLabel = "Session manager"
+
 type sessionTab struct {
 	ID     string `json:"id"`
 	Target string `json:"target"`
 	Label  string `json:"label"`
 	Active bool   `json:"active"`
+	// Menu marks a tab still sitting on the selection screen. The label says
+	// so too, but only until two of them collide and are numbered apart, and a
+	// client should not have to parse its own labels back.
+	Menu bool `json:"menu,omitempty"`
 }
 
 // sessionTabs describes the browser's open sessions for the tab bar.
@@ -188,11 +195,22 @@ func (app *App) sessionTabs(c *gin.Context) []sessionTab {
 			continue
 		}
 		target := formatSessionTarget(s)
+		label := sessionTabLabel(s, target)
+		// A session still sitting on the menu has no host to be named after —
+		// its address is a loopback listener this process opened — so it is
+		// named for what is on the screen. Once a system is chosen the menu is
+		// stopped and the tab takes that host's name.
+		_, onMenu := app.menus().get(id)
+		if onMenu {
+			target = selectionScreenTabLabel
+			label = selectionScreenTabLabel
+		}
 		tabs = append(tabs, sessionTab{
 			ID:     id,
 			Target: target,
-			Label:  sessionTabLabel(s, target),
+			Label:  label,
 			Active: id == activeID,
+			Menu:   onMenu,
 		})
 	}
 	disambiguateTabLabels(tabs)
@@ -265,6 +283,10 @@ func (app *App) SessionsListHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"sessions": app.sessionTabs(c),
 		"max":      app.perUserSessionCap(),
+		// Which chooser this account uses. Where the selection screen is what
+		// they meet at sign-in, it is what another tab should be as well; see
+		// SessionsNewHandler.
+		"sessionManager": app.selectionScreenApplies(c),
 	})
 }
 
@@ -280,6 +302,34 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 			"error": "You already have the maximum number of sessions open. Close one first.",
 			"max":   app.perUserSessionCap(),
 		})
+		return
+	}
+
+	// Another tab of the selection screen, for an account that picks its host
+	// there. Asking such an operator for a hostname, or offering them a second
+	// chooser of our own, would answer a question the instance has already
+	// decided how to ask: the menu is the host list they were given, branded
+	// and audience-filtered, and it is what "open another session" should mean
+	// wherever it is what "sign in" means.
+	if strings.TrimSpace(c.PostForm("menu")) != "" {
+		profiles, err := app.assignedProfiles(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host list"})
+			return
+		}
+		if len(profiles) < 2 {
+			// Not a state the tab bar asks for — it is told which chooser
+			// applies — so this is a stale page rather than a mistake worth a
+			// paragraph.
+			c.JSON(http.StatusConflict, gin.H{"error": "this account does not use the session manager"})
+			return
+		}
+		sess, ok := app.startSelectionScreen(c, profiles)
+		if !ok {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "We couldn't open the session manager. Please try again."})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true, "id": sess.ID, "sessions": app.sessionTabs(c)})
 		return
 	}
 
