@@ -21,7 +21,7 @@
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=2">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=3">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -79,6 +79,10 @@
     <!-- The thumb-reachable AID keys and tap-to-place-cursor. Loads after
          screen-grid.js, whose cell geometry it uses. -->
     <script src="/static/touch.js?v=1" defer></script>
+    <!-- Suggests landscape on a phone holding an 80-column screen upright.
+         Also after screen-grid.js: whether to suggest anything is decided by
+         measuring the character cell, not by guessing from the device. -->
+    <script src="/static/orientation-hint.js?v=1" defer></script>
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
     <script src="/static/early-theme-init.js"></script>
