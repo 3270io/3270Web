@@ -145,7 +145,7 @@ func (app *App) screenTraces() *screenTraceStore {
 func (app *App) screenTraceDir() string {
 	base := strings.TrimSpace(app.baseDir)
 	if base == "" {
-		base = resolveBaseDir()
+		base = resolveStateDir()
 	}
 	return filepath.Join(base, screenTraceDirName)
 }

@@ -42,7 +42,7 @@ func resolveTokensPath() string {
 	if override := strings.TrimSpace(os.Getenv("API_TOKENS_PATH")); override != "" {
 		return override
 	}
-	return filepath.Join(resolveBaseDir(), "api-tokens.json")
+	return filepath.Join(resolveStateDir(), "api-tokens.json")
 }
 
 // bearerToken extracts the credential from the Authorization header.

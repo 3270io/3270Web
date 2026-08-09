@@ -17,4 +17,27 @@ services:
       # See https://3270Web.3270.io/mcp/
       # - API_TOKEN=${API_TOKEN}
       # - MCP_TOOLS=interactive
+      #
+      # Require a sign-in. Turn this on whenever more than one person can
+      # reach the port; the first start prints a setup code to the log
+      # (docker compose logs 3270Web) for creating the first administrator.
+      # See https://3270Web.3270.io/multi-user/
+      # - AUTH_MODE=local
+    volumes:
+      # Accounts, API tokens, the audit trail and everyone's saved work, in a
+      # folder beside this file so it can be backed up, inspected and copied
+      # with ordinary tools. It has to outlive the container: recreating one
+      # without this — which is what pulling a new image does — takes every
+      # account with it, and an instance with AUTH_MODE=local comes back up in
+      # first-run setup for whoever reaches it first.
+      #
+      # The server runs as uid 10001 and a bind mount keeps the host's
+      # ownership, so create the folder and give it to that user before the
+      # first start:
+      #
+      #   mkdir -p ./data && sudo chown -R 10001:10001 ./data
+      #
+      # Without it the container will refuse to start and say so, rather than
+      # writing state somewhere the next deploy deletes.
+      - ./data:/data
     restart: unless-stopped
