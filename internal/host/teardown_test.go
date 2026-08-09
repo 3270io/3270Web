@@ -51,7 +51,13 @@ func TestFakeS3270Helper(t *testing.T) {
 			}
 			os.Exit(0)
 		}
-		fmt.Println(fakeStatus)
+		// "unformatted" never reports a formatted screen, which is what a
+		// connection that does not come up looks like from here.
+		if mode == "unformatted" {
+			fmt.Println(strings.Replace(fakeStatus, "U F", "U U", 1))
+		} else {
+			fmt.Println(fakeStatus)
+		}
 		fmt.Println("ok")
 	}
 	os.Exit(0)
@@ -185,4 +191,38 @@ func TestReapLockedCollectsAKilledProcess(t *testing.T) {
 	}
 	// Calling it again must be a no-op rather than a second Wait.
 	h.reapLocked(cmd)
+}
+
+// Starting is a transaction. Everything after cmd.Start can fail — the host
+// refuses the connection, the screen never comes back formatted — and until
+// Start unwound its own child, those failures returned an error with the
+// subprocess still running and nobody holding a reference to it.
+//
+// That is the leak: the caller sees a failure and never registers a session, so
+// nothing ever calls Stop. The s3270 and its three pipes stay for the life of
+// the server, outside every session cap meant to bound them, and a loop of
+// failing connects is a process leak with a rate limit on it.
+func TestStartReapsItsChildWhenTheConnectionFails(t *testing.T) {
+	logPath := t.TempDir() + "/commands.log"
+	t.Setenv(fakeS3270Env, "unformatted")
+	t.Setenv(fakeLogEnv, logPath)
+
+	h := &S3270{
+		ExecPath:   os.Args[0],
+		Args:       []string{"-test.run=TestFakeS3270Helper", "fake.host:3270"},
+		TargetHost: "fake.host:3270",
+		screen:     &Screen{},
+	}
+
+	if err := h.Start(); err == nil {
+		_ = h.Stop()
+		t.Fatal("Start reported success against a screen that never became formatted")
+	}
+
+	if h.cmd != nil {
+		t.Error("Start left the subprocess attached after failing; nothing will ever call Stop on it")
+	}
+	if h.stdin != nil || h.stdout != nil || h.stderr != nil {
+		t.Error("Start left its pipes open after failing")
+	}
 }

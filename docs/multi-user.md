@@ -347,7 +347,10 @@ test LPAR.
 A handful of routes cost the instance something rather than the caller:
 opening a session starts a subprocess, chaos exploration presses keys at a
 mainframe unattended, a transfer moves a file, AI chat spends an upstream
-quota.
+quota. The AI control plane costs something less obvious: each of those
+requests makes this server fetch from an endpoint the caller nominated and read
+the answer into memory, so a flood of them is a flood of allocations this
+process pays for.
 
 | Variable | Default | Applies to |
 |---|---|---|
@@ -355,10 +358,15 @@ quota.
 | `RATE_LIMIT_CHAOS` | 10/min | Starting or resuming chaos exploration |
 | `RATE_LIMIT_TRANSFER` | 20/min | IND$FILE send and receive |
 | `RATE_LIMIT_AI` | 60/min | The AI chat endpoint |
+| `RATE_LIMIT_AICONTROL` | 120/min | Signing in to an AI provider, polling that sign-in, listing its models, naming the endpoint they go to |
 
 Counted per account — per address where there are no accounts — so one busy
 person cannot throttle everybody, and nobody gets a fresh allowance by opening
 another tab. `0` turns a limit off.
+
+`RATE_LIMIT_AICONTROL` is higher than the rest because one of the routes it
+covers is a poll: the device sign-in flow asks every few seconds whether the
+code has been entered yet, for up to fifteen minutes.
 
 The defaults are generous on purpose. These exist to stop a runaway loop or a
 deliberate flood, not to pace ordinary work: a limit that honest use runs into

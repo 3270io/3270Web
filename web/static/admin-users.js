@@ -76,42 +76,92 @@
     });
   }
 
+  /* --------------------------------------------------------------- dialogs */
+
+  /* Dialogs go on the shared modal stack (modal-utils.js), which owns the five
+     things a dialog needs and that this file used to arrange for itself: focus
+     moves in, Tab stays in, Escape closes the topmost one, the page behind the
+     backdrop stops scrolling, and focus goes back where it came from.
+
+     Doing it by hand got three of the five wrong. Focus was placed but never
+     held, so Tab walked straight out of an aria-modal dialog and onto the table
+     behind it — on a phone that means the next tap lands on Delete for some
+     other account. Escape closed every dialog at once rather than the one on
+     top. And nothing locked the background, so a flick past the end of a long
+     member list scrolled the page underneath instead. */
+
+  function stack() {
+    return window.ThreeSeventyWeb;
+  }
+
   function openDialog(name) {
     var dialog = dialogs[name];
     if (!dialog) return;
-    lastFocus = document.activeElement;
     dialog.hidden = false;
+    // A dialog re-opened after being scrolled through keeps its old scroll
+    // offset, which on a phone means opening onto the middle of the form.
+    dialog.scrollTop = 0;
     // The first thing to fill in, not the first thing in the markup — the
     // close button leads the panel, and opening a dialog with focus on its
     // dismiss control reads as "are you sure you meant to do that".
     var focusable = dialog.querySelector('input, select') ||
       dialog.querySelector('button:not(.admin-dialog-close)');
+    if (stack() && typeof stack().pushModal === 'function') {
+      stack().pushModal(dialog, function () { hideDialog(name); },
+        { initialFocus: focusable || false });
+      return;
+    }
+    // modal-utils.js absent (an older cached page, a stripped deployment):
+    // place focus at least, which is what this file did before.
+    lastFocus = document.activeElement;
     if (focusable) focusable.focus();
-    // A dialog re-opened after being scrolled through keeps its old scroll
-    // offset, which on a phone means opening onto the middle of the form.
-    dialog.scrollTop = 0;
   }
 
-  function closeDialogs() {
-    Object.keys(dialogs).forEach(function (key) {
-      dialogs[key].hidden = true;
-    });
+  // hideDialog closes one dialog. Escape reaches it through the stack, which
+  // has already popped the entry by the time this runs; popModal on a dialog
+  // that is no longer on the stack is a no-op, so both routes end up here and
+  // neither double-pops.
+  function hideDialog(name) {
+    var dialog = dialogs[name];
+    if (!dialog || dialog.hidden) return;
+    dialog.hidden = true;
+    if (stack() && typeof stack().popModal === 'function') {
+      stack().popModal(dialog);
+      return;
+    }
     if (lastFocus && lastFocus.focus) lastFocus.focus();
     lastFocus = null;
   }
 
+  function closeDialogs() {
+    Object.keys(dialogs).forEach(hideDialog);
+  }
+
+  // Escape is the shared stack's, which closes only the dialog on top. This
+  // stands in when modal-utils.js is not there — an older cached page, a
+  // stripped deployment — because a dialog Escape does not close is a dialog
+  // somebody is stuck in.
   document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') closeDialogs();
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (stack() && typeof stack().pushModal === 'function') return;
+    closeDialogs();
   });
 
   document.querySelectorAll('[data-dialog-cancel]').forEach(function (button) {
-    button.addEventListener('click', closeDialogs);
+    button.addEventListener('click', function () {
+      var dialog = button.closest('[data-dialog]');
+      if (dialog) {
+        hideDialog(dialog.getAttribute('data-dialog'));
+        return;
+      }
+      closeDialogs();
+    });
   });
 
   Object.keys(dialogs).forEach(function (key) {
     dialogs[key].addEventListener('mousedown', function (event) {
       // Backdrop click closes; a click inside the panel must not.
-      if (event.target === dialogs[key]) closeDialogs();
+      if (event.target === dialogs[key]) hideDialog(key);
     });
   });
 

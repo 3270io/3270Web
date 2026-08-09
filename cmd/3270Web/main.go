@@ -75,6 +75,12 @@ type App struct {
 	rates        *rateLimiter
 	rateOnce     sync.Once
 	loginLimiter *loginLimiter
+	// admissions counts the connections that have passed the session caps but
+	// whose session does not exist yet, so a cap compares against "open plus
+	// opening" rather than "open"; see App.reserveSession.
+	admissionMu     sync.Mutex
+	admissions      map[string]int
+	admissionsTotal int
 	// authBindIP is "auto", "true" or "false"; see App.bindSessionIP.
 	authBindIP          string
 	authIdleTimeout     time.Duration
@@ -636,6 +642,7 @@ func main() {
 		}
 	}
 	addr := ln.Addr().String()
+	app.warnIfUnauthenticatedAndExposed(addr)
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -4148,13 +4155,28 @@ func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, pro
 				"too many connection attempts; wait about %ds", int(retryIn.Seconds())+1))
 		}
 	}
-	// Checked before anything is started, so a refused request costs nothing
-	// and cannot leave a subprocess behind.
-	if err := app.checkSessionCaps(ownerID); err != nil {
+	// Where the name actually points, which the string checks above cannot
+	// see. After the rate limit rather than before it, because this is the
+	// first check that costs anything — a DNS lookup on the request path — and
+	// a limit that a refused request has already walked past is not limiting
+	// the expensive part.
+	if err := checkHostResolves(requestContext(c), hostname); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "host resolves to a restricted address"})
+		return nil, err
+	}
+
+	// Reserved before anything is started, so a refused request costs nothing
+	// and cannot leave a subprocess behind — and so that the requests already
+	// inside the (slow) startup below are counted against the cap by the ones
+	// arriving behind them.
+	release, err := app.reserveSession(ownerID)
+	if err != nil {
 		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
 			map[string]string{"reason": "session limit"})
 		return nil, err
 	}
+	defer release()
 
 	h, err := app.newHostFor(hostname, profile)
 
@@ -4162,10 +4184,20 @@ func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, pro
 		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
 	if err := h.Start(); err != nil {
+		// Start unwinds its own subprocess, but a caller that walks away from a
+		// half-started host without saying so is the shape of the leak this
+		// guards against; saying so costs nothing and does not depend on
+		// remembering it inside the host package.
+		_ = h.Stop()
 		return nil, fmt.Errorf("failed to start host connection: %w", err)
 	}
 
 	sess := app.SessionManager.CreateSessionFor(ownerID, h)
+	// The reservation has become a session, which the caps can now see for
+	// themselves. Releasing here rather than only on the deferred path keeps a
+	// concurrent request from being refused against a session that is counted
+	// twice for the length of this function.
+	release()
 	sess.TargetHost, sess.TargetPort = parseHostPort(hostname)
 	if profile != nil {
 		sess.TargetHost = profile.Host

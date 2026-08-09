@@ -89,6 +89,17 @@ func (h *Handlers) SaveConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// Where a new base URL actually points, asked once here so a mistyped or
+	// hostile origin is refused while the settings dialog is still open. The
+	// dialer asks the same question again on every request; this is the answer
+	// somebody can act on.
+	if req.BaseURL != nil {
+		if err := checkBaseURLDestination(c.Request.Context(), *req.BaseURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	id := copilot.Identity(c)
 	out, err := h.config.Apply(id, Update{
 		Provider:       req.Provider,

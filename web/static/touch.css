@@ -170,9 +170,18 @@
  * it — otherwise the last rows of an 24-line screen are permanently behind
  * the keys. --touch-bar-height is published by touch.js and tracks the real
  * height: the PF drawer, the collapse handle and the software keyboard all
- * change it, and a fixed 120px was wrong in every one of those states. */
+ * change it, and a fixed 120px was wrong in every one of those states.
+ *
+ * The fallback carries the home-indicator inset because it has to stand in for
+ * a measurement that has not happened yet — between first paint and touch.js
+ * publishing, and on a page where the script never runs. The bar's own padding
+ * includes that inset, so a flat 120px is short by it on exactly the devices
+ * that have one, and being short means the bottom row of the screen is under
+ * the keys. */
 body.touch-device .page-wrap {
-  padding-bottom: calc(var(--touch-bar-height, 120px) + 16px);
+  padding-bottom: calc(
+    var(--touch-bar-height, calc(120px + env(safe-area-inset-bottom, 0px))) + 16px
+  );
 }
 
 /* The AI chat panel is a full-height fixed column, so its input and its hint

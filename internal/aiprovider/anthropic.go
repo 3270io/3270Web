@@ -34,7 +34,7 @@ type anthropicClient struct {
 }
 
 func newAnthropicClient(p Provider, cfg ProviderConfig) *anthropicClient {
-	return &anthropicClient{provider: p, cfg: cfg, http: &http.Client{}}
+	return &anthropicClient{provider: p, cfg: cfg, http: outboundClient()}
 }
 
 func (c *anthropicClient) setHeaders(req *http.Request) {

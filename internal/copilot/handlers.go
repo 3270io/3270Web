@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -55,6 +56,66 @@ const copilotIdentityCookieMaxAge = 365 * 24 * 3600
 // discarded and replaced rather than trusted as a path component.
 var identityIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
+// OwnerContextKey names the authenticated account this request belongs to, set
+// by the host application on every request where the deployment separates
+// users (see cmd/3270Web's Authenticate middleware). Empty, absent, or a
+// deployment with a single operator all mean the same thing here: there is no
+// account to bind AI state to, so the browser identity stands alone.
+//
+// A context value rather than a parameter because Identity is called from a
+// dozen handlers across two packages and every one of them already has the
+// request; and rather than an import of the authorization package because the
+// dependency runs the other way — the application wires this package in, not
+// the reverse.
+const OwnerContextKey = "3270web.aiOwner"
+
+// Identity resolves the calling browser's AI identity.
+//
+// It is derived from two things, and the second is the point.
+//
+// The browser cookie alone is what this used to be, and on a device more than
+// one person signs in to it is not an identity at all — it is a property of
+// the glass. The cookie lasts a year and nothing about signing out of the
+// application touches it, so on a shared phone, a tablet at a desk, or a
+// kiosk, the next person to sign in inherited whatever the last one had left
+// behind it: a Copilot OAuth login, a provider API key, and the chat history
+// keyed against it. Inheriting a credential is bad enough; the settings dialog
+// then lets an endpoint be renamed while the stored key is kept, so the
+// inherited secret could be sent somewhere of the new person's choosing.
+//
+// Mixing the account in makes the store key change the moment the account
+// does, so the successor asks for a record that does not exist and gets a
+// fresh one. There is nothing to inherit and nothing to revoke on logout.
+//
+// Where there is no account — AUTH_MODE=none, the single-operator deployment
+// this program started as — the key is the cookie exactly as before, so that
+// deployment's stored logins survive this change untouched.
+func Identity(c *gin.Context) string {
+	browserID := browserIdentity(c)
+	owner := ownerFrom(c)
+	if owner == "" {
+		return browserID
+	}
+	// SHA-256 rather than concatenation: the result is used as a filename
+	// component (Store.get, ConfigStore.get), and a hash of anything is 32 hex
+	// characters that match identityIDPattern, whatever the account is called.
+	sum := sha256.Sum256([]byte(owner + "\x00" + browserID))
+	return hex.EncodeToString(sum[:16])
+}
+
+// ownerFrom reads the authenticated account off the request, if there is one.
+func ownerFrom(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	value, ok := c.Get(OwnerContextKey)
+	if !ok {
+		return ""
+	}
+	owner, _ := value.(string)
+	return strings.TrimSpace(owner)
+}
+
 // randomID returns a random 32-character lowercase-hex token. Used both to
 // identify one device-flow login attempt and one browser's Copilot identity.
 func randomID() string {
@@ -72,18 +133,14 @@ func NewHandlers(store *Store) *Handlers {
 	return &Handlers{store: store}
 }
 
-// Identity resolves the calling browser's AI identity, minting and
+// browserIdentity resolves the calling browser's cookie identity, minting and
 // cookie-ing a new one if the request has none (or an unrecognized one). The
 // returned value always matches identityIDPattern, so it is safe to use as a
 // filesystem path component.
 //
 // Must be called before any response headers/body are written, since it may
 // itself set a cookie header.
-//
-// Exported because internal/aiprovider keys its own per-browser settings on
-// the same identity: a user's provider choice and their Copilot login belong
-// to one browser, not to the (much shorter-lived) 3270Web_session cookie.
-func Identity(c *gin.Context) string {
+func browserIdentity(c *gin.Context) string {
 	id, err := c.Cookie(identityCookieName)
 	if err != nil || !identityIDPattern.MatchString(id) {
 		id = randomID()

@@ -2544,6 +2544,13 @@ pre, pre input, textarea {
 .modal {
   width: min(420px, 100%);
   max-height: min(84vh, 900px);
+  /* dvh over vh where it is understood. vh is the viewport with the browser's
+     chrome and the software keyboard pretending not to be there, so on a phone
+     with the keyboard open 84vh is most of a screen the operator cannot see —
+     the dialog's lower half, buttons included, sits underneath the keyboard.
+     dvh is the space actually on show. Browsers that do not know the unit skip
+     the line and keep the one above. */
+  max-height: min(84dvh, 900px);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -2551,7 +2558,25 @@ pre, pre input, textarea {
   box-shadow: var(--shadow);
   display: grid;
   gap: 16px;
-  overflow: hidden;
+  /* The dialog scrolls rather than clipping, which is not a nicety. It is
+     capped at a share of the viewport, and `overflow: hidden` meant anything
+     past the cap simply ended below the edge — on a short phone, or any phone
+     with the software keyboard open, the Saved hosts dialog's Use / Connect /
+     Delete row was off the bottom with no way to reach it. The dialog did not
+     read as scrolled; it read as broken.
+
+     The whole dialog rather than an inner region, because these are not all
+     the same shape: some are header/body/actions, some carry a paragraph
+     between, and a rule that shrinks "the second row" shrinks the paragraph in
+     half of them. Scrolling the dialog itself is right whatever is inside it.
+     The larger chaos dialogs, which do have a fixed shape, keep their own
+     scrolling body and never reach this. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Reaching the end must not start scrolling the page behind the backdrop,
+     which on a touch device is what a flick otherwise does. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   transition: opacity 0.16s ease, filter 0.16s ease, transform 0.16s ease;
 }
 

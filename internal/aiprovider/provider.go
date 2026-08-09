@@ -257,3 +257,30 @@ func ValidateBaseURL(raw string) (string, error) {
 	u.Path = strings.TrimRight(u.Path, "/")
 	return u.String(), nil
 }
+
+// effectiveBaseURL is the URL a config will actually call: the override where
+// there is one, the provider's own default where there is not. Comparing the
+// stored strings instead would read "cleared back to the default" as a move,
+// and moving from the default to a URL spelling the same thing as a stay.
+func effectiveBaseURL(baseURL string, prov Provider) string {
+	if strings.TrimSpace(baseURL) == "" {
+		return prov.DefaultBaseURL
+	}
+	return baseURL
+}
+
+// sameOrigin reports whether two base URLs address the same scheme, host and
+// port — the three things that decide where a request is delivered, and so
+// which of them a credential is being handed to. The path is deliberately not
+// part of it: moving from /v1 to /v1beta on one host is a different route to
+// the same server, not a different server.
+func sameOrigin(a, b string) bool {
+	ua, erra := url.Parse(strings.TrimSpace(a))
+	ub, errb := url.Parse(strings.TrimSpace(b))
+	if erra != nil || errb != nil {
+		// Unparseable on either side: treat it as a move. The consequence is
+		// re-entering a key, which is the safe direction to be wrong in.
+		return false
+	}
+	return strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host)
+}

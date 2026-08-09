@@ -430,14 +430,16 @@ from *inside* the container. Control exposure with the port mapping instead.
 
 ## Run with Docker Compose
 
-The repository ships a `docker-compose.yml` that builds the image locally and
-binds it to `127.0.0.1:3270`.
+The repository ships a `docker-compose.yml` that builds the image locally,
+publishes port 3270 on this host, and requires a sign-in.
 
 ### Quick start
 
 ```bash
+mkdir -p ./data && sudo chown -R 10001:10001 ./data
 docker compose up --build
-# → http://127.0.0.1:3270
+docker compose logs 3270Web    # prints the setup code for the first administrator
+# → http://localhost:3270
 ```
 
 The shipped file:
@@ -448,13 +450,28 @@ services:
     build: .
     image: ghcr.io/3270io/3270web:local
     ports:
-      - "127.0.0.1:3270:3270"
+      - "3270:3270"
     environment:
       - GIN_MODE=release
+      - AUTH_MODE=local
       # - API_TOKEN=${API_TOKEN}
       # - MCP_TOOLS=interactive
+    volumes:
+      - ./data:/data
     restart: unless-stopped
 ```
+
+The port mapping has no host address on it, so 3270 is published on every
+interface — which is what makes the terminal reachable from a phone on the same
+network, and equally what makes it reachable from everything else on that
+network. `AUTH_MODE=local` is on for that reason: without a sign-in every
+request arrives as the local operator, which carries the administrator role.
+
+**Running it on your own machine, for yourself alone?** Drop the `AUTH_MODE`
+line and change the mapping to `"127.0.0.1:3270:3270"`, so the listener is not
+on the network in the first place. Do one or the other — the combination to
+avoid is an open port with no sign-in. The server says so in its own log if it
+ever finds itself in that state.
 
 The container `HEALTHCHECK` is inherited automatically — `docker compose ps`
 shows the health column.
@@ -527,13 +544,23 @@ docker compose up -d
 
 ### Customising
 
-- **Expose beyond localhost** — change the port mapping to `"3270:3270"`. Change
-  the *host* side of the mapping only; leave `WEBUI_BIND` at the image default.
+- **Keep it off the network** — change the port mapping to
+  `"127.0.0.1:3270:3270"`. Change the *host* side of the mapping only; leave
+  `WEBUI_BIND` at the image default, or the container becomes unreachable
+  however the ports are mapped.
 
-    !!! warning "Require a sign-in before you do this"
-        The UI has no password of its own until you set `AUTH_MODE=local`.
-        Publishing the port without it puts an unauthenticated terminal — and
-        whatever hosts it can reach — on your network. See
+- **Publish it, and require a sign-in** — a mapping with no host address on it
+  (`"3270:3270"`) publishes on every interface, which is what the shipped file
+  does so a phone on the same network can reach the terminal. Set
+  `AUTH_MODE=local` alongside it.
+
+    !!! warning "An open port with no sign-in is an open administrator"
+        The UI has no password of its own until you set `AUTH_MODE=local`;
+        until then every request arrives as the local operator, which carries
+        the administrator role — sessions, settings, the audit log and restart.
+        Publishing the port without it puts that, and whatever hosts the
+        terminal can reach, on your network. The server prints a warning at
+        startup if it finds itself listening that way. See
         [User Accounts and Sign-In](authentication.md).
 
 - **Add options** — list more `S3270_*` variables under `environment:`.
