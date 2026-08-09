@@ -68,26 +68,54 @@ func TestNoAssignedHostsLeavesTheConnectForm(t *testing.T) {
 }
 
 // One host is the case worth getting right: sign in, and be on it.
+//
+// Pointed at a real sample application, because the first version of this test
+// used a port nothing was listening on — the connection failed, 3270Web fell
+// back to the connect form, and the test passed anyway. A test that cannot
+// fail is worse than no test: it reports coverage of the path it never took.
 func TestASingleAssignedHostConnectsWithoutAsking(t *testing.T) {
 	requireS3270(t)
+
+	hostname := routableAddress(t)
+	target, err := startSampleHostOn(hostname + ":0")
+	if err != nil {
+		t.Skipf("could not start a sample host: %v", err)
+	}
+	defer target.Stop()
+	_, port := hostPortOf(t, target.Addr())
+
 	app, r := audienceTestApp(t)
 	admin := requestAs(t, app, "root")
 	publishProfiles(t, app, admin,
-		ConnectionProfile{Name: "ONLYONE", Host: "127.0.0.1", Port: unusedPort(t), Groups: []string{"payments"}})
+		ConnectionProfile{Name: "ONLYONE", Host: hostname, Port: port, Groups: []string{"payments"}})
 
 	cookie := authCookieFrom(doLogin(t, r, "alice", loginTestPassword, "10.0.0.1"))
 	w := homeAs(t, r, cookie)
 
-	// The host is not listening, so the connection fails — s3270 still starts,
-	// and what is being checked is that 3270Web went straight to it rather
-	// than presenting a form. A refused connection lands back on the form.
-	if w.Code == http.StatusFound && w.Header().Get("Location") == "/screen" {
-		return // connected, which is the outcome under test
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/screen" {
+		t.Fatalf("landing page returned %d -> %q, want a redirect straight to the terminal",
+			w.Code, w.Header().Get("Location"))
 	}
-	if !strings.Contains(w.Body.String(), "ONLYONE") && w.Code != http.StatusServiceUnavailable {
-		// Either it connected, or it reported the host it tried. Presenting a
-		// bare form with no mention of the assigned host is the failure.
-		t.Logf("status %d", w.Code)
+	id := sessionCookieFrom(w)
+	if id == "" {
+		t.Fatal("no terminal session was opened")
+	}
+	sess, found := app.SessionManager.GetSession(id)
+	if !found {
+		t.Fatal("the session went away")
+	}
+	defer app.cleanupSession(sess)
+
+	// No selection screen: with one host there is nothing to select.
+	if _, hasMenu := app.menus().get(id); hasMenu {
+		t.Error("a selection screen was drawn for a single host")
+	}
+	// And the screen is the host's, not 3270Web's.
+	if !waitForScreen(t, app, sess, "3270 Example Application") {
+		t.Error("the operator did not land on the assigned host")
+	}
+	if sess.TargetHost != hostname {
+		t.Errorf("TargetHost = %q, want the assigned host", sess.TargetHost)
 	}
 }
 
@@ -159,13 +187,6 @@ func TestSeveralAssignedHostsLandOnTheSelectionScreen(t *testing.T) {
 	if _, still := app.menus().get(id); still {
 		t.Error("the selection screen outlived its session")
 	}
-}
-
-// unusedPort returns a port nothing is listening on, so a connection attempt
-// fails fast rather than reaching something real.
-func unusedPort(t *testing.T) int {
-	t.Helper()
-	return 65001
 }
 
 // The menu belongs to the session that opened it: another account's session ID
