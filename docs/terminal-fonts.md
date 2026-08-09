@@ -1,3 +1,10 @@
+---
+description: >-
+  Three IBM 3270-style web fonts ship inside the binary, so a browser
+  session looks like a real 3270 terminal whatever fonts the machine has
+  installed.
+---
+
 # Terminal Fonts
 
 3270Web ships three IBM 3270-style web fonts so the browser session

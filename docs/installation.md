@@ -1,3 +1,9 @@
+---
+description: >-
+  Install and run 3270Web: the one-line installer, the Docker image, the
+  Windows executable, and building from source.
+---
+
 # Install and Run
 
 ## One-line install

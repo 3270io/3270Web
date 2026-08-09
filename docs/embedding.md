@@ -1,3 +1,9 @@
+---
+description: >-
+  Put 3270Web inside another application: an iframe in a portal page, or a
+  single-page app that talks to the API and never shows the terminal at all.
+---
+
 # Embedding 3270Web
 
 3270Web can be put inside another application: an iframe in a portal page, or

@@ -1,3 +1,10 @@
+---
+description: >-
+  Connection setup and the full Settings modal — hostnames and ports, TLS,
+  terminal model, fonts, and every option 3270Web puts in front of an
+  operator.
+---
+
 # Connect and Use 3270Web
 
 This page explains connection setup and the full Settings modal from a user perspective.

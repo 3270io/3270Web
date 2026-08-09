@@ -1,3 +1,10 @@
+---
+description: >-
+  The versioned JSON HTTP API for non-browser clients — RPA bots, CI jobs
+  and integration scripts — gated by a Bearer token and enabled per
+  deployment.
+---
+
 # REST API (v1)
 
 3270Web exposes a small JSON HTTP API for non-browser clients (RPA bots,

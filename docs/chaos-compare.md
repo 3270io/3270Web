@@ -1,3 +1,10 @@
+---
+description: >-
+  Diff two exported chaos mind maps to surface divergence between two hosts
+  or two builds, and confirm that a fix or migration did not regress a
+  transaction.
+---
+
 # Chaos Mind-Map Compare
 
 `POST /chaos/mindmap/compare` diffs two previously-exported chaos mind

@@ -1,3 +1,10 @@
+---
+description: >-
+  Run 3270Web as a Model Context Protocol server so an AI client outside the
+  browser can read screens, fill fields and press keys. Same binary, nothing
+  extra to install.
+---
+
 # MCP Server
 
 3270Web can act as a **Model Context Protocol** server, so an AI client drives

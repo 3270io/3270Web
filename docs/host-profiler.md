@@ -1,3 +1,9 @@
+---
+description: >-
+  Probe the active 3270 session for a CompatibilityProfile: the negotiated
+  terminal model, protocol options, discovered capabilities and timing.
+---
+
 # Host Compatibility Profiler
 
 The host compatibility profiler probes the active 3270 session and
