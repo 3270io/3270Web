@@ -43,7 +43,7 @@ the vendor whose product writes it.
 ```bash
 # Run locally
 go run ./cmd/3270Web
-# → http://localhost:8080
+# → http://localhost:3270
 
 # Run tests
 go test ./...
@@ -51,7 +51,7 @@ go test -v -cover ./...
 
 # Docker
 docker build -t 3270web .
-docker-compose up          # dev: maps to localhost:8080
+docker-compose up          # dev: maps to localhost:3270
 
 # Windows .exe (PowerShell)
 .\scripts\build-windows.ps1
