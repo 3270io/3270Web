@@ -178,15 +178,24 @@ You can keep up to six host sessions open at once. The tab bar sits directly
 under the menu bar and is there from the moment you connect, showing the one
 session you have and a **+ New session** button at the end of the row.
 
-- **+ New session** opens another one. It asks where to connect in the same
-  picker **Session → Connection profiles** uses: your connection profiles,
-  the bundled sample apps, or an address you type.
+- **+ New session** opens another one. Where you sign in to a
+  [selection screen](session-manager.md), it opens another selection screen —
+  that is the host list you were given, and a second one beside it would only
+  disagree with it. Otherwise it asks in the same picker
+  **Session → Connection profiles** uses: your connection profiles, the
+  bundled sample apps, or an address you type.
 - Click a tab to switch to it.
 - The **×** on a tab closes that session; the others keep running. A single
   tab has no **×** — closing your only session is a disconnect, and
   **Session → Disconnect** is where that lives.
-- **Disconnect** ends only the session you are looking at. If other tabs
-  are open you land on one of them rather than back at the connect page.
+- **Disconnect** ends only the session you are looking at — the confirmation
+  names it. If other tabs are open you land on one of them rather than back at
+  the connect page.
+
+    Disconnecting your last session leaves you at the connect page even where
+    signing in would normally put you straight onto a host. Disconnect means
+    you wanted out; asking again is a click away, and being reconnected
+    without one made the button look broken.
 
 | Shortcut | Does |
 |---|---|
