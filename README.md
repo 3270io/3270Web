@@ -419,3 +419,11 @@ The favicon and touch icon (`web/static/favicon-32.png`,
 site) are the kit's `*-icon.*` files, which carry the daylight green rather than
 phosphor. A tab strip is a surface this app does not own and cannot theme, and
 phosphor — tuned for a dark terminal — goes milky against white tab chrome.
+
+## License
+
+3270Web is released under the MIT License — see [`LICENSE`](LICENSE).
+
+That covers 3270Web's own code. The s3270 binary it bundles and the other
+third-party components it ships stay under their own terms; those are recorded
+in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
