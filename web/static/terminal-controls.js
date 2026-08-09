@@ -20,6 +20,18 @@
   var maxCellSizePx = 36;
   var storageSizeKey = "h3270TerminalCellSizePx";
 
+  // Some of the size controls sit inside [data-terminal-controls] and some
+  // alongside it: "Fit to window" and "Reset" are their own row in the View
+  // menu, one level up from the stepper group. Look in the group first, then
+  // in the document. Scoping every lookup to the group found neither button,
+  // init() bailed on the null, and the whole module went with it — no
+  // automatic shrink-to-fit, which on a phone means the 80-column grid keeps
+  // its desktop width, overflows the viewport, and the browser answers by
+  // zooming the entire page out until the menu bar is too small to tap.
+  function findControl(controls, selector) {
+    return controls.querySelector(selector) || document.querySelector(selector);
+  }
+
   function getElements() {
     var controls = document.querySelector("[data-terminal-controls]");
     var shell = document.querySelector(".terminal-shell");
@@ -31,12 +43,12 @@
       controls: controls,
       shell: shell,
       container: container,
-      slider: controls.querySelector("[data-terminal-size-slider]"),
-      stepDown: controls.querySelector("[data-terminal-size-down]"),
-      stepUp: controls.querySelector("[data-terminal-size-up]"),
-      label: controls.querySelector("[data-terminal-size-label]"),
-      fit: controls.querySelector("[data-terminal-fit]"),
-      zoomReset: controls.querySelector("[data-terminal-zoom-reset]")
+      slider: findControl(controls, "[data-terminal-size-slider]"),
+      stepDown: findControl(controls, "[data-terminal-size-down]"),
+      stepUp: findControl(controls, "[data-terminal-size-up]"),
+      label: findControl(controls, "[data-terminal-size-label]"),
+      fit: findControl(controls, "[data-terminal-fit]"),
+      zoomReset: findControl(controls, "[data-terminal-zoom-reset]")
     };
   }
 
