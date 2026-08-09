@@ -1969,6 +1969,16 @@ pre, pre input, textarea {
    focus went. pointer-events:none hid them from the mouse only. */
 .terminal-tools-widget.is-collapsed .terminal-tools-panel {
   max-width: 0;
+  /* And no height either.
+     max-width:0 with overflow:hidden clips the panel horizontally but still
+     lays its seven controls out — in a zero-width column, so each one wraps
+     onto its own line and the "collapsed" panel is 170px tall. It is
+     invisible, but a position:fixed box at the top right corner of the
+     viewport still swallows every tap that lands on it, and what is under it
+     is the right-hand end of the header: Accounts, Sign out, Settings. The
+     symptom is a header whose buttons do nothing, with nothing on screen to
+     explain why. */
+  height: 0;
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;
@@ -2131,11 +2141,64 @@ pre, pre input, textarea {
     flex-wrap: wrap;
   }
 
-  .header-chrome-actions {
-    flex-wrap: wrap;
+  /* One scrolling row, not three wrapped ones.
+
+     Wrapping kept the document inside the viewport but spent the height doing
+     it: eleven controls at 44px each became a 154px block, and with the brand
+     lockup, the account chip and the Disconnect row above it the terminal
+     itself did not start until 515px down a 915px screen — a 24x80 screen in
+     the remaining 180px, which is a terminal nobody can read.
+
+     A nowrap row inside an overflow-x:auto container costs one row and does
+     not widen the page, because the overflow is the container's to scroll and
+     not the document's. The controls stay in the same order and the same DOM,
+     so tooltips, the command palette and focus mode are untouched. */
+  .header-chrome-actions,
+  .toolbar[data-main-toolbar] {
+    flex-wrap: nowrap;
     justify-content: flex-start;
     margin-left: 0;
     min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* Room for the scrollbar on the platforms that reserve one, so the last
+       row of buttons is not clipped in half. */
+    padding-bottom: 2px;
+  }
+
+  .header-chrome-actions::-webkit-scrollbar,
+  .toolbar[data-main-toolbar]::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Scrollable rows only work if their children refuse to be squeezed. */
+  .header-chrome-actions > *,
+  .toolbar[data-main-toolbar] > * {
+    flex: 0 0 auto;
+  }
+
+  /* The chrome around the terminal is overhead on a phone; every pixel it
+     gives back is a pixel of 3270 screen. */
+  .page-wrap {
+    padding: 12px 8px;
+    align-items: flex-start;
+  }
+
+  .card {
+    padding: 14px;
+    max-width: calc(100vw - 16px);
+  }
+
+  .card-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .card-header .subtle {
+    font-size: 0.82rem;
   }
 
   /* Only the expanded widget spans the screen. Collapsed it must stay a bare
@@ -5159,8 +5222,22 @@ body.copilot-open .page-wrap {
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
-  align-items: center;
+  /* The backdrop scrolls and the panel is centred by auto margins rather than
+     by alignment. align-items:center overflows in both directions once the
+     panel is taller than the space available, and an overflowing fixed box
+     cannot be scrolled to.
+     That is the ordinary case here, not an edge one: choosing a provider means
+     touching the model or API-key box, which opens the software keyboard and
+     takes roughly half the height away. Save and Cancel — and, once the panel
+     has grown a key field, the provider list itself — ended up underneath it
+     with nothing to scroll. */
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   z-index: 200;
 }
 .copilot-modal-backdrop[hidden] { display: none; }
@@ -5171,6 +5248,9 @@ body.copilot-open .page-wrap {
   border-radius: 10px;
   border: 1px solid var(--border);
   width: min(520px, calc(100vw - 32px));
+  /* Auto margins shrink to zero rather than going negative, so a panel taller
+     than the viewport starts at the top with its whole height reachable. */
+  margin: auto;
   padding: 20px;
   box-shadow: var(--shadow);
 }

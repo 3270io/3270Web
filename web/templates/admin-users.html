@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=14">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=2">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=3">
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -80,7 +80,10 @@
     <!-- Add account -->
     <div class="admin-dialog" data-dialog="add" hidden>
         <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="add-title">
-            <h2 id="add-title">Add account</h2>
+            <div class="admin-dialog-head">
+                <h2 id="add-title">Add account</h2>
+                <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
+            </div>
             <p class="admin-dialog-desc">
                 The person signing in will be asked to choose their own password
                 the first time they use this one.
@@ -100,15 +103,24 @@
                 </div>
                 <div class="field">
                     <label for="new-password">Temporary password</label>
-                    <input type="password" id="new-password" name="password"
-                           minlength="{{ .MinLength }}" autocomplete="new-password" required
-                           data-pw-input aria-describedby="new-pw-status">
+                    <div class="pw-row">
+                        <input type="password" id="new-password" name="password"
+                               minlength="{{ .MinLength }}" autocomplete="new-password" required
+                               data-pw-input aria-describedby="new-pw-status">
+                        <button type="button" class="pw-tool" data-pw-reveal
+                                aria-pressed="false" aria-label="Show password">Show</button>
+                    </div>
+                    <div class="pw-tools">
+                        <button type="button" class="pw-tool" data-pw-generate>Generate</button>
+                        <button type="button" class="pw-tool" data-pw-copy>Copy</button>
+                    </div>
                     <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
                         <span></span><span></span><span></span><span></span>
                     </div>
                     <div class="pw-status" id="new-pw-status" data-pw-status aria-live="polite">
                         At least {{ .MinLength }} characters.
                     </div>
+                    <div class="pw-note" data-pw-note aria-live="polite" hidden></div>
                 </div>
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
@@ -121,7 +133,10 @@
     <!-- Reset password -->
     <div class="admin-dialog" data-dialog="reset" hidden>
         <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="reset-title">
-            <h2 id="reset-title">Reset password</h2>
+            <div class="admin-dialog-head">
+                <h2 id="reset-title">Reset password</h2>
+                <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
+            </div>
             <p class="admin-dialog-desc">
                 Set a temporary password for <strong data-reset-name></strong>.
                 They will be signed out everywhere and asked to choose their own
@@ -130,15 +145,24 @@
             <form class="auth-form" data-reset-form>
                 <div class="field">
                     <label for="reset-password">Temporary password</label>
-                    <input type="password" id="reset-password" name="password"
-                           minlength="{{ .MinLength }}" autocomplete="new-password" required
-                           data-pw-input aria-describedby="reset-pw-status">
+                    <div class="pw-row">
+                        <input type="password" id="reset-password" name="password"
+                               minlength="{{ .MinLength }}" autocomplete="new-password" required
+                               data-pw-input aria-describedby="reset-pw-status">
+                        <button type="button" class="pw-tool" data-pw-reveal
+                                aria-pressed="false" aria-label="Show password">Show</button>
+                    </div>
+                    <div class="pw-tools">
+                        <button type="button" class="pw-tool" data-pw-generate>Generate</button>
+                        <button type="button" class="pw-tool" data-pw-copy>Copy</button>
+                    </div>
                     <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
                         <span></span><span></span><span></span><span></span>
                     </div>
                     <div class="pw-status" id="reset-pw-status" data-pw-status aria-live="polite">
                         At least {{ .MinLength }} characters.
                     </div>
+                    <div class="pw-note" data-pw-note aria-live="polite" hidden></div>
                 </div>
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
@@ -160,7 +184,7 @@
         </div>
     </div>
 
-    <script src="/static/auth-form.js?v=1" defer></script>
-    <script src="/static/admin-users.js?v=1" defer></script>
+    <script src="/static/auth-form.js?v=2" defer></script>
+    <script src="/static/admin-users.js?v=2" defer></script>
 </body>
 </html>

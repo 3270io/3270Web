@@ -16,7 +16,7 @@
  *   auth: setup code: EJWQ-RUYN-7XL3-PT3O
  *
  * Options (environment variables):
- *   CHECK_BASE_URL  base URL of a running 3270Web (default http://127.0.0.1:8080)
+ *   CHECK_BASE_URL  base URL of a running 3270Web (default http://127.0.0.1:3270)
  *   CHECK_OUT_DIR   where screenshots are written (default <repo>/output)
  *   CHECK_SETUP_CODE  the code, instead of --code
  *
@@ -31,7 +31,7 @@ import { mkdir } from 'node:fs/promises';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
 
-const BASE = process.env.CHECK_BASE_URL || 'http://127.0.0.1:8080';
+const BASE = process.env.CHECK_BASE_URL || 'http://127.0.0.1:3270';
 const OUT = process.env.CHECK_OUT_DIR || path.join(repoRoot, 'output');
 const codeFlag = process.argv.indexOf('--code');
 const CODE = (codeFlag !== -1 ? process.argv[codeFlag + 1] : process.env.CHECK_SETUP_CODE) || '';

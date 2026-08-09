@@ -191,7 +191,15 @@ var sampleAppConfigs = []SampleAppConfig{
 	{ID: "app3", Name: "Sample App 3 - BMS Field Attribute Test Matrix"},
 }
 
-const defaultSampleAppPort = 3270
+// The sample apps start at 3271, not at 3270.
+//
+// 3270 is the well-known TN3270 port and would be the obvious first choice,
+// but it is also what the web UI itself now listens on (see
+// defaultWebUIPort), and both run in the same place: the same host for a
+// binary install, the same container for a Docker one. A sample app there
+// would fail to bind on a default install, which is the one install where
+// somebody is most likely to reach for it.
+const defaultSampleAppPort = 3271
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
@@ -657,21 +665,28 @@ const (
 	// unset. Loopback keeps the UI — which has no password of its own — off the
 	// local network for desktop and `go run` users.
 	//
-	// Containers must override this. A published port (`-p 3270:8080`) forwards
+	// Containers must override this. A published port (`-p 3270:3270`) forwards
 	// to the container's external interface, so a loopback-only listener inside
 	// the container is unreachable from the host no matter how the ports are
 	// mapped: the connection is refused even though the container is running and
 	// its healthcheck (which curls 127.0.0.1 from inside) passes. The Dockerfile
 	// therefore sets WEBUI_BIND=0.0.0.0 and leaves exposure to the port mapping,
 	// which is where Docker users expect to control it.
-	defaultBindHost  = "127.0.0.1"
-	defaultWebUIPort = "8080"
+	defaultBindHost = "127.0.0.1"
+	// 3270 rather than a generic 8080: this is the port the product is named
+	// after, it is what an operator guesses first, and 8080 is the one number
+	// most likely to already be taken on a developer's machine.
+	//
+	// It is also the well-known TN3270 port, which is why the sample apps moved
+	// off it — see defaultSampleAppPort. Nothing else here reads 3270 as "a
+	// mainframe": a target host's port comes from the host field, not from this.
+	defaultWebUIPort = "3270"
 )
 
 // resolveListenAddr builds the TCP address to listen on from the WEBUI_BIND and
-// WEBUI_PORT values, falling back to the loopback default and port 8080 when
+// WEBUI_PORT values, falling back to the loopback default and port 3270 when
 // either is empty. net.JoinHostPort brackets IPv6 hosts, so WEBUI_BIND="::"
-// yields "[::]:8080".
+// yields "[::]:3270".
 func resolveListenAddr(bind, port string) string {
 	bind = strings.TrimSpace(bind)
 	if bind == "" {
@@ -2340,19 +2355,33 @@ type themeListItem struct {
 }
 
 func (app *App) SettingsHandler(c *gin.Context) {
-	if !app.hasSession(c) {
+	// Sensitive values (e.g. S3270_KEY_PASSWORD) must never be gated on "the
+	// request came from loopback" alone. That check was worthless when the
+	// server always bound to 127.0.0.1 (every request satisfied it by
+	// construction), and it is worse than worthless now that WEBUI_BIND can
+	// expose other interfaces: behind Docker's port forwarding the peer
+	// address is the bridge gateway, so a loopback test would either pass for
+	// every remote client or fail for every one, depending on the network
+	// mode.
+	//
+	// What authorizes the call is instead one of two things. With accounts on,
+	// it is the signed-in administrator: RequireAdmin has already run on this
+	// route, and an administrator is entitled to instance settings whether or
+	// not they happen to have a terminal open. Demanding a terminal session on
+	// top of that is what made Settings fail with "no session" on the connect
+	// page — before there is anything to connect to, which is exactly when
+	// somebody opens Settings.
+	//
+	// With accounts off every request is authz.Local(), an administrator by
+	// construction, so IsAdmin says nothing there. The terminal session cookie
+	// — a 128-bit crypto/rand value, see session.generateID — is the only
+	// signal that deployment has, and it stays required. Hence the
+	// separatesUsers() guard: the relaxation applies only where somebody
+	// actually signed in.
+	if !(app.separatesUsers() && principalFrom(c).IsAdmin()) && !app.hasSession(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
-	// A valid session is already required above. Sensitive values (e.g.
-	// S3270_KEY_PASSWORD) must never be gated on "the request came from
-	// loopback" alone. That check was worthless when the server always bound
-	// to 127.0.0.1 (every request satisfied it by construction), and it is
-	// worse than worthless now that WEBUI_BIND can expose other interfaces:
-	// behind Docker's port forwarding the peer address is the bridge gateway,
-	// so a loopback test would either pass for every remote client or fail for
-	// every one, depending on the network mode. The session check is the real
-	// authorization signal.
 	switch c.Request.Method {
 	case http.MethodGet:
 		app.writeSettingsResponse(c)
@@ -4143,7 +4172,7 @@ func sampleAppConfig(id string) (SampleAppConfig, bool) {
 	return SampleAppConfig{}, false
 }
 
-var allowedSampleAppPortsList = []int{3270, 3271, 3272, 3273, 3274}
+var allowedSampleAppPortsList = []int{3271, 3272, 3273, 3274, 3275}
 
 var allowedSampleAppPortSet = buildAllowedSampleAppPortSet()
 

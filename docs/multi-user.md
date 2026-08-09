@@ -17,6 +17,7 @@ pointed at, and what is written down.
 | [`AUTH_MODE`](authentication.md) | `none` | Whether there are accounts at all, and whether an identity provider issues them |
 | [Session and data separation](#what-is-separated-and-what-is-not) | on with accounts | What one account can see of another's |
 | [`TRUST_PROXY_HEADERS`](#running-without-tls) | off | Whether cookies are marked `Secure` behind a TLS proxy |
+| [`TLS_TERMINATED_UPSTREAM`](#when-the-sign-in-page-still-says-the-connection-is-not-encrypted) | off | Same, for an edge that forwards no headers |
 | [API tokens](#api-tokens) | — | What an automated client may reach |
 | [`ALLOWED_HOSTS`](#limiting-what-an-instance-can-reach) | unset | Which mainframes the terminal may be pointed at |
 | [`RATE_LIMIT_*`](#rate-limits) | see below | How fast one caller may use what the instance pays for |
@@ -171,6 +172,40 @@ it behind a proxy you control: those headers are set by whoever sends the
 request, so a directly-reachable instance would let any client assert its own
 connection is secure and choose its own apparent address.
 
+### When the sign-in page still says the connection is not encrypted
+
+Behind a CDN or a reverse proxy that terminates TLS, the hop into 3270Web is
+plain HTTP. That is normal and fine — but the server cannot see the hop the
+browser actually made, so until it is told, it assumes the worst and says so.
+
+The sign-in page distinguishes two cases:
+
+- **Something in front says HTTPS and this server has not been told to believe
+  it.** `X-Forwarded-Proto: https` arrived, which most edges send. Set
+  `TRUST_PROXY_HEADERS=true` and restart. This is the answer for almost every
+  deployment, including one behind a CDN.
+- **Nothing says anything.** No forwarding headers arrive at all, which is the
+  shape of a tunnel daemon dialling out to the edge, or a sidecar. There is no
+  header to trust, so the assertion has to be made directly:
+
+  ```bash
+  TLS_TERMINATED_UPSTREAM=true
+  ```
+
+  This says "the browser reached the edge over HTTPS" for every request, no
+  matter what the headers say. It marks cookies `Secure`, turns off the
+  plain-HTTP default for address pinning, and removes the warning.
+
+Both are claims about the deployment that 3270Web cannot check, so make them
+only when they are true. `TLS_TERMINATED_UPSTREAM` in particular fails loudly
+if it is not: cookies are minted `Secure`, a browser on plain HTTP refuses to
+store them, and nobody can sign in. That is the intended direction for this
+kind of mistake to break in — the alternative is an instance that looks fine
+and is not.
+
+Neither setting is a way to silence the warning on an instance that really is
+served over plain HTTP. There, the warning is true, and the fix is TLS.
+
 ---
 
 ## API tokens
@@ -256,7 +291,7 @@ An AI client that launches `3270Web mcp` itself cannot sign in, so on an
 instance with accounts it needs a token and an explicit URL:
 
 ```bash
-3270Web mcp --url http://127.0.0.1:8080 --token "$MY_TOKEN"
+3270Web mcp --url http://127.0.0.1:3270 --token "$MY_TOKEN"
 ```
 
 Tool calls then act as that account: `list_sessions` shows its sessions, and

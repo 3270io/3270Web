@@ -18,11 +18,11 @@ Run chaos exploration against each host and export its mind map:
 ```sh
 # Baseline (z/OS)
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/chaos/mindmap/export > baseline.json
+  http://127.0.0.1:3270/chaos/mindmap/export > baseline.json
 
 # Candidate (Rocket Enterprise Server, after switching the connection)
 curl -H "Authorization: Bearer $API_TOKEN" \
-  http://127.0.0.1:8080/chaos/mindmap/export > candidate.json
+  http://127.0.0.1:3270/chaos/mindmap/export > candidate.json
 ```
 
 ## Request
@@ -31,7 +31,7 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 curl -X POST \
   -H "Content-Type: application/json" \
   -d "{\"baseline\": $(cat baseline.json), \"candidate\": $(cat candidate.json)}" \
-  http://127.0.0.1:8080/chaos/mindmap/compare
+  http://127.0.0.1:3270/chaos/mindmap/compare
 ```
 
 Areas are matched on their **stable dedup signature**, not on the raw

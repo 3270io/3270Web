@@ -254,10 +254,11 @@ func (app *App) SetupPageHandler(c *gin.Context) {
 
 func (app *App) renderSetup(c *gin.Context, status int, errMessage string) {
 	c.HTML(status, "setup.html", gin.H{
-		"Error":     errMessage,
-		"MinLength": users.MinPasswordLength,
-		"LogPath":   app.logFilePath,
-		"ShowNoTLS": !reqsec.IsTLS(c.Request),
+		"Error":          errMessage,
+		"MinLength":      users.MinPasswordLength,
+		"LogPath":        app.logFilePath,
+		"ShowNoTLS":      !reqsec.IsTLS(c.Request),
+		"ProxySaysHTTPS": proxyClaimsHTTPS(c),
 	})
 }
 

@@ -133,7 +133,7 @@ func TestAPICreateSessionSampleAppGate(t *testing.T) {
 		r.POST("/api/v1/sessions", app.APICreateSession)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions",
-			strings.NewReader(`{"host":"sampleapp:app1:3270"}`))
+			strings.NewReader(`{"host":"sampleapp:app1:3271"}`))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

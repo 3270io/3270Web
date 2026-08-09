@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=14">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=2">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=3">
     <script src="/static/theme.js?v=8" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/auth-form.js?v=1" defer></script>
+    <script src="/static/auth-form.js?v=2" defer></script>
 </head>
 <body data-min-password-length="{{ .MinLength }}">
     <script src="/static/early-theme-init.js"></script>
@@ -90,10 +90,26 @@
 
             {{ if .ShowNoTLS }}
             <div class="auth-alert auth-alert--warn" style="margin-top:18px;margin-bottom:0">
+                {{ if .ProxySaysHTTPS }}
+                <span>
+                    Something in front of this server says your browser reached
+                    it over HTTPS, but this server has not been told to believe
+                    it — so the cookie it is about to set will not be marked
+                    <code>Secure</code>. Set
+                    <code>TRUST_PROXY_HEADERS=true</code> and restart, or
+                    <code>TLS_TERMINATED_UPSTREAM=true</code> if the edge sends
+                    no headers at all.
+                </span>
+                {{ else }}
                 <span>
                     This connection is not encrypted, so what you type here is
                     visible to anyone who can observe traffic on this network.
+                    If TLS is terminated in front of this server, set
+                    <code>TRUST_PROXY_HEADERS=true</code> — or
+                    <code>TLS_TERMINATED_UPSTREAM=true</code> where the edge
+                    forwards no headers — and restart.
                 </span>
+                {{ end }}
             </div>
             {{ end }}
 

@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -15,15 +16,15 @@ func TestResolveListenAddr(t *testing.T) {
 		port     string
 		expected string
 	}{
-		{name: "both unset defaults to loopback", bind: "", port: "", expected: "127.0.0.1:8080"},
+		{name: "both unset defaults to loopback", bind: "", port: "", expected: "127.0.0.1:3270"},
 		{name: "port only keeps loopback default", bind: "", port: "9090", expected: "127.0.0.1:9090"},
-		{name: "bind all interfaces", bind: "0.0.0.0", port: "", expected: "0.0.0.0:8080"},
+		{name: "bind all interfaces", bind: "0.0.0.0", port: "", expected: "0.0.0.0:3270"},
 		{name: "bind and port", bind: "0.0.0.0", port: "3270", expected: "0.0.0.0:3270"},
 		{name: "specific interface", bind: "192.168.1.10", port: "8080", expected: "192.168.1.10:8080"},
 		{name: "ipv6 is bracketed", bind: "::", port: "8080", expected: "[::]:8080"},
-		{name: "ipv6 loopback is bracketed", bind: "::1", port: "", expected: "[::1]:8080"},
+		{name: "ipv6 loopback is bracketed", bind: "::1", port: "", expected: "[::1]:3270"},
 		{name: "surrounding whitespace is trimmed", bind: "  0.0.0.0 ", port: " 8081 ", expected: "0.0.0.0:8081"},
-		{name: "whitespace only falls back to defaults", bind: "   ", port: "  ", expected: "127.0.0.1:8080"},
+		{name: "whitespace only falls back to defaults", bind: "   ", port: "  ", expected: "127.0.0.1:3270"},
 		{name: "ephemeral port for the bind-failure fallback", bind: "0.0.0.0", port: "0", expected: "0.0.0.0:0"},
 	}
 
@@ -199,4 +200,47 @@ func nonLoopbackIPv4(t *testing.T) string {
 	}
 	t.Skip("no non-loopback IPv4 interface available")
 	return ""
+}
+
+// The web UI and the bundled sample apps run in the same place — the same host
+// for a binary install, the same container for a Docker one — so they cannot
+// want the same port. They did once: both defaulted to 3270, and starting a
+// sample app on a default install failed with "address already in use".
+func TestSampleAppPortsDoNotCollideWithTheWebUI(t *testing.T) {
+	for _, port := range allowedSampleAppPortsList {
+		if strconv.Itoa(port) == defaultWebUIPort {
+			t.Errorf("sample app port %d is the web UI's own default port; a default install cannot bind both", port)
+		}
+	}
+	if _, ok := allowedSampleAppPortSet[defaultSampleAppPort]; !ok {
+		t.Errorf("defaultSampleAppPort %d is not in the allowed list, so the default choice would be rejected", defaultSampleAppPort)
+	}
+}
+
+// The installer must say why it failed.
+//
+// `compose up` ran with both streams sent to /dev/null and, on failure, the
+// script told the operator to run it again themselves to find out why — at the
+// one moment it held the answer and they did not. Worse, the spinner was
+// stopped first, and spin_stop's last command was a `[ ... ] && step` that
+// evaluates false when called with no label: under `set -e` that ended the
+// script before the explanation printed, so every failure came out as the same
+// bare "installation did not complete".
+func TestInstallScriptExplainsFailures(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "install.sh")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read install.sh: %v", err)
+	}
+	script := string(data)
+
+	if strings.Contains(script, "up -d >/dev/null 2>&1") {
+		t.Error("install.sh discards compose's output; a failed `up -d` cannot then be explained")
+	}
+	if !strings.Contains(script, `[ "$#" -gt 0 ]; then`) {
+		t.Error("spin_stop must not end on a bare `[ ... ] && step`; with no label it returns 1 and `set -e` kills the script before the failure is reported")
+	}
+	if !strings.Contains(script, "  return 0\n}") {
+		t.Error("spin_stop must return 0 explicitly, or stopping the spinner on a failure path aborts the script")
+	}
 }

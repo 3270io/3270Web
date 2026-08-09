@@ -9,10 +9,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=14">
     <!-- Shared design system layer; see the note in screen.html. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=2">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=3">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -61,7 +61,13 @@
                     </span>
                     {{ end }}
                     <button type="button" data-about-open>About</button>
+                    <!-- Settings are instance-wide, so /api/settings is
+                         administrator-only. Offering the button to an ordinary
+                         account opens a panel that can only answer "this
+                         action requires an administrator account". -->
+                    {{ if .Auth.CanAdminister }}
                     <button type="button" data-settings-open>Settings</button>
+                    {{ end }}
                 </div>
             </div>
             {{ if .ConnectError }}

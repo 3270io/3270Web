@@ -562,7 +562,7 @@ func TestIsValidHostname(t *testing.T) {
 		{name: "whitespace", hostname: "   ", expected: false},
 		{name: "hostname", hostname: "localhost", expected: true},
 		{name: "host with port", hostname: "localhost:3270", expected: true},
-		{name: "sample app", hostname: "sampleapp:app1:3270", expected: true},
+		{name: "sample app", hostname: "sampleapp:app1:3271", expected: true},
 		// Loopback literals are rejected: a real TN3270 mainframe is never
 		// reachable via loopback from this app's perspective, and allowing
 		// it serves no legitimate purpose (see isRestrictedIP).

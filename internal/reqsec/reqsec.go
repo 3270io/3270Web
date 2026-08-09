@@ -12,6 +12,23 @@ import (
 // TrustProxyHeadersEnv names the opt-in for believing forwarding headers.
 const TrustProxyHeadersEnv = "TRUST_PROXY_HEADERS"
 
+// TLSTerminatedUpstreamEnv names the operator's assertion that something in
+// front of this server terminates TLS, whatever the request headers say.
+//
+// TRUST_PROXY_HEADERS is the better answer and handles most deployments,
+// because most edges — a CDN, an ingress controller, an ordinary reverse proxy
+// — do send X-Forwarded-Proto. This is for the ones that do not: a tunnel
+// daemon dialling out to the edge, a service mesh sidecar, anything where the
+// hop into this process carries no evidence of the hop the browser actually
+// made.
+//
+// It is a claim about the deployment, not about a request, so it applies to
+// every request equally and cannot be inferred. Getting it wrong fails loudly
+// rather than quietly: cookies are minted Secure, and a browser on plain HTTP
+// refuses to store them, so nobody can sign in. That is the right direction
+// for a mistake of this kind to break in.
+const TLSTerminatedUpstreamEnv = "TLS_TERMINATED_UPSTREAM"
+
 // TrustProxyHeaders reports whether X-Forwarded-* may be believed.
 //
 // This is opt-in and must stay that way. The header is set by whoever sends
@@ -20,6 +37,29 @@ const TrustProxyHeadersEnv = "TRUST_PROXY_HEADERS"
 // Secure flag is supposed to guarantee.
 func TrustProxyHeaders() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv(TrustProxyHeadersEnv)), "true")
+}
+
+// TLSTerminatedUpstream reports the operator's standing assertion that the
+// browser reached the edge over HTTPS. See TLSTerminatedUpstreamEnv.
+func TLSTerminatedUpstream() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(TLSTerminatedUpstreamEnv)), "true")
+}
+
+// ForwardedProtoClaimsHTTPS reports whether the request carries an
+// X-Forwarded-Proto naming https — without trusting it.
+//
+// It exists only so the sign-in page can tell the difference between "nothing
+// is in front of this server" and "something in front says it terminated TLS
+// and this server has not been told to believe it". The second is one
+// environment variable away from being right, and saying so is far more use
+// than a warning that only describes the symptom. It must never reach a
+// security decision: the header is chosen by whoever sends the request, which
+// is exactly why IsTLS gates it behind TrustProxyHeaders.
+func ForwardedProtoClaimsHTTPS(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	return forwardedProtoIsHTTPS(r)
 }
 
 // IsTLS reports whether the client's connection to the edge used TLS.
@@ -36,11 +76,23 @@ func IsTLS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
+	// The operator's standing assertion, checked before the headers because it
+	// applies whether or not any arrived. Deliberately not gated on
+	// TrustProxyHeaders: the two answer different questions, and an edge that
+	// forwards nothing is the case this exists for.
+	if TLSTerminatedUpstream() {
+		return true
+	}
 	if !TrustProxyHeaders() {
 		return false
 	}
+	return forwardedProtoIsHTTPS(r)
+}
 
-	// A proxy chain appends, so the client-facing scheme is the first entry.
+// forwardedProtoIsHTTPS reads the client-facing scheme out of
+// X-Forwarded-Proto. A proxy chain appends, so the first entry is the one the
+// browser spoke.
+func forwardedProtoIsHTTPS(r *http.Request) bool {
 	proto := r.Header.Get("X-Forwarded-Proto")
 	if proto == "" {
 		return false

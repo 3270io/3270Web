@@ -64,7 +64,7 @@ afterwards is configuration.
 
 4. Try it with no mainframe at all:
 
-    > Connect to `sampleapp:app1:3270` and tell me what is on the screen.
+    > Connect to `sampleapp:app1:3271` and tell me what is on the screen.
 
 Other MCP clients — VS Code, Claude Code, Cursor, Windsurf — take the same
 command and arguments in their own configuration format.
@@ -88,7 +88,7 @@ open rather than an invisible second copy.
 To attach to an instance elsewhere:
 
 ```bash
-3270Web mcp --url http://terminal.example.com:8080 --token "$API_TOKEN"
+3270Web mcp --url http://terminal.example.com:3270 --token "$API_TOKEN"
 ```
 
 The target must have the same `API_TOKEN` set. See the [REST API](rest-api.md)
@@ -102,7 +102,7 @@ to one:
 
 ```bash
 3270Web token add alice mcp
-3270Web mcp --url http://127.0.0.1:8080 --token "$MY_TOKEN"
+3270Web mcp --url http://127.0.0.1:3270 --token "$MY_TOKEN"
 ```
 
 Every tool call then acts as that account — `list_sessions` shows its
@@ -211,7 +211,7 @@ The bundled sample apps are how you try this without a mainframe. When
 server you started yourself, set `ALLOW_SAMPLE_APPS=1`.
 
 ```
-connect to sampleapp:app1:3270
+connect to sampleapp:app1:3271
 ```
 
 ## Skills
@@ -244,7 +244,7 @@ services:
     image: ghcr.io/3270io/3270web:latest
     ports:
       # Loopback until this is behind TLS. See the warning below.
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3270:3270"
     environment:
       - GIN_MODE=release
       # Interpolated from a .env file beside this one.
@@ -278,7 +278,7 @@ calls are authorized as the account whose token opened it.
 
 ```bash
 set -a; . ./.env; set +a
-curl -sS -X POST http://127.0.0.1:8080/api/v1/mcp \
+curl -sS -X POST http://127.0.0.1:3270/api/v1/mcp \
   -H "Authorization: Bearer $API_TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
@@ -348,7 +348,7 @@ pieces.
 If you have the binary to hand, it bridges too, and needs no proxy package:
 
 ```bash
-3270Web mcp --url http://localhost:8080 --token "$API_TOKEN"
+3270Web mcp --url http://localhost:3270 --token "$API_TOKEN"
 ```
 
 That is the same stdio server described above, driving your stack instead of

@@ -6,7 +6,7 @@
  *   node scripts/capture-doc-screenshots.mjs
  *
  * Options (environment variables):
- *   DOCS_BASE_URL   base URL of a running 3270Web (default http://127.0.0.1:8080)
+ *   DOCS_BASE_URL   base URL of a running 3270Web (default http://127.0.0.1:3270)
  *   DOCS_OUT_DIR    output directory       (default <repo>/docs/images)
  *   DOCS_SAMPLE_APP sample app id          (default app1)
  *   DOCS_SAMPLE_PORT sample app port       (default 3270)
@@ -28,7 +28,7 @@ import { mkdir } from 'node:fs/promises';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
 
-const baseUrl = process.env.DOCS_BASE_URL || 'http://127.0.0.1:8080';
+const baseUrl = process.env.DOCS_BASE_URL || 'http://127.0.0.1:3270';
 const outDir = process.env.DOCS_OUT_DIR || path.join(repoRoot, 'docs', 'images');
 const sampleApp = process.env.DOCS_SAMPLE_APP || 'app1';
 const samplePort = process.env.DOCS_SAMPLE_PORT || '3270';

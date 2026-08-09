@@ -33,6 +33,18 @@
     } else {
       statusEl.removeAttribute('data-state');
     }
+    // The status line sits above the table, at the top of a page that on a
+    // phone is several screens long. Saying "account created" where nobody is
+    // looking is the same as not saying it: after adding an account the
+    // administrator is left staring at an unchanged form area wondering
+    // whether it worked. Bring the answer to them.
+    if (message) {
+      try {
+        statusEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch (_) {
+        statusEl.scrollIntoView();
+      }
+    }
   }
 
   function api(method, url, body) {
@@ -61,8 +73,15 @@
     if (!dialog) return;
     lastFocus = document.activeElement;
     dialog.hidden = false;
-    var focusable = dialog.querySelector('input, select, button');
+    // The first thing to fill in, not the first thing in the markup — the
+    // close button leads the panel, and opening a dialog with focus on its
+    // dismiss control reads as "are you sure you meant to do that".
+    var focusable = dialog.querySelector('input, select') ||
+      dialog.querySelector('button:not(.admin-dialog-close)');
     if (focusable) focusable.focus();
+    // A dialog re-opened after being scrolled through keeps its old scroll
+    // offset, which on a phone means opening onto the middle of the form.
+    dialog.scrollTop = 0;
   }
 
   function closeDialogs() {
