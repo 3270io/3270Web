@@ -75,9 +75,15 @@ type adminUserView struct {
 	// Groups the account belongs to, so a profile audience can be written
 	// against a team rather than a list of people.
 	Groups []string `json:"groups"`
+	// EffectiveRole is what the account actually holds once group assignments
+	// are counted; RoleGroups names the groups responsible when it is more
+	// than Role says. The page shows both, because "why is this person an
+	// administrator" must be answerable by reading the row.
+	EffectiveRole string   `json:"effectiveRole"`
+	RoleGroups    []string `json:"roleGroups,omitempty"`
 }
 
-func toAdminUserView(u users.User, selfID string) adminUserView {
+func toAdminUserView(u users.User, selfID string, groupRoles map[string]authz.Role) adminUserView {
 	return adminUserView{
 		ID:                 u.ID,
 		Username:           u.Username,
@@ -90,6 +96,8 @@ func toAdminUserView(u users.User, selfID string) adminUserView {
 		External:           u.External(),
 		Issuer:             u.Issuer,
 		Groups:             u.Groups,
+		EffectiveRole:      string(users.EffectiveRole(u, groupRoles)),
+		RoleGroups:         users.RoleGrantingGroups(u, groupRoles),
 	}
 }
 
@@ -106,10 +114,11 @@ func (app *App) AdminListUsersHandler(c *gin.Context) {
 		return
 	}
 
+	groupRoles := app.groupRolesOrNone()
 	selfID := principalFrom(c).UserID
 	out := make([]adminUserView, 0, len(list))
 	for _, u := range list {
-		out = append(out, toAdminUserView(u, selfID))
+		out = append(out, toAdminUserView(u, selfID, groupRoles))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"authEnabled": true,
@@ -117,6 +126,8 @@ func (app *App) AdminListUsersHandler(c *gin.Context) {
 		// Every group in use, so the page can offer them rather than relying
 		// on somebody spelling one the same way twice.
 		"groups": app.knownGroups(),
+		// The role each group grants its members, keyed by group name.
+		"groupRoles": groupRoles,
 		// Where groups come from, so the page can say why it will not let
 		// them be edited on a directory-owned account.
 		"groupsFromProvider": app.ssoEnabled() && app.sso.GroupsClaim != "",
@@ -171,7 +182,7 @@ func (app *App) AdminCreateUserHandler(c *gin.Context) {
 	log.Printf("auth: %s created account %q (%s)", adminActor(c), user.Username, user.Role)
 	app.auditRequest(c, audit.EventAccountCreated, audit.Success, user.Username,
 		map[string]string{"role": string(user.Role)})
-	c.JSON(http.StatusCreated, gin.H{"user": toAdminUserView(user, principalFrom(c).UserID)})
+	c.JSON(http.StatusCreated, gin.H{"user": toAdminUserView(user, principalFrom(c).UserID, app.groupRolesOrNone())})
 }
 
 type adminUpdateUserRequest struct {
@@ -223,7 +234,12 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 		// pushed into the sessions the account is already in. Without this a
 		// demotion would not take effect until the person signed in again — and
 		// they could undo it from the page they were still standing on.
-		app.authSessions.SetRoleFor(target.ID, role)
+		//
+		// What is pushed is the effective role: demoting somebody's own role
+		// while a group still grants them administration demotes nothing, and
+		// the session saying otherwise would disagree with every fresh login.
+		target.Role = role
+		app.authSessions.SetRoleFor(target.ID, app.effectiveRoleFor(target))
 		log.Printf("auth: %s set %q role to %s", adminActor(c), target.Username, role)
 		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
 			map[string]string{"change": "role", "role": string(role)})
@@ -258,10 +274,29 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 			})
 			return
 		}
+		// Leaving a group can now remove a role. Doing that to yourself is
+		// self-demotion wearing different clothes, and is refused for the
+		// same reason: it takes effect immediately and strands you.
+		if self && target.Role != authz.RoleAdmin {
+			groupRoles := app.groupRolesOrNone()
+			after := target
+			after.Groups = users.NormaliseGroups(*req.Groups)
+			if users.EffectiveRole(target, groupRoles) == authz.RoleAdmin &&
+				users.EffectiveRole(after, groupRoles) != authz.RoleAdmin {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "your administrator role comes from one of these groups; you cannot leave it yourself",
+				})
+				return
+			}
+		}
 		if err := app.userStore().SetGroups(target.Username, *req.Groups); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
 			return
 		}
+		// Group membership can carry a role, so the sessions this account
+		// already holds are given the recomputed one.
+		target.Groups = users.NormaliseGroups(*req.Groups)
+		app.authSessions.SetRoleFor(target.ID, app.effectiveRoleFor(target))
 		log.Printf("auth: %s set groups for %q", adminActor(c), target.Username)
 		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
 			map[string]string{"change": "groups", "groups": strings.Join(users.NormaliseGroups(*req.Groups), " ")})
@@ -294,7 +329,7 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": toAdminUserView(updated, principalFrom(c).UserID)})
+	c.JSON(http.StatusOK, gin.H{"user": toAdminUserView(updated, principalFrom(c).UserID, app.groupRolesOrNone())})
 }
 
 // AdminDeleteUserHandler removes an account.

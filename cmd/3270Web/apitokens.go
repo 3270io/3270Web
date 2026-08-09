@@ -126,7 +126,9 @@ func (app *App) authenticateAPIToken(presented string) (authz.Principal, error) 
 		return authz.Anonymous(), errBadToken
 	}
 
-	return authz.Token(owner.ID, owner.Role, token.Scopes), nil
+	// The effective role, so a token issued to somebody whose administration
+	// comes from a group carries the same rights their browser does.
+	return authz.Token(owner.ID, app.effectiveRoleFor(owner), token.Scopes), nil
 }
 
 // tokenScopeAllows reports whether a principal's scopes permit this request.

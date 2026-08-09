@@ -24,6 +24,8 @@
   // the dialog can offer names and explain when it will not accept a change.
   var knownGroups = [];
   var groupsFromProvider = false;
+  // The role each group grants its members, keyed by group name.
+  var groupRoles = {};
 
   document.querySelectorAll('[data-dialog]').forEach(function (el) {
     dialogs[el.getAttribute('data-dialog')] = el;
@@ -156,9 +158,17 @@
     tr.appendChild(accountCell);
 
     var roleCell = el('td');
-    roleCell.appendChild(user.role === 'admin'
-      ? pill('pill--admin', 'Administrator')
-      : pill('pill--user', 'User'));
+    if (user.effectiveRole === 'admin' && user.role !== 'admin') {
+      // An inherited role, and where it came from — "why is this person an
+      // administrator" must be answerable by reading the row.
+      roleCell.appendChild(pill('pill--admin', 'Administrator'));
+      var via = el('div', 'admin-role-via', 'via ' + (user.roleGroups || []).join(', '));
+      roleCell.appendChild(via);
+    } else {
+      roleCell.appendChild(user.role === 'admin'
+        ? pill('pill--admin', 'Administrator')
+        : pill('pill--user', 'User'));
+    }
     tr.appendChild(roleCell);
 
     // The teams this account is in, which is what decides the mainframes it is
@@ -260,9 +270,13 @@
   function matches(user) {
     var only = onlyEl ? onlyEl.value : '';
     switch (only) {
+      // Filtered on the effective role: somebody looking for "the
+      // administrators" is asking who holds the power, not how they came by it.
       case 'admin':
+        if (user.effectiveRole !== 'admin') return false;
+        break;
       case 'user':
-        if (user.role !== only) return false;
+        if (user.effectiveRole === 'admin') return false;
         break;
       case 'disabled':
         if (!user.disabled) return false;
@@ -306,7 +320,9 @@
     }
 
     if (countEl) {
-      var admins = users.filter(function (u) { return u.role === 'admin'; }).length;
+      // Effective administrators, so the count agrees with the pills below it
+      // when a group is what grants the role.
+      var admins = users.filter(function (u) { return u.effectiveRole === 'admin'; }).length;
       var total = users.length + (users.length === 1 ? ' account' : ' accounts') +
         ' · ' + admins + (admins === 1 ? ' administrator' : ' administrators');
       countEl.textContent = visible.length === users.length
@@ -322,6 +338,7 @@
       .then(function (data) {
         knownGroups = data.groups || [];
         groupsFromProvider = !!data.groupsFromProvider;
+        groupRoles = data.groupRoles || {};
         render(data.users || []);
       })
       .catch(function (error) {
@@ -432,88 +449,68 @@
     });
   }
 
-  /* -------------------------------------------------------------- branding */
+  /* ----------------------------------------------------------- group roles */
 
-  // The selection screen an operator meets before anything of their own
-  // organisation's. The preview is rendered by the server from the same builder
-  // the terminal draws from, so what is shown here is the screen rather than an
-  // impression of it.
+  // A role a group grants its members. The list is the groups in use; each
+  // row's select talks to the server as soon as it changes, because the
+  // grant takes effect immediately — a "save" button would only postpone
+  // telling the administrator what they just did.
 
-  function brandingDialog() { return dialogs.branding; }
+  function renderGroupRoles() {
+    var list = document.querySelector('[data-group-roles-list]');
+    var empty = document.querySelector('[data-group-roles-empty]');
+    if (!list) return;
+    list.textContent = '';
+    if (empty) empty.hidden = knownGroups.length > 0;
 
-  function loadBranding() {
-    return api('GET', '/api/admin/menu-branding').then(function (data) {
-      var dialog = brandingDialog();
-      if (!dialog) return;
-      var brand = data.branding || {};
-      dialog.querySelector('#branding-title-input').value = brand.Title || brand.title || '';
-      dialog.querySelector('#branding-banner').value = (brand.Banner || brand.banner || []).join('\n');
-      dialog.querySelector('#branding-footer').value = brand.Footer || brand.footer || '';
-      var limits = data.limits || {};
-      dialog.querySelector('[data-branding-limits]').textContent =
-        'Up to ' + limits.bannerLines + ' lines of ' + limits.lineWidth +
-        ' characters. ' + limits.charset + '.';
-      return refreshPreview();
+    knownGroups.forEach(function (name) {
+      var row = el('div', 'group-role-row');
+      row.appendChild(el('span', 'admin-group-tag', name));
+
+      var select = document.createElement('select');
+      select.setAttribute('aria-label', 'Role granted by ' + name);
+      [['user', 'No extra role'], ['admin', 'Administrator']].forEach(function (pair) {
+        var option = document.createElement('option');
+        option.value = pair[0];
+        option.textContent = pair[1];
+        select.appendChild(option);
+      });
+      var current = lookupGroupRole(name);
+      select.value = current === 'admin' ? 'admin' : 'user';
+
+      select.addEventListener('change', function () {
+        api('POST', '/api/admin/group-roles', { group: name, role: select.value })
+          .then(function (data) {
+            groupRoles = data.groupRoles || {};
+            setStatus(select.value === 'admin'
+              ? 'Everyone in ' + name + ' now holds the administrator role.'
+              : name + ' no longer grants a role.', 'ok');
+            load();
+          })
+          .catch(function (error) {
+            setStatus(error.message, 'error');
+            select.value = lookupGroupRole(name) === 'admin' ? 'admin' : 'user';
+          });
+      });
+
+      row.appendChild(select);
+      list.appendChild(row);
     });
   }
 
-  function refreshPreview() {
-    return api('GET', '/api/admin/menu-preview').then(function (data) {
-      var pre = brandingDialog().querySelector('[data-branding-preview]');
-      pre.textContent = (data.rows || []).join('\n');
+  function lookupGroupRole(name) {
+    var found = '';
+    Object.keys(groupRoles || {}).forEach(function (key) {
+      if (key.toLowerCase() === name.toLowerCase()) found = groupRoles[key];
     });
+    return found;
   }
 
-  function brandingPayload() {
-    var dialog = brandingDialog();
-    return {
-      Title: dialog.querySelector('#branding-title-input').value,
-      Banner: dialog.querySelector('#branding-banner').value.split('\n'),
-      Footer: dialog.querySelector('#branding-footer').value
-    };
-  }
-
-  var brandingOpen = document.querySelector('[data-branding-open]');
-  if (brandingOpen) {
-    brandingOpen.addEventListener('click', function () {
-      loadBranding()
-        .then(function () { openDialog('branding'); })
-        .catch(function (error) { setStatus(error.message, 'error'); });
-    });
-  }
-
-  var brandingForm = document.querySelector('[data-branding-form]');
-  if (brandingForm) {
-    brandingForm.addEventListener('submit', function (event) {
-      event.preventDefault();
-      api('POST', '/api/admin/menu-branding', brandingPayload())
-        .then(function (data) {
-          // What the server changed is shown rather than swallowed: silently
-          // dropping a character somebody drew artwork with is how a banner
-          // ends up wrong on a screen the person editing it never sees.
-          var notes = brandingForm.querySelector('[data-branding-notes]');
-          if ((data.notes || []).length) {
-            notes.querySelector('span').textContent = data.notes.join('. ') + '.';
-            notes.hidden = false;
-          } else {
-            notes.hidden = true;
-          }
-          setStatus('Selection screen updated.', 'ok');
-          return refreshPreview();
-        })
-        .catch(function (error) { setStatus(error.message, 'error'); });
-    });
-  }
-
-  var brandingReset = document.querySelector('[data-branding-reset]');
-  if (brandingReset) {
-    brandingReset.addEventListener('click', function () {
-      api('POST', '/api/admin/menu-branding', { reset: true })
-        .then(function () {
-          setStatus('Selection screen restored to the default.', 'ok');
-          return loadBranding();
-        })
-        .catch(function (error) { setStatus(error.message, 'error'); });
+  var groupRolesButton = document.querySelector('[data-admin-group-roles]');
+  if (groupRolesButton) {
+    groupRolesButton.addEventListener('click', function () {
+      renderGroupRoles();
+      openDialog('group-roles');
     });
   }
 

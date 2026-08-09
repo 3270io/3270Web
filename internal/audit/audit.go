@@ -47,6 +47,15 @@ const (
 	EventTokenRevoked Event = "token.revoked"
 	EventTokenRefused Event = "token.refused"
 
+	// A role granted to or removed from a group changes what every member may
+	// do, so it is recorded with the same weight as changing an account.
+	EventGroupRoleSet Event = "group.role_changed"
+
+	// The published host list: what the session-selection screen offers, and
+	// to whom. Private profiles are not recorded — they are one person's own.
+	EventProfilePublished Event = "profile.published"
+	EventProfileRemoved   Event = "profile.removed"
+
 	// Opening is recorded; routine closing is not. Sessions end in four ways —
 	// the person closes one, the idle reaper takes it, the server restarts, an
 	// administrator disconnects it — and only the first and last have anybody
