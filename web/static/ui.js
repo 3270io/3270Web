@@ -342,9 +342,16 @@
 
     const fieldMap = new Map();
     const fieldMetaMap = new Map();
+    const fieldGroupMap = new Map();
     const fieldBaseOptionsMap = new Map();
     const fieldExtraOptionsMap = new Map();
     const fieldExtrasListMap = new Map();
+    // Settings the server will not write, named by GET /api/settings. The form
+    // posts every field it renders, so one key the server refuses fails the
+    // whole save — including the fields the operator did change, on a tab they
+    // may never have opened. These are shown as the fixed values they are and
+    // left out of the payload.
+    const readOnlyKeys = new Set();
     let activeGroupId = '';
     let maximized = false;
     let restartConfirmResolver = null;
@@ -1219,7 +1226,9 @@
             resetButton.addEventListener('click', () => {
                 group.fields.forEach((field) => {
                     const entry = fieldMap.get(field.key);
-                    if (entry) {
+                    // A read-only field is not this form's to reset: it would
+                    // show a value the save cannot deliver.
+                    if (entry && !readOnlyKeys.has(field.key)) {
                         setFieldValue(entry.input, defaults[field.key] ?? '');
                         entry.error.textContent = '';
                     }
@@ -1325,8 +1334,9 @@
                 error.className = 'settings-error';
                 wrapper.appendChild(error);
 
-                fieldMap.set(field.key, { input, error });
+                fieldMap.set(field.key, { input, error, wrapper });
                 fieldMetaMap.set(field.key, field);
+                fieldGroupMap.set(field.key, group.id);
                 fieldWrappersByKey.set(field.key, wrapper);
             });
             const appendedFieldKeys = new Set();
@@ -1475,6 +1485,37 @@
         });
     };
 
+    // Marks the fields the server reports as read-only. Disabling the input is
+    // what keeps them out of the payload: collectSettings skips them, so the
+    // save carries only what this form is allowed to change.
+    const applyReadOnly = (keys) => {
+        const incoming = new Set(Array.isArray(keys) ? keys : []);
+        readOnlyKeys.clear();
+        incoming.forEach((key) => readOnlyKeys.add(key));
+
+        fieldMap.forEach((entry, key) => {
+            const locked = readOnlyKeys.has(key);
+            entry.input.disabled = locked;
+            if (entry.wrapper) {
+                entry.wrapper.classList.toggle('is-readonly', locked);
+                let note = entry.wrapper.querySelector('[data-settings-readonly-note]');
+                if (locked && !note) {
+                    note = document.createElement('div');
+                    note.className = 'settings-helper settings-readonly-note';
+                    note.dataset.settingsReadonlyNote = '1';
+                    note.textContent = 'Set outside the web interface. Change it in the environment or .env file.';
+                    entry.wrapper.appendChild(note);
+                } else if (!locked && note) {
+                    note.remove();
+                }
+            }
+            const custom = entry.wrapper ? entry.wrapper.querySelector('.settings-select-custom') : null;
+            if (custom) {
+                custom.hidden = locked;
+            }
+        });
+    };
+
     const loadSettings = async () => {
         setStatus('Loading settings...');
         try {
@@ -1484,6 +1525,7 @@
             }
             const data = await response.json();
             populateSettings(data.settings || {});
+            applyReadOnly(data.readOnly);
             setStatus('Settings loaded.');
             loadChaosDefaultsFromServer();
         } catch (error) {
@@ -1495,6 +1537,9 @@
     const collectSettings = () => {
         const settings = {};
         fieldMap.forEach((entry, key) => {
+            if (readOnlyKeys.has(key)) {
+                return;
+            }
             if (entry.input.dataset.kind === 'checkbox') {
                 settings[key] = entry.input.checked ? 'true' : 'false';
             } else {
@@ -1527,10 +1572,31 @@
                 fieldMap.forEach((entry, key) => {
                     entry.error.textContent = details[key] || '';
                 });
+                // A rejected field is usually on a tab the operator never
+                // opened — the banner alone leaves them staring at a form
+                // with nothing wrong on it. Open the tab that owns the first
+                // failure and name the field.
+                const failedKeys = Object.keys(details).filter((key) => fieldMap.has(key));
+                if (failedKeys.length > 0) {
+                    const firstKey = failedKeys[0];
+                    const groupId = fieldGroupMap.get(firstKey);
+                    if (groupId) {
+                        setActiveGroup(groupId);
+                    }
+                    const entry = fieldMap.get(firstKey);
+                    if (entry && entry.input && typeof entry.input.focus === 'function') {
+                        entry.input.focus();
+                    }
+                    const labels = failedKeys
+                        .map((key) => (fieldMetaMap.get(key) || {}).label || key)
+                        .join(', ');
+                    throw new Error(`Check ${labels}: ${details[firstKey]}`);
+                }
                 throw new Error(data.error || 'Failed to save settings.');
             }
 
             populateSettings(data.settings || payload.settings);
+            applyReadOnly(data.readOnly);
             setStatus('Settings saved.');
             if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
                 window.ThreeSeventyWeb.notify('Settings saved.', 'success');

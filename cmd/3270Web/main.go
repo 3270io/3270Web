@@ -2399,6 +2399,10 @@ type settingsPayload struct {
 type settingsResponse struct {
 	Settings map[string]string `json:"settings"`
 	Masked   []string          `json:"masked,omitempty"`
+	// ReadOnly names the settings the API will not write, so the form can
+	// show them as the fixed values they are instead of offering an edit the
+	// save is going to refuse. See settingsSnapshot.
+	ReadOnly []string `json:"readOnly,omitempty"`
 }
 
 type themeSavePayload struct {
@@ -2465,7 +2469,7 @@ func (app *App) hasSession(c *gin.Context) bool {
 }
 
 func (app *App) writeSettingsResponse(c *gin.Context) {
-	settings, masked, err := app.settingsSnapshot()
+	settings, masked, readOnly, err := app.settingsSnapshot()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load settings"})
 		return
@@ -2473,6 +2477,7 @@ func (app *App) writeSettingsResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, settingsResponse{
 		Settings: settings,
 		Masked:   masked,
+		ReadOnly: readOnly,
 	})
 }
 
@@ -2505,13 +2510,19 @@ func settingsDefaults() map[string]string {
 
 // settingsSnapshot returns the effective settings with every secret value
 // replaced by settingsSecretPlaceholder, plus the names of the secrets that
-// are actually set.
+// are actually set and the names of the keys the API will not write.
 //
 // There is deliberately no way to read a secret back out. The UI only needs to
 // know whether one is configured, and the previous includeSensitive=true
 // escape hatch handed S3270_KEY_PASSWORD in cleartext to anyone who could
 // reach the endpoint.
-func (app *App) settingsSnapshot() (map[string]string, []string, error) {
+//
+// The read-only list exists because the form posts every field it renders: a
+// key the server refuses fails the entire save, including the fields the
+// operator actually changed. Naming them lets the form render them as fixed
+// values and leave them out of the payload, so the deny list stays the single
+// source of truth rather than something ui.js has to mirror by hand.
+func (app *App) settingsSnapshot() (map[string]string, []string, []string, error) {
 	settings := make(map[string]string)
 	for key, value := range settingsDefaults() {
 		settings[key] = value
@@ -2521,7 +2532,7 @@ func (app *App) settingsSnapshot() (map[string]string, []string, error) {
 		values, err := config.ReadDotEnv(app.envPath)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		} else {
 			for key, value := range values {
@@ -2541,7 +2552,15 @@ func (app *App) settingsSnapshot() (map[string]string, []string, error) {
 	}
 	sort.Strings(masked)
 
-	return settings, masked, nil
+	readOnly := []string{}
+	for key := range settings {
+		if settingsDeniedKeys[key] {
+			readOnly = append(readOnly, key)
+		}
+	}
+	sort.Strings(readOnly)
+
+	return settings, masked, readOnly, nil
 }
 
 func (app *App) updateSettings(c *gin.Context) {
@@ -2576,11 +2595,28 @@ func (app *App) updateSettings(c *gin.Context) {
 		specs[spec.EnvVar] = spec
 	}
 
+	// What is on disk right now, to tell "the form echoed a value back
+	// untouched" apart from "the caller asked for a change".
+	current, _, _, err := app.settingsSnapshot()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load settings"})
+		return
+	}
+
 	allowed := settingsWritableKeys()
 	errorsByKey := make(map[string]string)
+	skip := make(map[string]bool)
 	for key, value := range settings {
 		if !settingsKeyWritable(key, allowed) {
-			errorsByKey[key] = "unknown setting"
+			// A read-only key posted with the value it already has is not a
+			// write. The form posts every field it renders and browsers cache
+			// ui.js, so refusing the echo would fail the whole save — every
+			// field in it — over a setting nobody touched.
+			if existing, known := current[key]; known && existing == value {
+				skip[key] = true
+				continue
+			}
+			errorsByKey[key] = "this setting cannot be changed here"
 			continue
 		}
 		if err := validateSettingValue(key, value, specs); err != nil {
@@ -2588,8 +2624,11 @@ func (app *App) updateSettings(c *gin.Context) {
 		}
 	}
 	if len(errorsByKey) > 0 {
+		// The failing keys go in the message as well as the details map: the
+		// field that failed is often on a settings tab the operator never
+		// opened, where a per-field error is not on screen to be read.
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid settings",
+			"error":   fmt.Sprintf("invalid settings: %s", strings.Join(sortedKeys(errorsByKey), ", ")),
 			"details": errorsByKey,
 		})
 		return
@@ -2597,6 +2636,9 @@ func (app *App) updateSettings(c *gin.Context) {
 
 	changed := make([]string, 0, len(settings))
 	for key, value := range settings {
+		if skip[key] {
+			continue
+		}
 		// The client echoes back the placeholder it was served for a secret it
 		// did not change. Writing it would replace the secret with the mask.
 		if settingsSecretKeys[key] && value == settingsSecretPlaceholder {
@@ -3160,7 +3202,7 @@ var s3270NumericValidators = map[string]func(string) error{
 	},
 }
 
-func sortedKeys(values map[string]struct{}) []string {
+func sortedKeys[V any](values map[string]V) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
