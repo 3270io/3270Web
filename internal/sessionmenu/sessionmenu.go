@@ -51,26 +51,19 @@ type Branding struct {
 
 // DefaultBranding is 3270.io's own.
 //
-// Drawn in "#" rather than block-drawing characters because this is rendered
-// through a code page: a 3270 display shows what the code page has, and the
-// characters that survive every one of them are the ones on a keyboard.
+// A wordmark rather than artwork. Block-letter art was the first thing tried
+// and it was the wrong thing: it ate a third of a 24-row screen, it read as
+// decoration rather than as a system identifying itself, and it set an example
+// a site would follow — a deployment pasting its own five-line logo in gets a
+// menu with room for four hosts. A session manager announces itself in one
+// line, and the room saved is the host list.
+//
+// Banner is still there for a site that wants artwork, bounded so it cannot
+// crowd out the list. It is simply empty by default.
 func DefaultBranding() Branding {
-	return Branding{
-		Title: "3270.io",
-		Banner: []string{
-			"##### ##### #####  ###          #        ",
-			"    #     #     # #   #                  ",
-			" #### #####    #  #   #         #    ### ",
-			"    # #       #   #   #         #   #   #",
-			"##### #####   #    ###    #     #    ### ",
-		},
-	}
+	return Branding{Title: "3270.io"}
 }
 
-// MaxBannerLines and MaxLineWidth bound what an administrator can put on the
-// screen. A banner taller than this leaves no room for the host list, and a
-// line wider than the display would be truncated anyway — silently, which is
-// worse than being told.
 // Exported so the administration page can state the dimensions rather than
 // letting somebody discover them by having their artwork truncated.
 const (
@@ -122,13 +115,12 @@ func clean(s string, max int) string {
 }
 
 // resolve fills in the defaults for anything the deployment left empty.
+//
+// Only the title: an empty banner means no artwork, which is both the default
+// and a deployment's way of saying it wants none.
 func (b Branding) resolve() Branding {
-	def := DefaultBranding()
 	if strings.TrimSpace(b.Title) == "" {
-		b.Title = def.Title
-	}
-	if b.Banner == nil {
-		b.Banner = def.Banner
+		b.Title = DefaultBranding().Title
 	}
 	return b
 }
@@ -174,11 +166,9 @@ func Start(brand Branding, entries []Entry) (*Menu, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sessionmenu: listen: %w", err)
 	}
-	// Bounded by what is left after the branding, so a taller banner shows
-	// fewer hosts rather than writing them off the bottom of the screen.
-	if max := maxEntriesFor(brand); len(entries) > max {
-		entries = entries[:max]
-	}
+	// Not truncated: the list pages instead. A ceiling here would have been
+	// the easy answer and the wrong one — the hosts it dropped would be
+	// invisible to the operator and to whoever assigned them.
 	m := &Menu{
 		listener: listener,
 		entries:  entries,
@@ -246,9 +236,13 @@ func (m *Menu) handle(conn net.Conn) {
 	}
 
 	values := map[string]string{}
+	page := 0
+	message := ""
+
 	for {
-		screen, selectionRow, selectionCol := m.screen("")
-		response, err := go3270.ShowScreen(screen, values, selectionRow, selectionCol, conn)
+		screen, cursorRow, cursorCol := m.screen(page, message)
+		message = ""
+		response, err := go3270.ShowScreen(screen, values, cursorRow, cursorCol, conn)
 		if err != nil {
 			return
 		}
@@ -259,9 +253,27 @@ func (m *Menu) handle(conn net.Conn) {
 			m.signedIn = true
 			m.mu.Unlock()
 			return
+
+		case go3270.AIDPF8:
+			// Forward, stopping at the last page rather than wrapping: an
+			// operator paging to the end wants to know they are at the end.
+			if page < m.pageCount()-1 {
+				page++
+			}
+			values["selection"] = ""
+			continue
+
+		case go3270.AIDPF7:
+			if page > 0 {
+				page--
+			}
+			values["selection"] = ""
+			continue
+
 		case go3270.AIDPF12, go3270.AIDClear:
 			values["selection"] = ""
 			continue
+
 		case go3270.AIDEnter:
 		default:
 			// Any other key is not a selection. Left on the screen rather than
@@ -272,14 +284,11 @@ func (m *Menu) handle(conn net.Conn) {
 		choice := strings.TrimSpace(response.Values["selection"])
 		entry, err := m.resolve(choice)
 		if err != nil {
-			values["selection"] = ""
-			screen, row, col := m.screen(err.Error())
 			// Redrawn with the message rather than looping silently: an
 			// operator who typed 9 on a menu of four needs to be told, and the
 			// message belongs on the screen, not in a log they cannot see.
-			if _, err := go3270.ShowScreen(screen, values, row, col, conn); err != nil {
-				return
-			}
+			values["selection"] = ""
+			message = err.Error()
 			continue
 		}
 
@@ -320,101 +329,174 @@ func (m *Menu) resolve(choice string) (Entry, error) {
 	return Entry{}, fmt.Errorf("No system called %q on this menu.", choice)
 }
 
-// Fixed rows at the bottom of the display. The list grows down from the
-// branding and stops before these, so a taller banner costs entries rather
-// than overwriting the command line.
+// The screen, laid out as a session manager is: a title bar naming the system,
+// a ruled header, the list, then a command line and a key legend fixed to the
+// bottom. Everything between the header and the command line is the list, so
+// branding costs entries and nothing else moves.
 const (
-	rowMessage = screenRows - 4
-	rowPrompt  = screenRows - 3
-	rowFooter  = screenRows - 2
-	rowKeys    = screenRows - 1
+	screenCols = 80
+	// Left margin. One column in from the edge, which is where a 3270
+	// application puts things — flush left reads as an error.
+	marginCol = 1
+
+	rowTitle     = 0
+	rowTitleRule = 1
+	rowMessage   = screenRows - 5
+	rowStatus    = screenRows - 4
+	rowPrompt    = screenRows - 3
+	rowFooter    = screenRows - 2
+	rowKeys      = screenRows - 1
+
 	// selectionCol is where the input field's attribute byte sits; the value
 	// starts one column after it.
-	selectionCol = 17
+	selectionCol = 15
+
+	// Column positions for the list, chosen so a 15-character system name and
+	// a 44-character description both fit without wrapping.
+	colSel         = marginCol + 1
+	colName        = marginCol + 5
+	colDescription = marginCol + 22
 )
 
-// layout says where the list starts for this branding.
-func layout(brand Branding) (heading, rule, firstItem int) {
-	heading = len(brand.Banner) + 2
-	return heading, heading + 1, heading + 2
+// layout says where the list starts and how tall it is for this branding.
+func layout(brand Branding) (heading, firstItem, perPage int) {
+	heading = rowTitleRule + 1 + len(brand.Banner)
+	firstItem = heading + 2
+	perPage = rowMessage - 1 - firstItem
+	if perPage < 1 {
+		perPage = 1
+	}
+	return heading, firstItem, perPage
 }
 
-// maxEntriesFor is how many hosts fit under this branding.
+// maxEntriesFor is how many hosts one page holds.
 func maxEntriesFor(brand Branding) int {
-	_, _, firstItem := layout(brand)
-	n := rowMessage - 1 - firstItem
-	if n < 1 {
+	_, _, perPage := layout(brand)
+	return perPage
+}
+
+// pageCount is how many pages this menu has.
+func (m *Menu) pageCount() int {
+	_, _, perPage := layout(m.brand)
+	pages := (len(m.entries) + perPage - 1) / perPage
+	if pages < 1 {
 		return 1
 	}
-	return n
+	return pages
 }
 
-// screen builds the selection display, with an optional message.
-func (m *Menu) screen(message string) (go3270.Screen, int, int) {
-	heading, rule, firstItem := layout(m.brand)
+// screen builds the display for one page, with an optional message.
+//
+// page is zero-based and clamped, so a caller cannot page past either end.
+func (m *Menu) screen(page int, message string) (go3270.Screen, int, int) {
+	heading, firstItem, perPage := layout(m.brand)
+	pages := m.pageCount()
+	if page < 0 {
+		page = 0
+	}
+	if page >= pages {
+		page = pages - 1
+	}
 
-	screen := go3270.Screen{}
+	rule := strings.Repeat("-", screenCols-2*marginCol)
+
+	screen := go3270.Screen{
+		// The title bar: who this is, and what it is. Right-aligned on the
+		// same row rather than centred, because a centred title moves every
+		// time a site renames itself.
+		{Row: rowTitle, Col: marginCol, Intense: true, Content: truncate(m.brand.Title, 40)},
+		{Row: rowTitle, Col: screenCols - marginCol - 15, Color: go3270.Turquoise,
+			Content: "SESSION MANAGER"},
+		{Row: rowTitleRule, Col: marginCol, Color: go3270.Blue, Content: rule},
+	}
+
 	for i, line := range m.brand.Banner {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		screen = append(screen, go3270.Field{Row: i, Col: 3, Intense: true, Content: line})
+		screen = append(screen, go3270.Field{
+			Row: rowTitleRule + 1 + i, Col: marginCol, Intense: true, Content: line})
 	}
-	screen = append(screen, go3270.Field{
-		Row: len(m.brand.Banner), Col: 3, Color: go3270.Turquoise,
-		Content: m.brand.Title + "  -  SESSION SELECTION"})
 
 	screen = append(screen,
-		go3270.Field{Row: heading, Col: 3, Color: go3270.Blue, Content: "SEL"},
-		go3270.Field{Row: heading, Col: 8, Color: go3270.Blue, Content: "SYSTEM"},
-		go3270.Field{Row: heading, Col: 25, Color: go3270.Blue, Content: "DESCRIPTION"},
-		go3270.Field{Row: rule, Col: 3, Color: go3270.Blue,
-			Content: "---  ---------------  " + strings.Repeat("-", 45)},
+		go3270.Field{Row: heading, Col: colSel, Color: go3270.Blue, Content: "SEL"},
+		go3270.Field{Row: heading, Col: colName, Color: go3270.Blue, Content: "SYSTEM"},
+		go3270.Field{Row: heading, Col: colDescription, Color: go3270.Blue, Content: "DESCRIPTION"},
+		go3270.Field{Row: heading + 1, Col: marginCol, Color: go3270.Blue, Content: rule},
 	)
 
-	for i, entry := range m.entries {
-		row := firstItem + i
+	first := page * perPage
+	for i := first; i < len(m.entries) && i < first+perPage; i++ {
+		entry := m.entries[i]
+		row := firstItem + (i - first)
 		screen = append(screen,
-			go3270.Field{Row: row, Col: 4, Intense: true, Content: fmt.Sprintf("%2d", i+1)},
-			go3270.Field{Row: row, Col: 8, Content: truncate(entry.Name, 15)},
-			go3270.Field{Row: row, Col: 25, Color: go3270.Green, Content: truncate(describe(entry), 50)},
+			// Numbered globally rather than per page, so the number beside a
+			// system is the same whichever page it was found on — which is
+			// what makes "type 12" something an operator can learn.
+			go3270.Field{Row: row, Col: colSel, Intense: true, Content: fmt.Sprintf("%3d", i+1)},
+			go3270.Field{Row: row, Col: colName, Content: truncate(entry.Name, 15)},
+			go3270.Field{Row: row, Col: colDescription, Color: go3270.Green,
+				Content: truncate(describe(entry), screenCols-colDescription-marginCol)},
 		)
 	}
 
 	if message != "" {
-		screen = append(screen,
-			go3270.Field{Row: rowMessage, Col: 3, Intense: true, Color: go3270.Red,
-				Content: truncate(message, MaxLineWidth)})
+		screen = append(screen, go3270.Field{Row: rowMessage, Col: marginCol,
+			Intense: true, Color: go3270.Red, Content: truncate(message, MaxLineWidth)})
 	}
 
+	// The count and the page, on their own line above the command line. An
+	// operator who cannot see that there is a second page will not look for it.
+	status := fmt.Sprintf("%d system%s", len(m.entries), plural(len(m.entries)))
+	if pages > 1 {
+		status += fmt.Sprintf("   -   Page %d of %d", page+1, pages)
+	}
 	screen = append(screen,
-		go3270.Field{Row: rowPrompt, Col: 3, Content: "SELECTION ==>"},
-		// The input field, and the field that closes it. Without the closing
-		// field the input would run to the end of the line and swallow the
-		// rest of the row.
+		go3270.Field{Row: rowStatus, Col: marginCol, Color: go3270.Turquoise, Content: status},
+		go3270.Field{Row: rowPrompt, Col: marginCol, Content: "SELECTION ==>"},
 		go3270.Field{Row: rowPrompt, Col: selectionCol, Name: "selection", Write: true,
 			Highlighting: go3270.Underscore},
 		go3270.Field{Row: rowPrompt, Col: selectionCol + 7},
 	)
 	if m.brand.Footer != "" {
-		screen = append(screen,
-			go3270.Field{Row: rowFooter, Col: 3, Color: go3270.Green, Content: m.brand.Footer})
+		screen = append(screen, go3270.Field{Row: rowFooter, Col: marginCol,
+			Color: go3270.Green, Content: m.brand.Footer})
 	}
-	screen = append(screen, go3270.Field{Row: rowKeys, Col: 3, Color: go3270.Turquoise,
-		Content: "ENTER  Connect      PF3  Sign off      PF12  Clear"})
+	screen = append(screen, go3270.Field{Row: rowKeys, Col: marginCol,
+		Color: go3270.Turquoise, Content: keyLegend(pages > 1)})
 
 	return screen, rowPrompt, selectionCol + 1
 }
 
+// keyLegend names the keys that do something on this screen, and only those:
+// offering PF7 on a menu with one page teaches an operator a key that does
+// nothing.
+func keyLegend(paged bool) string {
+	if paged {
+		return "ENTER Connect   PF7 Back   PF8 Forward   PF3 Sign off   PF12 Clear"
+	}
+	return "ENTER Connect   PF3 Sign off   PF12 Clear"
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
 // connectingScreen replaces the menu once a choice is made.
 func (m *Menu) connectingScreen(entry Entry) (go3270.Screen, int, int) {
+	rule := strings.Repeat("-", screenCols-2*marginCol)
 	return go3270.Screen{
-		{Row: 0, Col: 3, Intense: true, Content: m.brand.Title},
-		{Row: 2, Col: 3, Color: go3270.Turquoise, Content: "SESSION SELECTION"},
-		{Row: 8, Col: 3, Intense: true, Content: "Connecting to " + truncate(entry.Name, 40)},
-		{Row: 10, Col: 3, Color: go3270.Green, Content: truncate(describe(entry), 60)},
-		{Row: 12, Col: 3, Content: "The session opens in a moment."},
-	}, 12, 3
+		{Row: rowTitle, Col: marginCol, Intense: true, Content: truncate(m.brand.Title, 40)},
+		{Row: rowTitle, Col: screenCols - marginCol - 15, Color: go3270.Turquoise,
+			Content: "SESSION MANAGER"},
+		{Row: rowTitleRule, Col: marginCol, Color: go3270.Blue, Content: rule},
+		{Row: 8, Col: marginCol, Intense: true, Content: "Connecting to " + truncate(entry.Name, 40)},
+		{Row: 10, Col: marginCol, Color: go3270.Green, Content: truncate(describe(entry), 70)},
+		{Row: 12, Col: marginCol, Content: "The session opens in a moment."},
+	}, 12, marginCol
 }
 
 // describe is what the description column shows: the profile's own words where
@@ -449,12 +531,14 @@ func truncate(s string, max int) string {
 // what an administrator sees while editing the branding is the screen and not
 // an impression of it.
 func Preview(brand Branding, entries []Entry) []string {
+	return PreviewPage(brand, entries, 0)
+}
+
+// PreviewPage renders one page of the screen as plain text.
+func PreviewPage(brand Branding, entries []Entry, page int) []string {
 	brand = brand.resolve()
-	if max := maxEntriesFor(brand); len(entries) > max {
-		entries = entries[:max]
-	}
 	m := &Menu{entries: entries, brand: brand}
-	screen, _, _ := m.screen("")
+	screen, _, _ := m.screen(page, "")
 
 	grid := make([][]rune, screenRows)
 	for i := range grid {

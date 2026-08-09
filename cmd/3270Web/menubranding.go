@@ -173,7 +173,12 @@ func (app *App) AdminSaveMenuBrandingHandler(c *gin.Context) {
 // administrator can see the result without opening a terminal session against
 // their own instance.
 func (app *App) AdminPreviewMenuHandler(c *gin.Context) {
-	profiles, err := app.assignedProfiles(c)
+	// The whole published set, not the caller's own assigned list. This is a
+	// preview of the screen rather than of their screen: an administrator
+	// checking their artwork should see the host list they administer, and
+	// theirs is often short or empty precisely because they assigned the
+	// hosts to other people.
+	profiles, err := app.visibleProfiles(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host list"})
 		return

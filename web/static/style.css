@@ -5506,3 +5506,28 @@ body.copilot-open .page-wrap {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Who a published host profile is for. Grouped in a fieldset rather than
+   scattered among the connection settings, because these answer a different
+   question — not how to reach the mainframe, but who may. */
+.profiles-share {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.profiles-share legend {
+  padding: 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.profiles-audience-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}

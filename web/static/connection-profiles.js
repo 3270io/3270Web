@@ -42,8 +42,14 @@
     });
   }
 
+  var canShare = false;
+  var knownGroups = [];
+
   function load() {
     return api("/api/profiles").then(function (payload) {
+      canShare = !!payload.canShare;
+      knownGroups = payload.groups || [];
+      syncShareVisibility();
       profiles = payload && Array.isArray(payload.profiles) ? payload.profiles : [];
       renderList();
       return profiles;
@@ -160,6 +166,36 @@
     }
   }
 
+  // syncShareVisibility shows the publishing block only where publishing means
+  // something, and fills the group list from the names already in use so the
+  // same team is not spelled two ways.
+  function syncShareVisibility() {
+    if (!formEl) {
+      return;
+    }
+    var share = formEl.querySelector("[data-profiles-share]");
+    if (share) {
+      share.hidden = !canShare;
+    }
+    var list = formEl.querySelector("[data-profiles-known-groups]");
+    if (list) {
+      list.textContent = "";
+      knownGroups.forEach(function (name) {
+        var option = document.createElement("option");
+        option.value = name;
+        list.appendChild(option);
+      });
+    }
+  }
+
+  function commaList(value) {
+    return String(value || "").split(",").map(function (s) {
+      return s.trim();
+    }).filter(function (s) {
+      return s !== "";
+    });
+  }
+
   function fill(p) {
     if (!formEl) {
       return;
@@ -173,6 +209,12 @@
     formEl.elements.model.value = p.model || "";
     formEl.elements.codePage.value = p.codePage || "";
     formEl.elements.description.value = p.description || "";
+    if (formEl.elements.publish) {
+      formEl.elements.publish.checked = !!p.shared;
+      formEl.elements.audienceGroups.value = (p.groups || []).join(", ");
+      formEl.elements.audienceUsers.value = (p.users || []).join(", ");
+      formEl.elements.audienceRoles.value = (p.roles || [])[0] || "";
+    }
     syncSkipVerify();
     setStatus("Editing “" + p.name + "”. Saving replaces it.");
     formEl.elements.name.focus();
@@ -215,6 +257,13 @@
       codePage: formEl.elements.codePage.value,
       description: formEl.elements.description.value
     };
+    if (canShare && formEl.elements.publish) {
+      payload.publish = formEl.elements.publish.checked;
+      payload.groups = commaList(formEl.elements.audienceGroups.value);
+      payload.users = commaList(formEl.elements.audienceUsers.value);
+      var role = formEl.elements.audienceRoles.value;
+      payload.roles = role ? [role] : [];
+    }
     api("/api/profiles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -312,6 +361,20 @@
       '    <label class="profiles-check"><input name="tls" type="checkbox"> Use TLS</label>',
       '    <label class="profiles-check"><input name="skipVerify" type="checkbox" disabled> Skip certificate verification <span class="subtle">weaker — only for self-signed test hosts</span></label>',
       '    <label>Description <span class="subtle">optional</span><input name="description" type="text" maxlength="200"></label>',
+      // Publishing and its audience are one block, shown only to an
+      // administrator: on an instance with one operator there is nobody to
+      // publish to, and for anybody else a save is their own copy.
+      '    <fieldset class="profiles-share" data-profiles-share hidden>',
+      '      <legend>Who this host is for</legend>',
+      '      <label class="profiles-check"><input name="publish" type="checkbox"> Share with everyone <span class="subtle">otherwise this is your own copy</span></label>',
+      '      <div class="profiles-form-grid" data-profiles-audience>',
+      '        <label>Groups <span class="subtle">comma separated</span><input name="audienceGroups" type="text" list="profile-known-groups" placeholder="payments, ops"></label>',
+      '        <label>Users <span class="subtle">comma separated</span><input name="audienceUsers" type="text" placeholder="alice, bob"></label>',
+      '        <label>Roles<select name="audienceRoles"><option value="">Any role</option><option value="user">Users only</option><option value="admin">Administrators only</option></select></label>',
+      '      </div>',
+      '      <datalist id="profile-known-groups" data-profiles-known-groups></datalist>',
+      '      <p class="subtle profiles-audience-hint">Leave all three empty and everyone sees this host. Naming any of them narrows it to whoever matches at least one.</p>',
+      "    </fieldset>",
       '    <div class="profiles-form-actions">',
       '      <span class="profiles-status" data-profiles-status aria-live="polite"></span>',
       '      <button type="button" data-profiles-clear>Clear</button>',
@@ -326,6 +389,7 @@
     formEl = modal.querySelector("[data-profiles-form]");
     statusEl = modal.querySelector("[data-profiles-status]");
 
+    syncShareVisibility();
     formEl.addEventListener("submit", save);
     formEl.elements.tls.addEventListener("change", syncSkipVerify);
     modal.querySelector("[data-profiles-clear]").addEventListener("click", clearForm);

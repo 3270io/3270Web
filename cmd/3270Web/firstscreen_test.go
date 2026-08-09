@@ -145,7 +145,7 @@ func TestSeveralAssignedHostsLandOnTheSelectionScreen(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	for _, want := range []string{"SESSION SELECTION", "CICSPROD", "CICSTEST", "SELECTION"} {
+	for _, want := range []string{"SESSION MANAGER", "CICSPROD", "CICSTEST", "SELECTION ==>"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the first screen does not show %q. Screen:\n%s", want, text)
 		}
@@ -256,8 +256,8 @@ func TestChoosingASystemConnectsTheSessionToIt(t *testing.T) {
 	sess, _ := app.SessionManager.GetSession(id)
 	defer app.cleanupSession(sess)
 
-	if !waitForScreen(t, app, sess, "SESSION SELECTION") {
-		t.Fatal("the selection screen never appeared")
+	if !waitForScreen(t, app, sess, "SESSION MANAGER") {
+		t.Fatal("the session manager never appeared")
 	}
 
 	// Type the selection and press Enter, exactly as the browser does. The
