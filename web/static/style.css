@@ -86,6 +86,13 @@ body.bg-paused .bg-overlay canvas {
   --fg-muted: #8bdc79;
   --accent: #39ff14;
   --accent-2: #7cff3b;
+  /* Text drawn on an --accent-colored fill (the touch keypad's Enter key, a
+     notification action button). Every built-in theme's accent is a bright,
+     saturated color that white text all but disappears into — measured
+     contrast as low as 1.3:1, far under the 3:1 floor for bold text — so
+     black is the sane default. The two paper themes swap it back to white,
+     since their accent is a dark teal instead. */
+  --accent-contrast: #000;
   --term-color-blue: #0000ff;
   --term-color-red: #ff0000;
   --term-color-pink: #ff77ff;
@@ -162,6 +169,7 @@ body.theme-classic {
   --fg-muted: #c6a45f;
   --accent: #ffbe3b;
   --accent-2: #fff3bf;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.28;
 }
 
@@ -174,6 +182,7 @@ body.theme-dark {
   --fg-muted: #7ea2c6;
   --accent: #43d9ff;
   --accent-2: #78ffe0;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.4;
 }
 
@@ -186,6 +195,7 @@ body.theme-light {
   --fg-muted: #72604a;
   --accent: #0f6d8f;
   --accent-2: #b6621f;
+  --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
@@ -205,6 +215,7 @@ body.theme-modern {
   --fg-muted: #c594c4;
   --accent: #4bffcf;
   --accent-2: #ffd166;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.32;
 }
 
@@ -217,6 +228,7 @@ body.theme-slick {
   --fg-muted: #86b9c6;
   --accent: #2df4ff;
   --accent-2: #57ffa5;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.22;
 }
 
@@ -229,6 +241,7 @@ body.theme-yorkshire {
   --fg-muted: #5da75d;
   --accent: #33cc33;
   --accent-2: #66dd66;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.35;
   --crt-glow: #00ff804d;
   --crt-scanline: #00ff8026;
@@ -296,6 +309,7 @@ body.theme-authentic {
   --fg-muted: #64b664;
   --accent: #45ff45;
   --accent-2: #98ff7a;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.02;
   font-family: var(--mono);
 }
@@ -332,6 +346,7 @@ body.theme-minimal {
   --fg-muted: #7ea2c6;
   --accent: #43d9ff;
   --accent-2: #78ffe0;
+  --accent-contrast: #000;
   --bg-overlay-opacity: 0.4;
 }
 
@@ -344,6 +359,7 @@ body.theme-not3270 {
   --fg-muted: #72604a;
   --accent: #0f6d8f;
   --accent-2: #b6621f;
+  --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
@@ -2142,37 +2158,29 @@ pre, pre input, textarea {
   .terminal-size-slider {
     width: 110px;
   }
-}
-
-/* Phone widths.
-
-   Two separate things broke the layout here. The header action row is nowrap
-   and about 500px wide, which pushed the document 150px past a 412px viewport
-   — and since a position:fixed box is sized from the initial containing block,
-   that stretched the fixed tools widget and background canvas along with it.
-   The tools widget itself then sat on a single nowrap row of controls wider
-   than the screen, hanging off the edge where, being fixed, nothing could
-   scroll to reach it. */
-@media (max-width: 560px) {
-  /* Let the title keep its own row rather than being overlapped: brand-lockup
-     carries min-width:0, so without wrapping it shrinks below its text and the
-     translucent action group rides over the wordmark. */
-  .card-header {
-    flex-wrap: wrap;
-  }
 
   /* One scrolling row, not three wrapped ones.
 
-     Wrapping kept the document inside the viewport but spent the height doing
-     it: eleven controls at 44px each became a 154px block, and with the brand
-     lockup, the account chip and the Disconnect row above it the terminal
-     itself did not start until 515px down a 915px screen — a 24x80 screen in
-     the remaining 180px, which is a terminal nobody can read.
+     The header action row is nowrap and, with every icon button plus the
+     BUSINESS/Profiles/Connection/About labels, comfortably wider than a
+     phone — and wider than a portrait tablet too, which is the case this
+     used to miss: the fix below only applied under 560px, so anything from
+     a small tablet up to just short of this 980px query still pushed the
+     document sideways. And since a position:fixed box is sized from the
+     initial containing block, that stretched the fixed tools widget and
+     bottom action bar along with it.
+
+     Wrapping would keep the document inside the viewport but spends height
+     doing it: eleven controls at 44px each becomes a tall block, and with
+     the brand lockup, the account chip and the Disconnect row above it the
+     terminal itself starts well down the screen — a 24x80 screen squeezed
+     into whatever is left, which is a terminal nobody can read.
 
      A nowrap row inside an overflow-x:auto container costs one row and does
-     not widen the page, because the overflow is the container's to scroll and
-     not the document's. The controls stay in the same order and the same DOM,
-     so tooltips, the command palette and focus mode are untouched. */
+     not widen the page, because the overflow is the container's to scroll
+     and not the document's. The controls stay in the same order and the
+     same DOM, so tooltips, the command palette and focus mode are
+     untouched. */
   .header-chrome-actions,
   .toolbar[data-main-toolbar] {
     flex-wrap: nowrap;
@@ -2198,6 +2206,20 @@ pre, pre input, textarea {
   .header-chrome-actions > *,
   .toolbar[data-main-toolbar] > * {
     flex: 0 0 auto;
+  }
+}
+
+/* Phone widths.
+
+   The tools widget sat on a single nowrap row of controls wider than the
+   screen, hanging off the edge where, being fixed, nothing could scroll to
+   reach it. */
+@media (max-width: 560px) {
+  /* Let the title keep its own row rather than being overlapped: brand-lockup
+     carries min-width:0, so without wrapping it shrinks below its text and the
+     translucent action group rides over the wordmark. */
+  .card-header {
+    flex-wrap: wrap;
   }
 
   /* The chrome around the terminal is overhead on a phone; every pixel it
@@ -4672,7 +4694,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .h3270-notification__action {
   flex-shrink: 0;
   background: var(--accent);
-  color: var(--accent-contrast, #fff);
+  color: var(--accent-contrast, #000);
   border: none;
   border-radius: 4px;
   padding: 4px 10px;
