@@ -321,6 +321,11 @@
       title.textContent = mode === "pick" ? "Open a session" : "Connection profiles";
     }
     clearForm();
+    // Escape, focus, the Tab trap, the background scroll lock and the focus
+    // restore all belong to pushModal/popModal — see modal-utils.js.
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close);
+    }
     load().catch(function (err) {
       setStatus((err && err.message) || "Could not load profiles.", true);
     });
@@ -329,6 +334,9 @@
   function close() {
     if (modal) {
       modal.hidden = true;
+      if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+        window.ThreeSeventyWeb.popModal(modal);
+      }
     }
   }
 
@@ -397,17 +405,6 @@
     for (var i = 0; i < closers.length; i++) {
       closers[i].addEventListener("click", close);
     }
-    document.addEventListener(
-      "keydown",
-      function (event) {
-        if (isOpen() && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      },
-      true
-    );
   }
 
   document.addEventListener("DOMContentLoaded", function () {

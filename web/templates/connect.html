@@ -9,10 +9,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=14">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=15">
     <!-- Shared design system layer; see the note in screen.html. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=16">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=3">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=4">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -21,9 +21,9 @@
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
-    <script src="/static/theme.js?v=8" defer></script>
+    <script src="/static/theme.js?v=9" defer></script>
     <script src="/static/background.js" defer></script>
-    <script src="/static/ui.js?v=20" defer></script>
+    <script src="/static/ui.js?v=21" defer></script>
     <script src="/static/connection-profiles.js" defer></script>
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-embed-origins="{{ .EmbedOrigins }}">
@@ -56,7 +56,7 @@
                     <span class="user-chip">
                         <span class="admin-avatar" aria-hidden="true">{{ slice .Auth.Username 0 1 }}</span>
                         <span class="user-chip-name" title="Signed in as {{ .Auth.Username }}">{{ .Auth.Username }}</span>
-                        {{ if .Auth.IsAdmin }}<a href="/admin/users"><button type="button">Accounts</button></a>{{ end }}
+                        {{ if .Auth.IsAdmin }}<a class="button-link" href="/admin/users">Accounts</a>{{ end }}
                         <form action="/logout" method="post"><button type="submit">Sign out</button></form>
                     </span>
                     {{ end }}
@@ -210,7 +210,7 @@
             </div>
         </div>
     </div>
-    <script src="/static/modal-utils.js" defer></script>
+    <script src="/static/modal-utils.js?v=2" defer></script>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/connect-page.js"></script>

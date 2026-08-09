@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -119,17 +120,38 @@ func (app *App) totalSessionCap() int {
 // which is what stops that from being a way around the limit.
 func (app *App) checkSessionCaps(ownerID string) error {
 	if total := app.totalSessionCap(); total > 0 && app.SessionManager.Count() >= total {
-		return fmt.Errorf("this 3270Web instance already has its maximum of %d sessions open", total)
+		return refuse(errSessionLimit, fmt.Sprintf(
+			"This 3270Web instance already has its maximum of %s open. "+
+				"Wait for one to close, or ask an administrator to raise the limit.", sessionCount(total)))
 	}
 	if ownerID == "" {
 		return nil
 	}
 	if perUser := app.perUserSessionCap(); perUser > 0 &&
 		app.SessionManager.CountFor(ownerID) >= perUser {
-		return fmt.Errorf("you already have the maximum of %d sessions open; close one first", perUser)
+		return refuse(errSessionLimit, fmt.Sprintf(
+			"You already have the maximum of %s open. Close one before opening another.", sessionCount(perUser)))
 	}
 	return nil
 }
+
+// sessionCount writes a count the way somebody reads it, so a cap of one does
+// not produce "the maximum of 1 sessions".
+func sessionCount(n int) string {
+	if n == 1 {
+		return "1 session"
+	}
+	return fmt.Sprintf("%d sessions", n)
+}
+
+// errSessionLimit marks a refusal for how many sessions are already open,
+// rather than for anything about the host being dialled.
+//
+// It is a refusal the person can act on — close a tab — so it must reach them
+// intact. Reported as a plain error it was indistinguishable from a host that
+// did not answer, and the connect page told an operator at their limit to
+// check the address and whether the TN3270 service was up.
+var errSessionLimit = errors.New("session limit reached")
 
 // envInt reads a positive integer setting, falling back when unset or
 // unparseable.

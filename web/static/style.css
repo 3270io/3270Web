@@ -1402,7 +1402,27 @@ button {
   background: linear-gradient(135deg, var(--panel-2), transparent);
 }
 
-button:hover {
+/* A link that navigates but is presented as a button.
+   The alternative — <a href="..."><button></button></a> — is invalid HTML,
+   and browsers make it behave like it: two tab stops for what looks like one
+   control, and Space (which a button answers to) doing nothing on the anchor
+   that actually carries the destination. */
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg);
+  background: linear-gradient(135deg, var(--panel-2), transparent);
+  background-color: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button:hover,
+.button-link:hover {
   border-color: var(--accent);
 }
 

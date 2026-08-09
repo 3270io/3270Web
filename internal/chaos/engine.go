@@ -2823,10 +2823,6 @@ func (e *Engine) generateValueForFieldWith(f *host.Field, preferTransaction bool
 	return e.generateValueForFieldWithPolicy(f, preferTransaction, knownValues, triedValues, screenHint, false)
 }
 
-func (e *Engine) hintValueForField(f *host.Field, preferTransaction bool, screenHint *ScreenHint) string {
-	return e.hintValueForFieldWithPolicy(f, preferTransaction, screenHint, false)
-}
-
 func (e *Engine) hintValueForFieldWithPolicy(f *host.Field, preferTransaction bool, screenHint *ScreenHint, force bool) string {
 	if len(e.hintTransactions) == 0 && len(e.hintKnownData) == 0 &&
 		len(e.defaultHintTx) == 0 && len(e.defaultHintData) == 0 &&

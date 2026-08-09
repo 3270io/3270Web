@@ -7,34 +7,30 @@
 
   const closeButtons = modal.querySelectorAll('[data-disconnect-close]');
   const confirmButton = modal.querySelector('[data-disconnect-confirm]');
-  const focusTrap =
-    window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
-      ? window.ThreeSeventyWeb.createFocusTrap(modal)
-      : { activate() {}, deactivate() {} };
 
+  // Focus, the Tab trap, the background scroll lock and the focus restore all
+  // belong to pushModal/popModal — see modal-utils.js. Ending the session is
+  // the one thing here worth an explicit initial focus: the confirm button,
+  // not the cancel button that happens to come first in the markup.
   const openModal = (event) => {
     if (event) {
       event.preventDefault();
     }
     modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    focusTrap.activate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-      window.ThreeSeventyWeb.pushModal(modal, closeModal);
-    }
-    if (confirmButton) {
+      window.ThreeSeventyWeb.pushModal(modal, closeModal, { initialFocus: confirmButton });
+    } else if (confirmButton) {
       confirmButton.focus();
     }
   };
 
   const closeModal = () => {
     modal.hidden = true;
-    document.body.style.overflow = '';
-    focusTrap.deactivate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
       window.ThreeSeventyWeb.popModal(modal);
+    } else {
+      trigger.focus();
     }
-    trigger.focus();
   };
 
   trigger.addEventListener('click', openModal);

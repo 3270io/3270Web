@@ -246,7 +246,13 @@
     capturing = null;
     setStatus("");
     render();
-    if (filterEl) {
+    // Focus, the Tab trap, the background scroll lock and the focus restore
+    // belong to pushModal/popModal — see modal-utils.js. The filter box takes
+    // initial focus: with two dozen bindings listed, narrowing is the first
+    // thing anybody does here.
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close, { initialFocus: filterEl });
+    } else if (filterEl) {
       filterEl.focus();
     }
   }
@@ -257,6 +263,9 @@
     }
     modal.hidden = true;
     capturing = null;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(modal);
+    }
   }
 
   function isOpen() {
@@ -352,17 +361,9 @@
   // cannot be captured by any web page; the dialog says so rather than
   // letting an operator wonder why the key never took.
   window.addEventListener("keydown", onCaptureKeydown, true);
-  window.addEventListener(
-    "keydown",
-    function (event) {
-      if (isOpen() && !capturing && event.key === "Escape") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        close();
-      }
-    },
-    true
-  );
+  // An Escape that is not cancelling a rebind belongs to the shared modal
+  // stack, which closes only the topmost dialog. onCaptureKeydown above still
+  // takes the one that is: it runs first and stops the event there.
 
   document.addEventListener("DOMContentLoaded", function () {
     if (!document.querySelector(".terminal-shell")) {

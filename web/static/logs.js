@@ -24,16 +24,7 @@
 
   let autoRefreshInterval = null;
   let isMaximized = false;
-  let lastFocusedElement = null;
-  let clearConfirmReturnFocus = null;
   let logAccessEnabled = true;
-
-  const makeTrap = (el) =>
-    window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
-      ? window.ThreeSeventyWeb.createFocusTrap(el)
-      : { activate() {}, deactivate() {} };
-  const focusTrap = makeTrap(modal);
-  const clearConfirmTrap = makeTrap(clearConfirmModal);
 
   const logsToggleLabel = logsToggle
     ? logsToggle.closest('.logs-toggle-label')
@@ -42,19 +33,12 @@
     ? accessToggle.closest('.logs-toggle-label')
     : null;
 
+  // Focus, the Tab trap, the background scroll lock and the focus restore all
+  // belong to pushModal/popModal — see modal-utils.js.
   const openModal = () => {
-    lastFocusedElement = document.activeElement;
     modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    focusTrap.activate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
       window.ThreeSeventyWeb.pushModal(modal, closeModal);
-    }
-    const firstFocusable = modal.querySelector(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (firstFocusable) {
-      firstFocusable.focus();
     }
     fetchLogAccess().finally(() => {
       if (logAccessEnabled) {
@@ -67,16 +51,10 @@
   const closeModal = () => {
     closeClearConfirm();
     modal.hidden = true;
-    document.body.style.overflow = '';
-    focusTrap.deactivate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
       window.ThreeSeventyWeb.popModal(modal);
     }
     stopAutoRefresh();
-    if (lastFocusedElement) {
-      lastFocusedElement.focus();
-      lastFocusedElement = null;
-    }
   };
 
   const startAutoRefresh = () => {
@@ -315,19 +293,9 @@
       clearLogsConfirmed();
       return;
     }
-    clearConfirmReturnFocus = document.activeElement;
     clearConfirmModal.hidden = false;
-    // Hand the focus trap off to the nested confirm dialog so Tab stays within it.
-    focusTrap.deactivate();
-    clearConfirmTrap.activate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
       window.ThreeSeventyWeb.pushModal(clearConfirmModal, closeClearConfirm);
-    }
-    const firstFocusable = clearConfirmModal.querySelector(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (firstFocusable) {
-      firstFocusable.focus();
     }
   };
 
@@ -336,21 +304,9 @@
       return;
     }
     clearConfirmModal.hidden = true;
-    clearConfirmTrap.deactivate();
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
       window.ThreeSeventyWeb.popModal(clearConfirmModal);
     }
-    // Restore the trap on the parent logs modal if it is still open.
-    if (!modal.hidden) {
-      focusTrap.activate();
-    }
-    if (
-      clearConfirmReturnFocus &&
-      typeof clearConfirmReturnFocus.focus === 'function'
-    ) {
-      clearConfirmReturnFocus.focus();
-    }
-    clearConfirmReturnFocus = null;
   };
 
   const downloadLogs = () => {

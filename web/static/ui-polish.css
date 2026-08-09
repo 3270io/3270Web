@@ -3427,6 +3427,44 @@ body.copilot-resizing {
   opacity: 0.9;
 }
 
+/* The same idea sideways, for the toolbars.
+
+   They are overflow-x: auto with the scrollbar deliberately hidden, which on a
+   narrow screen leaves the controls past the right edge with nothing to say
+   they are there — the row simply looks like it ends. A fade at whichever edge
+   still has content behind it is the affordance a hidden scrollbar removed. */
+.polish-hscroll {
+  position: relative;
+}
+
+.polish-hscroll::before,
+.polish-hscroll::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+  z-index: 2;
+}
+
+.polish-hscroll::before {
+  left: 0;
+  background: linear-gradient(to right, var(--panel), transparent);
+}
+
+.polish-hscroll::after {
+  right: 0;
+  background: linear-gradient(to left, var(--panel), transparent);
+}
+
+.polish-hscroll.has-scroll-start::before,
+.polish-hscroll.has-scroll-end::after {
+  opacity: 0.95;
+}
+
 /* ---------------------------------------------------------------------
    12. Motion + contrast preferences
    --------------------------------------------------------------------- */

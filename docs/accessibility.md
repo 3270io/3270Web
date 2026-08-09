@@ -102,6 +102,32 @@ be automated are, and they enumerate the templates on disk rather than a list
 of names — a list only covers the pages somebody remembered to add to it. A
 new page that ships without them fails the build.
 
+### Dialog behaviour
+
+A static scan reads the markup of a dialog; it cannot press Tab. The
+properties that matter for a dialog are all behavioural, so there is a browser
+check for them:
+
+```bash
+ALLOW_SAMPLE_APPS=true go run ./cmd/3270Web    # another terminal
+node scripts/check-modals.mjs
+```
+
+It opens every dialog on the terminal screen in turn and asserts that opening
+one moves focus into it (2.4.3), that Tab stays inside it (2.4.3), that the
+page behind the backdrop does not scroll, that Escape closes the topmost
+dialog and only that one, and that closing everything releases the scroll lock
+again.
+
+These are properties of one shared helper — `web/static/modal-utils.js` — and
+that is the point. Each of them had been got wrong at least once by a dialog
+that arranged its own: a focus trap listening on a dialog that focus was never
+moved into, so Tab walked into the page behind it; a scroll lock on `<body>`
+on a page where `<html>` is the element that scrolls; and several private
+Escape listeners that all fired on one keypress, closing a dialog and the one
+it had been opened from together. A dialog joins the shared stack by calling
+`pushModal` when it opens and `popModal` when it closes, and gets all five.
+
 ## Known issues
 
 Stated because a conformance claim that lists nothing is not a conformance

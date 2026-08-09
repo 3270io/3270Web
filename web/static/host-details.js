@@ -55,13 +55,7 @@
     var allEl = modal.querySelector("[data-host-details-all]");
     var refreshBtn = modal.querySelector("[data-host-details-refresh]");
     var copyBtn = modal.querySelector("[data-host-details-copy]");
-    var lastFocused = null;
     var loaded = null;
-
-    var focusTrap =
-      window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
-        ? window.ThreeSeventyWeb.createFocusTrap(modal)
-        : { activate: function () {}, deactivate: function () {} };
 
     function setStatus(text, isError) {
       statusEl.textContent = text || "";
@@ -188,30 +182,19 @@
       return lines.join("\n");
     }
 
+    // Focus, the Tab trap, the background scroll lock and the focus restore
+    // all belong to pushModal/popModal — see modal-utils.js.
     function closeModal() {
       modal.hidden = true;
-      document.body.style.overflow = "";
-      focusTrap.deactivate();
       if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
         window.ThreeSeventyWeb.popModal(modal);
       }
-      if (lastFocused && typeof lastFocused.focus === "function") {
-        lastFocused.focus();
-      }
-      lastFocused = null;
     }
 
     function openModal() {
-      lastFocused = document.activeElement;
       modal.hidden = false;
-      document.body.style.overflow = "hidden";
-      focusTrap.activate();
       if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
         window.ThreeSeventyWeb.pushModal(modal, closeModal);
-      }
-      var first = modal.querySelector("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])");
-      if (first) {
-        first.focus();
       }
       // Read it fresh every time. These values change under the session —
       // byte counts always, and connection state exactly when it matters.
