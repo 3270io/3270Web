@@ -455,3 +455,70 @@ func TestDisambiguateTabLabels(t *testing.T) {
 		})
 	}
 }
+
+// The feature was fully built and nobody could find it: the way in was an
+// unlabelled + among nine other unlabelled icons, and the tab bar that would
+// have explained it stayed hidden until you already had two sessions. These
+// assert the properties that fixed it, because each one is a single attribute
+// away from regressing back into invisibility.
+
+func TestSessionTabBarIsNotHiddenBehindASecondSession(t *testing.T) {
+	src := templateSource(t, "screen.html")
+
+	bar := strings.Index(src, "data-session-tabs")
+	if bar < 0 {
+		t.Fatal("screen.html: the session tab bar is gone")
+	}
+	// The opening tag only. A `hidden` anywhere inside the bar's children is
+	// somebody else's business.
+	end := strings.Index(src[bar:], ">")
+	if end < 0 {
+		t.Fatal("screen.html: unterminated session tab bar tag")
+	}
+	if strings.Contains(src[bar:bar+end], "hidden") {
+		t.Error("screen.html: the tab bar is conditionally hidden again — " +
+			"it is where somebody learns a second session is possible, " +
+			"and it cannot teach that from behind a hidden attribute")
+	}
+}
+
+func TestNewSessionControlCarriesVisibleWords(t *testing.T) {
+	src := templateSource(t, "screen.html")
+
+	if strings.Count(src, "data-session-new") != 1 {
+		t.Fatal("screen.html: expected exactly one new-session control")
+	}
+	if !strings.Contains(src, "session-tab-new-label") {
+		t.Error("screen.html: the new-session control lost its visible label — " +
+			"a bare icon is how this feature went unnoticed the first time")
+	}
+	if !strings.Contains(src, ">New session<") {
+		t.Error(`screen.html: the new-session control no longer reads "New session"`)
+	}
+
+	// An aria-label here would override the visible words and give a speech
+	// user a different name from the one on screen (WCAG 2.5.3).
+	button := strings.Index(src, "data-session-new")
+	end := strings.Index(src[button:], ">")
+	if end > 0 && strings.Contains(src[button:button+end], "aria-label") {
+		t.Error("screen.html: aria-label on the new-session button overrides its " +
+			"visible name; the words on the button are the accessible name")
+	}
+}
+
+func TestNewSessionControlLivesInTheTabBar(t *testing.T) {
+	src := templateSource(t, "screen.html")
+
+	bar := strings.Index(src, `class="session-tab-bar"`)
+	toolbar := strings.Index(src, "data-main-toolbar")
+	trigger := strings.Index(src, "data-session-new")
+	if bar < 0 || toolbar < 0 || trigger < 0 {
+		t.Fatal("screen.html: tab bar, toolbar or new-session control is gone")
+	}
+	// Between the bar's opening tag and the toolbar that follows it — which
+	// is the tab bar's own markup, without depending on its exact shape.
+	if trigger < bar || trigger > toolbar {
+		t.Error("screen.html: the new-session control left the tab bar — " +
+			"beside the tabs it reads as 'add one of these'; back in the icon row it reads as nothing")
+	}
+}
