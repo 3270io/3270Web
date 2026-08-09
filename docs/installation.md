@@ -58,20 +58,37 @@ curl -fsSL https://3270Web.3270.io/install.sh | bash -s -- --method docker --yes
 | `--no-color` / `--color` | auto | Force colour off or on |
 | `--yes`, `-y` | off | Accept every prompt — use in CI |
 | `--dry-run` | off | Report what would happen, change nothing |
+| `--help`, `-h` | | Usage |
 
 !!! tip "Re-running it is the way to upgrade"
-    Run the installer again in the same place to take a new image or change a
-    setting. It updates the stack rather than replacing your install: settings
-    you do not pass are carried over from the existing file, the API token in
-    `.env` is kept — regenerating one would break every client holding it —
-    and the data folder is never touched.
+    Run the installer again to take a new image or change a setting. It
+    updates the install you already have rather than replacing it, and it does
+    not matter which directory you run it from: it asks Docker where 3270Web
+    is running and updates *that* stack, because the project directory
+    defaults to `./3270web` relative to wherever you are and a second one
+    elsewhere would not be a second install — Compose names its project after
+    that directory, so bringing it up recreates the container that is running.
+
+    Settings you do not pass are read back off the existing stack and the
+    running container: the accounts setting, the published port and address,
+    a pinned `--version`, the MCP tool tier, and the API token — regenerating
+    one would break every client holding it. The stack file it replaces is
+    kept beside the new one as `docker-compose.yml.bak`.
+
+    Above all, **the data folder is carried forward exactly as it is** —
+    whether that is `./data`, an absolute path or a Docker volume. Accounts,
+    API tokens, the audit trail and everyone's saved work live there, and a
+    container started against a different folder does not find them: it comes
+    up in [first-run setup](authentication.md) for whoever reaches it, with
+    all of it still sitting in the folder it stopped reading. If anything
+    would move that folder, the installer stops and says so instead of
+    restarting into it.
 
     `--auth local` and `--api-token` cannot be combined. One shared token
     would reach every account's sessions, so an instance with accounts refuses
     to start with one set; the installer says so and drops the token rather
     than writing a stack that will not come up. With accounts, each client
     gets [its own token](multi-user.md#api-tokens).
-| `--help`, `-h` | | Usage |
 
 Non-interactive by design: with no TTY (a CI job, a provisioning script) the
 installer stops asking and picks the binary on `amd64`, Docker elsewhere.
@@ -350,6 +367,26 @@ alternative is writing state somewhere the next deploy deletes.
     Mount the data folder on `/data`, never on `/app`: the binary and the
     `web/` assets live there, and a mount over `/app` would shadow them.
     Everything else is configured through environment variables.
+
+!!! warning "The sign-in page turned into a setup page"
+    Nothing has been deleted. A container that starts against a data folder
+    with no accounts in it has no way to tell "new install" from "wrong
+    folder", so it does the only safe thing and offers first-run setup. The
+    accounts are in the folder it *stopped* reading.
+
+    Do not complete the setup form — it would create a second administrator
+    on an empty instance. Find where the container is reading from and where
+    it used to:
+
+    ```bash
+    docker inspect -f '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 3270web
+    ```
+
+    Then point the `:/data` mapping in `docker-compose.yml` back at the folder
+    holding `users.json` and restart. Versions of the installer before this
+    behaviour existed could repoint it when re-run from a different directory;
+    the current one carries the folder forward and refuses to start against a
+    different one.
 
 !!! note "Upgrading from a version without `/data`"
     Older instances kept their files beside the program, and older stacks
