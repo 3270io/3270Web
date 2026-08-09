@@ -51,10 +51,26 @@
 
             {{ if .ShowNoTLS }}
             <div class="auth-alert auth-alert--warn" style="margin-top:18px;margin-bottom:0">
+                {{ if .ProxySaysHTTPS }}
+                <span>
+                    Something in front of this server says your browser reached
+                    it over HTTPS, but this server has not been told to believe
+                    it — so the sign-in cookie is not marked
+                    <code>Secure</code>. An administrator can set
+                    <code>TRUST_PROXY_HEADERS=true</code> and restart. If the
+                    edge sends no headers at all, use
+                    <code>TLS_TERMINATED_UPSTREAM=true</code> instead.
+                </span>
+                {{ else }}
                 <span>
                     This connection is not encrypted. Your password and session
                     are visible to anyone who can observe traffic on this network.
+                    If TLS is terminated in front of this server, an
+                    administrator can set <code>TRUST_PROXY_HEADERS=true</code>
+                    — or <code>TLS_TERMINATED_UPSTREAM=true</code> where the
+                    edge forwards no headers — and restart.
                 </span>
+                {{ end }}
             </div>
             {{ end }}
         </div>

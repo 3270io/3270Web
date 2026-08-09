@@ -648,7 +648,23 @@
       // capture listener runs before the editor's document one, and without
       // this the key being recorded would also be sent to the host.
       "[data-keymap-modal]",
-      "[data-host-details-modal]"
+      "[data-host-details-modal]",
+      // The AI provider dialog, the Copilot device-login dialog, the task
+      // runner and the task wizard. All four were missing.
+      //
+      // The AI provider one was the worst of them, and the symptom was not the
+      // stray-keystroke problem this list is mostly about. With the dialog open
+      // but unrecognised, shouldKeepTerminalFocus() saw an ordinary <select> on
+      // an ordinary page and did what it does there: preventDefault() on
+      // pointerdown, then focus back to the terminal on click. On a phone that
+      // is "tapping the provider dropdown does nothing, and the software
+      // keyboard opens instead" — preventDefault stops the native picker from
+      // ever opening, and the focus that lands in a screen field is what raises
+      // the keyboard. Every control in the dialog was affected; the dropdown is
+      // just where it was noticed.
+      "[data-ai-modal]",
+      "[data-tasks-modal]",
+      "[data-wizard-modal]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
@@ -656,7 +672,36 @@
         return true;
       }
     }
+    // And then the general case, because the list above is the bug.
+    //
+    // Every dialog has to be added to it by hand, nothing fails when one is
+    // not, and the consequence is invisible until somebody taps a control that
+    // stops working. Four had been missed. A dialog that says it is a modal —
+    // role="dialog" with aria-modal="true", which is how a screen reader is
+    // told the same thing — is one, whether or not anybody remembered this
+    // list. The explicit names stay: they are a cheap fast path, and a couple
+    // of the older dialogs do not carry the attributes.
+    var dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+    for (var j = 0; j < dialogs.length; j++) {
+      if (isRendered(dialogs[j])) {
+        return true;
+      }
+    }
     return false;
+  }
+
+  // isRendered reports whether an element occupies space on the page. Dialogs
+  // here are dismissed in several different ways — the hidden attribute, a
+  // display:none class, an unmounted parent — so asking the layout is the only
+  // answer that covers all of them.
+  function isRendered(el) {
+    if (!el) {
+      return false;
+    }
+    if (typeof el.getClientRects !== "function") {
+      return false;
+    }
+    return el.getClientRects().length > 0;
   }
 
   function getTerminalShell() {

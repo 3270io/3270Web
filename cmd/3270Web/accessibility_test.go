@@ -90,3 +90,59 @@ func TestCollapsedPanelsLeaveTheTabOrder(t *testing.T) {
 		}
 	}
 }
+
+// staticSource reads a browser script the same way templateSource reads a
+// template: as text, so a failure names the line to fix.
+func staticSource(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "web", "static", name)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return string(b)
+}
+
+// The terminal focus lock must stand down for any dialog, including ones it
+// has never been told about.
+//
+// keyboard.js keeps a list of modal markers, and a dialog missing from it is
+// treated as ordinary page furniture: pointerdown is preventDefault()ed and
+// focus is dragged back to the terminal on click. On a desktop that is a
+// swallowed click. On a phone it is worse and stranger — the native <select>
+// picker never opens, and the focus landing in a screen field raises the
+// software keyboard instead, so the dropdown reads as simply broken. Four
+// dialogs had been missed, the AI provider one among them.
+//
+// Nothing fails when a new dialog is left off the list, which is why the
+// generic sweep is the part that matters. Both are pinned: the sweep, and the
+// attributes that make a dialog visible to it.
+func TestTerminalFocusLockStandsDownForAnyDialog(t *testing.T) {
+	keyboard := staticSource(t, "keyboard.js")
+
+	if !strings.Contains(keyboard, `[role="dialog"][aria-modal="true"]`) {
+		t.Error("keyboard.js isModalOpen() has no generic aria-modal sweep; every new dialog would have to be added to its list by hand, and nothing fails when one is not")
+	}
+
+	// The dialogs that were missing. Named individually so a regression points
+	// at which one came back rather than at the sweep in general.
+	for _, marker := range []string{
+		"[data-ai-modal]",
+		"[data-tasks-modal]",
+		"[data-wizard-modal]",
+	} {
+		if !strings.Contains(keyboard, marker) {
+			t.Errorf("keyboard.js does not recognise %s as a dialog; its controls would have pointerdown prevented and focus pulled back to the terminal", marker)
+		}
+	}
+
+	// The sweep only sees a dialog that says it is one. ai-provider.js builds
+	// its panel from a template literal, so the attributes have to be in the
+	// source rather than added later.
+	provider := staticSource(t, "ai-provider.js")
+	for _, attr := range []string{`role="dialog"`, `aria-modal="true"`} {
+		if !strings.Contains(provider, attr) {
+			t.Errorf("ai-provider.js does not set %s on its panel, so the generic dialog sweep cannot see it", attr)
+		}
+	}
+}

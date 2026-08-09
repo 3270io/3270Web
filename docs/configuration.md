@@ -198,6 +198,7 @@ where the rest of the deployment is described.
 | `RATE_LIMIT_CONNECT` / `_CHAOS` / `_TRANSFER` / `_AI` | 20 / 10 / 20 / 60 | Requests a minute per account on the routes that cost the instance something. 0 turns one off |
 | `AUDIT_LOG_PATH` | `audit.log` beside the account store | Where the [audit trail](multi-user.md#the-audit-trail) is written. It is always on; this only moves it |
 | `TRUST_PROXY_HEADERS` | off | Believing `X-Forwarded-Proto`, so cookies keep their `Secure` flag behind a proxy that terminated TLS. Only set it when a proxy really is in front of this server — the header is set by whoever sends the request |
+| `TLS_TERMINATED_UPSTREAM` | off | Asserting that TLS is terminated in front of this server when the edge forwards no headers at all — a tunnel daemon, a sidecar. Applies to every request regardless of headers; see [When the sign-in page still says the connection is not encrypted](multi-user.md#when-the-sign-in-page-still-says-the-connection-is-not-encrypted). Prefer `TRUST_PROXY_HEADERS` where `X-Forwarded-Proto` does arrive |
 
 `ALLOW_LOG_ACCESS` is the fifth, and it does have a Settings field — see
 [Log Access](#log-access) below.

@@ -186,6 +186,24 @@ func wantsJSON(c *gin.Context) bool {
 	return strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/html")
 }
 
+// proxyClaimsHTTPS reports that something in front of this server said the
+// browser reached it over HTTPS, and that this server has not been told to
+// believe it.
+//
+// It changes nothing about how the request is treated — IsTLS has already had
+// its say, and the header is chosen by whoever sent the request. It only
+// changes what the sign-in page says. "This connection is not encrypted" is
+// alarming, correct, and useless to somebody whose CDN or ingress is doing
+// exactly what they configured it to do; what they need is the name of the
+// setting that closes the gap. Distinguishing the two cases is the difference
+// between a warning that gets acted on and one that gets ignored.
+func proxyClaimsHTTPS(c *gin.Context) bool {
+	if c == nil || reqsec.IsTLS(c.Request) {
+		return false
+	}
+	return reqsec.ForwardedProtoClaimsHTTPS(c.Request)
+}
+
 // LoginPageHandler serves the login form.
 func (app *App) LoginPageHandler(c *gin.Context) {
 	if app.authMode == authz.ModeNone {
@@ -201,10 +219,11 @@ func (app *App) LoginPageHandler(c *gin.Context) {
 
 func (app *App) renderLogin(c *gin.Context, status int, errMessage string) {
 	c.HTML(status, "login.html", gin.H{
-		"Error":      errMessage,
-		"AppName":    "3270Web",
-		"ShowNoTLS":  !reqsec.IsTLS(c.Request),
-		"CSRFTokenH": "",
+		"Error":          errMessage,
+		"AppName":        "3270Web",
+		"ShowNoTLS":      !reqsec.IsTLS(c.Request),
+		"ProxySaysHTTPS": proxyClaimsHTTPS(c),
+		"CSRFTokenH":     "",
 	})
 }
 

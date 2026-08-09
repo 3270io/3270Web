@@ -2,7 +2,9 @@ package reqsec
 
 import (
 	"crypto/tls"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -135,5 +137,66 @@ func TestClientIP_IPv6AndOddRemoteAddr(t *testing.T) {
 
 	if got := ClientIP(nil); got != "" {
 		t.Errorf("ClientIP(nil) = %q, want empty", got)
+	}
+}
+
+// An operator whose edge terminates TLS but forwards nothing has no header for
+// IsTLS to read, so the assertion has to stand on its own — including with
+// TRUST_PROXY_HEADERS off, which is the state such a deployment will be in.
+func TestIsTLS_TLSTerminatedUpstream(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if IsTLS(req) {
+		t.Fatal("plain HTTP with no headers and no assertion must not read as TLS")
+	}
+
+	t.Setenv(TLSTerminatedUpstreamEnv, "true")
+	if !IsTLS(req) {
+		t.Errorf("%s=true must make IsTLS report TLS even with no forwarding headers", TLSTerminatedUpstreamEnv)
+	}
+}
+
+// The assertion is opt-in and spelled exactly. Anything else leaves the server
+// where it was, because the failure mode of guessing wrong is cookies marked
+// Secure on a plain-HTTP site — which no browser will store.
+func TestTLSTerminatedUpstreamIsExplicit(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, value := range []string{"", "false", "0", "yes", "TRUE ", " true"} {
+		t.Run("value="+value, func(t *testing.T) {
+			t.Setenv(TLSTerminatedUpstreamEnv, value)
+			want := strings.EqualFold(strings.TrimSpace(value), "true")
+			if got := IsTLS(req); got != want {
+				t.Errorf("%s=%q: IsTLS = %v, want %v", TLSTerminatedUpstreamEnv, value, got, want)
+			}
+		})
+	}
+}
+
+// ForwardedProtoClaimsHTTPS reports what the header says and nothing more. It
+// feeds the sign-in page's wording, never an authorization decision, so unlike
+// IsTLS it deliberately does not consult TRUST_PROXY_HEADERS.
+func TestForwardedProtoClaimsHTTPS(t *testing.T) {
+	plain := httptest.NewRequest(http.MethodGet, "/", nil)
+	if ForwardedProtoClaimsHTTPS(plain) {
+		t.Error("no header must not read as a claim")
+	}
+
+	claimed := httptest.NewRequest(http.MethodGet, "/", nil)
+	claimed.Header.Set("X-Forwarded-Proto", "https")
+	if !ForwardedProtoClaimsHTTPS(claimed) {
+		t.Error("X-Forwarded-Proto: https must read as a claim, whether or not it is trusted")
+	}
+	if IsTLS(claimed) {
+		t.Error("an untrusted claim must not make IsTLS report TLS; that is the whole point of the opt-in")
+	}
+
+	// A proxy chain appends, so the browser-facing scheme is the first entry.
+	chained := httptest.NewRequest(http.MethodGet, "/", nil)
+	chained.Header.Set("X-Forwarded-Proto", "https, http")
+	if !ForwardedProtoClaimsHTTPS(chained) {
+		t.Error("the first entry in a chain is the client-facing scheme")
+	}
+
+	if ForwardedProtoClaimsHTTPS(nil) {
+		t.Error("a nil request must not read as a claim")
 	}
 }
