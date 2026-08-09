@@ -128,14 +128,32 @@ for scripted checks.
 
 ### Sessions and tabs
 
-You can keep up to six host sessions open at once. The **+** button on the
-toolbar opens another one and asks which host to connect to; a tab bar
-appears above the toolbar as soon as there is more than one.
+You can keep up to six host sessions open at once. The tab bar sits directly
+above the toolbar and is there from the moment you connect, showing the one
+session you have and a **+ New session** button at the end of the row.
 
+- **+ New session** opens another one. Where connection profiles exist you
+  pick one from a list; otherwise you are asked for a host.
 - Click a tab to switch to it.
-- The **×** on a tab closes that session; the others keep running.
+- The **×** on a tab closes that session; the others keep running. A single
+  tab has no **×** — closing your only session is a disconnect, and
+  **Disconnect** is right below it.
 - **Disconnect** ends only the session you are looking at. If other tabs
   are open you land on one of them rather than back at the connect page.
+
+| Shortcut | Does |
+|---|---|
+| ++alt+n++ | Open another session |
+| ++alt+w++ | Close the current session (when more than one is open) |
+| ++alt+1++ … ++alt+9++ | Switch to that session in the bar |
+
+These are ++alt++ chords rather than ++ctrl++ ones because the browser owns
+++ctrl+t++, ++ctrl+n++ and ++ctrl+w++ and will not give them up. If you have
+bound one of them to a host action in the keyboard mapping editor, your
+binding wins — these are defaults, and an explicit remap is not.
+
+All of it is in the command palette too: press ++ctrl+k++ and type
+`session` for the new, switch and close commands.
 
 Sessions are fully independent — each has its own host connection, screen,
 OIA, screen history and unsubmitted input. Switching tabs reloads the page,
@@ -351,6 +369,9 @@ Common mappings used by 3270Web:
 | `Home` | First input field | **Terminal** |
 | `Insert` | Toggle insert / overtype | **Terminal** |
 | `Backspace` / `Delete` | Edit within the field | **Terminal** |
+| `Alt+N` | Open another host session | **Terminal** |
+| `Alt+W` | Close the current session | **Terminal** |
+| `Alt+1`..`Alt+9` | Switch to that [session tab](#sessions-and-tabs) | **Terminal** |
 
 Additional 3270 actions available from the keypad and the command palette
 include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and

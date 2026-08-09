@@ -32,7 +32,8 @@
     bulb: "M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z",
     search: "M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z",
     info: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
-    trash: "M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z"
+    trash: "M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z",
+    plus: "M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"
   };
 
   /* -------------------------------------------------------------------
@@ -44,6 +45,7 @@
      ------------------------------------------------------------------- */
   const COMMANDS = [
     // Session
+    { label: "New session — open another host", group: "Session", sel: "[data-session-new]", icon: "plus", hint: "Alt+N — this one keeps running" },
     { label: "Disconnect session", group: "Session", sel: "[data-disconnect-open]", icon: "power", hint: "End the 3270 connection" },
     { label: "Print screen", group: "Session", sel: "[data-print-screen]", icon: "print" },
     { label: "View logs", group: "Session", sel: "[data-logs-open]", icon: "doc" },
@@ -138,6 +140,14 @@
 
   /* Terminal actions live on window.ThreeSeventyWeb rather than behind a
      visible control, so the palette calls them directly. */
+  function runSessionTabs(action) {
+    const tabs = (window.ThreeSeventyWeb || {}).sessionTabs;
+    if (tabs && typeof tabs[action] === "function") {
+      return tabs[action]();
+    }
+    return undefined;
+  }
+
   function runTerminal(action) {
     const api = window.ThreeSeventyWeb || {};
     if (action === "copyBlock" && api.screenCopy) return api.screenCopy.copyBlock();
@@ -254,6 +264,38 @@
     }));
   }
 
+  /* One entry per open session, so "switch" or a hostname finds the tab you
+     want without going hunting along the bar. Built when the palette opens
+     rather than at load: the roster changes as sessions come and go.
+
+     Both of these need somewhere else to go. With a single session there is
+     nothing to switch to, and closing it is disconnecting — which already
+     has its own entry saying so in the words people expect. */
+  function sessionCommands() {
+    const tabs = (window.ThreeSeventyWeb || {}).sessionTabs;
+    if (!tabs || typeof tabs.list !== "function") return [];
+    const open = tabs.list();
+    if (open.length < 2) return [];
+
+    const out = open.map((s, i) => ({
+      label: `Switch to session: ${s.label || s.target}`,
+      group: "Session",
+      icon: "terminal",
+      hint: s.active ? "Current session" : `Alt+${i + 1} — ${s.target || ""}`,
+      run: () => {
+        if (!s.active) tabs.switchTo(s.id);
+      }
+    }));
+    out.push({
+      label: "Close this session",
+      group: "Session",
+      icon: "trash",
+      hint: "Alt+W — the other sessions keep running",
+      run: () => runSessionTabs("closeActive")
+    });
+    return out;
+  }
+
   function collect(includeSearchOnly) {
     const out = [];
     COMMANDS.concat(KEY_COMMANDS).forEach((cmd) => {
@@ -280,7 +322,7 @@
         }
       }));
     });
-    return out.concat(themeCommands());
+    return out.concat(sessionCommands()).concat(themeCommands());
   }
 
   function build() {

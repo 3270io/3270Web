@@ -192,22 +192,44 @@
                     {{ end }}
                 </div>
             </div>
-            <!-- Session tabs. Hidden until a second session exists; see
-                 session-tabs.js. Rendered server-side so the bar does not
-                 pop in after load when several sessions are already open. -->
-            <div class="session-tab-bar" data-session-tabs {{ if lt (len .SessionTabs) 2 }}hidden{{ end }}>
-                {{ range .SessionTabs }}
-                <div class="session-tab{{ if .Active }} is-active{{ end }}" role="presentation">
-                    <button type="button" class="session-tab-label" title="{{ .Target }}" aria-current="{{ if .Active }}page{{ else }}false{{ end }}">{{ .Label }}</button>
-                    <button type="button" class="session-tab-close" aria-label="Close session {{ .Target }}">&times;</button>
+            <!-- Session tabs. Present from the first session, not from the
+                 second: the bar is where somebody learns that a second
+                 session is possible at all, and it cannot teach that while
+                 it stays hidden until they have already found out. The one
+                 tab is also what makes the trailing "New session" button
+                 mean something — a row of connections you can add to,
+                 rather than a lone + among nine other icons.
+
+                 Rendered server-side so the bar does not pop in after load;
+                 session-tabs.js replaces the list once it has the roster. -->
+            <div class="session-tab-bar" data-session-tabs>
+                <div class="session-tab-list" data-session-tab-list>
+                    {{ range .SessionTabs }}
+                    <div class="session-tab{{ if .Active }} is-active{{ end }}" role="presentation">
+                        <button type="button" class="session-tab-label" title="{{ .Target }}" aria-current="{{ if .Active }}page{{ else }}false{{ end }}">{{ .Label }}</button>
+                        {{ if gt (len $.SessionTabs) 1 }}
+                        <button type="button" class="session-tab-close" aria-label="Close session {{ .Target }}">&times;</button>
+                        {{ end }}
+                    </div>
+                    {{ end }}
                 </div>
-                {{ end }}
+                <!-- The one control that opens a second session. It carries
+                     its own words: an unlabelled + in a row of unlabelled
+                     icons is a feature nobody finds.
+
+                     No aria-label, deliberately — the visible words are the
+                     accessible name, so what a speech user says matches what
+                     a sighted user reads (WCAG 2.5.3). The keyboard hint
+                     lives in the tooltip, which is free to change. -->
+                <button type="button" class="session-tab-new" data-session-new
+                        title="Open another host session (Alt+N)"
+                        data-tippy-content="Open another host session (Alt+N)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                    <span class="session-tab-new-label">New session</span>
+                </button>
             </div>
             <div class="toolbar" data-main-toolbar style="margin-bottom: 16px;">
                 <a href="/disconnect" data-disconnect-open aria-label="Disconnect from session">Disconnect</a>
-                <button type="button" class="icon-button" data-session-new data-tippy-content="Open another host session" aria-label="Open another host session">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-                </button>
                 {{ if .Auth.CanAdminister }}
                 <button type="button" class="icon-button" data-logs-open data-tippy-content="View logs" aria-label="View logs">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
