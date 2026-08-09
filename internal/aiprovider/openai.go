@@ -42,7 +42,7 @@ type openaiClient struct {
 }
 
 func newOpenAIClient(p Provider, cfg ProviderConfig) *openaiClient {
-	return &openaiClient{provider: p, cfg: cfg, http: &http.Client{}}
+	return &openaiClient{provider: p, cfg: cfg, http: outboundClient()}
 }
 
 func (c *openaiClient) authorize(req *http.Request) {

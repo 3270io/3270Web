@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -22,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jnnngs/3270Web/internal/egress"
 )
 
 // Default identification headers — these match the VS Code Copilot Chat
@@ -80,7 +81,7 @@ func NewAuthManager(path string) *AuthManager {
 		path:       path,
 		clientID:   defaultGitHubClientID,
 		userAgent:  defaultUserAgent,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: egress.Default().HTTPClient(30 * time.Second),
 		githubHost: "https://github.com",
 		apiHost:    "https://api.github.com",
 	}
@@ -208,6 +209,15 @@ func isValidEnterpriseHost(host string) bool {
 	}
 	// No legitimate GHE deployment lives at a link-local address; that
 	// range also covers cloud metadata services (e.g. 169.254.169.254).
+	//
+	// This catches the literal only, which is as far as a syntax check can
+	// see: "ghe.example.com" is a valid hostname whoever owns it can point
+	// wherever they like, and this function has no idea where that is. The
+	// address is checked where it is known instead — internal/egress resolves
+	// the name inside the dialer and refuses the connection there, on the
+	// first request and on every redirect after it. Keeping the literal check
+	// as well means an obviously wrong value is refused when it is typed
+	// rather than when it is first used.
 	if ip := net.ParseIP(hostOnly); ip != nil && (ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
 		return false
 	}
@@ -276,9 +286,12 @@ func (m *AuthManager) StartDeviceLogin(ctx context.Context) (*DeviceCode, error)
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("device code request failed: status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return nil, fmt.Errorf("device code request failed: status %d: %s", resp.StatusCode, truncate(readErrorBody(resp), 200))
+	}
+	body, err := readCapped(resp, maxControlResponseBytes, "device code response")
+	if err != nil {
+		return nil, err
 	}
 	var dc DeviceCode
 	if err := json.Unmarshal(body, &dc); err != nil {
@@ -321,10 +334,13 @@ func (m *AuthManager) PollDeviceLogin(ctx context.Context, deviceCode string) (P
 		return PollResult{Status: "error", Error: err.Error()}, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("device token poll failed: status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		errMsg := fmt.Sprintf("device token poll failed: status %d: %s", resp.StatusCode, truncate(readErrorBody(resp), 200))
 		return PollResult{Status: "error", Error: errMsg}, errors.New(errMsg)
+	}
+	body, err := readCapped(resp, maxControlResponseBytes, "device token response")
+	if err != nil {
+		return PollResult{Status: "error", Error: err.Error()}, err
 	}
 	var payload struct {
 		AccessToken      string `json:"access_token"`
@@ -415,9 +431,12 @@ func (m *AuthManager) refreshCopilotTokenLocked(ctx context.Context) error {
 		return fmt.Errorf("copilot token request: %w", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("copilot token: status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return fmt.Errorf("copilot token: status %d: %s", resp.StatusCode, truncate(readErrorBody(resp), 200))
+	}
+	body, err := readCapped(resp, maxControlResponseBytes, "copilot token response")
+	if err != nil {
+		return err
 	}
 	var payload struct {
 		Token     string `json:"token"`

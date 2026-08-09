@@ -173,6 +173,7 @@ func (st *ConfigStore) Apply(id string, up Update) (PublicSettings, error) {
 	}
 
 	cfg := e.settings.Providers[target]
+	movedOrigin := false
 	if up.BaseURL != nil {
 		clean, err := ValidateBaseURL(*up.BaseURL)
 		if err != nil {
@@ -181,12 +182,29 @@ func (st *ConfigStore) Apply(id string, up Update) (PublicSettings, error) {
 		if clean != "" && !prov.BaseURLEditable {
 			return PublicSettings{}, errors.New(prov.Label + " does not accept a custom base URL")
 		}
+		movedOrigin = !sameOrigin(effectiveBaseURL(cfg.BaseURL, prov), effectiveBaseURL(clean, prov))
 		cfg.BaseURL = clean
 	}
 	if up.APIKey != nil {
 		// An explicit empty string clears the stored key; omitting the field
 		// entirely (nil) keeps it.
 		cfg.APIKey = strings.TrimSpace(*up.APIKey)
+	} else if movedOrigin {
+		// The key was issued for the endpoint it was entered against, and this
+		// request has just named a different one. Keeping it would mean the
+		// next chat sends that credential — in an Authorization header, to an
+		// origin of the caller's choosing — without anybody having said it
+		// should go there. On a shared browser that is the whole exfiltration
+		// path: inherit a key, retarget the endpoint, read it off your own
+		// server. Somewhere else it is an ordinary mistake with the same
+		// consequence.
+		//
+		// So the credential does not travel with the endpoint. Point the
+		// provider somewhere new and the key has to be entered again, which is
+		// one deliberate act rather than a silent one. Sending it along in the
+		// same request still works: that is the caller saying the key belongs
+		// to the new origin, which is exactly the statement being asked for.
+		cfg.APIKey = ""
 	}
 	if up.Model != nil {
 		cfg.Model = strings.TrimSpace(*up.Model)

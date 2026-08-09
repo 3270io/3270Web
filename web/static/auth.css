@@ -141,6 +141,37 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+/* The same rule the admin dialogs further down this file already apply, for
+   the same reason and on the pages people actually meet first.
+   0.95rem is about 15px, and below 16px iOS Safari zooms the page in when a
+   field takes focus and does not zoom back out. On a sign-in form that means
+   tapping Username scrolls Password and the Sign in button off the side of the
+   screen, and the first thing somebody does with 3270Web on a phone is pinch
+   their way back to a button they can no longer see. Setup and the forced
+   password change are the same form and had the same problem.
+
+   16px rather than 1rem: the threshold is the browser's and is measured in
+   pixels, so a root font-size the operator has changed must not move it. */
+@media (pointer: coarse) {
+  .field > input,
+  .field > select {
+    font-size: 16px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .field > input.code-input {
+    /* Keeps its larger, proportional size — the spacing is what makes a setup
+       code readable in groups — with the same floor underneath it. */
+    font-size: max(16px, 1.05rem);
+  }
+
+  .auth-submit {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}
+
 .field-hint {
   font-size: 0.78rem;
   color: var(--fg-muted);

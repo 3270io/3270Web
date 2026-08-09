@@ -141,28 +141,51 @@ the per-user configuration directory (`$XDG_CONFIG_HOME/3270Web` on Linux, the
 OS user-config directory elsewhere), in files readable only by the account
 running 3270Web.
 
-They are scoped to one browser: a long-lived cookie identifies your browser,
-and each browser gets its own settings file. On a shared instance that means
-your key is not visible to — and not usable by — anyone else who loads the same
-URL. Keys are never sent back to the browser; the settings dialog can only tell
-you *that* a key is saved, not what it is.
+They are scoped to one browser *and*, where the instance has accounts, to the
+account signed in to it. A long-lived cookie identifies the browser; with
+[`AUTH_MODE`](multi-user.md) set, the signed-in account is mixed in, so each
+combination gets its own settings file. Keys are never sent back to the
+browser; the settings dialog can only tell you *that* a key is saved, not what
+it is.
+
+The account half matters most on a device more than one person uses. The
+browser cookie lasts a year and signing out of 3270Web does not touch it, so
+without this the next person to sign in on a shared phone, tablet or kiosk
+inherited whatever the previous one left behind — a Copilot login, an API key,
+and the chat transcript filed against it. Now the stored settings change with
+the account, so there is nothing to inherit. The AI chat transcript in the
+browser is filed by account for the same reason.
+
+On an instance with a single operator (`AUTH_MODE` unset) nothing changes:
+there is nobody to be kept apart from, and existing sign-ins carry over.
 
 To remove a stored credential, click **Sign out** in the panel header, or
 reopen the provider dialog and save an empty key.
 
 !!! note "Anyone with your browser session can spend your key"
     Chat requests are proxied by the server using the stored key, so anyone who
-    can reach 3270Web with your identity cookie can send requests that bill to
-    your account. Treat a 3270Web instance the way you would treat any tool you
-    have signed into.
+    can reach 3270Web as you can send requests that bill to your account. Treat
+    a 3270Web instance the way you would treat any tool you have signed into.
 
 ## Endpoint restrictions
 
 Custom endpoint URLs must be plain `http://` or `https://` origins. 3270Web
-rejects URLs carrying credentials, a query string or a fragment, and rejects
-link-local addresses (`169.254.0.0/16`), which is where cloud instance-metadata
-services live. Private and loopback addresses are allowed — those are the whole
-point of the local-Ollama and corporate-gateway cases.
+rejects URLs carrying credentials, a query string or a fragment.
+
+Where the URL *points* is checked as well, and at the moment the connection is
+made rather than when the URL was saved — a hostname is not an address, and a
+name can resolve wherever its owner likes. Link-local addresses
+(`169.254.0.0/16`, `fe80::/10`) are refused, which is where cloud
+instance-metadata services live, and so is a redirect that leads to one. A
+hostname resolving to one of those is refused just as a literal is. Private and
+loopback addresses are allowed — those are the whole point of the local-Ollama
+and corporate-gateway cases.
+
+!!! note "Changing the endpoint asks for the key again"
+    A key is issued for the endpoint it was entered against. Saving a base URL
+    on a different host clears the stored key rather than forwarding it to the
+    new origin — send a key in the same save if it belongs there. Changing the
+    path on the same host, or the model, leaves the key alone.
 
 ## REST API
 

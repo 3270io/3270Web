@@ -483,6 +483,17 @@ type authView struct {
 	Enabled  bool
 	Username string
 	IsAdmin  bool
+	// UserID is the account's immutable identifier, rendered onto the page so
+	// that browser-side state can be filed under the account rather than under
+	// the browser. The AI chat transcript is the one that matters: it is kept
+	// in localStorage, it quotes whole screens back, and keyed by host alone it
+	// was the previous person's conversation waiting for the next person to
+	// open the panel on a shared device.
+	//
+	// Not a secret — it identifies an account to itself, the way the username
+	// already displayed beside it does — and empty where there is a single
+	// operator, who has nobody to be separated from.
+	UserID string
 	// CanAdminister is what a template should ask before rendering a control
 	// that only an administrator may use — Settings, the log viewer, restart.
 	//
@@ -506,6 +517,7 @@ func (app *App) authView(c *gin.Context) authView {
 	return authView{
 		Enabled:       true,
 		Username:      usernameFrom(c),
+		UserID:        principal.UserID,
 		IsAdmin:       principal.IsAdmin(),
 		CanAdminister: principal.IsAdmin(),
 	}

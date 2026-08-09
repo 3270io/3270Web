@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
@@ -29,7 +30,23 @@ const (
 // principal is derived without touching any decision made from it.
 func (app *App) Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Set(principalContextKey, app.resolvePrincipal(c))
+		principal := app.resolvePrincipal(c)
+		c.Set(principalContextKey, principal)
+
+		// The AI packages key their stored credentials by browser identity,
+		// which on a shared phone or tablet outlives whoever put them there.
+		// Handing them the account as well is what makes those records belong
+		// to a person rather than to a piece of glass; see copilot.Identity.
+		//
+		// Only where the deployment separates users. With a single operator
+		// there is no account to bind to and nobody to be kept apart from, and
+		// mixing in the synthetic local identity would change every existing
+		// installation's store key for no gain — signing everybody out of
+		// Copilot on upgrade to fix a problem they do not have.
+		if app.separatesUsers() && !principal.IsAnonymous() {
+			c.Set(copilot.OwnerContextKey, principal.UserID)
+		}
+
 		c.Next()
 	}
 }

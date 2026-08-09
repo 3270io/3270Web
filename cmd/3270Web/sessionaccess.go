@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -108,31 +109,73 @@ func (app *App) totalSessionCap() int {
 	return envInt("MAX_TOTAL_SESSIONS", maxTotalSessionsDefault)
 }
 
-// checkSessionCaps reports whether another session may be opened for ownerID.
+// reserveSession admits one more session for ownerID, or refuses.
 //
 // Each session is an s3270 subprocess, so this is process-exhaustion control
 // rather than tidiness. Both caps are checked at the single point every
 // creation path goes through — the browser connect form, the tab bar and the
 // REST API — because a limit only two of the three consult is not a limit.
 //
+// It reserves rather than merely checks. Starting a subprocess and waiting for
+// its first formatted screen takes long enough for many requests to be inside
+// it at once, and a cap read from the session manager cannot see any of them:
+// every one of those requests reads the same count, every one passes, and an
+// instance capped at four ends up with a dozen. The reservation is taken under
+// the same lock that reads the counts and is only converted into a session
+// once one exists, so what is compared against the cap is "open plus opening"
+// rather than "open".
+//
+// The returned release must be called on every path out — it is safe to call
+// more than once, so `defer release()` alongside an explicit call after the
+// session is registered is the intended shape.
+//
 // An unowned session (ownerID empty) is not counted against a per-user cap:
 // there is no user to attribute it to. The instance-wide cap still applies,
 // which is what stops that from being a way around the limit.
-func (app *App) checkSessionCaps(ownerID string) error {
-	if total := app.totalSessionCap(); total > 0 && app.SessionManager.Count() >= total {
-		return refuse(errSessionLimit, fmt.Sprintf(
+func (app *App) reserveSession(ownerID string) (release func(), err error) {
+	app.admissionMu.Lock()
+	defer app.admissionMu.Unlock()
+
+	if total := app.totalSessionCap(); total > 0 &&
+		app.SessionManager.Count()+app.admissionsTotal >= total {
+		return nil, refuse(errSessionLimit, fmt.Sprintf(
 			"This 3270Web instance already has its maximum of %s open. "+
 				"Wait for one to close, or ask an administrator to raise the limit.", sessionCount(total)))
 	}
-	if ownerID == "" {
-		return nil
+	if ownerID != "" {
+		if perUser := app.perUserSessionCap(); perUser > 0 &&
+			app.SessionManager.CountFor(ownerID)+app.admissions[ownerID] >= perUser {
+			return nil, refuse(errSessionLimit, fmt.Sprintf(
+				"You already have the maximum of %s open. Close one before opening another.", sessionCount(perUser)))
+		}
 	}
-	if perUser := app.perUserSessionCap(); perUser > 0 &&
-		app.SessionManager.CountFor(ownerID) >= perUser {
-		return refuse(errSessionLimit, fmt.Sprintf(
-			"You already have the maximum of %s open. Close one before opening another.", sessionCount(perUser)))
+
+	app.admissionsTotal++
+	if ownerID != "" {
+		if app.admissions == nil {
+			app.admissions = make(map[string]int)
+		}
+		app.admissions[ownerID]++
 	}
-	return nil
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			app.admissionMu.Lock()
+			defer app.admissionMu.Unlock()
+			if app.admissionsTotal > 0 {
+				app.admissionsTotal--
+			}
+			if ownerID == "" {
+				return
+			}
+			if app.admissions[ownerID] <= 1 {
+				delete(app.admissions, ownerID)
+				return
+			}
+			app.admissions[ownerID]--
+		})
+	}, nil
 }
 
 // sessionCount writes a count the way somebody reads it, so a cap of one does

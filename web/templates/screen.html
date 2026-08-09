@@ -18,19 +18,19 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=18">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=19">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=5">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -40,7 +40,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=15" defer></script>
+    <script src="/static/keyboard.js?v=16" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
@@ -79,7 +79,7 @@
          init to render whichever backend is selected. -->
     <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=4" defer></script>
+    <script src="/static/copilot-panel.js?v=5" defer></script>
     <script src="/static/ui-polish.js?v=11" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
@@ -87,13 +87,13 @@
     <script src="/static/embed.js?v=1" defer></script>
     <!-- The thumb-reachable AID keys and tap-to-place-cursor. Loads after
          screen-grid.js, whose cell geometry it uses. -->
-    <script src="/static/touch.js?v=2" defer></script>
+    <script src="/static/touch.js?v=3" defer></script>
     <!-- Suggests landscape on a phone holding an 80-column screen upright.
          Also after screen-grid.js: whether to suggest anything is decided by
          measuring the character cell, not by guessing from the device. -->
     <script src="/static/orientation-hint.js?v=1" defer></script>
 </head>
-<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}">
+<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}" data-account="{{ .Auth.UserID }}">
     <script src="/static/early-theme-init.js"></script>
     <!-- No skip link here, deliberately. WCAG 2.4.1 is met by the main
          landmark on the terminal below, plus the fact that focus starts

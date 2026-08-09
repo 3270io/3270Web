@@ -18,11 +18,23 @@ services:
       # - API_TOKEN=${API_TOKEN}
       # - MCP_TOOLS=interactive
       #
-      # Require a sign-in. Turn this on whenever more than one person can
-      # reach the port; the first start prints a setup code to the log
+      # Require a sign-in. On by default here, because the port mapping below
+      # publishes 3270 on every interface of this host — that is what makes
+      # the terminal reachable from a phone on the same network, and it is
+      # equally what makes it reachable from everything else on that network.
+      # Without a sign-in every request arrives as the local operator, which
+      # carries the administrator role: sessions, settings, the audit log and
+      # restart, to anybody who can open the port.
+      #
+      # The first start prints a setup code to the log
       # (docker compose logs 3270Web) for creating the first administrator.
       # See https://3270Web.3270.io/multi-user/
-      # - AUTH_MODE=local
+      #
+      # Running this on your own machine, for yourself alone? Comment this out
+      # and change the port mapping to "127.0.0.1:3270:3270" so the listener
+      # is not on the network in the first place. Do one or the other — the
+      # combination this file avoids is an open port with no sign-in.
+      - AUTH_MODE=local
     volumes:
       # Accounts, API tokens, the audit trail and everyone's saved work, in a
       # folder beside this file so it can be backed up, inspected and copied

@@ -29,6 +29,13 @@ const (
 	rateChaos    rateCategory = "chaos"
 	rateTransfer rateCategory = "transfer"
 	rateAI       rateCategory = "ai"
+	// rateAIControl covers the AI control plane — signing in, polling that
+	// sign-in, listing models, naming the endpoint those go to. None of it is
+	// a completion, so none of it belongs under the chat allowance, and all of
+	// it makes this server fetch from somewhere the caller nominated. That is
+	// the part that needs a limit: the response comes back into this process's
+	// memory, and how large it is was chosen at the other end.
+	rateAIControl rateCategory = "aicontrol"
 )
 
 // Defaults, in requests per minute per caller. Set generously: these are
@@ -41,6 +48,12 @@ var rateDefaults = map[rateCategory]int{
 	rateChaos:    10,
 	rateTransfer: 20,
 	rateAI:       60,
+	// Higher than the others because one of these routes is a poll: the
+	// device-login flow asks GitHub every few seconds whether the code has
+	// been entered yet, for up to fifteen minutes. Generous enough never to
+	// interrupt that, small enough that a flood cannot hold thousands of
+	// upstream responses in memory at once.
+	rateAIControl: 120,
 }
 
 // rateLimitedRoutes names the routes each category covers.
@@ -58,6 +71,18 @@ var rateLimitedRoutes = map[string]rateCategory{
 	"POST /transfer/send":                    rateTransfer,
 	"POST /transfer/receive":                 rateTransfer,
 	"POST /api/ai/chat":                      rateAI,
+	"POST /api/copilot/chat":                 rateAI,
+
+	// The control plane. Every one of these makes this server issue a request
+	// to an origin the caller chose and read the answer into memory, so they
+	// are limited for the same reason the routes above are: one caller can
+	// spend something the whole instance shares.
+	"POST /api/copilot/login/start": rateAIControl,
+	"POST /api/copilot/login/poll":  rateAIControl,
+	"POST /api/copilot/enterprise":  rateAIControl,
+	"GET /api/copilot/models":       rateAIControl,
+	"POST /api/ai/config":           rateAIControl,
+	"GET /api/ai/models":            rateAIControl,
 }
 
 // errRateLimited marks a refusal for rate rather than for anything about the

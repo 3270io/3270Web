@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/jnnngs/3270Web/internal/egress"
 )
 
 // streamIdleTimeout is the maximum time the proxied SSE stream may go without
@@ -49,7 +51,7 @@ type Client struct {
 func NewClient(auth *AuthManager) *Client {
 	return &Client{
 		auth:                auth,
-		httpClient:          &http.Client{},
+		httpClient:          egress.Default().HTTPClient(0),
 		userAgent:           defaultUserAgent,
 		editorVersion:       defaultEditorVersion,
 		editorPluginVersion: defaultEditorPluginVersion,
@@ -112,10 +114,9 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
 		return &APIError{
 			Status: resp.StatusCode,
-			Body:   string(bodyBytes),
+			Body:   readErrorBody(resp),
 		}
 	}
 
@@ -181,9 +182,12 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("copilot models request: %w", err)
 	}
 	defer resp.Body.Close()
-	bodyBytes, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: resp.StatusCode, Body: string(bodyBytes)}
+		return nil, &APIError{Status: resp.StatusCode, Body: readErrorBody(resp)}
+	}
+	bodyBytes, err := readCapped(resp, maxCatalogueResponseBytes, "copilot models response")
+	if err != nil {
+		return nil, err
 	}
 	var payload struct {
 		Data []struct {

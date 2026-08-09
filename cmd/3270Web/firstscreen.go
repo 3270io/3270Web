@@ -151,22 +151,26 @@ func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfil
 	// holds the only reference to. Relaxing the check instead would widen it
 	// for every caller, to allow the one address that never needed checking.
 	ownerID := principalFrom(c).UserID
-	if err := app.checkSessionCaps(ownerID); err != nil {
+	release, err := app.reserveSession(ownerID)
+	if err != nil {
 		menu.Stop()
 		log.Printf("first screen: %v", err)
 		return false
 	}
+	defer release()
 
 	args := buildS3270Args(app.Config.S3270Options, "")
 	args = append(args, menu.Addr())
 	h := host.NewS3270(resolveS3270Path(app.Config.ExecPath), args...)
 	if err := h.Start(); err != nil {
+		_ = h.Stop()
 		menu.Stop()
 		log.Printf("first screen: could not start the terminal for the selection screen: %v", err)
 		return false
 	}
 
 	sess := app.SessionManager.CreateSessionFor(ownerID, h)
+	release()
 	app.applyDefaultPrefs(sess)
 	setSessionCookie(c, sessionCookieName, sess.ID)
 	app.rememberSession(c, sess.ID)

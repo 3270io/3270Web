@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
+	"github.com/gin-gonic/gin"
+
+	"github.com/jnnngs/3270Web/internal/egress"
 	"github.com/jnnngs/3270Web/internal/hostpolicy"
 )
 
@@ -54,4 +59,61 @@ func checkHostAllowed(hostname string) error {
 	return refuse(errHostNotAllowed, fmt.Sprintf(
 		"this 3270Web instance is not permitted to connect to %q (see %s)",
 		hostpolicy.Hostname(hostname), allowedHostsEnv))
+}
+
+// requestContext is the request's context, or a background one for the
+// callers that have no request — which in practice means tests.
+func requestContext(c *gin.Context) context.Context {
+	if c == nil || c.Request == nil {
+		return context.Background()
+	}
+	return c.Request.Context()
+}
+
+// checkHostResolves refuses a target whose name resolves somewhere no server
+// should dial on a caller's behalf.
+//
+// isValidHostname already refuses those addresses, but only when they are
+// typed as literals — that is all a syntax check can see. "localhost" is not
+// an IP literal and neither is a name in a zone the caller controls, so both
+// walk straight past it and s3270 resolves them for real a moment later. The
+// terminal is a client for arbitrary TCP; pointed at loopback it reaches
+// whatever else is listening on this machine, and pointed at 169.254.169.254
+// it reaches the instance-metadata service and the credentials in it.
+//
+// This asks the question the literal check cannot: what does the name actually
+// come back as. Every answer is tested, because a name that resolves to one
+// routable address and one forbidden one can hand out either.
+//
+// A lookup that fails is not a refusal. s3270 is about to try the same name
+// and produce its own, more accurate message about why it could not connect,
+// and turning "DNS is briefly unavailable" into "this host is forbidden" would
+// be both wrong and confusing. The gap that leaves — a name this process
+// cannot resolve but s3270 can — is logged rather than guessed at.
+func checkHostResolves(ctx context.Context, hostname string) error {
+	// The bundled sample apps are this process talking to itself on loopback.
+	// They never went through the literal check either; see isValidHostname,
+	// which short-circuits the "sampleapp:" pseudo-hostname before it.
+	if isSampleAppHostname(hostname) {
+		return nil
+	}
+	host := hostpolicy.Hostname(hostname)
+	if host == "" {
+		return nil
+	}
+	// Loopback is refused here and permitted for AI providers, which is not an
+	// inconsistency: a model on this machine is a thing an operator asks for by
+	// name, and a mainframe on this machine is not a thing that exists. The
+	// literal check in isValidHostname draws the same line.
+	policy := egress.Default()
+	policy.DenyLoopback = true
+	if err := policy.CheckHost(ctx, host); err != nil {
+		var blocked *egress.ErrBlocked
+		if errors.As(err, &blocked) {
+			return refuse(errHostNotAllowed, fmt.Sprintf(
+				"this 3270Web instance will not connect to %q: %s", host, blocked.Reason))
+		}
+		log.Printf("connect: could not check where %q resolves: %v", host, err)
+	}
+	return nil
 }

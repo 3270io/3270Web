@@ -274,6 +274,26 @@
   // handle — that is how the software keyboard opens — so only taps on the
   // protected parts of the screen come here, which is precisely the case a
   // touch device had no answer for.
+  //
+  // This is the fallback path. keyboard.js answers the same tap with a free
+  // cursor: it paints a caret on the cell, keeps DOM focus where it was, and
+  // reports the position to the host with the next AID key. That is one host
+  // round trip, at the moment the operator presses Enter.
+  //
+  // When both ran, one tap became two host mutations. The POST below moves the
+  // real cursor immediately and the AID key that follows carries the free
+  // cursor's position as well, so a quick tap-then-Enter is a race: which of
+  // the two the host acts on depends on whether the POST landed first, and the
+  // screen that comes back can have the cursor somewhere neither of them meant.
+  // The refresh is its own cost — it replaces the screen's markup and takes
+  // focus with it, closing the software keyboard mid-transaction.
+  //
+  // So this defers when the free cursor is present, and stands in when it is
+  // not.
+  function hasFreeCursor() {
+    return !!(window.ThreeSeventyWeb && window.ThreeSeventyWeb.freeCursorInstalled);
+  }
+
   function installCursorTap() {
     var api = window.ThreeSeventyWeb && window.ThreeSeventyWeb.screenGrid;
     if (!api) {
@@ -292,6 +312,12 @@
     container.dataset.touchCursorTap = "1";
 
     container.addEventListener("click", function (event) {
+      // Checked per tap rather than once at install time: which script has
+      // finished running by DOMContentLoaded is not something to depend on,
+      // and by the first tap both have.
+      if (hasFreeCursor()) {
+        return;
+      }
       var target = event.target;
       if (!target || target.tagName === "INPUT" || target.closest("input")) {
         return;
@@ -328,6 +354,12 @@
 
     // The connect page has no terminal to send keys to.
     if (!document.querySelector(".screen-container")) {
+      // Say so, rather than leaving --touch-bar-height unset. The page
+      // clearance rule falls back to a bar-sized number when the property is
+      // missing, which on a page with no bar is a strip of empty space below
+      // the connect form — most of a phone's remaining height on a short
+      // screen, reserved for furniture that was never added.
+      document.documentElement.style.setProperty(HEIGHT_VAR, "0px");
       return;
     }
 

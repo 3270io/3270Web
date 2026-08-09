@@ -313,8 +313,8 @@ func TestSessionCapAppliesToEveryCreationPath(t *testing.T) {
 		newOwnedMockSession(t, app, authz.LocalUserID, "host:3270")
 	}
 
-	if err := app.checkSessionCaps(authz.LocalUserID); err == nil {
-		t.Fatal("checkSessionCaps allowed a session past the per-user cap")
+	if _, err := app.reserveSession(authz.LocalUserID); err == nil {
+		t.Fatal("reserveSession allowed a session past the per-user cap")
 	}
 	// startHostSession is the single point /connect, the tab bar and the REST
 	// API all funnel through.
@@ -332,10 +332,10 @@ func TestTotalSessionCap(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		newMockSession(t, app, "host:3270")
 	}
-	if err := app.checkSessionCaps(""); err == nil {
+	if _, err := app.reserveSession(""); err == nil {
 		t.Error("the instance-wide cap did not apply to unowned sessions")
 	}
-	if err := app.checkSessionCaps("someone"); err == nil {
+	if _, err := app.reserveSession("someone"); err == nil {
 		t.Error("the instance-wide cap did not apply to an owned session")
 	}
 }

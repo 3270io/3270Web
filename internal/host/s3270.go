@@ -102,13 +102,36 @@ func (h *S3270) Start() error {
 	// race and potential nil deref otherwise).
 	go h.captureStderr(h.stderr)
 
+	// The child exists from here on, so starting is a transaction: either it
+	// completes and the caller takes ownership of the process, or it takes the
+	// process with it on the way out.
+	//
+	// Without this, a failure after cmd.Start — a host that refuses the
+	// connection, a screen that never comes back formatted — returned an error
+	// while the subprocess was still running. The caller sees a failure and
+	// never registers a session, so nothing holds a reference and nothing ever
+	// calls Stop: the s3270 and its three pipes stay for the life of the
+	// server, outside every session cap that is supposed to bound them. A loop
+	// of failing connects is then a process leak with a rate limit on it.
+	handedOver := false
+	defer func() {
+		if !handedOver {
+			_ = h.stopLocked()
+		}
+	}()
+
 	if h.TargetHost == "" {
+		handedOver = true
 		return nil
 	}
 
 	// If a target host wasn't provided as a command arg, connect explicitly.
 	if len(h.Args) == 0 || h.Args[len(h.Args)-1] != h.TargetHost {
-		return h.reconnectLocked()
+		if err := h.reconnectLocked(); err != nil {
+			return err
+		}
+		handedOver = true
+		return nil
 	}
 
 	// Wait for formatted screen like Java, but keep it bounded.
@@ -118,6 +141,7 @@ func (h *S3270) Start() error {
 	if !h.connectStart.IsZero() {
 		h.connectDuration = time.Since(h.connectStart)
 	}
+	handedOver = true
 	return nil
 }
 

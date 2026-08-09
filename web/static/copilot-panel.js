@@ -66,9 +66,20 @@
     // conversation — and its screen-derived context — sitting in the
     // transcript as if it applied to the new host. Scope it by host instead;
     // reconnecting to the SAME host still resumes the same conversation.
+    //
+    // Scoped by account as well, for the same reason one step out. A transcript
+    // quotes whole screens back and localStorage belongs to the browser, not to
+    // whoever is signed in to it — so on a shared phone or a tablet at a desk,
+    // "the conversation about this host" was the last person's conversation,
+    // waiting in the panel for the next person to open it. data-account is
+    // empty where a deployment has a single operator, which keeps that
+    // deployment's existing transcripts exactly where they were.
     function historyStorageKey() {
-        const host = (document.body && document.body.dataset && document.body.dataset.targetHost) || "";
-        return HISTORY_KEY_BASE + ":" + (host || "unknown-host");
+        const data = (document.body && document.body.dataset) || {};
+        const host = data.targetHost || "";
+        const account = data.account || "";
+        const base = HISTORY_KEY_BASE + (account ? ":u:" + account : "");
+        return base + ":" + (host || "unknown-host");
     }
 
     function loadHistory() {

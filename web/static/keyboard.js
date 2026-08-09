@@ -1366,6 +1366,13 @@
   // container is replaced wholesale on every screen refresh, which would take
   // a listener bound to it along with it.
   function installFreeCursorPointer() {
+    // Published so the touch layer can tell that a tap on protected text is
+    // already answered here. It has its own tap handler for devices where this
+    // one is not running, and both firing on one tap is two cursor moves —
+    // see installCursorTap in touch.js.
+    window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+    window.ThreeSeventyWeb.freeCursorInstalled = true;
+
     document.addEventListener(
       "pointerdown",
       function (event) {
