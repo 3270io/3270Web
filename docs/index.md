@@ -180,6 +180,8 @@ workflow recording do the heavy lifting.
 | Section | What you'll find |
 |---|---|
 | [Install and Run](installation.md) | Run the native Linux binary, Docker image, or Docker Compose |
+| [User Accounts and Sign-In](authentication.md) | Turn on accounts, create the first administrator, manage people |
+| [Running a Shared Instance](multi-user.md) | What one account is kept from another, API tokens, host allowlist, rate limits, the audit trail |
 | [Connect and Use 3270Web](configuration.md) | Host configuration, startup options, UI tour |
 | [Recordings and Playback](workflow.md) | Record, load, play, debug, and export workflows |
 | [Chaos Mode](chaos-mode.md) | Automated screen exploration and load-test export |
