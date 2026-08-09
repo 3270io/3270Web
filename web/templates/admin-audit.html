@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=15">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
     <script src="/static/theme.js?v=9" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -30,10 +30,11 @@
                     </div>
                 </div>
                 <div class="toolbar">
-                    <a class="button-link" href="/admin/users">Accounts</a>
                     <a class="button-link" href="/">Back to 3270Web</a>
                 </div>
             </div>
+
+            {{ template "admin-nav" "audit" }}
 
             <div class="admin-status" data-audit-status aria-live="polite"></div>
 
@@ -88,6 +89,6 @@
         </div>
     </div>
 
-    <script src="/static/admin-audit.js?v=1" defer></script>
+    <script src="/static/admin-audit.js?v=2" defer></script>
 </body>
 </html>

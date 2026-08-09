@@ -96,6 +96,9 @@ type App struct {
 	themeCacheMu sync.RWMutex
 	logFilePath  string
 	envPath      string
+	// startedAt is when this process came up, shown on the admin overview so
+	// "since the restart" has a number against it.
+	startedAt time.Time
 	// baseDir is where state is written; installDir is where the program and
 	// its web assets live. The same directory unless DATA_DIR says otherwise.
 	baseDir      string
@@ -258,6 +261,7 @@ func newAppAt(installDir, dataDir string) *App {
 		installDir:          installDir,
 		chaosEngines:        newChaosEngineStore(),
 		profiles:            newProfileCache(),
+		startedAt:           time.Now(),
 	}
 }
 
@@ -350,6 +354,13 @@ func buildRouter(app *App) (*gin.Engine, error) {
 
 	// Account administration.
 	admin := r.Group("", app.RequireAdmin())
+	// The administration area's front door: instance state at a glance, and
+	// the live terminal sessions with the power to end one. See
+	// adminoverview.go and adminsessions.go.
+	admin.GET("/admin", app.AdminOverviewPageHandler)
+	admin.GET("/api/admin/overview", app.AdminOverviewHandler)
+	admin.GET("/api/admin/sessions", app.AdminListSessionsHandler)
+	admin.DELETE("/api/admin/sessions/:id", app.AdminCloseSessionHandler)
 	admin.GET(adminUsersPath, app.AdminUsersPageHandler)
 	admin.GET("/api/admin/users", app.AdminListUsersHandler)
 	admin.POST("/api/admin/users", app.AdminCreateUserHandler)

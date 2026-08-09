@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=15">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
     <script src="/static/theme.js?v=9" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -31,10 +31,11 @@
                 </div>
                 <div class="toolbar">
                     <button type="button" data-branding-open>Session screen</button>
-                    <a class="button-link" href="/admin/audit">Audit trail</a>
                     <a class="button-link" href="/">Back to 3270Web</a>
                 </div>
             </div>
+
+            {{ template "admin-nav" "accounts" }}
 
             {{ if not .AuthEnabled }}
             <div class="auth-alert auth-alert--warn">
@@ -50,7 +51,20 @@
 
             <div class="admin-toolbar">
                 <span class="admin-count" data-admin-count>Loading…</span>
-                <div class="toolbar">
+                <div class="toolbar audit-filters">
+                    <label class="visually-hidden" for="admin-filter">Filter accounts</label>
+                    <input type="search" id="admin-filter" data-admin-filter
+                           placeholder="Filter by name or group"
+                           autocomplete="off" autocapitalize="none" spellcheck="false">
+                    <label class="visually-hidden" for="admin-only">Show</label>
+                    <select id="admin-only" data-admin-only>
+                        <option value="">Everyone</option>
+                        <option value="admin">Administrators</option>
+                        <option value="user">Users</option>
+                        <option value="disabled">Disabled</option>
+                        <option value="must-change">Must change password</option>
+                        <option value="external">Single sign-on</option>
+                    </select>
                     <button type="button" data-admin-refresh>Refresh</button>
                     <button type="button" data-admin-add>Add account</button>
                 </div>
@@ -268,6 +282,6 @@
     </div>
 
     <script src="/static/auth-form.js?v=2" defer></script>
-    <script src="/static/admin-users.js?v=2" defer></script>
+    <script src="/static/admin-users.js?v=3" defer></script>
 </body>
 </html>

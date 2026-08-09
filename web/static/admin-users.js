@@ -15,6 +15,8 @@
 
   var statusEl = document.querySelector('[data-admin-status]');
   var countEl = document.querySelector('[data-admin-count]');
+  var filterEl = document.querySelector('[data-admin-filter]');
+  var onlyEl = document.querySelector('[data-admin-only]');
   var dialogs = {};
   var lastFocus = null;
   var cache = [];
@@ -253,26 +255,63 @@
     return tr;
   }
 
+  /* The filter runs here, like the audit page's: the list is at most a few
+     hundred accounts, so a round trip per keystroke buys nothing. */
+  function matches(user) {
+    var only = onlyEl ? onlyEl.value : '';
+    switch (only) {
+      case 'admin':
+      case 'user':
+        if (user.role !== only) return false;
+        break;
+      case 'disabled':
+        if (!user.disabled) return false;
+        break;
+      case 'must-change':
+        if (!user.mustChangePassword) return false;
+        break;
+      case 'external':
+        if (!user.external) return false;
+        break;
+    }
+
+    var needle = (filterEl ? filterEl.value : '').trim().toLowerCase();
+    if (!needle) return true;
+    var haystack = [user.username, user.role, (user.groups || []).join(' ')]
+      .join(' ').toLowerCase();
+    return haystack.indexOf(needle) !== -1;
+  }
+
   function render(users) {
     cache = users;
     rows.textContent = '';
 
-    if (!users.length) {
+    var visible = users.filter(matches);
+
+    if (!visible.length) {
       var tr = el('tr');
       var td = el('td', 'admin-empty');
       td.colSpan = 6;
-      td.appendChild(el('strong', '', 'No accounts yet'));
-      td.appendChild(document.createTextNode('Add one to let somebody sign in.'));
+      if (users.length) {
+        td.appendChild(el('strong', '', 'Nothing matches that filter'));
+        td.appendChild(document.createTextNode('Clear the search or show everyone.'));
+      } else {
+        td.appendChild(el('strong', '', 'No accounts yet'));
+        td.appendChild(document.createTextNode('Add one to let somebody sign in.'));
+      }
       tr.appendChild(td);
       rows.appendChild(tr);
     } else {
-      users.forEach(function (user) { rows.appendChild(renderRow(user)); });
+      visible.forEach(function (user) { rows.appendChild(renderRow(user)); });
     }
 
     if (countEl) {
       var admins = users.filter(function (u) { return u.role === 'admin'; }).length;
-      countEl.textContent = users.length + (users.length === 1 ? ' account' : ' accounts') +
+      var total = users.length + (users.length === 1 ? ' account' : ' accounts') +
         ' · ' + admins + (admins === 1 ? ' administrator' : ' administrators');
+      countEl.textContent = visible.length === users.length
+        ? total
+        : visible.length + ' of ' + total;
     }
   }
 
@@ -498,6 +537,9 @@
       load();
     });
   }
+
+  if (filterEl) filterEl.addEventListener('input', function () { render(cache); });
+  if (onlyEl) onlyEl.addEventListener('change', function () { render(cache); });
 
   var addForm = document.querySelector('[data-add-form]');
   if (addForm) {

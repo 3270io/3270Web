@@ -35,6 +35,7 @@
     'token.refused': 'API token refused',
     'session.opened': 'Session opened',
     'session.denied': 'Session refused',
+    'session.closed': 'Session disconnected',
     'file.transfer': 'File transfer',
     'settings.saved': 'Settings changed',
     'app.restarted': 'Server restarted',
@@ -43,7 +44,7 @@
 
   var GROUPS = {
     'sign-in': ['login.succeeded', 'login.failed', 'login.locked_out', 'logout'],
-    'session': ['session.opened', 'session.denied', 'file.transfer'],
+    'session': ['session.opened', 'session.denied', 'session.closed', 'file.transfer'],
     'admin': ['account.created', 'account.updated', 'account.deleted',
               'account.first_admin_created', 'settings.saved', 'app.restarted',
               'logs.access_changed', 'token.issued', 'token.revoked']

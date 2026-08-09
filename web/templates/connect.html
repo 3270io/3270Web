@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=15">
     <!-- Shared design system layer; see the note in screen.html. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -56,7 +56,7 @@
                     <span class="user-chip">
                         <span class="admin-avatar" aria-hidden="true">{{ slice .Auth.Username 0 1 }}</span>
                         <span class="user-chip-name" title="Signed in as {{ .Auth.Username }}">{{ .Auth.Username }}</span>
-                        {{ if .Auth.IsAdmin }}<a class="button-link" href="/admin/users">Accounts</a>{{ end }}
+                        {{ if .Auth.IsAdmin }}<a class="button-link" href="/admin">Admin</a>{{ end }}
                         <form action="/logout" method="post"><button type="submit">Sign out</button></form>
                     </span>
                     {{ end }}

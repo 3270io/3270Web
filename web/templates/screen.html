@@ -15,7 +15,7 @@
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=18">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=5">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
@@ -119,7 +119,7 @@
                 <span class="user-chip">
                     <span class="admin-avatar" aria-hidden="true">{{ slice .Auth.Username 0 1 }}</span>
                     <span class="user-chip-name" title="Signed in as {{ .Auth.Username }}">{{ .Auth.Username }}</span>
-                    {{ if .Auth.IsAdmin }}<a class="button-link" href="/admin/users">Accounts</a>{{ end }}
+                    {{ if .Auth.IsAdmin }}<a class="button-link" href="/admin">Admin</a>{{ end }}
                     <form action="/logout" method="post"><button type="submit">Sign out</button></form>
                 </span>
                 {{ end }}
