@@ -19,9 +19,11 @@ import (
 //
 // It is the first screen an operator meets, before anything of their own
 // organisation's, so a deployment that cannot put its own name on it looks
-// like somebody else's product. The default is 3270.io's own artwork, which is
-// what an unconfigured instance should show — not a blank space waiting to be
-// filled in.
+// like somebody else's product.
+//
+// The default is a wordmark on the title bar and no artwork. A banner is
+// available and empty unless a site fills it in — see sessionmenu.Branding for
+// why that is the default rather than a logo.
 //
 // Instance-wide rather than per-user: it is the instance being named.
 

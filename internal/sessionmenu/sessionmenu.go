@@ -38,11 +38,12 @@ import (
 // lines rather than markup: the screen is a character grid, and what is
 // written is what appears.
 type Branding struct {
-	// Title sits under the banner. Empty falls back to the default.
+	// Title is the name in the top-left of the title bar. Empty falls back to
+	// the default.
 	Title string
-	// Banner is drawn at the top, one screen row per element. Empty falls
-	// back to the default artwork; a Banner of one empty string is how a
-	// deployment says it wants no artwork at all.
+	// Banner is optional artwork drawn under the title bar, one screen row per
+	// element. Empty means no artwork, which is both the default and what a
+	// deployment says when it wants none — there is nothing to fall back to.
 	Banner []string
 	// Footer is an optional line above the key legend — an operations contact,
 	// a classification marking, whatever the site puts there.
