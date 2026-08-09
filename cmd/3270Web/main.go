@@ -35,6 +35,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/config"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/oidc"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
@@ -54,6 +55,12 @@ type App struct {
 	usersOnce    sync.Once
 	usersPath    string
 	authSessions *authsession.Store
+	// oidcProvider and sso are the identity-provider client and its settings,
+	// present only under AUTH_MODE=oidc; ssoPending holds sign-ins between the
+	// redirect out and the callback back.
+	oidcProvider *oidc.Provider
+	sso          ssoSettings
+	ssoPending   *pendingLoginStore
 	// apiTokens holds the credentials automated clients present. Consulted
 	// only where users are separated; see authenticateAPIToken.
 	apiTokens     *apitoken.Store
@@ -73,6 +80,13 @@ type App struct {
 	authAbsoluteTimeout time.Duration
 	// setup tracks whether the instance still needs its first administrator.
 	setup setupState
+	// menuStore holds the 3270 selection screen a session is looking at,
+	// where the account has more than one mainframe to choose from.
+	menuStore *menuStore
+	menuOnce  sync.Once
+	// brandingStore holds what the selection screen says at the top.
+	brandingStore *brandingStore
+	brandingOnce  sync.Once
 	// ownerStores caches each account's own file stores.
 	ownerStores *ownerStores
 	storesOnce  sync.Once
@@ -318,6 +332,16 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET(setupPath, app.SetupPageHandler)
 	r.POST(setupPath, app.SetupHandler)
 
+	// Signing in through an identity provider. Both are reachable without a
+	// login for the obvious reason, and both do nothing unless AUTH_MODE=oidc
+	// configured one.
+	// The host list this account was assigned, for a client that wants to show
+	// it without driving a terminal through the selection screen.
+	r.GET("/api/hosts", app.APISelectionScreen)
+
+	r.GET(ssoStartPath, app.SSOStartHandler)
+	r.GET(ssoCallbackPath, app.SSOCallbackHandler)
+
 	// Account administration.
 	admin := r.Group("", app.RequireAdmin())
 	admin.GET(adminUsersPath, app.AdminUsersPageHandler)
@@ -325,6 +349,10 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.POST("/api/admin/users", app.AdminCreateUserHandler)
 	admin.PATCH("/api/admin/users/:id", app.AdminUpdateUserHandler)
 	admin.DELETE("/api/admin/users/:id", app.AdminDeleteUserHandler)
+	// The selection screen's branding: instance-wide, so an administrator's.
+	admin.GET("/api/admin/menu-branding", app.AdminMenuBrandingHandler)
+	admin.POST("/api/admin/menu-branding", app.AdminSaveMenuBrandingHandler)
+	admin.GET("/api/admin/menu-preview", app.AdminPreviewMenuHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
@@ -954,6 +982,7 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 				return
 			case <-ticker.C:
 				app.reapIdleSessions(maxIdle)
+				app.sweepLogins()
 				if app.copilotAuthStore != nil {
 					app.copilotAuthStore.EvictIdle(copilotIdentityIdleTimeout)
 				}
@@ -964,6 +993,48 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 		}
 	}()
 	return func() { close(done) }
+}
+
+// sweepLogins drops logins that have expired, and logins whose account has
+// since been disabled or deleted.
+//
+// The expiry half only bounds memory: a login is already refused once it
+// expires, but nothing removes an abandoned one until somebody presents it
+// again, which by definition nobody does.
+//
+// The second half is a revocation that would otherwise be missed. The web
+// interface ends an account's logins as it disables it, but that is not the
+// only way an account changes: `3270Web user disable alice` edits the same
+// file while the server is running — the documented way to do this without a
+// browser — and the server has no idea it happened. A token belonging to that
+// account stops working immediately, because the owner is looked up on every
+// call; a browser already signed in would keep going to the end of its
+// absolute timeout. Re-reading the account store per request to close that
+// gap would be a file read on every request to answer a question that changes
+// almost never, so it is answered on the sweep instead.
+func (app *App) sweepLogins() {
+	if app.authSessions == nil || !app.separatesUsers() {
+		return
+	}
+	if n := app.authSessions.Reap(); n > 0 {
+		log.Printf("auth: dropped %d expired login(s)", n)
+	}
+	for _, id := range app.authSessions.UserIDs() {
+		user, found, err := app.userStore().ByID(id)
+		if err != nil {
+			// A store that cannot be read says nothing about whether the
+			// account is still valid, so nobody is signed out over it.
+			log.Printf("auth: could not re-check account %s: %v", id, err)
+			return
+		}
+		if found && !user.Disabled {
+			continue
+		}
+		if n := app.authSessions.DeleteAllFor(id); n > 0 {
+			log.Printf("auth: ended %d login(s) for an account that is now %s",
+				n, map[bool]string{true: "disabled", false: "gone"}[found])
+		}
+	}
 }
 
 // reapIdleSessions removes sessions idle for at least maxIdle, skipping any
@@ -1001,6 +1072,9 @@ func (app *App) cleanupSession(s *session.Session) {
 		return
 	}
 	cleanupRecordingFile(s)
+	// The selection screen is a listener this session owns; it has to close
+	// with the session or the port stays bound for the life of the process.
+	app.menus().stop(s.ID)
 	// Told to stop before the engine is unregistered and the removed mark is
 	// cleared below. Those two together used to leave the status goroutine
 	// with no exit condition at all: it polled a detached engine, and wrote
@@ -1120,6 +1194,14 @@ func (app *App) HomeHandler(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/screen")
 		return
 	}
+	// What this account was assigned comes first: a configured TargetHost is
+	// the instance's answer for everyone, and an assignment is the answer for
+	// this person, which is the more specific of the two.
+	if app.firstScreenFor(c) {
+		c.Redirect(http.StatusFound, "/screen")
+		return
+	}
+
 	targetHost := strings.TrimSpace(app.Config.TargetHost.Value)
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
@@ -1301,6 +1383,15 @@ func mergeOIA(payload gin.H, screen *host.Screen) gin.H {
 func (app *App) ScreenHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
+		c.Redirect(http.StatusFound, "/")
+		return
+	}
+	// Before the screen is read, so the operator who has just chosen a system
+	// on the selection screen sees that system rather than one more frame of
+	// the menu.
+	app.settleSelection(c, s)
+	if s.Host == nil {
+		// settleSelection ended the session — PF3 on the menu.
 		c.Redirect(http.StatusFound, "/")
 		return
 	}
@@ -1536,6 +1627,11 @@ func (app *App) SubmitAsyncHandler(c *gin.Context) {
 }
 
 func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
+	// A selection made on the previous submit is settled before this one is
+	// sent, so a key pressed straight after Enter reaches the mainframe rather
+	// than the menu the terminal has already left.
+	app.settleSelection(c, s)
+
 	key := c.PostForm("key")
 	cursorRow := strings.TrimSpace(c.PostForm("cursor_row"))
 	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))
@@ -4368,7 +4464,11 @@ func (app *App) configureAuth() error {
 	if strings.TrimSpace(os.Getenv("API_TOKEN")) != "" {
 		return fmt.Errorf("API_TOKEN cannot be used with %s=%s: a single shared token would reach every "+
 			"account's sessions. Unset it and issue a token per account with `3270Web token add <username> <name>`",
-			authz.ModeEnv, authz.ModeLocal)
+			authz.ModeEnv, app.authMode)
+	}
+
+	if err := app.configureSSO(); err != nil {
+		return err
 	}
 
 	// From here on the instance requires accounts, so refuse to start without

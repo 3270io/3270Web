@@ -34,6 +34,9 @@ func TestEnvDocumentationDrift(t *testing.T) {
 		{"# Comma-separated glob list of hosts an AI client may connect to.", "MCP_ALLOWED_HOSTS="},
 		{"# Comma-separated glob list of hosts this instance may connect to at all,", "ALLOWED_HOSTS="},
 		{"# Requests a minute per account on the routes that cost the instance", "RATE_LIMIT_CONNECT=20"},
+		{"# oidc  - sign in through an identity provider, with local accounts", "AUTH_MODE=none"},
+		{"# This server's callback, registered with the provider. It must be the", "OIDC_REDIRECT_URL="},
+		{"# Groups that grant administration, and groups required to sign in at", "OIDC_ADMIN_GROUPS="},
 	}
 
 	for _, tc := range cases {

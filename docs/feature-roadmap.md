@@ -177,10 +177,17 @@ proceed without them; procurement cannot.
       every refusal — in a file of its own, admin-readable at `/admin/audit`,
       with no switch to turn it off. See
       [The audit trail](multi-user.md#the-audit-trail)*
-- [ ] **OAuth / SAML / OIDC SSO** — the entry ticket for BYOD and Azure AD
-      organisations. Local accounts exist now, and the principal they resolve
-      to is what every authorization check already reads, so this is a second
-      way to establish identity rather than an identity model from scratch.
+- [x] **OIDC single sign-on** — *shipped: `AUTH_MODE=oidc` signs people in
+      through the directory an organisation already runs, provisioning an
+      account on first use and mapping roles from a group claim. Local accounts
+      keep working alongside it, deliberately: an instance whose only door
+      depends on a service it does not run can be locked out of itself by
+      somebody else's outage. See
+      [Single sign-on](authentication.md#single-sign-on-oidc)*
+- [ ] **SAML** — the same job for organisations whose directory does not speak
+      OIDC. A different protocol rather than a different identity model: the
+      account an assertion resolves to, and everything downstream of it, is
+      what OIDC sign-in already builds
 - [x] **WCAG 2.1 AA conformance statement** — *shipped: an audit across
       thirteen surfaces, the failures it found fixed, and a statement that
       names what conforms, what does not, and which two apparent failures are

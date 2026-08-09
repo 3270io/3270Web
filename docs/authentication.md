@@ -33,9 +33,10 @@ services:
       - AUTH_MODE=local
 ```
 
-Only `none` (the default) and `local` are accepted. Any other value stops
-startup with an error rather than quietly running without authentication — a
-setting that looks like protection but is not would be worse than none at all.
+Three values are accepted: `none` (the default), `local`, and `oidc` for
+[single sign-on](#single-sign-on-oidc). Any other value stops startup with an
+error rather than quietly running without authentication — a setting that looks
+like protection but is not would be worse than none at all.
 
 ## First start
 
@@ -96,6 +97,12 @@ Disabling an account, resetting its password or deleting it signs that person
 out everywhere immediately. A password an administrator sets is temporary: its
 owner is asked to choose their own the next time they sign in.
 
+**Changing a role also takes effect immediately, in whatever browser that
+person already has open** — it does not wait for them to sign in again, and it
+does not sign them out. Demotion is the direction that matters: a demoted
+administrator who kept the role until their session expired could restore it
+from the Accounts page they were still standing on.
+
 ### From the command line
 
 Account management is also a console command. It edits the same file the server
@@ -126,6 +133,12 @@ Inside a container:
 docker compose exec 3270Web /app/3270Web user add alice
 ```
 
+One difference from the web interface: a running server does not see the file
+change. Disabling an account from the console stops its API tokens at once —
+the owner is looked up on every call — but a browser already signed in is
+ended by a periodic sweep instead, so allow up to ten minutes. Disabling from
+the Accounts page ends those logins on the spot.
+
 ### Roles
 
 | Role | May |
@@ -146,6 +159,101 @@ never written anywhere.
 
 Changing a password signs out that account's other sessions, which is usually
 the point of changing one.
+
+## Single sign-on (OIDC)
+
+`AUTH_MODE=oidc` signs people in through an OpenID Connect identity provider —
+the directory an organisation already runs — instead of asking them to invent
+another password. Accounts appear here the first time somebody signs in;
+nobody has to be added in advance.
+
+**Local accounts keep working.** This is not an either/or, and the reason
+matters: an instance whose only door depends on a service it does not run can
+be locked out of itself by somebody else's outage or a mistyped setting.
+First-run setup still asks for a local administrator, and that account is the
+way back in. Everybody else uses the provider.
+
+### Configuring it
+
+```bash
+AUTH_MODE=oidc
+OIDC_ISSUER=https://login.example.com/realms/staff
+OIDC_CLIENT_ID=3270web
+OIDC_CLIENT_SECRET=…
+OIDC_REDIRECT_URL=https://3270web.example.com/auth/sso/callback
+```
+
+Register `OIDC_REDIRECT_URL` with the provider as an allowed redirect URI. It
+must be the address a browser actually reaches, and it must end in
+`/auth/sso/callback`.
+
+Everything else — the authorization and token endpoints, the signing keys — is
+read from the provider's discovery document, so there is nothing else to copy
+across. The issuer must be `https`, the one exception being a loopback address
+so a provider running on the same machine can be tried without a certificate.
+
+3270Web asks for the authorization code flow with PKCE. There is no
+implicit or hybrid flow: the browser only ever carries a one-time code, and
+the token exchange happens server to server.
+
+### Roles from the directory
+
+| Variable | Meaning |
+|---|---|
+| `OIDC_GROUPS_CLAIM` | Which claim carries group membership (default `groups`) |
+| `OIDC_ADMIN_GROUPS` | Members of these groups get the `admin` role |
+| `OIDC_ALLOWED_GROUPS` | If set, only members of these groups may sign in at all |
+| `OIDC_USERNAME_CLAIM` | Which claim to take a display name from |
+| `OIDC_END_SESSION` | Also end the provider's session when signing out here |
+
+Both group lists are comma-separated and matched without regard to case. The
+claim may be an array of strings or one space-separated string; either is read.
+
+`OIDC_ADMIN_GROUPS` is re-applied on **every** sign-in, in both directions —
+somebody removed from the group is an ordinary user the next time they sign in.
+That is the point of managing roles centrally.
+
+Leave it unset and the provider says nothing about roles: everybody arrives as
+a `user`, and an administrator promotes people on the Accounts page. Those
+promotions survive later sign-ins.
+
+`OIDC_ALLOWED_GROUPS` answers a different question — not what somebody may do
+here, but whether they belong here at all. One directory usually serves many
+services, and everybody in it being able to open a mainframe terminal is rarely
+what was meant. Somebody outside every listed group is refused, and no account
+is created for them.
+
+### What an account looks like
+
+An account is found by the provider's **issuer and subject**, never by name. A
+directory renames people, and the subject is the one claim a provider promises
+not to recycle. So a rename follows through to the username here and changes
+nothing else — the same account, the same saved work, the same audit history.
+
+The username is a display name derived from a claim. Characters the account
+store does not accept become dashes, so `alice@corp.example` appears as
+`alice-corp.example`.
+
+Two things an administrator can still do, and one they cannot:
+
+- **Disabling works**, and outranks the provider. An account disabled here
+  stays out however happily the directory goes on authenticating it.
+- **Roles work**, unless `OIDC_ADMIN_GROUPS` is set, in which case the
+  directory is the authority.
+- **Passwords do not.** An account that signs in through the provider has no
+  local password and cannot be given one. A second door the provider knows
+  nothing about is one it cannot close when it closes the person's access.
+
+A name a local account already holds is refused rather than linked. Otherwise
+anybody who can be named in the directory could take over the break-glass
+administrator by being called `root`.
+
+### If the provider is unreachable
+
+The sign-in page says so and offers the password form. Discovery is deferred
+until somebody presses the button, so a provider that is down does not stop
+3270Web from starting — which is exactly when the local administrator is
+needed.
 
 ## Session lifetime
 

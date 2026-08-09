@@ -14,7 +14,7 @@ pointed at, and what is written down.
 
 | Control | Default | What it decides |
 |---|---|---|
-| [`AUTH_MODE`](authentication.md) | `none` | Whether there are accounts at all |
+| [`AUTH_MODE`](authentication.md) | `none` | Whether there are accounts at all, and whether an identity provider issues them |
 | [Session and data separation](#what-is-separated-and-what-is-not) | on with accounts | What one account can see of another's |
 | [`TRUST_PROXY_HEADERS`](#running-without-tls) | off | Whether cookies are marked `Secure` behind a TLS proxy |
 | [API tokens](#api-tokens) | — | What an automated client may reach |
@@ -183,7 +183,13 @@ Which token depends on whether the instance has accounts:
 | | Credential | Reaches |
 |---|---|---|
 | Single operator (`AUTH_MODE=none`) | the `API_TOKEN` environment variable | everything, because there is one person |
-| Accounts (`AUTH_MODE=local`) | a token issued to an account | exactly what that account reaches |
+| Accounts (`AUTH_MODE=local` or `oidc`) | a token issued to an account | exactly what that account reaches |
+
+An account that signs in through an identity provider issues tokens the same
+way. The token is this instance's own credential — the provider is asked who
+somebody is when they sign in, not on every API call — so an automated client
+keeps working without a browser round trip, and stops the moment the account
+is disabled or deleted here.
 
 With accounts on, `API_TOKEN` is **refused at startup**. One credential held
 by every client would reach every account's sessions, which is the thing the

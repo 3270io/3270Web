@@ -15,7 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/audit"
-	"github.com/jnnngs/3270Web/internal/authz"
 	"github.com/jnnngs/3270Web/internal/reqsec"
 	"github.com/jnnngs/3270Web/internal/users"
 )
@@ -114,7 +113,11 @@ func formatSetupCode(code string) string {
 // "has an administrator" from being a land grab. Whoever can read the log is
 // already trusted; whoever merely reached the port is not.
 func (app *App) beginSetupIfNeeded() error {
-	if app.authMode != authz.ModeLocal {
+	// Every mode that separates users needs a first account, including the one
+	// that signs people in through an identity provider: that account is the
+	// local administrator who can still get in when the provider cannot be
+	// reached, and somebody has to exist before anybody can be given a role.
+	if !app.separatesUsers() {
 		return nil
 	}
 

@@ -186,6 +186,49 @@
   cursor: not-allowed;
 }
 
+/* The identity-provider button is a link rather than a submit, since it
+   navigates away instead of posting — which is what a screen reader should
+   announce it as. Styled as the primary action because on an instance that has
+   SSO it is the way in for everybody except the one local account kept for
+   when the provider cannot be reached.
+ *
+ * Written as .auth-card .auth-sso, and restating colour and font-style that
+ * .auth-submit already sets, because a theme may style every anchor: one ships
+ * links in italic gold, and `body.theme-x a` outranks a single class. Being a
+ * link is what makes this control need the extra weight. */
+.auth-card .auth-sso {
+  display: block;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 11px 14px;
+  color: var(--bg);
+  font-style: normal;
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* A labelled rule, so the password form below reads as the alternative rather
+   than as a second thing to fill in. */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+  color: var(--fg-dim, #8a8a8a);
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border, rgba(128, 128, 128, 0.35));
+}
+
 /* ---------------------------------------------------------------------
    3. Messages
    --------------------------------------------------------------------- */
@@ -432,6 +475,20 @@ table.admin-table {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 7px;
+  white-space: nowrap;
+}
+
+/* Where an account signs in from, when it is not from here. Same shape as the
+   "you" tag, since both answer "what is different about this row". */
+.admin-origin-tag {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 4px;
   white-space: nowrap;
 }
 

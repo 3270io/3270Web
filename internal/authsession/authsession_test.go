@@ -250,3 +250,36 @@ func TestConcurrentUse(t *testing.T) {
 		t.Errorf("Count = %d, want 0", s.Count())
 	}
 }
+
+func TestSetRoleForTouchesOnlyThatUsersLogins(t *testing.T) {
+	s := NewStore(time.Hour, 12*time.Hour)
+
+	first, _ := s.Create("user-1", "alice", authz.RoleAdmin, "10.0.0.1", false)
+	// Two logins, because one person signed in from a second browser is the
+	// case where changing only the session that happens to be found first
+	// would leave the other one administering.
+	second, _ := s.Create("user-1", "alice", authz.RoleAdmin, "10.0.0.2", false)
+	other, _ := s.Create("user-2", "bob", authz.RoleAdmin, "10.0.0.3", false)
+
+	if n := s.SetRoleFor("user-1", authz.RoleUser); n != 2 {
+		t.Errorf("SetRoleFor changed %d logins, want 2", n)
+	}
+	for _, id := range []string{first.ID, second.ID} {
+		got, ok := s.Get(id, "", false)
+		if !ok {
+			t.Fatalf("login %s was ended rather than changed", id)
+		}
+		if got.Role != authz.RoleUser {
+			t.Errorf("login %s still holds %s", id, got.Role)
+		}
+	}
+	if got, _ := s.Get(other.ID, "", false); got.Role != authz.RoleAdmin {
+		t.Errorf("another account's login was changed to %s", got.Role)
+	}
+
+	// Re-applying the role it already has changes nothing, so the count means
+	// "logins affected" rather than "logins seen".
+	if n := s.SetRoleFor("user-1", authz.RoleUser); n != 0 {
+		t.Errorf("re-applying the same role reported %d changes, want 0", n)
+	}
+}

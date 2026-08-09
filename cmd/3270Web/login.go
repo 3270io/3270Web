@@ -33,10 +33,12 @@ const (
 // Kept as an explicit set rather than a prefix rule so adding a route never
 // silently makes it public: anything not named here needs a login.
 var publicPaths = map[string]bool{
-	loginPath:  true,
-	logoutPath: true,
-	setupPath:  true,
-	"/healthz": true,
+	loginPath:       true,
+	logoutPath:      true,
+	setupPath:       true,
+	ssoStartPath:    true,
+	ssoCallbackPath: true,
+	"/healthz":      true,
 }
 
 // publicPrefixes cover static assets, which must load before login so the
@@ -205,6 +207,7 @@ func (app *App) renderLogin(c *gin.Context, status int, errMessage string) {
 		"AppName":    "3270Web",
 		"ShowNoTLS":  !reqsec.IsTLS(c.Request),
 		"CSRFTokenH": "",
+		"SSO":        app.ssoView(),
 	})
 }
 
@@ -312,6 +315,14 @@ func (app *App) LogoutHandler(c *gin.Context) {
 	app.setAuthCookie(c, "")
 	if wantsJSON(c) {
 		c.JSON(http.StatusOK, gin.H{"loggedOut": true})
+		return
+	}
+	// Where the deployment asked for it, signing out here also ends the
+	// session at the provider — otherwise the next visit is signed straight
+	// back in without being asked for anything, which on a shared machine is
+	// not what anybody means by "sign out".
+	if target := app.ssoLogoutURL(c); target != "" {
+		c.Redirect(http.StatusFound, target)
 		return
 	}
 	c.Redirect(http.StatusFound, loginPath)

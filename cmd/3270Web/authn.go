@@ -50,7 +50,11 @@ func (app *App) resolvePrincipal(c *gin.Context) authz.Principal {
 	}
 
 	switch app.authMode {
-	case authz.ModeLocal:
+	// Both authenticating modes issue the same login cookie: the difference is
+	// how somebody proves who they are the first time, not what they carry
+	// afterwards. A mode added here that forgets to appear in this list denies
+	// every request — annoying, and the right direction to fail in.
+	case authz.ModeLocal, authz.ModeOIDC:
 		id := getCookieValue(c, authCookieName)
 		if id == "" {
 			return authz.Anonymous()
