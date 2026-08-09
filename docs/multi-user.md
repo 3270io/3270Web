@@ -324,3 +324,22 @@ goes to the debug log, but the request still succeeds. An audit that can refuse
 a sign-in because a disk filled up is a denial of service dressed as a
 safeguard.
 
+---
+
+## Checking it works
+
+The Go tests cover each control on this page. What they cannot cover is
+whether the parts compose in a browser against a real server, so there is a
+script that walks the whole thing:
+
+```bash
+AUTH_MODE=local ALLOW_SAMPLE_APPS=1 go run ./cmd/3270Web    # another terminal
+node scripts/check-multi-user.mjs --code EJWQ-RUYN-7XL3-PT3O
+```
+
+Run it against a **fresh data directory** — it starts from an instance with no
+accounts. It completes first-run setup, creates a second account, signs in as
+that account and is made to choose a new password, opens a terminal, confirms
+the account is refused administration and cannot use the other's session, and
+checks the trail recorded all of it. It names whichever step fails and leaves
+screenshots behind.
