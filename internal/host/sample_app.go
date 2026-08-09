@@ -43,9 +43,15 @@ func NewGoSampleAppHost(appID string, port int, execPath string, args []string, 
 	}, nil
 }
 
+// Start joins the listener for this sample app, opening one if this is the
+// first session to ask for it, and connects an s3270 to it.
+//
+// The listener is shared rather than owned: see sample_app_pool.go. Every path
+// out of here that has taken a claim on it gives that claim back, or a session
+// that failed to start would keep a port open until the process ended.
 func (h *GoSampleAppHost) Start() error {
 	if h.server == nil {
-		server, err := sampleapps.StartServer(h.AppID, h.Port)
+		server, err := acquireSampleAppServer(h.AppID, h.Port)
 		if err != nil {
 			return err
 		}
@@ -55,15 +61,14 @@ func (h *GoSampleAppHost) Start() error {
 	h.client.TargetHost = h.Target
 	h.client.SetVerboseLogging(h.verboseLogging)
 	if err := h.client.Start(); err != nil {
-		h.server.Stop()
-		h.server = nil
+		h.client = nil
+		h.releaseServer()
 		return err
 	}
 	if err := h.client.UpdateScreen(); err != nil {
 		_ = h.client.Stop()
 		h.client = nil
-		_ = h.server.Stop()
-		h.server = nil
+		h.releaseServer()
 		return err
 	}
 	return nil
@@ -74,11 +79,22 @@ func (h *GoSampleAppHost) Stop() error {
 		_ = h.client.Stop()
 		h.client = nil
 	}
-	if h.server != nil {
-		_ = h.server.Stop()
-		h.server = nil
-	}
+	h.releaseServer()
 	return nil
+}
+
+// releaseServer gives up this session's claim on the shared listener, once.
+//
+// Clearing the field before releasing is what makes a second Stop — or a Stop
+// after a failed Start — harmless rather than a decrement somebody else's
+// session pays for.
+func (h *GoSampleAppHost) releaseServer() {
+	server := h.server
+	if server == nil {
+		return
+	}
+	h.server = nil
+	releaseSampleAppServer(h.Port, server)
 }
 
 func (h *GoSampleAppHost) IsConnected() bool {
