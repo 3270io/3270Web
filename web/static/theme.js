@@ -395,6 +395,14 @@
       fileThemes = inlined;
       return Promise.resolve();
     }
+    // /api/themes is gated on a terminal session, so the terminal screen is
+    // the only page where it can answer. Asking anywhere else — sign in, first
+    // run, change password, the account pages — spent a round trip on a
+    // guaranteed 401 and left a red line in the console on every one of them.
+    if (!document.querySelector(".terminal-shell")) {
+      fileThemes = [];
+      return Promise.resolve();
+    }
     return fetch("/api/themes", {
       headers: { Accept: "application/json", "Cache-Control": "no-cache" }
     })

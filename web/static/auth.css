@@ -788,7 +788,8 @@ table.admin-table {
   .admin-dialog input,
   .admin-dialog select,
   .admin-dialog button,
-  .admin-page .toolbar button {
+  .admin-page .toolbar button,
+  .admin-page .toolbar .button-link {
     min-height: 44px;
     touch-action: manipulation;
   }

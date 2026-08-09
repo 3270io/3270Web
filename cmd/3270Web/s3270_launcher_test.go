@@ -27,7 +27,12 @@ func TestResolveS3270Path_FallsBackToEmbeddedWhenConfiguredDirMissingBinary(t *t
 		t.Fatalf("extract embedded s3270: %v", err)
 	}
 
-	got := resolveS3270Path("/usr/bin")
+	// An empty directory of our own, not /usr/bin: on any machine that has
+	// s3270 installed — which is every machine that can actually run this
+	// application — /usr/bin is not a directory missing the binary, and the
+	// test was asserting something about the developer's filesystem rather
+	// than about resolveS3270Path.
+	got := resolveS3270Path(t.TempDir())
 	if got != embedded {
 		t.Fatalf("resolveS3270Path returned %q, want %q", got, embedded)
 	}

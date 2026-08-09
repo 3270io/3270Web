@@ -109,9 +109,6 @@ func (s dataScope) chaosHintsPath() string { return filepath.Join(s.base, "chaos
 // infrastructure the team shares like a host list.
 func (s dataScope) tasksPath() string { return filepath.Join(s.base, "tasks.json") }
 
-// profilesPath is this owner's own connection profiles.
-func (s dataScope) profilesPath() string { return filepath.Join(s.base, "profiles.json") }
-
 // sharedProfilesPath is the published host list every account can read.
 // Empty under a single operator, where profilesPath already is it.
 func (s dataScope) sharedProfilesPath() string {

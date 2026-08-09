@@ -280,20 +280,6 @@ func (app *App) SelectionScreenActive(s *session.Session) bool {
 	return ok
 }
 
-// assignedHostSummary is what the connect page says when an account has hosts
-// assigned but the operator asked for the form anyway.
-func (app *App) assignedHostSummary(c *gin.Context) string {
-	profiles, err := app.assignedProfiles(c)
-	if err != nil || len(profiles) == 0 {
-		return ""
-	}
-	names := make([]string, 0, len(profiles))
-	for _, p := range profiles {
-		names = append(names, p.Name)
-	}
-	return strings.Join(names, ", ")
-}
-
 // APISelectionScreen reports what the selection screen would offer, so a
 // client can show the same list without driving a terminal.
 func (app *App) APISelectionScreen(c *gin.Context) {

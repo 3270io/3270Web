@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,6 +119,25 @@ func TestLockoutIsRecorded(t *testing.T) {
 	}
 }
 
+// freeSampleAppPort returns a port from the allowed sample-app list that
+// nothing is currently listening on, so a test that needs a real sample app
+// does not fail because of what else happens to be running on the machine.
+func freeSampleAppPort(t *testing.T) int {
+	t.Helper()
+	for _, port := range allowedSampleAppPortsList {
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err != nil {
+			continue
+		}
+		// Released straight away: this asks whether the port is free, and the
+		// sample app is what actually binds it a moment later.
+		_ = ln.Close()
+		return port
+	}
+	t.Skip("no sample app port is free on this machine")
+	return 0
+}
+
 // The plan's phrase was "session open with target host". Every creation path
 // funnels through one function, so this is recorded once for all of them.
 func TestSessionOpenIsRecordedWithTheHost(t *testing.T) {
@@ -125,13 +146,20 @@ func TestSessionOpenIsRecordedWithTheHost(t *testing.T) {
 	token := issueToken(t, app, alice.ID, "ci", nil)
 	t.Setenv("ALLOW_SAMPLE_APPS", "1")
 
-	w := apiCall(r, http.MethodPost, "/api/v1/sessions", token, `{"host":"mock"}`)
+	// A sample app has to bind a port from the allowed list, so the test takes
+	// whichever of them is free rather than always the first. "mock" is the
+	// first, and asking for it failed the whole test whenever anything already
+	// held it — a development instance running alongside `go test`, most often.
+	port := freeSampleAppPort(t)
+	body := fmt.Sprintf(`{"host":"sampleapp:app1:%d"}`, port)
+
+	w := apiCall(r, http.MethodPost, "/api/v1/sessions", token, body)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("could not open a session: %d %s", w.Code, w.Body.String())
 	}
-	// The sample app listens on a fixed port, so a session left open outlives
-	// the test and the next one to ask for a sample app cannot bind. Closing
-	// it here is what keeps the package runnable more than once.
+	// A session left open outlives the test and the next one to ask for a
+	// sample app cannot bind its port. Closing it here is what keeps the
+	// package runnable more than once.
 	var opened struct {
 		ID string `json:"id"`
 	}

@@ -97,15 +97,11 @@
         return;
     }
 
-    // Keep keyboard focus inside the dialog while it is open, matching the
-    // other modals in the app (about, disconnect, logs). Without this, Tab
-    // walks focus behind the backdrop.
-    let settingsLastFocused = null;
-    const settingsFocusTrap =
-        window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
-            ? window.ThreeSeventyWeb.createFocusTrap(modal)
-            : { activate() {}, deactivate() {} };
-
+    // Focus, the Tab trap, the background scroll lock and the focus restore
+    // all belong to pushModal/popModal — see modal-utils.js. This dialog used
+    // to activate a focus trap without ever moving focus into itself, so the
+    // trap listened on a dialog that never saw a Tab and the page behind the
+    // backdrop stayed reachable.
     const openButton = document.querySelector('[data-settings-open]');
     const closeButtons = modal.querySelectorAll('[data-settings-close]');
     const refreshButton = modal.querySelector('[data-settings-refresh]');
@@ -897,10 +893,7 @@
     };
 
     const openSettingsModal = () => {
-        settingsLastFocused = document.activeElement;
         modal.hidden = false;
-        document.body.style.overflow = 'hidden';
-        settingsFocusTrap.activate();
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
             window.ThreeSeventyWeb.pushModal(modal, closeSettingsModal);
         }
@@ -914,16 +907,10 @@
         closeChaosDefaultsSubModal();
         closeRestartConfirm(false);
         modal.hidden = true;
-        document.body.style.overflow = '';
-        settingsFocusTrap.deactivate();
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
             window.ThreeSeventyWeb.popModal(modal);
         }
         setStatus('');
-        if (settingsLastFocused && typeof settingsLastFocused.focus === 'function') {
-            settingsLastFocused.focus();
-        }
-        settingsLastFocused = null;
     };
 
     const closeRestartConfirm = (confirmed) => {
@@ -955,9 +942,11 @@
         }
         restartConfirmModal.hidden = false;
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-            window.ThreeSeventyWeb.pushModal(restartConfirmModal, () => closeRestartConfirm(false));
+            window.ThreeSeventyWeb.pushModal(restartConfirmModal, () => closeRestartConfirm(false),
+                { initialFocus: restartConfirmButton });
+        } else {
+            restartConfirmButton.focus();
         }
-        restartConfirmButton.focus();
         return new Promise((resolve) => {
             restartConfirmResolver = resolve;
         });

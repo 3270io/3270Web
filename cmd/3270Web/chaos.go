@@ -241,16 +241,6 @@ func (s *chaosEngineStore) getScreenHints(sessionID string) map[string]chaos.Scr
 	return cloneChaosScreenHintsMap(s.screenHints[sessionID])
 }
 
-func (s *chaosEngineStore) setScreenHints(sessionID string, hints map[string]chaos.ScreenHint) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(hints) == 0 {
-		delete(s.screenHints, sessionID)
-		return
-	}
-	s.screenHints[sessionID] = cloneChaosScreenHintsMap(hints)
-}
-
 func (s *chaosEngineStore) upsertScreenHint(sessionID, screenHash string, hint chaos.ScreenHint) map[string]chaos.ScreenHint {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2185,42 +2175,6 @@ func cloneSessionChaosAttempt(attempt session.ChaosAttempt) session.ChaosAttempt
 		out.FieldWrites = append([]session.ChaosFieldWrite(nil), attempt.FieldWrites...)
 	}
 	return out
-}
-
-func marshalWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *chaos.WorkflowHeader, discovery *chaos.WorkflowDiscoveryMetadata) ([]byte, error) {
-	type workflowExportWithChaosMetadata struct {
-		WorkflowConfig
-		ChaosDiscovery *chaos.WorkflowDiscoveryMetadata `json:"ChaosDiscovery,omitempty"`
-	}
-	export := workflowExportWithChaosMetadata{
-		WorkflowConfig: WorkflowConfig{
-			Host:  hostName,
-			Port:  port,
-			Steps: steps,
-		},
-		ChaosDiscovery: discovery,
-	}
-	if header == nil {
-		header = chaosSeedWorkflowHeader(nil)
-	}
-	if header != nil {
-		if header.EveryStepDelay != nil {
-			export.WorkflowConfig.EveryStepDelay = &session.WorkflowDelayRange{
-				Min: header.EveryStepDelay.Min,
-				Max: header.EveryStepDelay.Max,
-			}
-		}
-		if header.EndOfTaskDelay != nil {
-			export.WorkflowConfig.EndOfTaskDelay = &session.WorkflowDelayRange{
-				Min: header.EndOfTaskDelay.Min,
-				Max: header.EndOfTaskDelay.Max,
-			}
-		}
-		export.WorkflowConfig.OutputFilePath = header.OutputFilePath
-		export.WorkflowConfig.RampUpBatchSize = header.RampUpBatchSize
-		export.WorkflowConfig.RampUpDelay = header.RampUpDelay
-	}
-	return json.MarshalIndent(export, "", "  ")
 }
 
 func chaosSeedRunFromWorkflow(workflow *WorkflowConfig) *chaos.SavedRun {

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	webassets "github.com/jnnngs/3270Web"
@@ -107,11 +108,9 @@ type App struct {
 	chaosSync    sync.WaitGroup
 	chaosHintsMu sync.Mutex
 	profiles     *profileCache
-	// connProfiles holds named CONNECTION profiles (host, TLS, LU, model).
-	// Distinct from `profiles` above, which caches host COMPATIBILITY
-	// profiler results — unrelated feature, unfortunately similar word.
-	connProfiles     *connectionProfileStore
-	connProfilesOnce sync.Once
+	// Named CONNECTION profiles (host, TLS, LU, model) are not held here:
+	// they belong to an owner, so the store is opened per data scope in
+	// userdata.go rather than once for the instance.
 	copilotAuthStore *copilot.Store
 	// tasks holds the Guided Business Task catalogue; taskRunStore holds the
 	// in-flight run per session. See tasks.go.
@@ -137,19 +136,6 @@ type App struct {
 	// catalogueFields holds the skills/instructions/extensions catalogue and
 	// the per-conversation load trackers. See skills.go.
 	catalogueFields
-}
-
-// connectionProfiles lazily opens the connection-profile store, which lives
-// beside the themes directory under the app's base directory.
-func (app *App) connectionProfiles() *connectionProfileStore {
-	app.connProfilesOnce.Do(func() {
-		base := strings.TrimSpace(app.baseDir)
-		if base == "" {
-			base = resolveStateDir()
-		}
-		app.connProfiles = newConnectionProfileStore(base)
-	})
-	return app.connProfiles
 }
 
 type WorkflowConfig struct {
@@ -316,6 +302,18 @@ func buildRouter(app *App) (*gin.Engine, error) {
 		r.LoadHTMLFS(http.FS(tmplFS), "*")
 	}
 
+	// Revalidate rather than trust a heuristic. Without a Cache-Control header
+	// a browser is free to invent a freshness lifetime from Last-Modified and
+	// serve a script from an earlier version of the instance for hours. Some
+	// script tags carry a hand-maintained ?v= marker and most do not, so the
+	// markers cannot be what keeps an upgraded instance honest. A conditional
+	// request costs a 304 against a local server.
+	r.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
+			c.Header("Cache-Control", "no-cache")
+		}
+		c.Next()
+	})
 	staticDir, staticErr := resolveStaticDir(app.assetDir())
 	if staticErr == nil {
 		r.Static("/static", staticDir)
@@ -829,18 +827,6 @@ func openBrowser(url string) {
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 }
 
-func recordingFileName(s *session.Session) string {
-	if s == nil {
-		return ""
-	}
-	s.Lock()
-	defer s.Unlock()
-	if s.Recording == nil || s.Recording.FilePath == "" {
-		return ""
-	}
-	return filepath.Base(s.Recording.FilePath)
-}
-
 type recordingStatus struct {
 	Active    bool
 	StartedAt string
@@ -1268,14 +1254,55 @@ func (app *App) ConnectHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/screen")
 }
 
+// connectErrorMessage turns a failed connection into something worth reading.
+//
+// A refusal by policy — the allowlist, the rate limit, the session cap —
+// already carries a message written for whoever hit it, and that message says
+// what to do about it. Only a connection that genuinely did not work falls
+// through to advice about the address and the service, which is misleading
+// for every case where the address was never the problem.
 func connectErrorMessage(hostname string, err error) string {
 	if hostname == "" {
 		return "Please enter a hostname or IP address to connect."
 	}
-	if _, _, ok := parseSampleAppHost(hostname); ok && err != nil {
-		return fmt.Sprintf("We couldn't start the sample app at %s. %v", hostname, err)
+	var refusal policyError
+	if errors.As(err, &refusal) {
+		return refusal.message
+	}
+	if id, port, ok := parseSampleAppHost(hostname); ok && err != nil {
+		return fmt.Sprintf("We couldn't start %s. %s.",
+			sampleAppDescription(id, port), capitaliseFirst(err.Error()))
 	}
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
+}
+
+// sampleAppDescription names a sample app the way the picker does, rather than
+// echoing the internal "sampleapp:app1:3271" target back at somebody who chose
+// it from a list of titles.
+func sampleAppDescription(id string, port int) string {
+	name := id
+	for _, app := range availableSampleApps() {
+		if app.ID == id {
+			name = app.Name
+			break
+		}
+	}
+	if port > 0 {
+		return fmt.Sprintf("%s on port %d", name, port)
+	}
+	return name
+}
+
+// capitaliseFirst starts a sentence with a capital. Go error strings are
+// lowercase by convention, which reads as a typo once one is appended to a
+// sentence that has already ended.
+func capitaliseFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return strings.TrimRight(string(r), ".")
 }
 
 // screenStatusLabels formats the OIA status line's four fields (keyboard
@@ -3511,14 +3538,6 @@ func roundDelaySeconds(v float64) float64 {
 	return math.Round(v*1000) / 1000
 }
 
-func writeWorkflowFile(path string, workflow *WorkflowConfig) error {
-	data, err := json.MarshalIndent(workflow, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
 func writeWorkflowTempFile(workflow *WorkflowConfig) (string, error) {
 	if workflow == nil {
 		return "", errors.New("workflow is empty")
@@ -3573,14 +3592,6 @@ func isTempWorkflowPath(path string) bool {
 	cleaned := filepath.Clean(path)
 	prefix := tempDir + string(os.PathSeparator)
 	return cleaned == tempDir || strings.HasPrefix(cleaned, prefix)
-}
-
-func loadWorkflowConfig(c *gin.Context) (*WorkflowConfig, error) {
-	upload, err := loadWorkflowUpload(c)
-	if err != nil {
-		return nil, err
-	}
-	return upload.Config, nil
 }
 
 type workflowUpload struct {
@@ -3692,30 +3703,6 @@ func loadedWorkflowName(s *session.Session) string {
 		return ""
 	}
 	return s.LoadedWorkflow.Name
-}
-
-func loadedWorkflowPreview(s *session.Session) string {
-	if s == nil {
-		return ""
-	}
-	s.Lock()
-	defer s.Unlock()
-	if s.LoadedWorkflow == nil {
-		return ""
-	}
-	return s.LoadedWorkflow.Preview
-}
-
-func loadedWorkflowSize(s *session.Session) int {
-	if s == nil {
-		return 0
-	}
-	s.Lock()
-	defer s.Unlock()
-	if s.LoadedWorkflow == nil {
-		return 0
-	}
-	return len(s.LoadedWorkflow.Payload)
 }
 
 func loadedWorkflowStepTotal(s *session.Session) int {

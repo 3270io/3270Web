@@ -169,6 +169,10 @@
     }
   }
 
+  // Escape, focus, the Tab trap, the background scroll lock and the focus
+  // restore all belong to pushModal/popModal — see modal-utils.js. The host
+  // file name is where the work starts, so it takes the initial focus rather
+  // than the Close button that comes first in the markup.
   function open() {
     if (!modal) {
       return;
@@ -176,12 +180,19 @@
     modal.hidden = false;
     setStatus("");
     syncDirection();
-    formEl.elements.hostFile.focus();
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close, { initialFocus: formEl.elements.hostFile });
+    } else {
+      formEl.elements.hostFile.focus();
+    }
   }
 
   function close() {
     if (modal) {
       modal.hidden = true;
+      if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+        window.ThreeSeventyWeb.popModal(modal);
+      }
     }
   }
 
@@ -253,17 +264,6 @@
     for (var j = 0; j < closers.length; j++) {
       closers[j].addEventListener("click", close);
     }
-    document.addEventListener(
-      "keydown",
-      function (event) {
-        if (isOpen() && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      },
-      true
-    );
   }
 
   document.addEventListener("DOMContentLoaded", function () {

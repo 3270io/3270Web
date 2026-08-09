@@ -193,12 +193,19 @@
     return { score, marks };
   }
 
+  /* Not every label is a string this file wrote: theme names come from files
+     in the themes folder, so anything rendered as markup has to be escaped
+     first. The page's CSP would stop an injected handler from running, but a
+     stylesheet is not the right place for that to be caught. */
+  const esc = (text) =>
+    String(text).replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
   const highlight = (text, marks) => {
     const set = new Set(marks);
     let out = "";
     for (let i = 0; i < text.length; i++) {
-      const ch = text[i].replace(/[&<>"]/g, (c) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const ch = esc(text[i]);
       out += set.has(i) ? `<mark>${ch}</mark>` : ch;
     }
     return out;
@@ -362,7 +369,7 @@
     active = 0;
 
     if (!items.length) {
-      list.innerHTML = `<li class="cmdk-empty">No commands match “${input.value.replace(/[<>&]/g, "")}”</li>`;
+      list.innerHTML = `<li class="cmdk-empty">No commands match “${esc(input.value)}”</li>`;
       return;
     }
 
@@ -370,7 +377,7 @@
     let lastGroup = null;
     items.forEach((entry, index) => {
       if (entry.group !== lastGroup) {
-        html += `<li class="cmdk-group" role="presentation">${entry.group}</li>`;
+        html += `<li class="cmdk-group" role="presentation">${esc(entry.group)}</li>`;
         lastGroup = entry.group;
       }
       html += `
@@ -378,8 +385,8 @@
             aria-selected="${index === 0}">
           <span class="cmdk-item-icon">${svg(ICONS[entry.cmd.icon] || ICONS.terminal)}</span>
           <span class="cmdk-item-body">
-            <span class="cmdk-item-label">${entry.marks.length ? highlight(entry.cmd.label, entry.marks) : entry.cmd.label}</span>
-            ${entry.cmd.hint ? `<span class="cmdk-item-sub">${entry.cmd.hint}</span>` : ""}
+            <span class="cmdk-item-label">${entry.marks.length ? highlight(entry.cmd.label, entry.marks) : esc(entry.cmd.label)}</span>
+            ${entry.cmd.hint ? `<span class="cmdk-item-sub">${esc(entry.cmd.hint)}</span>` : ""}
           </span>
         </li>`;
     });
@@ -476,6 +483,16 @@
           event.stopImmediatePropagation();
           active = event.key === "Home" ? 0 : Math.max(0, items.length - 1);
           paintActive();
+          return;
+        }
+        // Tab is trapped here rather than by a focus trap on the panel: this
+        // handler stops the event at the window, so nothing bound to the panel
+        // itself would ever see it. The search box is the only focusable thing
+        // in the palette, so trapping means keeping focus on it.
+        if (event.key === "Tab") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          input.focus();
           return;
         }
         // Everything else is typing into the search box — keep it away
@@ -654,6 +671,28 @@
     });
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Scroll affordance on the toolbars                                 */
+  /* ---------------------------------------------------------------- */
+  /* The toolbars scroll sideways with the scrollbar hidden, which reads on a
+     phone as a row that simply ends — the controls past the right edge are
+     reachable by swiping, and nothing says so. Fade whichever edge still has
+     something behind it. */
+  function initToolbarScrollHints() {
+    document.querySelectorAll("[data-main-toolbar], .header-chrome-actions").forEach((el) => {
+      el.classList.add("polish-hscroll");
+      const update = () => {
+        const max = el.scrollWidth - el.clientWidth;
+        el.classList.toggle("has-scroll-start", el.scrollLeft > 4);
+        el.classList.toggle("has-scroll-end", max > 4 && el.scrollLeft < max - 4);
+      };
+      el.addEventListener("scroll", update, { passive: true });
+      new ResizeObserver(update).observe(el);
+      new MutationObserver(update).observe(el, { childList: true, subtree: true });
+      update();
+    });
+  }
+
   function initPaletteTrigger() {
     document.querySelectorAll("[data-command-palette-open]").forEach((btn) => {
       btn.addEventListener("click", open);
@@ -666,6 +705,7 @@
     initKeyboardStateMirror();
     initToolCallStates();
     initScrollShadows();
+    initToolbarScrollHints();
   }
 
   if (document.readyState === "loading") {

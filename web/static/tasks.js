@@ -605,24 +605,20 @@
     for (var i = 0; i < closers.length; i++) {
       closers[i].addEventListener("click", close);
     }
-    document.addEventListener(
-      "keydown",
-      function (event) {
-        if (isOpen() && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      },
-      true
-    );
   }
 
+  // Escape, focus, the Tab trap, the background scroll lock and the focus
+  // restore all belong to pushModal/popModal — see modal-utils.js. A private
+  // Escape listener here would also fire for a dialog opened on top of this
+  // one, closing both on one press.
   function open() {
     if (!modal) {
       return Promise.resolve();
     }
     modal.hidden = false;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close);
+    }
     showChooser();
     listEl.innerHTML = '<p class="subtle">Loading…</p>';
     return api("/tasks").then(
@@ -643,6 +639,9 @@
   function close() {
     if (modal) {
       modal.hidden = true;
+      if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+        window.ThreeSeventyWeb.popModal(modal);
+      }
     }
   }
 

@@ -108,8 +108,12 @@
       function () {
         modal.hidden = false;
         render();
-        var closeBtn = modal.querySelector("[data-history-close]");
-        if (closeBtn) {
+        // button[...], not [...]: the backdrop carries the same hook so that
+        // clicking outside closes the dialog, and it comes first.
+        var closeBtn = modal.querySelector("button[data-history-close]");
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+          window.ThreeSeventyWeb.pushModal(modal, close, { initialFocus: closeBtn });
+        } else if (closeBtn) {
           closeBtn.focus();
         }
       },
@@ -126,6 +130,9 @@
       return;
     }
     modal.hidden = true;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(modal);
+    }
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.terminal) {
       window.ThreeSeventyWeb.terminal.focusTerminal();
     }
@@ -197,21 +204,16 @@
       closers[i].addEventListener("click", close);
     }
 
-    // Escape and the arrows are handled at the document, not on the dialog:
-    // focus is not reliably inside it. Opening is asynchronous (the history
-    // is fetched first), and the terminal's focus lock can pull focus back to
-    // the screen in the gap, which left Escape doing nothing. keyboard.js
-    // already declines to act while a modal is open, so nothing competes.
+    // The arrows are handled at the document, not on the dialog: focus is not
+    // reliably inside it. Opening is asynchronous (the history is fetched
+    // first), and the terminal's focus lock can pull focus back to the screen
+    // in the gap. keyboard.js already declines to act while a modal is open,
+    // so nothing competes. Escape is not handled here — it belongs to the
+    // shared modal stack, which closes only the topmost dialog.
     document.addEventListener(
       "keydown",
       function (event) {
         if (!isOpen()) {
-          return;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
           return;
         }
         if (event.key === "ArrowLeft") {

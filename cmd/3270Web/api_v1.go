@@ -636,7 +636,7 @@ func connectFailureStatus(err error) int {
 	switch {
 	case errors.Is(err, errHostNotAllowed):
 		return http.StatusForbidden
-	case errors.Is(err, errRateLimited):
+	case errors.Is(err, errRateLimited), errors.Is(err, errSessionLimit):
 		return http.StatusTooManyRequests
 	default:
 		return http.StatusBadGateway

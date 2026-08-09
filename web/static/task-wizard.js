@@ -45,11 +45,18 @@
   /* Loading a draft                                                  */
   /* ---------------------------------------------------------------- */
 
+  // Escape, focus, the Tab trap, the background scroll lock and the focus
+  // restore all belong to pushModal/popModal — see modal-utils.js. This dialog
+  // is routinely opened from the tasks list, so a private Escape listener here
+  // would close both on one press.
   function open() {
     if (!modal) {
       return;
     }
     modal.hidden = false;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close);
+    }
     outputs = [];
     draft = null;
     var body = modal.querySelector("[data-wizard-body]");
@@ -88,6 +95,9 @@
   function close() {
     if (modal) {
       modal.hidden = true;
+      if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+        window.ThreeSeventyWeb.popModal(modal);
+      }
     }
     draft = null;
     screenPre = null;
@@ -634,17 +644,6 @@
     for (var i = 0; i < closers.length; i++) {
       closers[i].addEventListener("click", close);
     }
-    document.addEventListener(
-      "keydown",
-      function (event) {
-        if (isOpen() && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      },
-      true
-    );
   }
 
   document.addEventListener("DOMContentLoaded", function () {
