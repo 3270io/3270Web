@@ -167,7 +167,7 @@ maintained. One row per team, and one dialog that does the whole job:
 | **Description** | An optional note, shown beside the name in the table |
 | **Role granted** | The role every member holds on top of their own; see [Roles from groups](#roles-from-groups) |
 | **Members** | The accounts in the group, ticked from the account list |
-| **Hosts offered** | The published host presets the group's members are offered on the [session manager](session-manager.md) |
+| **Hosts offered** | The published host presets the group's members are offered on the [session manager](session-manager.md) — a bundled sample app counts, so a group can be given hosts before there is a mainframe to reach |
 
 **A group may be empty.** That is deliberate: an instance is usually set up
 teams-first — the host list is written before the people arrive — and a group

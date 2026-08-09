@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/users"
 )
 
@@ -329,6 +331,76 @@ func TestGroupsAlreadyInUseAppearAndCanBeMaintained(t *testing.T) {
 	group = groupNamed(t, list, "shipping")
 	if group.Description != "Warehouse floor" || !group.Declared {
 		t.Errorf("group = %+v, want it described and now declared", group)
+	}
+}
+
+// The hosts offered to a group can be the bundled sample apps. An instance
+// being evaluated or taught on has those and no mainframe, and a host list
+// assigned to a team is exactly as useful there.
+func TestAGroupCanBeOfferedTheBundledSampleApps(t *testing.T) {
+	app, r, admin := groupsTestApp(t)
+	signIn(t, app, r, "alice", authz.RoleUser)
+
+	// Published the way the preset dialog's sample-app picker publishes them.
+	options := sampleAppPresetOptions()
+	if len(options) < 2 {
+		t.Fatal("expected at least two bundled sample apps to assign")
+	}
+	for _, option := range options {
+		body := `{"name":"` + option.Name + `","host":"` + option.Host + `","port":` +
+			strconv.Itoa(option.Port) + `,"users":["root"]}`
+		if w := adminRequest(r, http.MethodPost, "/api/admin/profiles", admin, body); w.Code != http.StatusOK {
+			t.Fatalf("publishing %s returned %d: %s", option.Name, w.Code, w.Body.String())
+		}
+	}
+
+	// They show up in the group page's host picker, named the way they were
+	// chosen rather than by the sampleapp: address they are dialled with.
+	w := adminRequest(r, http.MethodGet, "/api/admin/groups", admin, "")
+	var listing struct {
+		Hosts []adminHostView `json:"hosts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &listing); err != nil {
+		t.Fatal(err)
+	}
+	if len(listing.Hosts) != len(options) {
+		t.Fatalf("host picker offers %d entries, want %d", len(listing.Hosts), len(options))
+	}
+	for _, h := range listing.Hosts {
+		if h.SampleApp == "" {
+			t.Errorf("%q is a sample app but the picker shows %q", h.Name, h.Target)
+		}
+	}
+
+	// Assign two of them to a group, and its member is offered exactly those.
+	body := `{"name":"trainees","members":["alice"],"hosts":["` +
+		options[0].Name + `","` + options[1].Name + `"]}`
+	if w := adminRequest(r, http.MethodPost, "/api/admin/groups", admin, body); w.Code != http.StatusCreated {
+		t.Fatalf("create returned %d: %s", w.Code, w.Body.String())
+	}
+
+	got := reachableBy(t, app, "alice")
+	want := []string{options[0].Name, options[1].Name}
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("alice reaches %v, want %v", got, want)
+	}
+
+	// And each is a preset the session manager can actually connect: a
+	// sample app is a listener this process starts, not an address to dial,
+	// so the host built for it must be the sample-app host.
+	profiles, err := app.assignedProfiles(requestAs(t, app, "alice"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range profiles {
+		built, err := app.newHostFor(p.displayTarget(), &p)
+		if err != nil {
+			t.Fatalf("%s could not be built: %v", p.Name, err)
+		}
+		if _, ok := built.(*host.GoSampleAppHost); !ok {
+			t.Errorf("%s builds a %T, so choosing it on the session manager would fail", p.Name, built)
+		}
 	}
 }
 

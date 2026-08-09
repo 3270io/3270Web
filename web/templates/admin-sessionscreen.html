@@ -122,6 +122,23 @@
                 <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
             </div>
             <form class="auth-form" data-preset-form>
+                <!-- A preset can point at one of the bundled sample apps just
+                     as well as at a mainframe, and on an instance being
+                     evaluated or taught on there is nothing else to point it
+                     at. Offered as a list because the alternative is knowing
+                     that they are addressed as "sampleapp:<id>". -->
+                <div class="field preset-sample" data-preset-sample-field hidden>
+                    <label for="preset-sample">Bundled sample app <span class="subtle">optional</span></label>
+                    <select id="preset-sample" data-preset-sample aria-describedby="preset-sample-hint">
+                        <option value="">A mainframe on the network</option>
+                    </select>
+                    <div class="field-hint" id="preset-sample-hint">
+                        Choosing one fills in the host and port below. The sample
+                        apps are TN3270 servers 3270Web starts itself, so a preset
+                        naming one works with no mainframe to reach.
+                    </div>
+                </div>
+
                 <div class="preset-grid">
                     <div class="field">
                         <label for="preset-name">Name</label>

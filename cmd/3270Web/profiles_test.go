@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -222,17 +223,50 @@ func TestProfileFindMissing(t *testing.T) {
 
 // The connect form accepts "sampleapp:app1", so profiles must too — the two
 // paths disagreeing about what counts as a valid host would be its own bug.
+// A sample-app preset with no port has to end up on a port a sample app
+// actually listens on.
+//
+// This used to default to 3270 like any other host, and the target it produced
+// parsed perfectly — which is all the previous version of this test asked. It
+// could not connect: 3270 is what the web interface itself listens on, the
+// sample apps start at 3271, and isAllowedSampleAppPort refuses anything else.
+// So the natural thing to write, a preset with the port left blank, was the
+// one preset guaranteed to fail on selection.
 func TestValidateProfileAcceptsSampleApps(t *testing.T) {
 	p := ConnectionProfile{Name: "Demo", Host: "sampleapp:app1"}
 	if err := validateProfile(&p); err != nil {
 		t.Fatalf("validateProfile rejected a sample-app host: %v", err)
 	}
-	if got := p.displayTarget(); got != "sampleapp:app1:3270" {
-		t.Errorf("displayTarget() = %q, want the form parseSampleAppHost understands", got)
+	if p.Port != defaultSampleAppPort {
+		t.Errorf("Port = %d, want the sample apps' own default %d", p.Port, defaultSampleAppPort)
 	}
 	id, port, ok := parseSampleAppHost(p.displayTarget())
-	if !ok || id != "app1" || port != 3270 {
+	if !ok || id != "app1" || port != defaultSampleAppPort {
 		t.Errorf("parseSampleAppHost(%q) = (%q, %d, %v)", p.displayTarget(), id, port, ok)
+	}
+	if !isAllowedSampleAppPort(port) {
+		t.Errorf("port %d is not one a sample app may listen on, so the preset cannot connect", port)
+	}
+}
+
+// A port no sample app listens on is refused when the preset is written, not
+// when somebody connects: a preset is stored once and used by everybody it was
+// assigned to, so the failure would otherwise arrive one operator at a time.
+func TestValidateProfileRefusesAnImpossibleSampleAppPort(t *testing.T) {
+	p := ConnectionProfile{Name: "Demo", Host: "sampleapp:app1", Port: 3270}
+	err := validateProfile(&p)
+	if err == nil {
+		t.Fatal("validateProfile accepted a sample app on a port none of them listen on")
+	}
+	if !strings.Contains(err.Error(), "3271") {
+		t.Errorf("the refusal does not say which ports work: %v", err)
+	}
+}
+
+func TestValidateProfileRefusesAnUnknownSampleApp(t *testing.T) {
+	p := ConnectionProfile{Name: "Demo", Host: "sampleapp:app9"}
+	if err := validateProfile(&p); err == nil {
+		t.Error("validateProfile accepted a sample app that does not exist")
 	}
 }
 

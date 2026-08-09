@@ -60,6 +60,12 @@ type adminHostView struct {
 	// is shown because assigning such a preset to one group *narrows* it, which
 	// is the opposite of what "give this team a host" sounds like.
 	Everyone bool `json:"everyone"`
+	// SampleApp names the bundled application a preset points at, when it
+	// points at one. A group's hosts are as legitimately a sample app as a
+	// mainframe — an instance being evaluated or taught on has nothing else —
+	// and "sampleapp:app1:3271" is the internal address, not the name anybody
+	// chose it by.
+	SampleApp string `json:"sampleApp,omitempty"`
 }
 
 // AdminGroupsPageHandler serves the group management page.
@@ -115,6 +121,7 @@ func (app *App) AdminListGroupsHandler(c *gin.Context) {
 			Description: p.Description,
 			Target:      p.displayTarget(),
 			Everyone:    !p.hasAudience(),
+			SampleApp:   sampleAppPresetLabel(p),
 		})
 	}
 

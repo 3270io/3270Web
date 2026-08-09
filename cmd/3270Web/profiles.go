@@ -217,8 +217,22 @@ func validateProfile(p *ConnectionProfile) error {
 	if p.Host == "" {
 		return fmt.Errorf("a host is required")
 	}
+	// The built-in sample apps are addressed as "sampleapp:<id>", which is an
+	// identifier rather than a host:port. The connect form accepts that form,
+	// so profiles must too — the two paths disagreeing about what a valid
+	// host is would be its own bug.
+	sampleID, _, isSampleApp := parseSampleAppHost(p.Host)
+
 	if p.Port == 0 {
-		p.Port = 3270
+		// A sample app does not listen on 3270: the web interface itself does,
+		// and they run in the same place. Defaulting one to the ordinary port
+		// would make "leave the port blank", which is what anybody does, the
+		// one way to write a preset that cannot start.
+		if isSampleApp {
+			p.Port = defaultSampleAppPort
+		} else {
+			p.Port = 3270
+		}
 	}
 	if p.Port < 1 || p.Port > 65535 {
 		return fmt.Errorf("port must be between 1 and 65535")
@@ -226,11 +240,19 @@ func validateProfile(p *ConnectionProfile) error {
 	if !isValidHostname(p.Host) {
 		return fmt.Errorf("%q is not a valid hostname or IP address", p.Host)
 	}
-	// The built-in sample apps are addressed as "sampleapp:<id>", which is an
-	// identifier rather than a host:port. The connect form accepts that form,
-	// so profiles must too — the two paths disagreeing about what a valid
-	// host is would be its own bug.
-	_, _, isSampleApp := parseSampleAppHost(p.Host)
+	if isSampleApp {
+		// Refused when it is written rather than when somebody connects. A
+		// preset is stored once and used by everybody it was assigned to, so a
+		// bad port here is a host that appears on the session manager and fails
+		// for each of them in turn.
+		if _, known := sampleAppConfig(sampleID); !known {
+			return fmt.Errorf("%q is not one of the bundled sample apps", p.Host)
+		}
+		if !isAllowedSampleAppPort(p.Port) {
+			return fmt.Errorf("a sample app listens on one of %s, not %d",
+				joinInts(allowedSampleAppPorts()), p.Port)
+		}
+	}
 	if !isSampleApp {
 		// Otherwise the host must not carry its own port, LU or s3270 prefix;
 		// those come from the structured fields, and allowing both would make
@@ -266,6 +288,15 @@ func validateProfile(p *ConnectionProfile) error {
 
 // s3270Target renders the profile as an s3270 connection target:
 // [L:][Y:][lu@]host[:port].
+// joinInts writes a list of numbers the way a sentence needs them.
+func joinInts(values []int) string {
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		parts = append(parts, strconv.Itoa(v))
+	}
+	return strings.Join(parts, ", ")
+}
+
 func (p ConnectionProfile) s3270Target() string {
 	var sb strings.Builder
 	if p.TLS {

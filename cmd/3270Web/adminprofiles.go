@@ -65,6 +65,11 @@ func (app *App) AdminListProfilesHandler(c *gin.Context) {
 		"usernames":   usernames,
 		"roles":       []string{string(authz.RoleUser), string(authz.RoleAdmin)},
 		"authEnabled": app.authMode != authz.ModeNone,
+		// The bundled sample apps, so a preset can offer one without anybody
+		// having to know that they are addressed as "sampleapp:<id>". An
+		// instance being evaluated, or one being taught on, has these and no
+		// mainframe — and a host list is exactly as useful there.
+		"sampleApps": sampleAppPresetOptions(),
 	})
 }
 
@@ -133,6 +138,52 @@ func (app *App) AdminDeleteProfileHandler(c *gin.Context) {
 	log.Printf("admin: %s removed host preset %q", adminActor(c), name)
 	app.auditRequest(c, audit.EventProfileRemoved, audit.Success, name, nil)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// sampleAppPresetOption is one bundled sample app as the preset dialog offers
+// it: a name to choose, and the host and port choosing it fills in.
+type sampleAppPresetOption struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
+func sampleAppPresetOptions() []sampleAppPresetOption {
+	out := make([]sampleAppPresetOption, 0, len(sampleAppConfigs))
+	// Each gets its own port, so publishing all three does not produce three
+	// presets fighting over one listener.
+	ports := allowedSampleAppPorts()
+	for i, cfg := range sampleAppConfigs {
+		port := defaultSampleAppPort
+		if i < len(ports) {
+			port = ports[i]
+		}
+		out = append(out, sampleAppPresetOption{
+			ID:   cfg.ID,
+			Name: cfg.Name,
+			Host: sampleAppHostname(cfg.ID),
+			Port: port,
+		})
+	}
+	return out
+}
+
+// sampleAppPresetLabel names a preset's target the way somebody chose it,
+// rather than echoing "sampleapp:app1:3271" back at them.
+//
+// Returns "" for a preset that names an ordinary host, which is the caller's
+// signal to show the address itself.
+func sampleAppPresetLabel(p ConnectionProfile) string {
+	id, _, ok := parseSampleAppHost(p.Host)
+	if !ok {
+		return ""
+	}
+	cfg, known := sampleAppConfig(id)
+	if !known {
+		return ""
+	}
+	return cfg.Name
 }
 
 // audienceSummary says who a preset reaches, for the audit line.

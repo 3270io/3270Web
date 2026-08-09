@@ -346,8 +346,13 @@
 
       var text = el('span');
       text.appendChild(el('strong', '', host.name));
-      if (host.target) {
-        text.appendChild(el('span', 'admin-role-via', host.target));
+      // A bundled sample app is named the way it was chosen, not by the
+      // "sampleapp:app1:3271" it is addressed as internally. Suppressed when
+      // it only repeats the preset's name, which is what happens when the
+      // preset was named after the sample app it points at.
+      var detail = host.sampleApp || host.target;
+      if (detail && !sameName(detail, host.name)) {
+        text.appendChild(el('span', 'admin-role-via', detail));
       }
       // A preset that names nobody already reaches this group, and everybody
       // else. Ticking it is a narrowing, not a widening, so say so here rather

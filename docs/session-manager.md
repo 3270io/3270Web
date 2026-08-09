@@ -86,6 +86,24 @@ others. Either way, *Who this host is for* takes three lists:
 The three are an **or**, not an and: matching any one is enough. That is the
 shape these lists come in — "the payments team, plus Dave who covers for them".
 
+### Sample apps as hosts
+
+A preset can point at one of the bundled sample apps instead of a mainframe.
+The preset dialog offers them in a **Bundled sample app** list; choosing one
+fills in the host and port, and the preset then behaves like any other — it
+appears on the selection screen, carries an audience, and can be assigned to a
+group.
+
+That is what makes the whole feature usable before there is a mainframe to
+reach. An instance being evaluated, or one being used to teach on, can publish
+the sample apps, put the trainees in a group, and give the group those hosts;
+everybody who signs in meets a real selection screen with real systems on it.
+
+Each sample app is offered on its own port (3271 upwards), so publishing more
+than one does not leave two presets fighting over a single listener. The port
+is fixed to that range: the sample apps are TN3270 servers 3270Web starts
+itself, and 3270 is what the web interface listens on.
+
 **Leave all three empty and the host is for everybody.** That is what every
 profile in an existing deployment is, so turning this on never quietly takes a
 host list away from the people using it.
