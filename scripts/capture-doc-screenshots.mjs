@@ -9,7 +9,7 @@
  *   DOCS_BASE_URL   base URL of a running 3270Web (default http://127.0.0.1:3270)
  *   DOCS_OUT_DIR    output directory       (default <repo>/docs/images)
  *   DOCS_SAMPLE_APP sample app id          (default app1)
- *   DOCS_SAMPLE_PORT sample app port       (default 3270)
+ *   DOCS_SAMPLE_PORT sample app port       (default 3271)
  *
  * Notes
  *   - Paths are resolved from this file's location, so the script runs from
@@ -31,7 +31,9 @@ const repoRoot = path.resolve(here, '..');
 const baseUrl = process.env.DOCS_BASE_URL || 'http://127.0.0.1:3270';
 const outDir = process.env.DOCS_OUT_DIR || path.join(repoRoot, 'docs', 'images');
 const sampleApp = process.env.DOCS_SAMPLE_APP || 'app1';
-const samplePort = process.env.DOCS_SAMPLE_PORT || '3270';
+// 3270 is the web server's own port and is not in the sample-app allow list,
+// so the default used to make every run fail its connect with a 503.
+const samplePort = process.env.DOCS_SAMPLE_PORT || '3271';
 const workflowFile = path.join(repoRoot, 'workflow_app1.json');
 
 const VIEWPORT = { width: 1500, height: 940 };
