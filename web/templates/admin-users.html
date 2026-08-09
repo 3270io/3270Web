@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>3270Web - Accounts</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,7 +18,9 @@
     </div>
 
     <div class="admin-page">
-        <div class="card">
+        <!-- The account table is this page's purpose; the landmark is what
+             lets a screen-reader user jump past the header to it. -->
+        <div class="card" role="main">
             <div class="card-header">
                 <div class="brand-lockup">
                     {{ template "brand-mark" }}
