@@ -30,6 +30,9 @@ import (
 // mainframes it reaches — each editable from the group's own side. The stores
 // underneath are the existing ones; what this adds is the room they are
 // administered from.
+//
+// Deciding whether a change is allowed happens in admingroupschange.go, in
+// full, before any of it is written.
 
 const adminGroupsPath = "/admin/groups"
 
@@ -46,9 +49,14 @@ type adminGroupView struct {
 	// opening every preset in turn.
 	Hosts []string `json:"hosts"`
 	// Declared marks a group with a record of its own, as against one that
-	// exists only because an account or a role assignment mentions it.
-	Declared  bool   `json:"declared"`
-	CreatedAt string `json:"createdAt,omitempty"`
+	// exists only because an account, a role assignment or a host preset
+	// mentions it.
+	Declared bool `json:"declared"`
+	// ProviderManaged marks a group whose membership arrives in a directory
+	// claim and is replayed at every sign-in. Its name and its existence are
+	// the provider's; everything else about it is still administered here.
+	ProviderManaged bool   `json:"providerManaged,omitempty"`
+	CreatedAt       string `json:"createdAt,omitempty"`
 }
 
 // adminHostView is one published preset as the host picker shows it.
@@ -92,10 +100,7 @@ func (app *App) AdminListGroupsHandler(c *gin.Context) {
 	}
 
 	profiles := app.publishedProfileList(c)
-	views := make([]adminGroupView, 0, len(infos))
-	for _, info := range infos {
-		views = append(views, toAdminGroupView(info, profiles))
-	}
+	views := app.groupViews(infos, profiles)
 
 	accounts, err := app.userStore().List()
 	if err != nil {
@@ -133,12 +138,41 @@ func (app *App) AdminListGroupsHandler(c *gin.Context) {
 		// Accounts the directory owns: their membership is refreshed at every
 		// sign-in, so the page shows it rather than offering to change it.
 		"externalUsernames":  external,
-		"groupsFromProvider": app.ssoEnabled() && app.sso.GroupsClaim != "",
+		"groupsFromProvider": app.groupsComeFromProvider(),
 		"self":               usernameFrom(c),
 	})
 }
 
-func toAdminGroupView(info users.GroupInfo, profiles []ConnectionProfile) adminGroupView {
+// groupViews assembles every group this instance knows about for the page.
+//
+// The account store's own list is only part of it. A group named by nothing
+// but a published preset's audience still decides who is offered that
+// mainframe, and leaving it off would make it the one kind of group that
+// governs access and cannot be found, let alone maintained.
+func (app *App) groupViews(infos []users.GroupInfo, profiles []ConnectionProfile) []adminGroupView {
+	fromProvider := app.groupsComeFromProvider()
+	views := make([]adminGroupView, 0, len(infos))
+	stored := make(map[string]bool, len(infos))
+	for _, info := range infos {
+		stored[strings.ToLower(strings.TrimSpace(info.Name))] = true
+		views = append(views, toAdminGroupView(info, profiles, fromProvider))
+	}
+	for _, name := range groupNamesInProfiles(profiles) {
+		if stored[strings.ToLower(name)] {
+			continue
+		}
+		views = append(views, toAdminGroupView(users.GroupInfo{
+			Group: users.Group{Name: name},
+			Role:  authz.RoleUser,
+		}, profiles, fromProvider))
+	}
+	sort.Slice(views, func(i, j int) bool {
+		return strings.ToLower(views[i].Name) < strings.ToLower(views[j].Name)
+	})
+	return views
+}
+
+func toAdminGroupView(info users.GroupInfo, profiles []ConnectionProfile, fromProvider bool) adminGroupView {
 	view := adminGroupView{
 		Name:        info.Name,
 		Description: info.Description,
@@ -147,6 +181,10 @@ func toAdminGroupView(info users.GroupInfo, profiles []ConnectionProfile) adminG
 		MemberCount: len(info.Members),
 		Hosts:       hostsNaming(profiles, info.Name),
 		Declared:    info.Declared,
+		// Only where a groups claim is actually mapped: elsewhere an account
+		// that signed in through the provider still has whatever groups an
+		// administrator gave it here, and they are theirs to change.
+		ProviderManaged: fromProvider && len(info.ExternalMembers) > 0,
 	}
 	if view.Members == nil {
 		view.Members = []string{}
@@ -164,11 +202,8 @@ func toAdminGroupView(info users.GroupInfo, profiles []ConnectionProfile) adminG
 func hostsNaming(profiles []ConnectionProfile, group string) []string {
 	out := []string{}
 	for _, p := range profiles {
-		for _, g := range p.Groups {
-			if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(group)) {
-				out = append(out, p.Name)
-				break
-			}
+		if audienceNamesGroup(p, group) {
+			out = append(out, p.Name)
 		}
 	}
 	return out
@@ -176,6 +211,9 @@ func hostsNaming(profiles []ConnectionProfile, group string) []string {
 
 // publishedProfileList reads the published set, treating a read failure as
 // empty: the group page is still worth serving without the host column.
+//
+// Only for display. Anything that *decides* something goes through
+// loadPublishedProfiles, which refuses rather than guessing.
 func (app *App) publishedProfileList(c *gin.Context) []ConnectionProfile {
 	store, err := app.profileStoreForWrite(c, true)
 	if err != nil || store == nil {
@@ -190,6 +228,13 @@ func (app *App) publishedProfileList(c *gin.Context) []ConnectionProfile {
 }
 
 type adminGroupRequest struct {
+	// CurrentName names the group being changed when the request cannot put it
+	// in the path. A group name may contain "/" — "payments/shipping" is an
+	// ordinary way to write a sub-team — and no amount of encoding makes that
+	// survive as a single router path parameter, so such a group could be
+	// created and then never edited or deleted again. See the collection
+	// routes in main.go.
+	CurrentName *string `json:"currentName"`
 	// Pointers so "not mentioned" and "set to empty" stay distinguishable: a
 	// PATCH that only renames must not clear the membership.
 	Name        *string   `json:"name"`
@@ -197,6 +242,19 @@ type adminGroupRequest struct {
 	Role        *string   `json:"role"`
 	Members     *[]string `json:"members"`
 	Hosts       *[]string `json:"hosts"`
+}
+
+// groupTarget resolves which group a request is about: the path parameter
+// where the name can be written into a URL, and "currentName" in the body
+// where it cannot.
+func groupTarget(c *gin.Context, req adminGroupRequest) string {
+	if name := strings.TrimSpace(c.Param("name")); name != "" {
+		return name
+	}
+	if req.CurrentName != nil {
+		return strings.TrimSpace(*req.CurrentName)
+	}
+	return ""
 }
 
 // AdminCreateGroupHandler declares a group, and applies whatever the create
@@ -211,56 +269,30 @@ func (app *App) AdminCreateGroupHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	if req.Name == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "a group name is required"})
-		return
-	}
-	name := strings.TrimSpace(*req.Name)
-	description := ""
-	if req.Description != nil {
-		description = strings.TrimSpace(*req.Description)
-	}
-
-	group, err := app.userStore().CreateGroup(name, description)
-	if err != nil {
-		if errors.Is(err, users.ErrGroupExists) {
-			c.JSON(http.StatusConflict, gin.H{"error": "a group with that name already exists"})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
-		return
-	}
-
-	log.Printf("auth: %s created group %q", adminActor(c), group.Name)
-	app.auditRequest(c, audit.EventGroupCreated, audit.Success, group.Name, nil)
 
 	// The dialog creates and fills in one go, so the same request may carry a
-	// role, a membership and a host list. Each is applied by the same code the
-	// edit path uses, so the two cannot drift apart.
-	notes, err := app.applyGroupChanges(c, group.Name, req)
-	if err != nil {
-		// The group exists; only part of what was asked for landed. Say so
-		// rather than reporting a failure that would send somebody looking for
-		// a group that is plainly there.
-		c.JSON(http.StatusOK, gin.H{
-			"group":   app.groupViewFor(c, group.Name),
-			"warning": err.Error(),
-		})
+	// role, a membership and a host list. All of it is checked together, and
+	// against the same rules the edit path uses, so the two cannot drift.
+	change, _, aerr := app.preflightGroupChange(c, "", req, true)
+	if aerr != nil {
+		respondAdminError(c, aerr)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"group": app.groupViewFor(c, group.Name), "notes": notes})
+
+	notes, aerr := app.applyGroupChange(c, change)
+	if aerr != nil {
+		respondAdminError(c, aerr)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"group": app.groupViewFor(c, change.final), "notes": notes})
 }
 
 // AdminUpdateGroupHandler renames a group, describes it, sets the role it
 // grants, replaces its membership, or changes the hosts it reaches.
+//
+// Serves both the path route and the collection route; see groupTarget.
 func (app *App) AdminUpdateGroupHandler(c *gin.Context) {
 	if err := app.requireAuthEnabled(c); err != nil {
-		return
-	}
-
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing group name"})
 		return
 	}
 
@@ -270,182 +302,295 @@ func (app *App) AdminUpdateGroupHandler(c *gin.Context) {
 		return
 	}
 
-	if _, err := app.userStore().Group(name); err != nil {
-		if errors.Is(err, users.ErrGroupNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no such group"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the group"})
+	change, _, aerr := app.preflightGroupChange(c, groupTarget(c, req), req, false)
+	if aerr != nil {
+		respondAdminError(c, aerr)
 		return
 	}
 
-	// A rename or a description is the group's own record, so it happens first
-	// and everything after it addresses the new name.
-	if req.Name != nil || req.Description != nil {
-		updated, err := app.userStore().UpdateGroup(name, req.Name, req.Description)
-		if err != nil {
-			if errors.Is(err, users.ErrGroupExists) {
-				c.JSON(http.StatusConflict, gin.H{"error": "a group with that name already exists"})
-				return
-			}
-			if errors.Is(err, users.ErrGroupNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"error": "no such group"})
-				return
-			}
-			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
-			return
-		}
-		if updated.Name != name {
-			// The audience of a published preset holds the name as text, and
-			// the store cannot reach it. Following the rename through here is
-			// what stops a renamed group from silently losing its hosts.
-			app.renameGroupInProfiles(c, name, updated.Name)
-			log.Printf("auth: %s renamed group %q to %q", adminActor(c), name, updated.Name)
-			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, updated.Name,
-				map[string]string{"change": "renamed", "from": name})
-		} else if req.Description != nil {
-			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, updated.Name,
-				map[string]string{"change": "description"})
-		}
-		name = updated.Name
-	}
-
-	notes, err := app.applyGroupChanges(c, name, req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	notes, aerr := app.applyGroupChange(c, change)
+	if aerr != nil {
+		respondAdminError(c, aerr)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"group": app.groupViewFor(c, name), "notes": notes})
+	c.JSON(http.StatusOK, gin.H{"group": app.groupViewFor(c, change.final), "notes": notes})
 }
 
-// applyGroupChanges applies the parts of a request that are the same whether
-// the group was just created or already existed: the role it grants, who is in
-// it, and which mainframes it reaches.
+// applyGroupChange writes a change that preflight has already found to be
+// applicable in full.
 //
-// Returns notes — things that happened which the administrator should know
-// about but which are not failures, such as a preset that now names nobody and
-// so is offered to everyone.
-func (app *App) applyGroupChanges(c *gin.Context, name string, req adminGroupRequest) ([]string, error) {
+// The order is not arbitrary. The record — the name — moves last of the
+// account-store writes, because it is the one every other store and every
+// preset audience keys off: a failure before it leaves the group findable
+// under the name the administrator typed, rather than half-renamed. The
+// presets follow the record, in one atomic write each.
+//
+// Only what actually landed is audited.
+func (app *App) applyGroupChange(c *gin.Context, change *groupChange) ([]string, *adminError) {
 	var notes []string
 
-	if req.Role != nil {
-		role := authz.RoleUser
-		if strings.EqualFold(*req.Role, string(authz.RoleAdmin)) {
-			role = authz.RoleAdmin
+	if change.create || change.adopt {
+		// The description goes in with the record rather than as an update
+		// behind it, so making a group is one audited event and not two.
+		description := ""
+		if change.description != nil {
+			description = *change.description
+			change.description = nil
 		}
-		// Clearing the assignment your own administrator role rests on would
-		// lock you out of the page you are standing on. Refused here exactly as
-		// it is on the accounts page, and for the same reason.
-		if role != authz.RoleAdmin && app.selfAdminDependsOnGroup(c, name) {
-			return notes, errors.New("your own administrator role comes from this group; another administrator has to change it")
+		if _, err := app.userStore().CreateGroup(change.current, description); err != nil {
+			if errors.Is(err, users.ErrGroupExists) {
+				return nil, conflict("a group with that name already exists")
+			}
+			return nil, badRequest("%s", humanPasswordError(err))
 		}
-		if err := app.userStore().SetGroupRole(name, role); err != nil {
-			return notes, errors.New(humanPasswordError(err))
+		if change.create {
+			log.Printf("auth: %s created group %q", adminActor(c), change.current)
+			app.auditRequest(c, audit.EventGroupCreated, audit.Success, change.current, nil)
+		} else {
+			// The group was already deciding who reached a host; it simply had
+			// no record. Giving it one is what makes it maintainable.
+			log.Printf("auth: %s declared group %q, until now named only by a host preset",
+				adminActor(c), change.current)
+			app.auditRequest(c, audit.EventGroupCreated, audit.Success, change.current,
+				map[string]string{"adopted": "named only by a host preset"})
 		}
-		log.Printf("auth: %s set group %q role to %s", adminActor(c), name, role)
-		app.auditRequest(c, audit.EventGroupRoleSet, audit.Success, name,
-			map[string]string{"role": string(role)})
+	}
+
+	if change.role != nil {
+		if err := app.userStore().SetGroupRole(change.current, *change.role); err != nil {
+			return notes, app.undoAdoption(c, change, serverError("%s", humanPasswordError(err)))
+		}
+		log.Printf("auth: %s set group %q role to %s", adminActor(c), change.current, *change.role)
+		app.auditRequest(c, audit.EventGroupRoleSet, audit.Success, change.current,
+			map[string]string{"role": string(*change.role)})
 		app.pushEffectiveRoles()
 	}
 
-	if req.Members != nil {
-		wanted := *req.Members
-		// Leaving a group can take a role away, so removing yourself from one
-		// that grants you administration is self-demotion by another route.
-		if app.selfAdminDependsOnGroup(c, name) && !containsFold(wanted, usernameFrom(c)) {
-			return notes, errors.New("your administrator role comes from this group; you cannot remove yourself from it")
-		}
-		lockExternal := app.ssoEnabled() && app.sso.GroupsClaim != ""
-		skipped, err := app.userStore().SetGroupMembers(name, wanted, lockExternal)
+	if change.members != nil {
+		lockExternal := app.groupsComeFromProvider()
+		skipped, err := app.userStore().SetGroupMembers(change.current, *change.members, lockExternal)
 		if err != nil {
-			if errors.Is(err, users.ErrGroupNotFound) {
-				return notes, errors.New("no such group")
-			}
-			return notes, errors.New(humanPasswordError(err))
+			return notes, app.undoAdoption(c, change, serverError("%s", humanPasswordError(err)))
 		}
 		if len(skipped) > 0 {
 			notes = append(notes, "Left alone: "+strings.Join(skipped, ", ")+
 				" — their groups come from the identity provider and are refreshed at every sign-in.")
 		}
-		log.Printf("auth: %s set the membership of group %q (%d account(s))", adminActor(c), name, len(wanted))
-		app.auditRequest(c, audit.EventGroupUpdated, audit.Success, name,
-			map[string]string{"change": "members", "members": strings.Join(users.NormaliseGroups(wanted), " ")})
+		log.Printf("auth: %s set the membership of group %q (%d account(s))",
+			adminActor(c), change.current, len(*change.members))
+		app.auditRequest(c, audit.EventGroupUpdated, audit.Success, change.current,
+			map[string]string{"change": "members", "members": strings.Join(users.NormaliseGroups(*change.members), " ")})
 		// Membership can carry a role, so the people already signed in are
 		// given the recomputed one rather than the one they logged in with.
 		app.pushEffectiveRoles()
 	}
 
-	if req.Hosts != nil {
-		opened, everyone, err := app.setGroupHosts(c, name, *req.Hosts)
+	if change.rename || change.description != nil {
+		var newName *string
+		if change.rename {
+			newName = &change.final
+		}
+		updated, err := app.userStore().UpdateGroup(
+			change.current, newName, change.description, app.groupsComeFromProvider())
 		if err != nil {
-			return notes, err
+			return notes, app.undoAdoption(c, change, app.groupStoreError(err))
 		}
-		for _, host := range everyone {
-			notes = append(notes, "\""+host+"\" now names nobody, so it is offered to everyone. "+
-				"Name a group, user or role on it to narrow it again.")
+		if change.rename {
+			// The audience of a published preset holds the name as text, and
+			// the store cannot reach it. Following the rename through here is
+			// what stops a renamed group from silently losing its hosts.
+			if err := app.renameGroupInProfiles(c, change.current, updated.Name); err != nil {
+				return notes, app.undoRename(c, change, updated.Name, err)
+			}
+			log.Printf("auth: %s renamed group %q to %q", adminActor(c), change.current, updated.Name)
+			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, updated.Name,
+				map[string]string{"change": "renamed", "from": change.current})
+		} else if change.description != nil {
+			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, updated.Name,
+				map[string]string{"change": "description"})
 		}
-		if opened {
-			log.Printf("admin: %s set the host list of group %q", adminActor(c), name)
-			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, name,
-				map[string]string{"change": "hosts", "hosts": strings.Join(*req.Hosts, " ")})
+		change.final = updated.Name
+	}
+
+	if change.hosts != nil {
+		changed, err := app.setGroupHosts(c, change.final, *change.hosts)
+		if err != nil {
+			return notes, serverError("could not save the host presets: %v", err)
+		}
+		if changed {
+			log.Printf("admin: %s set the host list of group %q", adminActor(c), change.final)
+			app.auditRequest(c, audit.EventGroupUpdated, audit.Success, change.final,
+				map[string]string{"change": "hosts", "hosts": strings.Join(*change.hosts, " ")})
 		}
 	}
 
 	return notes, nil
 }
 
+// undoAdoption takes back a record this request declared, when a later write
+// in the same request failed.
+//
+// Only the adoption: a group that existed before the request is left as the
+// request found it, which it is, because nothing before this point has changed
+// it. A group the request created is left alone for the reason the create
+// handler always had — it is plainly there, and reporting it as absent would
+// send somebody looking for a group they can see.
+func (app *App) undoAdoption(c *gin.Context, change *groupChange, cause *adminError) *adminError {
+	if change.create {
+		return &adminError{status: cause.status, msg: cause.msg +
+			" The group " + change.current + " was created; the rest of the request was not applied."}
+	}
+	if !change.adopt {
+		return cause
+	}
+	if err := app.userStore().DeleteGroup(change.current, false); err != nil {
+		log.Printf("admin: %q was declared and then could not be undone after %v: %v",
+			change.current, cause, err)
+		return serverError("%s The group %q has been left declared; nothing else was changed.",
+			cause.msg, change.current)
+	}
+	return cause
+}
+
+// undoRename puts a rename back when the presets could not follow it.
+//
+// A group renamed in the account store and not in the audiences is a group
+// that has silently lost its hosts, which is the failure this whole page
+// exists to stop. So it goes back, and if it cannot, the response says exactly
+// what state the instance is in rather than reporting a clean failure.
+func (app *App) undoRename(c *gin.Context, change *groupChange, renamedTo string, cause error) *adminError {
+	back := change.current
+	if _, err := app.userStore().UpdateGroup(renamedTo, &back, nil, false); err != nil {
+		log.Printf("admin: %q could not be renamed in the host presets (%v) and could not be renamed back: %v",
+			change.current, cause, err)
+		return serverError("the host presets could not be updated (%v) and the group could not be "+
+			"renamed back, so it is now called %q while the presets still name %q. "+
+			"Rename it back on this page to repair it.", cause, renamedTo, change.current)
+	}
+	log.Printf("admin: renaming %q in the host presets failed (%v); the group has been renamed back",
+		change.current, cause)
+	return app.undoAdoption(c, change,
+		serverError("the host presets could not be updated (%v), so nothing has been changed.", cause))
+}
+
+// groupStoreError maps what the account store refuses to the answer that fits.
+func (app *App) groupStoreError(err error) *adminError {
+	switch {
+	case errors.Is(err, users.ErrGroupExists):
+		return conflict("a group with that name already exists")
+	case errors.Is(err, users.ErrGroupNotFound):
+		return notFound("no such group")
+	case errors.Is(err, users.ErrProviderManagedGroup):
+		return conflict("that group takes its membership from the identity provider, so its name " +
+			"is set there. Rename or remove it at the provider; its description, the role it " +
+			"grants and the hosts it reaches can still be changed here.")
+	default:
+		return badRequest("%s", humanPasswordError(err))
+	}
+}
+
 // AdminDeleteGroupHandler removes a group: its record, the role it granted,
 // every membership of it, and its name from every published preset.
+//
+// Serves both the path route and the collection route; see groupTarget.
 func (app *App) AdminDeleteGroupHandler(c *gin.Context) {
 	if err := app.requireAuthEnabled(c); err != nil {
 		return
 	}
 
-	name := strings.TrimSpace(c.Param("name"))
-	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing group name"})
-		return
-	}
-	if app.selfAdminDependsOnGroup(c, name) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "your own administrator role comes from this group; another administrator has to remove it",
-		})
-		return
-	}
-
-	if err := app.userStore().DeleteGroup(name); err != nil {
-		if errors.Is(err, users.ErrGroupNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no such group"})
+	// The path route carries no body at all, so binding is only attempted
+	// where the name has to come from one.
+	var req adminGroupRequest
+	if strings.TrimSpace(c.Param("name")) == "" {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "name the group to delete as \"currentName\" in the request",
+			})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
+	}
+
+	profiles, aerr := app.loadPublishedProfiles(c)
+	if aerr != nil {
+		respondAdminError(c, aerr)
+		return
+	}
+	info, profileOnly, aerr := app.resolveGroupTarget(groupTarget(c, req), profiles)
+	if aerr != nil {
+		respondAdminError(c, aerr)
+		return
+	}
+	name := info.Name
+
+	if app.selfAdminDependsOnGroup(c, name) {
+		respondAdminError(c, badRequest(
+			"your own administrator role comes from this group; another administrator has to remove it"))
+		return
+	}
+	if app.groupsComeFromProvider() && len(info.ExternalMembers) > 0 {
+		respondAdminError(c, conflict(
+			"%q takes its membership from the identity provider, which would recreate it at the next "+
+				"sign-in. Remove it at the provider instead; until then its description, the role it "+
+				"grants and the hosts it reaches can still be changed here.", name))
+		return
+	}
+	// Deleting takes the role assignment and every membership with it, so it
+	// is the same question the accounts page asks before a demotion.
+	empty := []string{}
+	roleUser := authz.RoleUser
+	if aerr := app.checkAdministratorSurvives(&groupChange{
+		current: name, role: &roleUser, members: &empty,
+	}); aerr != nil {
+		respondAdminError(c, aerr)
+		return
+	}
+	// A preset naming only this group would be left naming nobody, which is
+	// how a deletion that reads as "take this away" lands as "give this to
+	// everyone". Refused whole rather than applied and reported.
+	if exposed := presetsLeftNamingNobody(profiles, name, nil); len(exposed) > 0 {
+		respondAdminError(c, exposureRefusal(exposed))
 		return
 	}
 
+	// A group named only by a preset audience has no record to delete; taking
+	// the name out of the presets is the whole of it.
+	if !profileOnly {
+		if err := app.userStore().DeleteGroup(name, app.groupsComeFromProvider()); err != nil {
+			respondAdminError(c, app.groupStoreError(err))
+			return
+		}
+	}
 	// A preset still naming a deleted group would be offered to nobody, which
-	// looks exactly like a preset that is broken. Strip the name, and say so
-	// where dropping it leaves a preset naming nobody at all.
-	everyone := app.removeGroupFromProfiles(c, name)
+	// looks exactly like a preset that is broken.
+	if err := app.removeGroupFromProfiles(c, name); err != nil {
+		respondAdminError(c, serverError(
+			"the group was deleted but the host presets still name it: %v. "+
+				"Open each preset on the Session screen page to clear it.", err))
+		return
+	}
 
 	log.Printf("auth: %s deleted group %q", adminActor(c), name)
 	app.auditRequest(c, audit.EventGroupDeleted, audit.Success, name, nil)
 	app.pushEffectiveRoles()
 
-	var notes []string
-	for _, host := range everyone {
-		notes = append(notes, "\""+host+"\" named only that group, so it is now offered to everyone.")
-	}
-	c.JSON(http.StatusOK, gin.H{"deleted": true, "notes": notes})
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "notes": []string{}})
 }
 
 // groupViewFor re-reads one group for the response, so what the page redraws
 // is what was actually stored rather than what was asked for.
 func (app *App) groupViewFor(c *gin.Context, name string) adminGroupView {
+	profiles := app.publishedProfileList(c)
 	info, err := app.userStore().Group(name)
 	if err != nil {
+		if canonical, found := profileOnlyGroupName(profiles, name); found {
+			return toAdminGroupView(users.GroupInfo{
+				Group: users.Group{Name: canonical},
+				Role:  authz.RoleUser,
+			}, profiles, app.groupsComeFromProvider())
+		}
 		return adminGroupView{Name: name, Role: string(authz.RoleUser), Members: []string{}, Hosts: []string{}}
 	}
-	return toAdminGroupView(info, app.publishedProfileList(c))
+	return toAdminGroupView(info, profiles, app.groupsComeFromProvider())
 }
 
 // selfAdminDependsOnGroup reports whether the caller administers this instance
@@ -479,17 +624,12 @@ func (app *App) selfAdminDependsOnGroup(c *gin.Context, group string) bool {
 // The same fact seen from the other room: a preset lists the groups it is for,
 // and a group lists the presets it reaches, and there is one copy of it.
 //
-// Returns whether anything changed, and the presets that ended up naming
-// nobody — those are offered to everyone, which is a change worth saying out
-// loud rather than leaving to be discovered.
-func (app *App) setGroupHosts(c *gin.Context, group string, hosts []string) (changed bool, everyone []string, err error) {
-	store, storeErr := app.profileStoreForWrite(c, true)
-	if storeErr != nil {
-		return false, nil, errors.New(storeErr.Error())
-	}
-	profiles, loadErr := store.load()
-	if loadErr != nil {
-		return false, nil, fmt.Errorf("could not read the host presets: %w", loadErr)
+// One write for the whole file, so a group assigned to four presets cannot end
+// up on two of them because the third save failed.
+func (app *App) setGroupHosts(c *gin.Context, group string, hosts []string) (changed bool, err error) {
+	store, err := app.profileStoreForWrite(c, true)
+	if err != nil {
+		return false, err
 	}
 
 	wanted := make(map[string]bool, len(hosts))
@@ -499,113 +639,123 @@ func (app *App) setGroupHosts(c *gin.Context, group string, hosts []string) (cha
 		}
 	}
 
-	for _, p := range profiles {
-		has := false
-		for _, g := range p.Groups {
-			if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(group)) {
-				has = true
-				break
+	var touched []ConnectionProfile
+	_, err = store.mutate(func(profiles []ConnectionProfile) ([]ConnectionProfile, bool, error) {
+		touched = nil
+		anyChange := false
+		for i := range profiles {
+			has := audienceNamesGroup(profiles[i], group)
+			want := wanted[strings.ToLower(strings.TrimSpace(profiles[i].Name))]
+			if has == want {
+				continue
 			}
-		}
-		want := wanted[strings.ToLower(strings.TrimSpace(p.Name))]
-		if has == want {
-			continue
-		}
-		if want {
-			p.Groups = users.NormaliseGroups(append(append([]string{}, p.Groups...), group))
-		} else {
-			kept := make([]string, 0, len(p.Groups))
-			for _, g := range p.Groups {
-				if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(group)) {
-					continue
+			if want {
+				profiles[i].Groups = users.NormaliseGroups(
+					append(append([]string{}, profiles[i].Groups...), group))
+			} else {
+				profiles[i].Groups = groupsWithout(profiles[i].Groups, group)
+				// Preflight has already refused this, so reaching it means the
+				// published set changed underneath the request. Refusing at the
+				// write is what makes the rule the file's rather than the
+				// page's: nothing is saved, and no preset silently opens up.
+				if !profiles[i].hasAudience() {
+					return nil, false, fmt.Errorf(
+						"%q would be left naming nobody, so it would be offered to everyone", profiles[i].Name)
 				}
-				kept = append(kept, g)
 			}
-			p.Groups = kept
-			if !p.hasAudience() {
-				everyone = append(everyone, p.Name)
-			}
+			normaliseAudience(&profiles[i])
+			profiles[i].Shared = false
+			touched = append(touched, profiles[i])
+			anyChange = true
 		}
-		normaliseAudience(&p)
-		p.Shared = false
-		if _, err := store.upsert(p); err != nil {
-			return changed, everyone, fmt.Errorf("could not save the preset %q: %w", p.Name, err)
-		}
-		changed = true
+		return profiles, anyChange, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, p := range touched {
 		app.auditRequest(c, audit.EventProfilePublished, audit.Success, p.Name,
 			map[string]string{"host": p.displayTarget(), "audience": audienceSummary(p)})
 	}
-	return changed, everyone, nil
+	return len(touched) > 0, nil
 }
 
 // renameGroupInProfiles follows a rename into every published preset that
-// names the old spelling.
-func (app *App) renameGroupInProfiles(c *gin.Context, from, to string) {
+// names the old spelling, in one write.
+func (app *App) renameGroupInProfiles(c *gin.Context, from, to string) error {
 	store, err := app.profileStoreForWrite(c, true)
 	if err != nil {
-		return
+		return err
 	}
-	profiles, err := store.load()
-	if err != nil {
-		log.Printf("admin: could not re-read presets to rename group %q: %v", from, err)
-		return
-	}
-	for _, p := range profiles {
-		renamed := false
-		for i, g := range p.Groups {
-			if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(from)) {
-				p.Groups[i] = to
-				renamed = true
+	var touched []ConnectionProfile
+	_, err = store.mutate(func(profiles []ConnectionProfile) ([]ConnectionProfile, bool, error) {
+		touched = nil
+		anyChange := false
+		for i := range profiles {
+			renamed := false
+			for j, g := range profiles[i].Groups {
+				if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(from)) {
+					profiles[i].Groups[j] = to
+					renamed = true
+				}
 			}
-		}
-		if !renamed {
-			continue
-		}
-		normaliseAudience(&p)
-		p.Shared = false
-		if _, err := store.upsert(p); err != nil {
-			log.Printf("admin: could not rename group %q in preset %q: %v", from, p.Name, err)
-		}
-	}
-}
-
-// removeGroupFromProfiles strips a deleted group's name from every preset,
-// returning the ones left naming nobody.
-func (app *App) removeGroupFromProfiles(c *gin.Context, name string) []string {
-	store, err := app.profileStoreForWrite(c, true)
-	if err != nil {
-		return nil
-	}
-	profiles, err := store.load()
-	if err != nil {
-		log.Printf("admin: could not re-read presets to drop group %q: %v", name, err)
-		return nil
-	}
-	var everyone []string
-	for _, p := range profiles {
-		kept := make([]string, 0, len(p.Groups))
-		dropped := false
-		for _, g := range p.Groups {
-			if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(name)) {
-				dropped = true
+			if !renamed {
 				continue
 			}
-			kept = append(kept, g)
+			normaliseAudience(&profiles[i])
+			profiles[i].Shared = false
+			touched = append(touched, profiles[i])
+			anyChange = true
 		}
-		if !dropped {
-			continue
-		}
-		p.Groups = kept
-		if !p.hasAudience() {
-			everyone = append(everyone, p.Name)
-		}
-		normaliseAudience(&p)
-		p.Shared = false
-		if _, err := store.upsert(p); err != nil {
-			log.Printf("admin: could not drop group %q from preset %q: %v", name, p.Name, err)
-		}
+		return profiles, anyChange, nil
+	})
+	if err != nil {
+		return err
 	}
-	return everyone
+	for _, p := range touched {
+		app.auditRequest(c, audit.EventProfilePublished, audit.Success, p.Name,
+			map[string]string{"host": p.displayTarget(), "audience": audienceSummary(p)})
+	}
+	return nil
+}
+
+// removeGroupFromProfiles strips a deleted group's name from every preset, in
+// one write.
+func (app *App) removeGroupFromProfiles(c *gin.Context, name string) error {
+	store, err := app.profileStoreForWrite(c, true)
+	if err != nil {
+		return err
+	}
+	var touched []ConnectionProfile
+	_, err = store.mutate(func(profiles []ConnectionProfile) ([]ConnectionProfile, bool, error) {
+		touched = nil
+		anyChange := false
+		for i := range profiles {
+			if !audienceNamesGroup(profiles[i], name) {
+				continue
+			}
+			profiles[i].Groups = groupsWithout(profiles[i].Groups, name)
+			// The same guard as setGroupHosts, and for the same reason: this is
+			// the write, so this is where the rule has to hold.
+			if !profiles[i].hasAudience() {
+				return nil, false, fmt.Errorf(
+					"%q would be left naming nobody, so it would be offered to everyone", profiles[i].Name)
+			}
+			normaliseAudience(&profiles[i])
+			profiles[i].Shared = false
+			touched = append(touched, profiles[i])
+			anyChange = true
+		}
+		return profiles, anyChange, nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, p := range touched {
+		app.auditRequest(c, audit.EventProfilePublished, audit.Success, p.Name,
+			map[string]string{"host": p.displayTarget(), "audience": audienceSummary(p)})
+	}
+	return nil
 }
 
 // containsFold reports whether the list holds the name, ignoring case and

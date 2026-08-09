@@ -109,6 +109,13 @@
                             No commas — a comma separates one group from the next
                             everywhere a list of them is typed.
                         </div>
+                        <div class="field-hint" data-group-name-provider-note hidden>
+                            This group's members come from the identity provider,
+                            so its name is set there — renaming it here would only
+                            bring the original back at the next sign-in. Its
+                            description, the role it grants and the hosts it
+                            reaches are still yours to change.
+                        </div>
                     </div>
                     <div class="field">
                         <label for="group-description">Description <span class="subtle">optional</span></label>
@@ -159,8 +166,10 @@
                     <p class="field-hint">
                         The published presets this group's members are offered on the
                         session manager. Ticking one adds this group to that preset's
-                        audience; a preset that ends up naming nobody is offered to
-                        everyone.
+                        audience. Unticking the last name on a preset is refused,
+                        because a preset naming nobody is offered to everyone — choose
+                        Everyone on the <a href="/admin/session-screen">Session screen</a>
+                        page when that is what you mean.
                     </p>
                     <div class="picker-list" data-group-hosts></div>
                     <p class="field-hint" data-group-hosts-empty hidden>
@@ -189,6 +198,6 @@
         </div>
     </div>
 
-    <script src="/static/admin-groups.js?v=1" defer></script>
+    <script src="/static/admin-groups.js?v=2" defer></script>
 </body>
 </html>

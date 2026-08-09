@@ -54,6 +54,8 @@ var adminOnlyRoutes = map[string]bool{
 	"GET /admin/groups":               true,
 	"GET /api/admin/groups":           true,
 	"POST /api/admin/groups":          true,
+	"PATCH /api/admin/groups":         true,
+	"DELETE /api/admin/groups":        true,
 	"PATCH /api/admin/groups/:name":   true,
 	"DELETE /api/admin/groups/:name":  true,
 }

@@ -153,6 +153,43 @@ func (p *connectionProfileStore) upsert(profile ConnectionProfile) ([]Connection
 	return profiles, nil
 }
 
+// mutate applies one change to the whole published set, under one lock and
+// one atomic write.
+//
+// upsert is the right shape for saving a profile somebody edited. It is the
+// wrong shape for a change that spans several — renaming a group across every
+// audience that names it, or taking one out of them — because each call is its
+// own load, its own write and its own chance to fail, so the third of five
+// failing leaves two profiles renamed and three not. There is no way back from
+// that: the caller cannot tell which half it got.
+//
+// The callback is handed the loaded list and returns the list to write, and
+// whether anything actually changed. Returning false, or an error, writes
+// nothing at all — which is what makes "work out whether this is allowed with
+// the whole set in front of you, then decide" a thing a caller can do without
+// leaving a partial change behind when the answer is no.
+func (p *connectionProfileStore) mutate(
+	apply func([]ConnectionProfile) ([]ConnectionProfile, bool, error),
+) ([]ConnectionProfile, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	profiles, err := p.loadLocked()
+	if err != nil {
+		return nil, err
+	}
+	next, changed, err := apply(profiles)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
+		return profiles, nil
+	}
+	if err := p.saveLocked(next); err != nil {
+		return nil, err
+	}
+	return next, nil
+}
+
 func (p *connectionProfileStore) delete(name string) ([]ConnectionProfile, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -366,7 +403,7 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 		"canShare": principalFrom(c).IsAdmin() && app.publishedProfiles(c) != nil,
 		// The group names in use, so the audience editor can offer them
 		// instead of relying on somebody remembering the spelling.
-		"groups": app.knownGroups(),
+		"groups": app.knownGroups(c),
 	})
 }
 
