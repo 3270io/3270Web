@@ -96,6 +96,12 @@ Disabling an account, resetting its password or deleting it signs that person
 out everywhere immediately. A password an administrator sets is temporary: its
 owner is asked to choose their own the next time they sign in.
 
+**Changing a role also takes effect immediately, in whatever browser that
+person already has open** — it does not wait for them to sign in again, and it
+does not sign them out. Demotion is the direction that matters: a demoted
+administrator who kept the role until their session expired could restore it
+from the Accounts page they were still standing on.
+
 ### From the command line
 
 Account management is also a console command. It edits the same file the server
@@ -125,6 +131,12 @@ Inside a container:
 ```bash
 docker compose exec 3270Web /app/3270Web user add alice
 ```
+
+One difference from the web interface: a running server does not see the file
+change. Disabling an account from the console stops its API tokens at once —
+the owner is looked up on every call — but a browser already signed in is
+ended by a periodic sweep instead, so allow up to ten minutes. Disabling from
+the Accounts page ends those logins on the spot.
 
 ### Roles
 

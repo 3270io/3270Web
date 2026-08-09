@@ -954,6 +954,7 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 				return
 			case <-ticker.C:
 				app.reapIdleSessions(maxIdle)
+				app.sweepLogins()
 				if app.copilotAuthStore != nil {
 					app.copilotAuthStore.EvictIdle(copilotIdentityIdleTimeout)
 				}
@@ -964,6 +965,48 @@ func (app *App) startSessionReaper(interval, maxIdle time.Duration) (stop func()
 		}
 	}()
 	return func() { close(done) }
+}
+
+// sweepLogins drops logins that have expired, and logins whose account has
+// since been disabled or deleted.
+//
+// The expiry half only bounds memory: a login is already refused once it
+// expires, but nothing removes an abandoned one until somebody presents it
+// again, which by definition nobody does.
+//
+// The second half is a revocation that would otherwise be missed. The web
+// interface ends an account's logins as it disables it, but that is not the
+// only way an account changes: `3270Web user disable alice` edits the same
+// file while the server is running — the documented way to do this without a
+// browser — and the server has no idea it happened. A token belonging to that
+// account stops working immediately, because the owner is looked up on every
+// call; a browser already signed in would keep going to the end of its
+// absolute timeout. Re-reading the account store per request to close that
+// gap would be a file read on every request to answer a question that changes
+// almost never, so it is answered on the sweep instead.
+func (app *App) sweepLogins() {
+	if app.authSessions == nil || !app.separatesUsers() {
+		return
+	}
+	if n := app.authSessions.Reap(); n > 0 {
+		log.Printf("auth: dropped %d expired login(s)", n)
+	}
+	for _, id := range app.authSessions.UserIDs() {
+		user, found, err := app.userStore().ByID(id)
+		if err != nil {
+			// A store that cannot be read says nothing about whether the
+			// account is still valid, so nobody is signed out over it.
+			log.Printf("auth: could not re-check account %s: %v", id, err)
+			return
+		}
+		if found && !user.Disabled {
+			continue
+		}
+		if n := app.authSessions.DeleteAllFor(id); n > 0 {
+			log.Printf("auth: ended %d login(s) for an account that is now %s",
+				n, map[bool]string{true: "disabled", false: "gone"}[found])
+		}
+	}
 }
 
 // reapIdleSessions removes sessions idle for at least maxIdle, skipping any

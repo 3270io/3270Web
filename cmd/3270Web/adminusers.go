@@ -196,6 +196,11 @@ func (app *App) AdminUpdateUserHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": humanPasswordError(err)})
 			return
 		}
+		// A login carries the role it was created with, so the change has to be
+		// pushed into the sessions the account is already in. Without this a
+		// demotion would not take effect until the person signed in again — and
+		// they could undo it from the page they were still standing on.
+		app.authSessions.SetRoleFor(target.ID, role)
 		log.Printf("auth: %s set %q role to %s", adminActor(c), target.Username, role)
 		app.auditRequest(c, audit.EventAccountUpdated, audit.Success, target.Username,
 			map[string]string{"change": "role", "role": string(role)})

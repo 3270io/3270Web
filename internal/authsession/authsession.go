@@ -161,6 +161,57 @@ func (s *Store) DeleteAllFor(userID string) int {
 	return n
 }
 
+// SetRoleFor changes the role carried by every live login belonging to a user,
+// and reports how many were changed.
+//
+// A login copies the account's role when it is created, so without this a role
+// change would not reach the browser the person is already in: a demoted
+// administrator would keep administering until their session expired — and
+// could restore their own role through the page they were still standing on,
+// so the demotion would never take effect at all.
+//
+// Ending their sessions instead would revoke it just as surely, and is what
+// disabling an account does. It is the wrong answer here because it is not
+// only a revocation: the same call promotes, and signing somebody out for
+// being given more rights is a strange thing to do to them. Changing the role
+// in place is what "your role changed" actually means.
+func (s *Store) SetRoleFor(userID string, role authz.Role) int {
+	if userID == "" {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, sess := range s.sessions {
+		if sess.UserID == userID && sess.Role != role {
+			sess.Role = role
+			n++
+		}
+	}
+	return n
+}
+
+// UserIDs returns the distinct accounts that currently hold a login.
+//
+// It exists so a periodic sweep can re-check those accounts against the
+// account store without this package having to know what an account store is.
+// Distinct rather than one entry per session, because the caller reads a file
+// per ID and one person with six tabs open is still one account.
+func (s *Store) UserIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := make(map[string]bool, len(s.sessions))
+	out := make([]string, 0, len(s.sessions))
+	for _, sess := range s.sessions {
+		if sess.UserID == "" || seen[sess.UserID] {
+			continue
+		}
+		seen[sess.UserID] = true
+		out = append(out, sess.UserID)
+	}
+	return out
+}
+
 // Reap drops expired sessions and reports how many were removed. Get expires
 // lazily; this bounds memory for logins that are simply abandoned.
 func (s *Store) Reap() int {
