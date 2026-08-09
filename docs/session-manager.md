@@ -104,10 +104,18 @@ given gets the same answer as naming one that does not exist.
 ### Sample apps as hosts
 
 A preset can point at one of the bundled sample apps instead of a mainframe.
-The preset dialog offers them in a **Bundled sample app** list; choosing one
-fills in the host and port, and the preset then behaves like any other — it
-appears on the selection screen, carries an audience, and can be assigned to a
-group.
+
+The quickest way is the **Add sample app** list above the host preset table:
+pick one and it is published there and then, offered to everyone, with nothing
+to fill in. An app already on the list is shown as *already added* and cannot
+be picked twice. Narrowing its audience, renaming it or giving it a
+description is an **Edit** away, exactly as for any other preset.
+
+The preset dialog offers the same apps in a **Bundled sample app** list, which
+is what to use when the rest of the preset is being written at the same time:
+choosing one fills in the host and port. Either way the preset then behaves
+like any other — it appears on the selection screen, carries an audience, and
+can be assigned to a group.
 
 That is what makes the whole feature usable before there is a mainframe to
 reach. An instance being evaluated, or one being used to teach on, can publish

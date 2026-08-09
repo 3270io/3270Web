@@ -22,6 +22,9 @@
   var knownUsers = [];
   // The bundled sample apps a preset may point at instead of a mainframe.
   var sampleApps = [];
+  // The published set as last loaded, so the sample-app adder can tell which
+  // of them are already on the list.
+  var published = [];
   var editingName = null;
 
   document.querySelectorAll('[data-dialog]').forEach(function (el) {
@@ -209,8 +212,9 @@
       var td = el('td', 'admin-empty');
       td.colSpan = 5;
       td.appendChild(el('strong', '', 'No presets yet'));
-      td.appendChild(document.createTextNode(
-        'Add one to put a mainframe on the selection screen.'));
+      td.appendChild(document.createTextNode(sampleApps.length
+        ? 'Add one to put a mainframe on the selection screen, or add a bundled sample app to have something to connect to without one.'
+        : 'Add one to put a mainframe on the selection screen.'));
       tr.appendChild(td);
       rows.appendChild(tr);
       return;
@@ -247,6 +251,89 @@
       if (String(sampleApps[i].host).toLowerCase() === host) return sampleApps[i];
     }
     return null;
+  }
+
+  // The same apps again, this time above the list rather than inside the
+  // dialog: choosing one publishes it there and then.
+  //
+  // Nothing about a sample app preset is a decision — the host, the port and
+  // the name are fixed, and TLS against a plaintext listener on loopback
+  // cannot work — so putting it behind a form somebody has to fill in and
+  // save is asking for agreement to values they were never offered a choice
+  // about. An instance being evaluated or taught on has these and no
+  // mainframe, and this is how its host list gets populated.
+
+  function publishedSampleHost(hostValue) {
+    var host = String(hostValue || '').trim().toLowerCase();
+    for (var i = 0; i < published.length; i++) {
+      if (String(published[i].host || '').trim().toLowerCase() === host) return published[i];
+    }
+    return null;
+  }
+
+  // A name nobody else is using. The store upserts by name, so a sample app
+  // whose name collides with a mainframe preset would replace it silently.
+  function freePresetName(preferred) {
+    // No prototype, so a preset named "constructor" is a name and not a hit.
+    var taken = Object.create(null);
+    published.forEach(function (p) { taken[String(p.name || '').toLowerCase()] = true; });
+    if (!taken[preferred.toLowerCase()]) return preferred;
+    for (var n = 2; n < 100; n++) {
+      var candidate = preferred + ' ' + n;
+      // The server refuses a name past 64 characters, so the suffix has to
+      // come out of the name rather than be added to it.
+      if (candidate.length > 64) {
+        candidate = preferred.slice(0, 64 - (' ' + n).length) + ' ' + n;
+      }
+      if (!taken[candidate.toLowerCase()]) return candidate;
+    }
+    return preferred;
+  }
+
+  var sampleAdd = document.querySelector('[data-preset-sample-add]');
+
+  function fillSampleAppAdder() {
+    if (!sampleAdd) return;
+    sampleAdd.hidden = !sampleApps.length;
+
+    while (sampleAdd.options.length > 1) sampleAdd.remove(1);
+    sampleApps.forEach(function (app) {
+      var option = document.createElement('option');
+      option.value = app.host;
+      var already = !!publishedSampleHost(app.host);
+      // Said on the option rather than by hiding it: an app that is missing
+      // from the list reads as one this instance does not have.
+      option.textContent = already ? app.name + ' (already added)' : app.name;
+      option.disabled = already;
+      sampleAdd.appendChild(option);
+    });
+    sampleAdd.value = '';
+  }
+
+  if (sampleAdd) {
+    sampleAdd.addEventListener('change', function () {
+      var chosen = sampleAppFor(sampleAdd.value);
+      sampleAdd.value = '';
+      if (!chosen) return;
+      var name = freePresetName(chosen.name);
+      api('POST', '/api/admin/profiles', {
+        name: name,
+        host: chosen.host,
+        port: chosen.port,
+        // Offered to everybody, which is what the audience fields mean when
+        // they are empty. Narrowing it is an edit away, and guessing an
+        // audience nobody asked for would hide the preset from the person
+        // who just added it.
+        groups: [],
+        users: [],
+        roles: []
+      })
+        .then(function () {
+          setStatus(name + ' added to the selection screen.', 'ok');
+          return load();
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); });
+    });
   }
 
   var sampleSelect = document.querySelector('[data-preset-sample]');
@@ -293,9 +380,11 @@
         knownGroups = data.groups || [];
         knownUsers = data.usernames || [];
         sampleApps = data.sampleApps || [];
+        published = data.profiles || [];
         fillDatalist('[data-preset-known-groups]', knownGroups);
         fillDatalist('[data-preset-known-users]', knownUsers);
         fillSampleApps();
+        fillSampleAppAdder();
         // With nobody to narrow an audience to, the fieldset would only
         // mislead: everything published is for the one operator.
         var audience = document.querySelector('[data-preset-audience]');

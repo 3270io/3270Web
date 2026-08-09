@@ -40,6 +40,15 @@
                 <div class="admin-section-head">
                     <h2 id="presets-title">Host presets</h2>
                     <div class="toolbar">
+                        <!-- A bundled sample app is a preset somebody wants in
+                             one move, not a form to fill in: everything about
+                             it — host, port, name, no TLS — is already known.
+                             The dialog's own picker still exists for the case
+                             where the rest of the preset is being edited too. -->
+                        <label class="visually-hidden" for="preset-sample-add">Add a bundled sample app</label>
+                        <select id="preset-sample-add" data-preset-sample-add hidden>
+                            <option value="">Add sample app&hellip;</option>
+                        </select>
                         <button type="button" data-preset-add>Add preset</button>
                     </div>
                 </div>
