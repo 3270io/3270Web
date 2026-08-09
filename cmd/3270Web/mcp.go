@@ -209,7 +209,10 @@ func findRunningInstance() (string, string) {
 // that sees it.
 func startOwnInstance(conversation string) (target, func(), error) {
 	installDir := resolveBaseDir()
-	baseDir := resolveDataDir(installDir)
+	baseDir, err := resolveDataDir(installDir)
+	if err != nil {
+		return target{}, nil, err
+	}
 
 	// A generated token speaks for the single operator, so it cannot be used
 	// on an instance where users are separated — there is nobody it could be.

@@ -13,8 +13,9 @@ import (
 func TestDataDirDefaultsToTheProgramDirectory(t *testing.T) {
 	t.Setenv("DATA_DIR", "")
 	install := t.TempDir()
-	if got := resolveDataDir(install); got != install {
-		t.Errorf("resolveDataDir = %q, want %q", got, install)
+	got, err := resolveDataDir(install)
+	if err != nil || got != install {
+		t.Errorf("resolveDataDir = %q, %v; want %q, nil", got, err, install)
 	}
 }
 
@@ -22,7 +23,11 @@ func TestDataDirIsCreatedIfMissing(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "not", "there", "yet")
 	t.Setenv("DATA_DIR", dir)
 
-	if got := resolveDataDir(t.TempDir()); got != dir {
+	got, err := resolveDataDir(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolveDataDir: %v", err)
+	}
+	if got != dir {
 		t.Fatalf("resolveDataDir = %q, want %q", got, dir)
 	}
 	info, err := os.Stat(dir)
@@ -34,9 +39,11 @@ func TestDataDirIsCreatedIfMissing(t *testing.T) {
 	}
 }
 
-// An unusable DATA_DIR must not take the server down: falling back and saying
-// so beats refusing to start over a setting most deployments never touch.
-func TestAnUnusableDataDirFallsBack(t *testing.T) {
+// A DATA_DIR that is set and unusable is an error rather than something to
+// work around. Falling back to the program's directory would put the state
+// exactly where a deploy deletes it, and the instance would look healthy right
+// up until the day it lost every account.
+func TestAnUnusableDataDirIsAnError(t *testing.T) {
 	install := t.TempDir()
 	// A file where the directory should be.
 	blocked := filepath.Join(t.TempDir(), "a-file")
@@ -45,8 +52,35 @@ func TestAnUnusableDataDirFallsBack(t *testing.T) {
 	}
 	t.Setenv("DATA_DIR", blocked)
 
-	if got := resolveDataDir(install); got != install {
-		t.Errorf("resolveDataDir = %q, want the fallback %q", got, install)
+	got, err := resolveDataDir(install)
+	if err == nil {
+		t.Fatalf("resolveDataDir = %q, nil; want an error rather than a fallback", got)
+	}
+	if got == install {
+		t.Error("it fell back to the program directory as well as erroring")
+	}
+	if !strings.Contains(err.Error(), blocked) {
+		t.Errorf("the error does not name the directory: %v", err)
+	}
+}
+
+// The failure people actually hit: the directory exists, and belongs to
+// somebody else. MkdirAll succeeds on it, so only attempting a write finds
+// out — which is the whole reason for the probe.
+func TestADataDirThatCannotBeWrittenIsAnError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root, which can write regardless of the mode")
+	}
+	dir := filepath.Join(t.TempDir(), "owned-by-somebody-else")
+	if err := os.Mkdir(dir, 0o500); err != nil { // readable and traversable, not writable
+		t.Fatal(err)
+	}
+	t.Setenv("DATA_DIR", dir)
+
+	if _, err := resolveDataDir(t.TempDir()); err == nil {
+		t.Error("an unwritable data directory was accepted; state would go somewhere a deploy deletes")
+	} else if !strings.Contains(err.Error(), "not writable") {
+		t.Errorf("the error does not say what is wrong: %v", err)
 	}
 }
 

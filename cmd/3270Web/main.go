@@ -481,7 +481,14 @@ func main() {
 	}
 
 	installDir := resolveBaseDir()
-	baseDir := resolveDataDir(installDir)
+	baseDir, dataErr := resolveDataDir(installDir)
+	if dataErr != nil {
+		// Before the log is opened, because the log lives in the directory
+		// that just turned out to be unusable.
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", dataErr)
+		showFatalError(dataErr.Error())
+		os.Exit(1)
+	}
 	logFile, err := openStartupLog(baseDir)
 	if err == nil {
 		defer logFile.Close()
@@ -654,7 +661,7 @@ func resolveBaseDir() string {
 	return "."
 }
 
-// resolveDataDir says where state is written.
+// resolveDataDir says where state is written, and refuses rather than guesses.
 //
 // DATA_DIR exists for containers, where the program's own directory is part of
 // an image that is replaced on every deploy. Without it, upgrading a
@@ -664,24 +671,59 @@ func resolveBaseDir() string {
 //
 // Unset means "beside the program", which is right for a desktop install and
 // for `go run`.
-func resolveDataDir(installDir string) string {
-	if dir := strings.TrimSpace(os.Getenv("DATA_DIR")); dir != "" {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			log.Printf("Warning: could not use DATA_DIR %q (%v); falling back to %s", dir, err, installDir)
-			return installDir
-		}
-		return dir
+//
+// Set but unusable is an error, not something to work around. The usual cause
+// is a bind-mounted host directory the container's user cannot write: falling
+// back to the program's directory would put the state exactly where a deploy
+// deletes it, and the instance would look fine until the day it lost
+// everything. Saying so at startup costs one restart; the alternative costs
+// the accounts.
+func resolveDataDir(installDir string) (string, error) {
+	dir := strings.TrimSpace(os.Getenv("DATA_DIR"))
+	if dir == "" {
+		return installDir, nil
 	}
-	return installDir
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("DATA_DIR %s cannot be created: %w%s", dir, err, dataDirHint())
+	}
+	// MkdirAll succeeds on a directory that already exists and belongs to
+	// somebody else, which is the bind-mount case exactly. Only a write says
+	// whether this will work.
+	probe, err := os.CreateTemp(dir, ".writable-*")
+	if err != nil {
+		return "", fmt.Errorf("DATA_DIR %s is not writable: %w%s", dir, err, dataDirHint())
+	}
+	name := probe.Name()
+	probe.Close()
+	os.Remove(name)
+	return dir, nil
+}
+
+// dataDirHint names the fix for the failure people actually hit: a host
+// directory bind-mounted into a container that runs as an unprivileged user.
+func dataDirHint() string {
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+	return fmt.Sprintf("\nThe server runs as uid %d. For a bind-mounted host directory:\n"+
+		"  mkdir -p ./data && sudo chown -R %d:%d ./data", os.Getuid(), os.Getuid(), os.Getgid())
 }
 
 // resolveStateDir is where state lives, for the callers that have no App to
 // ask — the account and token CLIs, run inside the same container as the
 // server. They must reach the same files the server does, or `3270Web user
 // add` writes an account into the image layer that the running server, reading
-// its volume, never sees.
+// its data directory, never sees.
+//
+// A CLI that cannot reach the right directory must not fall back to the wrong
+// one and report success, so this ends the process instead.
 func resolveStateDir() string {
-	return resolveDataDir(resolveBaseDir())
+	dir, err := resolveDataDir(resolveBaseDir())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", err)
+		os.Exit(1)
+	}
+	return dir
 }
 
 // assetDir is where web/templates and web/static are read from: beside the

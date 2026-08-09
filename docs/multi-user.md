@@ -31,8 +31,8 @@ Accounts, API tokens, the audit trail and everyone's saved work are files. By
 default they sit beside the program, which is right for a desktop install and
 wrong for a container: the image is replaced on every deploy.
 
-**In Docker, keep them on a volume.** The published image sets `DATA_DIR=/data`
-and the compose file names a volume for it:
+**In Docker, keep them in a folder on the host.** The published image sets
+`DATA_DIR=/data`, and the compose file bind-mounts a folder beside itself:
 
 ```yaml
 services:
@@ -41,23 +41,49 @@ services:
     environment:
       - AUTH_MODE=local
     volumes:
-      - 3270web-data:/data
-
-volumes:
-  3270web-data:
+      - ./data:/data
 ```
 
-Without it, `docker compose pull && docker compose up -d` — the ordinary way to
-take an upgrade — takes every account with it. The instance comes back with no
-accounts, which means it comes back in **first-run setup**, waiting for whoever
-reaches it first to claim it. The audit trail of what happened before the
-upgrade goes at the same time, and issued API tokens stop working.
+A host folder rather than a named volume, so the accounts and the audit trail
+can be backed up, inspected and copied with ordinary tools instead of through
+`docker volume`.
+
+Create it and hand it to the user the server runs as, before the first start:
+
+```bash
+mkdir -p ./data && sudo chown -R 10001:10001 ./data
+```
+
+A bind mount keeps the host's ownership — unlike a named volume, Docker does
+not adjust it — and the server runs unprivileged as uid 10001. Skip this and
+the container **refuses to start**, naming the directory and the `chown`. That
+is deliberate: the alternative is falling back to the image layer, where
+everything works until the deploy that silently deletes every account.
+
+Without a data folder of some kind, `docker compose pull && docker compose up
+-d` — the ordinary way to take an upgrade — takes every account with it. The
+instance comes back with no accounts, which means it comes back in **first-run
+setup**, waiting for whoever reaches it first to claim it. The audit trail of
+what happened before the upgrade goes at the same time, and issued API tokens
+stop working.
 
 `DATA_DIR` names the directory; the program's own directory keeps the binary
-and the web assets, which is why the volume is mounted somewhere else rather
+and the web assets, which is why the folder is mounted somewhere else rather
 than over the top of them. The account and token CLIs read the same setting, so
 `docker compose exec 3270Web /app/3270Web user add alice` edits the accounts the
 running server is using.
+
+### Backing it up
+
+It is a directory of small files, so a copy is a backup:
+
+```bash
+tar czf 3270web-$(date +%F).tar.gz -C ./data .
+```
+
+It holds password hashes and token hashes — no plaintext of either — plus the
+audit trail and everyone's saved work. Treat it as you would any file naming
+your users and the hosts they reach.
 
 ---
 
