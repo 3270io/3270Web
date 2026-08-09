@@ -679,9 +679,12 @@ install_docker() {
   [ "$VERSION" != "latest" ] && tag="$VERSION"
   resolve_api_token
 
+  DATA_DIR_PATH="${DATA_DIR_PATH:-${HOME}/.3270web/data}"
+
   step "image" "${IMAGE}:${tag}"
   step "name" "$CONTAINER_NAME"
   step "listen" "${BIND}:${PORT} → 8080"
+  step "data" "${DATA_DIR_PATH} → /data"
   step_api
   printf '\n'
 
@@ -727,15 +730,17 @@ install_docker() {
     env_args+=(-e "API_TOKEN=${API_TOKEN_VALUE}" -e "MCP_TOOLS=${MCP_TOOLS}")
   fi
 
+  prepare_data_dir "$DATA_DIR_PATH" || true
+
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p "${BIND}:${PORT}:8080" \
     "${env_args[@]}" \
-    -v 3270web-chaos:/app/chaos-runs \
+    -v "${DATA_DIR_PATH}:/data" \
     "${IMAGE}:${tag}" >/dev/null </dev/null
   step "started" "container ${CONTAINER_NAME}" "up"
-  step "volume" "3270web-chaos → /app/chaos-runs" "ok"
+  step "data" "${DATA_DIR_PATH} → /data" "ok"
   # `docker inspect` and the daemon's process list both show -e values, so say
   # where the token ended up rather than leaving it to be discovered.
   [ -n "$API_TOKEN_VALUE" ] && step "token" "in the container environment" "ok"
@@ -754,6 +759,82 @@ success_docker() {
   step "remove" "docker rm -f ${CONTAINER_NAME}"
   step "docs" "${DOCS_URL}/installation/"
   success_mcp
+  printf '\n'
+}
+
+
+# ==========================================================================
+# 7b. The data folder
+# ==========================================================================
+
+# The uid the container runs as. A bind-mounted host folder keeps the host's
+# ownership — Docker adjusts a named volume's, but not a bind mount's — so the
+# folder has to be handed to this user or the server refuses to start.
+readonly RUNTIME_UID=10001
+readonly RUNTIME_GID=10001
+
+# prepare_data_dir <dir> — create it, hand it to the runtime user, and say so.
+prepare_data_dir() {
+  local dir="$1"
+  local existed=0
+  [ -d "$dir" ] && existed=1
+
+  mkdir -p "$dir" || die "Could not create ${dir}."
+
+  # chown needs root unless the folder is already the right owner, which it is
+  # on a re-run. Checked rather than assumed so a second install is quiet.
+  local owner
+  owner="$(stat -c '%u:%g' "$dir" 2>/dev/null || echo '')"
+  if [ "$owner" != "${RUNTIME_UID}:${RUNTIME_GID}" ]; then
+    local sudo_cmd=""
+    [ "$(id -u)" -ne 0 ] && have sudo && sudo_cmd="sudo"
+    if ! $sudo_cmd chown -R "${RUNTIME_UID}:${RUNTIME_GID}" "$dir" 2>/dev/null; then
+      warn "Could not give ${dir} to uid ${RUNTIME_UID}."
+      note "3270Web runs unprivileged and will refuse to start without it. Run:"
+      note "  sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ${dir}"
+      return 1
+    fi
+  fi
+
+  if [ "$existed" -eq 1 ]; then
+    step "data" "${dir} (kept)" "ok"
+  else
+    step "data" "${dir} (uid ${RUNTIME_UID})" "new"
+  fi
+  return 0
+}
+
+# report_data_upgrade <file-or-empty> — explain the change to somebody whose
+# existing stack predates the data folder.
+#
+# Older stacks persisted only chaos runs, at a named volume on /app/chaos-runs.
+# Everything else — accounts, API tokens, the audit trail, saved tasks — lived
+# in the container and went with it on every upgrade. Whoever is upgrading is
+# entitled to know that, and to know their chaos runs are about to move.
+# LEGACY_CHAOS_VOLUME is set when the stack being replaced used the old
+# chaos-only volume, so the new one can keep it mounted for a single start.
+LEGACY_CHAOS_VOLUME=0
+
+report_data_upgrade() {
+  local previous="$1"
+  LEGACY_CHAOS_VOLUME=0
+  [ -z "$previous" ] && return 0
+  grep -q '3270web-chaos' "$previous" 2>/dev/null || return 0
+  LEGACY_CHAOS_VOLUME=1
+
+  printf '\n'
+  warn "This stack predates the data folder."
+  note "It kept chaos runs in the 3270web-chaos volume and nothing else:"
+  note "accounts, API tokens, the audit trail and saved tasks lived inside"
+  note "the container, so every upgrade deleted them."
+  note ""
+  note "The new stack keeps all of it in ${DATA_DIR_PATH}."
+  note ""
+  note "The old volume stays mounted where it was for one more start, so"
+  note "3270Web can move those runs into the folder itself. It says what it"
+  note "moved. Afterwards the volume is empty and both it and the two lines"
+  note "marked in the file can go:"
+  note "  docker volume rm 3270web-chaos"
   printf '\n'
 }
 
@@ -776,14 +857,18 @@ install_compose() {
   [ "$VERSION" != "latest" ] && tag="$VERSION"
   local file="${COMPOSE_DIR}/docker-compose.yml"
   local envfile="${COMPOSE_DIR}/.env"
+  DATA_DIR_PATH="${COMPOSE_DIR}/data"
   resolve_api_token
 
   step "file" "$file"
   step "image" "${IMAGE}:${tag}"
   step "listen" "${BIND}:${PORT} → 8080"
   step "compose" "$DOCKER_COMPOSE"
+  step "data" "${DATA_DIR_PATH} → /data"
   step_api
   printf '\n'
+
+  report_data_upgrade "$file"
 
   if [ -e "$file" ]; then
     warn "${file} already exists."
@@ -808,6 +893,26 @@ install_compose() {
   fi
 
   mkdir -p "$COMPOSE_DIR"
+  prepare_data_dir "$DATA_DIR_PATH" || true
+
+  # An upgrade keeps the old chaos volume mounted where it was for one start.
+  # 3270Web migrates anything it finds beside the program into the data
+  # directory, so mounting it is what lets those runs move themselves; drop
+  # the volume and they would be stranded in it instead.
+  local legacy_volume="" legacy_volume_decl=""
+  if [ "$LEGACY_CHAOS_VOLUME" -eq 1 ]; then
+    legacy_volume="
+      # UPGRADE: the old chaos-runs volume, mounted for one start so 3270Web
+      # can move its contents into ./data. Delete this line and the volumes:
+      # block at the end of the file once it has, then:
+      #   docker volume rm 3270web-chaos
+      - 3270web-chaos:/app/chaos-runs"
+    legacy_volume_decl="
+
+volumes:
+  # UPGRADE: see the note above; removable once the runs have moved.
+  3270web-chaos:"
+  fi
 
   # The API block is built here rather than inline so the stack reads the same
   # either way: the variables are always named and always explained, and the
@@ -872,13 +977,19 @@ ${mcp_env}
       # Any S3270_* option can be set here, for example:
       # - S3270_MODEL=3279-2-E
       # - S3270_CODE_PAGE=bracket
-    volumes:
-      # Chaos exploration runs survive a recreate.
-      - 3270web-chaos:/app/chaos-runs
-    restart: unless-stopped
-
-volumes:
-  3270web-chaos:
+    volumes:${legacy_volume}
+      # Accounts, API tokens, the audit trail and everyone's saved work, in a
+      # folder beside this file so it can be backed up and inspected with
+      # ordinary tools. It has to outlive the container: recreating one
+      # without this -- which is what pulling a new image does -- takes every
+      # account with it, and an instance with AUTH_MODE=local comes back up in
+      # first-run setup for whoever reaches it first.
+      #
+      # The server runs unprivileged as uid ${RUNTIME_UID} and a bind mount keeps the
+      # host's ownership, so the folder belongs to that user:
+      #   sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ./data
+      - ./data:/data
+    restart: unless-stopped${legacy_volume_decl}
 YAML
   step "wrote" "$file" "ok"
 

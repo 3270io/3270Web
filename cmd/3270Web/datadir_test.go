@@ -139,3 +139,126 @@ func TestTheCLIsUseTheSameStateDirectoryAsTheServer(t *testing.T) {
 		}
 	}
 }
+
+// Setting DATA_DIR on an instance that already has accounts must not look
+// like losing them. Without this the server reads an empty directory, finds
+// no accounts, and comes back up in first-run setup — with the real files
+// sitting beside the program, which is no comfort to whoever is staring at a
+// setup page where their sign-in used to be.
+func TestAnOlderInstallationsFilesMoveIntoTheDataDirectory(t *testing.T) {
+	install := t.TempDir()
+	data := t.TempDir()
+
+	// What an existing install looks like: state beside the program, and the
+	// program itself, which must be left where it is.
+	write(t, filepath.Join(install, "users.json"), `{"users":[{"username":"alice"}]}`)
+	write(t, filepath.Join(install, "audit.log"), `{"event":"login.succeeded"}`)
+	write(t, filepath.Join(install, ".env"), "S3270_MODEL=3279-2-E\n")
+	write(t, filepath.Join(install, "chaos-runs", "old-run.json"), `{"id":"old"}`)
+	write(t, filepath.Join(install, "3270Web"), "the binary")
+	write(t, filepath.Join(install, "web", "templates", "login.html"), "<html>")
+
+	if err := migrateStateToDataDir(install, data); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	for _, name := range []string{"users.json", "audit.log", ".env", "chaos-runs/old-run.json"} {
+		if _, err := os.Stat(filepath.Join(data, filepath.FromSlash(name))); err != nil {
+			t.Errorf("%s did not arrive in the data directory: %v", name, err)
+		}
+		if _, err := os.Stat(filepath.Join(install, filepath.FromSlash(name))); !os.IsNotExist(err) {
+			t.Errorf("%s was copied rather than moved", name)
+		}
+	}
+	// The program and its assets stay put, or the next start has nothing to run.
+	for _, name := range []string{"3270Web", "web/templates/login.html"} {
+		if _, err := os.Stat(filepath.Join(install, filepath.FromSlash(name))); err != nil {
+			t.Errorf("%s was moved out from under the program: %v", name, err)
+		}
+	}
+	if body := read(t, filepath.Join(data, "users.json")); !strings.Contains(body, "alice") {
+		t.Errorf("the accounts file arrived empty: %q", body)
+	}
+}
+
+// A data directory that already holds accounts is authoritative. Shovelling
+// another instance's files into it would be worse than doing nothing.
+func TestMigrationLeavesAPopulatedDataDirectoryAlone(t *testing.T) {
+	install := t.TempDir()
+	data := t.TempDir()
+	write(t, filepath.Join(install, "users.json"), `{"users":[{"username":"from-the-image"}]}`)
+	write(t, filepath.Join(data, "users.json"), `{"users":[{"username":"already-here"}]}`)
+
+	if err := migrateStateToDataDir(install, data); err != nil {
+		t.Fatal(err)
+	}
+	if body := read(t, filepath.Join(data, "users.json")); !strings.Contains(body, "already-here") {
+		t.Errorf("the existing accounts were overwritten: %q", body)
+	}
+	if _, err := os.Stat(filepath.Join(install, "users.json")); err != nil {
+		t.Error("the other directory's file was moved anyway")
+	}
+}
+
+// Nothing to move, and the two being the same directory — a desktop install —
+// must both be no-ops rather than errors.
+func TestMigrationIsANoOpWhenThereIsNothingToDo(t *testing.T) {
+	install := t.TempDir()
+	if err := migrateStateToDataDir(install, t.TempDir()); err != nil {
+		t.Errorf("an empty installation: %v", err)
+	}
+	write(t, filepath.Join(install, "users.json"), "{}")
+	if err := migrateStateToDataDir(install, install); err != nil {
+		t.Errorf("the same directory twice: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(install, "users.json")); err != nil {
+		t.Error("a desktop install had its own accounts moved")
+	}
+}
+
+// The old location is usually a mounted volume and the new one is not, so a
+// rename fails with EXDEV. Falling back to a copy is what rescues exactly the
+// installations this exists for.
+func TestMovePathCopiesWhenRenameCannotCrossFilesystems(t *testing.T) {
+	from := filepath.Join(t.TempDir(), "tree")
+	to := filepath.Join(t.TempDir(), "tree")
+	write(t, filepath.Join(from, "nested", "file.json"), `{"kept":true}`)
+
+	if err := copyPath(from, to); err != nil {
+		t.Fatalf("copyPath: %v", err)
+	}
+	if body := read(t, filepath.Join(to, "nested", "file.json")); !strings.Contains(body, "kept") {
+		t.Errorf("the copy lost the contents: %q", body)
+	}
+
+	// And the move built on it leaves nothing behind.
+	other := filepath.Join(t.TempDir(), "moved")
+	if err := movePath(from, other); err != nil {
+		t.Fatalf("movePath: %v", err)
+	}
+	if _, err := os.Stat(from); !os.IsNotExist(err) {
+		t.Error("movePath left the original in place")
+	}
+	if _, err := os.Stat(filepath.Join(other, "nested", "file.json")); err != nil {
+		t.Errorf("movePath lost the tree: %v", err)
+	}
+}
+
+func write(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}

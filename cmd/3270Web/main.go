@@ -489,6 +489,13 @@ func main() {
 		showFatalError(dataErr.Error())
 		os.Exit(1)
 	}
+	// Before the log is opened, so an older installation's log file is moved
+	// rather than being written to in the place it is about to leave.
+	if err := migrateStateToDataDir(installDir, baseDir); err != nil {
+		fmt.Fprintf(os.Stderr, "3270Web: %v\n", err)
+		showFatalError(err.Error())
+		os.Exit(1)
+	}
 	logFile, err := openStartupLog(baseDir)
 	if err == nil {
 		defer logFile.Close()

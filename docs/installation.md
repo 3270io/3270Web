@@ -288,21 +288,39 @@ Use it as a liveness/readiness probe in orchestrators, or inspect it directly:
 docker inspect --format '{{.State.Health.Status}}' <container>   # healthy
 ```
 
-### Persisting chaos output
+### Persisting the data
 
-The app writes chaos runs to `/app/chaos-runs` inside the container. Mount a
-volume there to keep them across restarts:
+The image sets `DATA_DIR=/data`, and everything a deployment accumulates goes
+there: accounts, API tokens, the audit trail, chaos runs, saved tasks,
+profiles and themes. Mount a folder on it, or a container replacement takes
+all of it:
 
 ```bash
-docker run --rm -p 8080:8080 \
-  -v 3270web-chaos:/app/chaos-runs \
+mkdir -p ./data && sudo chown -R 10001:10001 ./data
+
+docker run -d -p 8080:8080 \
+  -v ./data:/data \
   ghcr.io/3270io/3270web:latest
 ```
 
+The `chown` is needed because 3270Web runs unprivileged as uid 10001 and a
+bind mount keeps the host's ownership. Without it the container refuses to
+start and tells you the command to run — deliberately, because the
+alternative is writing state somewhere the next deploy deletes.
+
 !!! tip
-    Configure 3270Web through environment variables rather than bind-mounting all
-    of `/app` — the binary and embedded `web/` assets live there, and a mount over
-    `/app` would shadow them.
+    Mount the data folder on `/data`, never on `/app`: the binary and the
+    `web/` assets live there, and a mount over `/app` would shadow them.
+    Everything else is configured through environment variables.
+
+!!! note "Upgrading from a version without `/data`"
+    Older instances kept their files beside the program, and older stacks
+    persisted only chaos runs, in a volume on `/app/chaos-runs`. On the first
+    start with a data folder, 3270Web **moves anything it finds beside the
+    program into it** and logs what it moved, so accounts and runs survive the
+    change. If your stack mounted the old chaos volume, leave it mounted for
+    that one start; afterwards it is empty and can be removed with
+    `docker volume rm 3270web-chaos`. The installer does all of this for you.
 
 ### Listen address
 
@@ -438,12 +456,16 @@ docker compose up -d
         [User Accounts and Sign-In](authentication.md).
 
 - **Add options** — list more `S3270_*` variables under `environment:`.
-- **Persist chaos runs** — add a volume:
+- **Persist the data** — required for anything but a trial. Accounts, tokens,
+  the audit trail and everyone's saved work live here:
 
     ```yaml
     volumes:
-      - 3270web-chaos:/app/chaos-runs
+      - ./data:/data
     ```
+
+    First: `mkdir -p ./data && sudo chown -R 10001:10001 ./data`. See
+    [Keeping the state](multi-user.md#keeping-the-state).
 
 ---
 
