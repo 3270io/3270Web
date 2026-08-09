@@ -53,7 +53,7 @@ answers `404` — the same answer as an ID that does not exist. A token issued
 `--read-only` may only make `GET`, `HEAD` and `OPTIONS` requests; anything
 else answers `403`.
 
-See [API tokens](authentication.md#api-tokens) for issuing, scoping and
+See [API tokens](multi-user.md#api-tokens) for issuing, scoping and
 revoking them.
 
 ### Calling from a browser

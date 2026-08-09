@@ -271,7 +271,7 @@ token is not reaching the container.
 
 On a stack with `AUTH_MODE=local`, drop `API_TOKEN` — it is refused at startup
 — and give each client a token of its own with
-[`3270Web token add`](authentication.md#api-tokens). Each connection's tool
+[`3270Web token add`](multi-user.md#api-tokens). Each connection's tool
 calls are authorized as the account whose token opened it.
 
 ### Check the endpoint before configuring a client

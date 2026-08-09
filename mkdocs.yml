@@ -59,6 +59,7 @@ nav:
   - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md
   - User Accounts and Sign-In: authentication.md
+  - Running a Shared Instance: multi-user.md
   - Recordings and Playback: workflow.md
   - Guided Business Tasks: business-tasks.md
   - Chaos Mode: chaos-mode.md
