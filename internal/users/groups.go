@@ -40,6 +40,9 @@ import (
 var (
 	ErrGroupExists   = errors.New("users: a group with that name already exists")
 	ErrGroupNotFound = errors.New("users: no such group")
+	// ErrProviderManagedGroup refuses a local change to the *identity* of a
+	// group the directory feeds. See UpdateGroup and DeleteGroup.
+	ErrProviderManagedGroup = errors.New("users: that group's membership comes from the identity provider")
 )
 
 // MaxGroupDescriptionLength bounds the note beside a group name. Long enough
@@ -69,6 +72,13 @@ type GroupInfo struct {
 	Members  []string   `json:"members"`
 	Role     authz.Role `json:"role"`
 	Declared bool       `json:"declared"`
+	// ExternalMembers names the members whose accounts an identity provider
+	// owns. Where a deployment maps a groups claim, those memberships are
+	// rewritten from the claim at every sign-in, which makes the group's *name*
+	// the provider's to choose — see ErrProviderManagedGroup. Reported rather
+	// than acted on here, because whether a claim is mapped at all is a
+	// question about the deployment that this package cannot answer.
+	ExternalMembers []string `json:"externalMembers,omitempty"`
 }
 
 // ValidateGroupName enforces a name that survives the round trip through a
@@ -139,6 +149,32 @@ func (f fileFormat) knowsGroup(name string) bool {
 	}
 	for _, u := range f.Users {
 		if u.InGroup(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// providerManages reports whether an account the identity provider owns is
+// currently in this group.
+//
+// That is what makes the *name* the provider's rather than the
+// administrator's: the claim is replayed at every sign-in, so renaming the
+// group here would leave the original name to be recreated on the next one —
+// two groups where there was one, with the members on the old spelling and
+// whatever an administrator attached to the new. Where the old spelling
+// granted administration, that is somebody's access stranded on a group the
+// page no longer shows.
+//
+// Only membership is the provider's. A description, the role the group grants
+// and the presets it reaches are all local, and stay editable.
+func (f fileFormat) providerManages(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	for _, u := range f.Users {
+		if u.External() && u.InGroup(name) {
 			return true
 		}
 	}
@@ -228,6 +264,9 @@ func groupInfos(f fileFormat) []GroupInfo {
 		for _, g := range u.Groups {
 			if info := touch(g); info != nil {
 				info.Members = append(info.Members, u.Username)
+				if u.External() {
+					info.ExternalMembers = append(info.ExternalMembers, u.Username)
+				}
 			}
 		}
 	}
@@ -240,6 +279,9 @@ func groupInfos(f fileFormat) []GroupInfo {
 		}
 		sort.Slice(info.Members, func(i, j int) bool {
 			return strings.ToLower(info.Members[i]) < strings.ToLower(info.Members[j])
+		})
+		sort.Slice(info.ExternalMembers, func(i, j int) bool {
+			return strings.ToLower(info.ExternalMembers[i]) < strings.ToLower(info.ExternalMembers[j])
 		})
 		out = append(out, *info)
 	}
@@ -295,7 +337,13 @@ func (s *Store) CreateGroup(name, description string) (Group, error) {
 // Describing a group that was never declared declares it. That is how the
 // groups an instance already had, and the ones a directory feeds it, become
 // maintainable rather than permanently second-class.
-func (s *Store) UpdateGroup(name string, newName, description *string) (Group, error) {
+//
+// lockProvider is the caller saying that this deployment takes group
+// membership from an identity provider. With it set, a group the directory
+// currently feeds cannot be renamed here — see providerManages. It is a
+// parameter rather than something this package works out because the answer
+// depends on how the deployment is configured, which is the caller's to know.
+func (s *Store) UpdateGroup(name string, newName, description *string, lockProvider bool) (Group, error) {
 	name = strings.TrimSpace(name)
 
 	s.mu.Lock()
@@ -319,6 +367,12 @@ func (s *Store) UpdateGroup(name string, newName, description *string) (Group, e
 		// would be baffling.
 		if !strings.EqualFold(candidate, name) && f.knowsGroup(candidate) {
 			return Group{}, ErrGroupExists
+		}
+		// Which is also why a change of capitals counts as a rename here: the
+		// directory would send the original spelling back at the next sign-in
+		// either way.
+		if lockProvider && candidate != name && f.providerManages(name) {
+			return Group{}, ErrProviderManagedGroup
 		}
 		final = candidate
 	}
@@ -393,7 +447,12 @@ func renameGroupEverywhere(f *fileFormat, from, to string) {
 // Refused when it would leave the instance with no enabled administrator, for
 // the same reason demoting the last one is: an instance nobody can administer
 // can only be repaired by editing the account file by hand.
-func (s *Store) DeleteGroup(name string) error {
+//
+// Also refused, with lockProvider set, when the directory currently feeds this
+// group: deleting it locally removes memberships the next sign-in puts back,
+// so the group returns having lost whatever local role and description went
+// with it. That belongs at the provider, where it stays deleted.
+func (s *Store) DeleteGroup(name string, lockProvider bool) error {
 	name = strings.TrimSpace(name)
 
 	s.mu.Lock()
@@ -404,6 +463,9 @@ func (s *Store) DeleteGroup(name string) error {
 	}
 	if !f.knowsGroup(name) {
 		return ErrGroupNotFound
+	}
+	if lockProvider && f.providerManages(name) {
+		return ErrProviderManagedGroup
 	}
 
 	next := f

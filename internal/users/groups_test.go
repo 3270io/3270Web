@@ -123,7 +123,7 @@ func TestRenamingAGroupCarriesItsMembersAndItsRole(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.UpdateGroup("payments", strptr("Payments"), nil); err != nil {
+	if _, err := s.UpdateGroup("payments", strptr("Payments"), nil, false); err != nil {
 		t.Fatalf("UpdateGroup: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestRenamingOntoAnExistingGroupIsRefused(t *testing.T) {
 	if _, err := s.CreateGroup("shipping", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.UpdateGroup("payments", strptr("shipping"), nil); !errors.Is(err, ErrGroupExists) {
+	if _, err := s.UpdateGroup("payments", strptr("shipping"), nil, false); !errors.Is(err, ErrGroupExists) {
 		t.Errorf("renaming onto an existing group: %v, want ErrGroupExists", err)
 	}
 }
@@ -190,7 +190,7 @@ func TestAGroupInUseCanBeDescribedAndRenamed(t *testing.T) {
 		t.Fatalf("ListGroups = %+v, want one undeclared group", list)
 	}
 
-	if _, err := s.UpdateGroup("shipping", strptr("Logistics"), strptr("Warehouse floor")); err != nil {
+	if _, err := s.UpdateGroup("shipping", strptr("Logistics"), strptr("Warehouse floor"), false); err != nil {
 		t.Fatalf("UpdateGroup: %v", err)
 	}
 	list, err = s.ListGroups()
@@ -223,7 +223,7 @@ func TestDeletingAGroupRemovesItEverywhere(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.DeleteGroup("PAYMENTS"); err != nil {
+	if err := s.DeleteGroup("PAYMENTS", false); err != nil {
 		t.Fatalf("DeleteGroup: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestDeletingAGroupRemovesItEverywhere(t *testing.T) {
 		t.Errorf("GroupRoles = %v, want the assignment gone with the group", roles)
 	}
 
-	if err := s.DeleteGroup("payments"); !errors.Is(err, ErrGroupNotFound) {
+	if err := s.DeleteGroup("payments", false); !errors.Is(err, ErrGroupNotFound) {
 		t.Errorf("deleting it twice: %v, want ErrGroupNotFound", err)
 	}
 }
@@ -271,7 +271,7 @@ func TestGroupChangesCannotStrandAnInstanceWithNoAdministrator(t *testing.T) {
 	if _, err := s.SetGroupMembers("ops", nil, false); err == nil {
 		t.Error("emptying the only group granting administration was allowed")
 	}
-	if err := s.DeleteGroup("ops"); err == nil {
+	if err := s.DeleteGroup("ops", false); err == nil {
 		t.Error("deleting the only group granting administration was allowed")
 	}
 
@@ -283,7 +283,7 @@ func TestGroupChangesCannotStrandAnInstanceWithNoAdministrator(t *testing.T) {
 	if _, err := s.SetGroupMembers("ops", nil, false); err != nil {
 		t.Errorf("emptying the group with another administrator present: %v", err)
 	}
-	if err := s.DeleteGroup("ops"); err != nil {
+	if err := s.DeleteGroup("ops", false); err != nil {
 		t.Errorf("deleting the group with another administrator present: %v", err)
 	}
 }
@@ -374,4 +374,97 @@ func userNamed(t *testing.T, s *Store, name string) User {
 	}
 	t.Fatalf("no account named %q", name)
 	return User{}
+}
+
+// A group the directory feeds is the provider's to name.
+//
+// Renaming or deleting one locally does not remove it: the claim is replayed
+// at the member's next sign-in, which recreates the original spelling with the
+// membership on it and leaves whatever an administrator attached to the new
+// name stranded beside it. Where the original granted administration, that is
+// somebody's access on a group the page has stopped showing.
+func TestDirectoryOwnedGroupNamesCannotBeRenamedOrDeletedWhenLocked(t *testing.T) {
+	s := groupStore(t)
+	if _, err := s.Add("root", "correct-horse-battery", authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpsertExternal("https://idp.example", "sub-1", "alice",
+		authz.RoleUser, []string{"ops"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetGroupRole("ops", authz.RoleAdmin); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.UpdateGroup("ops", strptr("operations"), nil, true); !errors.Is(err, ErrProviderManagedGroup) {
+		t.Errorf("renaming a directory-fed group: %v, want ErrProviderManagedGroup", err)
+	}
+	// Capitals only is still a rename: the directory sends the original
+	// spelling back either way.
+	if _, err := s.UpdateGroup("ops", strptr("Ops"), nil, true); !errors.Is(err, ErrProviderManagedGroup) {
+		t.Errorf("re-capitalising a directory-fed group: %v, want ErrProviderManagedGroup", err)
+	}
+	if err := s.DeleteGroup("ops", true); !errors.Is(err, ErrProviderManagedGroup) {
+		t.Errorf("deleting a directory-fed group: %v, want ErrProviderManagedGroup", err)
+	}
+
+	// Nothing moved: the group is there, spelled as it was, with its member
+	// and its role, and no second group beside it.
+	list, err := s.ListGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Name != "ops" {
+		t.Fatalf("ListGroups = %v, want the group unchanged and alone", names(list))
+	}
+	if len(list[0].Members) != 1 || list[0].Members[0] != "alice" {
+		t.Errorf("Members = %v, want the directory's membership intact", list[0].Members)
+	}
+	if len(list[0].ExternalMembers) != 1 || list[0].ExternalMembers[0] != "alice" {
+		t.Errorf("ExternalMembers = %v, want alice named as the directory's", list[0].ExternalMembers)
+	}
+	if list[0].Role != authz.RoleAdmin {
+		t.Errorf("Role = %q, want the role assignment untouched", list[0].Role)
+	}
+
+	// What is local stays local: the description is an administrator's note
+	// about the group, not something the directory has an opinion on.
+	if _, err := s.UpdateGroup("ops", nil, strptr("Overnight cover"), true); err != nil {
+		t.Errorf("describing a directory-fed group: %v, want it allowed", err)
+	}
+	if _, err := s.UpdateGroup("ops", strptr("ops"), strptr("Overnight cover"), true); err != nil {
+		t.Errorf("re-sending the same name with a description: %v, want it allowed", err)
+	}
+	if err := s.SetGroupRole("ops", authz.RoleUser); err != nil {
+		t.Errorf("changing the role a directory-fed group grants: %v, want it allowed", err)
+	}
+
+	// And without the lock — a deployment that maps no groups claim — the name
+	// is an administrator's again.
+	if _, err := s.UpdateGroup("ops", strptr("operations"), nil, false); err != nil {
+		t.Errorf("renaming with no groups claim mapped: %v, want it allowed", err)
+	}
+}
+
+// The lock is about the directory's members, not about the group having any.
+// A group with only local accounts in it stays fully local even where a groups
+// claim is mapped.
+func TestALocalGroupIsStillRenamableWhereAGroupsClaimIsMapped(t *testing.T) {
+	s := groupStore(t)
+	if _, err := s.Add("root", "correct-horse-battery", authz.RoleAdmin, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateGroup("payments", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetGroupMembers("payments", []string{"root"}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.UpdateGroup("payments", strptr("Payments"), nil, true); err != nil {
+		t.Errorf("renaming a group of local accounts: %v, want it allowed", err)
+	}
+	if err := s.DeleteGroup("Payments", true); err != nil {
+		t.Errorf("deleting a group of local accounts: %v, want it allowed", err)
+	}
 }

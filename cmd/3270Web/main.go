@@ -399,6 +399,14 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.GET(adminGroupsPath, app.AdminGroupsPageHandler)
 	admin.GET("/api/admin/groups", app.AdminListGroupsHandler)
 	admin.POST("/api/admin/groups", app.AdminCreateGroupHandler)
+	// Named in the body rather than the path, because a group name may contain
+	// "/" — "payments/shipping" is an ordinary way to write a sub-team — and
+	// no encoding makes that survive as a single router path parameter. Such a
+	// group could be created and then never edited or deleted again.
+	admin.PATCH("/api/admin/groups", app.AdminUpdateGroupHandler)
+	admin.DELETE("/api/admin/groups", app.AdminDeleteGroupHandler)
+	// Kept because they are the published API: a client written against them
+	// goes on working for every name that can be put in a path.
 	admin.PATCH("/api/admin/groups/:name", app.AdminUpdateGroupHandler)
 	admin.DELETE("/api/admin/groups/:name", app.AdminDeleteGroupHandler)
 	r.POST("/connect", app.ConnectHandler)

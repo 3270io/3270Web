@@ -149,7 +149,13 @@ func (app *App) assignedProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 
 // knownGroups lists every group in use, for the administration page to offer
 // rather than making somebody remember how a name was spelled.
-func (app *App) knownGroups() []string {
+//
+// The account store holds most of them. The rest are names a published
+// preset's audience carries and nothing else does — perfectly real groups,
+// since they decide who is offered that mainframe, but invisible to a store
+// that has never been told about them. Leaving them out of the pickers is how
+// a second spelling of a group that already governs a host gets typed in.
+func (app *App) knownGroups(c *gin.Context) []string {
 	if !app.separatesUsers() {
 		return nil
 	}
@@ -158,5 +164,9 @@ func (app *App) knownGroups() []string {
 		return nil
 	}
 	sort.Strings(groups)
-	return groups
+	// The store's spelling wins where both have one: it is the one somebody
+	// chose rather than the one that happened to be typed into an audience.
+	merged := mergeGroupNames(groups, groupNamesInProfiles(app.publishedProfileList(c)))
+	sort.Strings(merged)
+	return merged
 }
