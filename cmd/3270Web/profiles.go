@@ -69,6 +69,18 @@ type ConnectionProfile struct {
 	Users  []string `json:"users,omitempty"`
 	Groups []string `json:"groups,omitempty"`
 	Roles  []string `json:"roles,omitempty"`
+	// NotOffered marks a preset that exists but is on nobody's list yet.
+	//
+	// The audience alone cannot say this: naming nobody means everybody, and
+	// that rule cannot be changed without taking a host list away from every
+	// instance already relying on it. So "here, ready, but not handed out" —
+	// which is what the bundled sample apps are when they are seeded — needs
+	// a field of its own.
+	//
+	// Negative so the zero value is "offered": every preset written before
+	// this existed, and every one saved by a client that has never heard of
+	// it, stays exactly as offered as it was.
+	NotOffered bool `json:"notOffered,omitempty"`
 	// Shared marks a profile that came from the published set rather than the
 	// caller's own. Output only: it is derived from which store held the
 	// profile, so a client cannot promote one by asserting it.
@@ -420,11 +432,18 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 // mainframes — so making them purely private would mean every account
 // re-entering the same hosts, while making them purely shared is what this
 // separation is moving away from.
+//
+// A preset that is not offered is left out of all of it, an administrator
+// included. This is the host list, not the administration of it: the presets
+// page reads the store directly and is where an unoffered preset is meant to
+// be seen. Showing one here would put a host in a picker that refuses to
+// connect to it, because connecting by name goes through assignedProfiles.
 func (app *App) visibleProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 	own, err := app.ownProfiles(c).load()
 	if err != nil {
 		return nil, err
 	}
+	own = offeredOnly(own)
 
 	published := app.publishedProfiles(c)
 	if published == nil {
@@ -445,7 +464,7 @@ func (app *App) visibleProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 		}
 		byName[key] = p
 	}
-	for _, p := range shared {
+	for _, p := range offeredOnly(shared) {
 		add(p, true)
 	}
 	// Second, so a profile of the caller's own with the same name replaces
@@ -505,8 +524,13 @@ func (app *App) ProfilesSaveHandler(c *gin.Context) {
 	// somebody wrote in a different context.
 	if payload.Publish {
 		normaliseAudience(&profile)
+		settleOffered(&profile)
 	} else {
 		profile.Users, profile.Groups, profile.Roles = nil, nil, nil
+		// Nor can a profile of somebody's own be withheld from them: there is
+		// nobody else for it to be offered to, and the flag would only hide it
+		// from the one list that shows it.
+		profile.NotOffered = false
 	}
 
 	store, err := app.profileStoreForWrite(c, payload.Publish)

@@ -39,6 +39,10 @@ func (app *App) AdminListProfilesHandler(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
+	// Before the load, so the bundled sample apps are on the list the first
+	// time it is looked at rather than after a refresh. They arrive not
+	// offered, so nothing else on the instance changes; see sampleseed.go.
+	app.seedSampleAppPresets(c)
 	profiles, err := store.load()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
@@ -86,6 +90,7 @@ func (app *App) AdminSaveProfileHandler(c *gin.Context) {
 		return
 	}
 	normaliseAudience(&profile)
+	settleOffered(&profile)
 
 	store, err := app.profileStoreForWrite(c, true)
 	if err != nil {

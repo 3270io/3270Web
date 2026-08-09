@@ -15,6 +15,14 @@ only. On a shared instance the headless API will not start one unless
     On the connect page, click **Start sample app**, pick an application and a
     port, then **Start sample app**.
 
+=== "From the selection screen"
+
+    Every bundled app is already a host preset, waiting on **Admin → Session
+    screen** marked *Not offered*. Click **Offer** on one and it joins the
+    selection screen operators meet at sign-in; give it an audience instead
+    and only those people are offered it. See the [session
+    manager](session-manager.md#sample-apps-as-hosts).
+
 === "From the session picker"
 
     **Profiles** on the connect page, and **+ New session** in the tab bar,

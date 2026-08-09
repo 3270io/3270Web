@@ -97,32 +97,45 @@ shape these lists come in — "the payments team, plus Dave who covers for them"
 profile in an existing deployment is, so turning this on never quietly takes a
 host list away from the people using it.
 
+A preset can also be on the presets page and nowhere else. Untick **Offer this
+preset** and it drops off the selection screen, off the connect page and out of
+the *Profiles* picker, for everybody including you — the row stays, marked
+**Not offered**, with an **Offer** button on it. That is a different state from
+an empty audience, which means *everyone*: it is for a host that exists but has
+not been handed out yet, which is how the [bundled sample
+apps](#sample-apps-as-hosts) arrive. Naming any audience offers the preset to
+them, so a preset assigned from the Groups page is never left reaching nobody.
+
 The audience is a restriction and not a display filter. Both paths that connect
 by name resolve profiles through the same check, so naming a host you were not
 given gets the same answer as naming one that does not exist.
 
 ### Sample apps as hosts
 
-A preset can point at one of the bundled sample apps instead of a mainframe.
+**Every bundled sample app is already a preset.** They are added the first time
+an administrator opens **Admin → Session screen**, each marked *Not offered* —
+so nothing about the instance changes until you say so, and there is no form to
+fill in when you do.
 
-The quickest way is the **Add sample app** list above the host preset table:
-pick one and it is published there and then, offered to everyone, with nothing
-to fill in. An app already on the list is shown as *already added* and cannot
-be picked twice. Narrowing its audience, renaming it or giving it a
-description is an **Edit** away, exactly as for any other preset.
-
-The preset dialog offers the same apps in a **Bundled sample app** list, which
-is what to use when the rest of the preset is being written at the same time:
-choosing one fills in the host and port. Either way the preset then behaves
-like any other — it appears on the selection screen, carries an audience, and
-can be assigned to a group.
+Offering one is a single click on **Offer**, which makes it available to
+everyone; giving it an audience instead — here or from **Admin → Groups** —
+offers it to just those people. From then on it behaves like any other preset:
+it appears on the selection screen, carries an audience, and can be assigned to
+a group.
 
 That is what makes the whole feature usable before there is a mainframe to
-reach. An instance being evaluated, or one being used to teach on, can publish
+reach. An instance being evaluated, or one being used to teach on, can offer
 the sample apps, put the trainees in a group, and give the group those hosts;
 everybody who signs in meets a real selection screen with real systems on it.
 
-Each sample app is offered on its own port (3271 upwards), so publishing more
+Remove any you do not want and they stay removed — a later start does not put
+them back. The **Add sample app** list above the table is how one comes back
+if you change your mind; it is hidden while every app is already on the list,
+which is the ordinary state. The preset dialog's **Bundled sample app** list
+points a preset you are writing yourself at one of them, filling in the host
+and port.
+
+Each sample app has its own port (3271 upwards), so offering more
 than one does not leave two presets fighting over a single listener. The port
 is fixed to that range: the sample apps are TN3270 servers 3270Web starts
 itself, and 3270 is what the web interface listens on.

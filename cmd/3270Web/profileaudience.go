@@ -32,6 +32,17 @@ func (p ConnectionProfile) hasAudience() bool {
 	return len(p.Users) > 0 || len(p.Groups) > 0 || len(p.Roles) > 0
 }
 
+// offered reports whether this preset is on anybody's list at all.
+//
+// Naming an audience offers it to them, whatever the flag says. That is what
+// keeps the two from contradicting each other: a preset assigned to a group
+// from the groups page — which sets the audience and knows nothing about this
+// flag — would otherwise look assigned and reach nobody, the failure nobody
+// notices because the person who cannot see the host does not know it exists.
+func (p ConnectionProfile) offered() bool {
+	return !p.NotOffered || p.hasAudience()
+}
+
 // visibleTo reports whether account may use this profile.
 //
 // Roles are matched by name so that "everyone who administers" can be
@@ -57,6 +68,28 @@ func (p ConnectionProfile) visibleTo(account users.User) bool {
 		}
 	}
 	return false
+}
+
+// settleOffered stops the flag and the audience from disagreeing on the way
+// in, so what the presets page shows back is what was actually saved.
+//
+// offered() already treats a named audience as an offer; this only makes the
+// stored record say the same thing.
+func settleOffered(p *ConnectionProfile) {
+	if p.hasAudience() {
+		p.NotOffered = false
+	}
+}
+
+// offeredOnly drops the presets that are not on anybody's list yet.
+func offeredOnly(profiles []ConnectionProfile) []ConnectionProfile {
+	out := make([]ConnectionProfile, 0, len(profiles))
+	for _, p := range profiles {
+		if p.offered() {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // normaliseAudience cleans the three lists the way group names are cleaned
