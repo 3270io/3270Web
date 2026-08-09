@@ -21,6 +21,43 @@ pointed at, and what is written down.
 | [`ALLOWED_HOSTS`](#limiting-what-an-instance-can-reach) | unset | Which mainframes the terminal may be pointed at |
 | [`RATE_LIMIT_*`](#rate-limits) | see below | How fast one caller may use what the instance pays for |
 | [The audit trail](#the-audit-trail) | always on | What is recorded, and who may read it |
+| [`DATA_DIR`](#keeping-the-state) | beside the program | Where accounts and everyone's work are kept |
+
+---
+
+## Keeping the state
+
+Accounts, API tokens, the audit trail and everyone's saved work are files. By
+default they sit beside the program, which is right for a desktop install and
+wrong for a container: the image is replaced on every deploy.
+
+**In Docker, keep them on a volume.** The published image sets `DATA_DIR=/data`
+and the compose file names a volume for it:
+
+```yaml
+services:
+  3270Web:
+    image: ghcr.io/3270io/3270web:latest
+    environment:
+      - AUTH_MODE=local
+    volumes:
+      - 3270web-data:/data
+
+volumes:
+  3270web-data:
+```
+
+Without it, `docker compose pull && docker compose up -d` — the ordinary way to
+take an upgrade — takes every account with it. The instance comes back with no
+accounts, which means it comes back in **first-run setup**, waiting for whoever
+reaches it first to claim it. The audit trail of what happened before the
+upgrade goes at the same time, and issued API tokens stop working.
+
+`DATA_DIR` names the directory; the program's own directory keeps the binary
+and the web assets, which is why the volume is mounted somewhere else rather
+than over the top of them. The account and token CLIs read the same setting, so
+`docker compose exec 3270Web /app/3270Web user add alice` edits the accounts the
+running server is using.
 
 ---
 

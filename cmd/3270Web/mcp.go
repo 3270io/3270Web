@@ -208,7 +208,8 @@ func findRunningInstance() (string, string) {
 // no terminal. It never leaves this process — the invoker is the only thing
 // that sees it.
 func startOwnInstance(conversation string) (target, func(), error) {
-	baseDir := resolveBaseDir()
+	installDir := resolveBaseDir()
+	baseDir := resolveDataDir(installDir)
 
 	// A generated token speaks for the single operator, so it cannot be used
 	// on an instance where users are separated — there is nobody it could be.
@@ -235,7 +236,7 @@ func startOwnInstance(conversation string) (target, func(), error) {
 		os.Setenv("ALLOW_SAMPLE_APPS", "1")
 	}
 
-	app := newApp(baseDir)
+	app := newAppAt(installDir, baseDir)
 	router, err := buildRouter(app)
 	if err != nil {
 		return target{}, nil, fmt.Errorf("build the router: %w", err)

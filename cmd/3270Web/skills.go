@@ -31,7 +31,7 @@ func (app *App) skillCatalogue() *agent.Catalogue {
 	app.catalogueOnce.Do(func() {
 		base := strings.TrimSpace(app.baseDir)
 		if base == "" {
-			base = resolveBaseDir()
+			base = resolveStateDir()
 		}
 		app.catalogue = agent.Load(agent.DirsFor(base), appVersion)
 		if problems := app.catalogue.Problems(); len(problems) > 0 {
