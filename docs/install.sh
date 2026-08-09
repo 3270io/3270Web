@@ -1154,6 +1154,27 @@ YAML
   # Compose is specific about its failures (a port already bound, a permission
   # error on the socket, an image it cannot pull), and every one of those is
   # actionable if it is on screen.
+  # Pulled explicitly rather than left to `up -d`: compose only pulls an image
+  # it does not already have, so a re-run against an existing stack — the
+  # normal way to take a new build of a floating tag like :latest — would
+  # otherwise restart the same cached image under the appearance of an update.
+  local pull_log status=0
+  pull_log="$(mktemp "${TMPDIR:-/tmp}/3270web-pull.XXXXXX")"
+  spin_start "Pulling ${IMAGE}:${tag}"
+  (cd "$COMPOSE_DIR" && $DOCKER_COMPOSE pull >"$pull_log" 2>&1 </dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
+    spin_stop
+    printf '\n'
+    warn "${DOCKER_COMPOSE} pull failed (exit ${status}). It said:"
+    printf '\n'
+    sed -e 's/^/      /' "$pull_log" | tail -n 12 >&2
+    printf '\n'
+    rm -f "$pull_log"
+    die "Could not pull ${IMAGE}:${tag}."
+  fi
+  rm -f "$pull_log"
+  spin_stop "pulled" "${IMAGE}:${tag}" "ok"
+
   local compose_log status=0
   compose_log="$(mktemp "${TMPDIR:-/tmp}/3270web-compose.XXXXXX")"
   spin_start "Starting the stack"
