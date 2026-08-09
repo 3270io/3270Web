@@ -195,3 +195,4 @@ workflow recording do the heavy lifting.
 | [Terminal Fonts](terminal-fonts.md) | Bundled IBM 3270-style web fonts and how to switch between them |
 | [Compatibility Profile Schema](compatibility-profile-schema.md) | Field-by-field reference for the shared profile JSON (v1.0.0) |
 | [Feature Roadmap](feature-roadmap.md) | Planned and in-progress features |
+| [Acknowledgements](acknowledgements.md) | s3270 and the x3270 family, whose protocol work 3270Web is built on |
