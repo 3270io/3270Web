@@ -84,6 +84,8 @@ func (s *Server) Stop() error {
 
 func handlerFor(appID string) handler {
 	switch appID {
+	case "petstore":
+		return handlePetStore
 	case "app1":
 		return handleApp1
 	case "app2":

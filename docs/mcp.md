@@ -64,7 +64,7 @@ afterwards is configuration.
 
 4. Try it with no mainframe at all:
 
-    > Connect to `sampleapp:app1:3271` and tell me what is on the screen.
+    > Connect to `sampleapp:petstore` and tell me what is on the screen.
 
 Other MCP clients — VS Code, Claude Code, Cursor, Windsurf — take the same
 command and arguments in their own configuration format.
@@ -211,8 +211,14 @@ The bundled sample apps are how you try this without a mainframe. When
 server you started yourself, set `ALLOW_SAMPLE_APPS=1`.
 
 ```
-connect to sampleapp:app1:3271
+connect to sampleapp:petstore
 ```
+
+The default sample is a pet store with a counter, a back office and a
+command line on every screen, which is enough of an application to ask real
+questions of: *"sign on as ADMIN, then tell me which stock lines are below
+their reorder level"*. See
+[Bundled Sample Applications](sample-apps.md) for its screens and commands.
 
 ## Skills
 
