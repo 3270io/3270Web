@@ -24,8 +24,8 @@ only. On a shared instance the headless API will not start one unless
     sampleapp:petstore:3271
     ```
 
-    The port is optional and defaults to 3271. Allowed ports are 3271 to 3275,
-    so several samples can run side by side.
+    The port is optional and defaults to 3271. Allowed ports are 3271 to 3278
+    — one per bundled sample, so they can all run side by side.
 
 === "From the API or an MCP client"
 
@@ -45,6 +45,10 @@ only. On a shared instance the headless API will not start one unless
 | `sampleapp:app1` | Name entry and field validation. |
 | `sampleapp:app2` | RSS newsreader, showing dynamically built screens. |
 | `sampleapp:app3` | A matrix of every 3270 field attribute, colour and highlight. |
+| `sampleapp:wordle` | **Word Guess** — six goes at a five letter word. |
+| `sampleapp:tictactoe` | **Noughts and Crosses** — against a machine that can be made unbeatable. |
+| `sampleapp:snake` | **Snake** — eat, grow, and do not run into anything. |
+| `sampleapp:pong` | **Bat and Ball** — first to five points. |
 
 ---
 
@@ -168,3 +172,78 @@ one.
 - **[Host Compatibility Profiler](host-profiler.md)** — the sample runs a
   real terminal against a real TN3270 server, so the profiler has genuine
   answers to report.
+
+---
+
+## The Games
+
+Four small games, for when you want to *use* the terminal rather than read
+about it. They are also the samples that lean hardest on the parts of the
+datastream the others touch lightly: a separately coloured field per
+character cell, extended highlighting, and a screen that changes completely
+on every transmission.
+
+A 3270 terminal is a block mode device. The host writes a screen, the
+keyboard locks, and nothing comes back until you press an AID key — there is
+no key-at-a-time input to read and no way to redraw on a timer. So none of
+these is the real time game of the same name, and the two that would need a
+clock are turned into what the device can actually do: **one tick of the
+world per transmission**.
+
+All four draw on the default 24x80 buffer whatever your terminal negotiated,
+so a board looks the same everywhere. Every screen prints its identifier in
+the top-left corner, the same as the pet store, so chaos mode and an AI
+assistant can tell one from another.
+
+### Word Guess — `sampleapp:wordle`
+
+`WRD010`. Six goes at a five letter word. Type a guess on the entry line and
+press ++enter++; each letter comes back green (right letter, right place),
+yellow (right letter, wrong place) or blue (not in the word), and the
+alphabet along the bottom carries the best thing known about every letter so
+far. A letter of the answer can only be claimed once, so a guess with two of
+a letter against an answer with one marks only one of them.
+
+++f5++ starts another word, ++f6++ shows the answer, ++f1++ explains the
+rules. A guess is exactly one transmission, which makes this the game worth
+pointing a workflow recording or the MCP server at.
+
+### Noughts and Crosses — `sampleapp:tictactoe`
+
+`TTT010`. The squares are numbered 1 to 9 and a free square shows its own
+number; type one and press ++enter++. You are X, and the machine replies as O
+in the same transmission. Whoever opens alternates from game to game.
+
+++f6++ cycles the level: `EASY` plays at random, `FAIR` searches for most of
+its moves and blunders the rest, and `PERFECT` searches every move and cannot
+be beaten — a draw is the best result available to you, which is the point.
+
+### Snake — `sampleapp:snake`
+
+`SNK010`. Eat the food, grow by three cells each time, and do not run into
+the walls or into yourself. ++f7++ ++f8++ ++f10++ ++f11++ turn and take one
+tick; ++f6++ switches the walls between solid and open.
+
+The entry line is what makes it playable over a block mode link: it takes a
+run of moves and plays them in order, so one ++enter++ can be a whole
+manoeuvre.
+
+```text
+RRDD     right, right, down, down
+3R2D     the same thing, counted
+.        carry on in the direction you are already going
+```
+
+++enter++ on an empty line is a single tick.
+
+### Bat and Ball — `sampleapp:pong`
+
+`PNG010`. Your bat is on the left, the machine's on the right, first to five
+points. ++f7++ and ++f8++ move your bat and take a tick with them, and the
+entry line takes a run of moves (`UUD`, `3U`, `..` to hold still) the same way
+the snake does. Which half of the bat the ball strikes decides which way it
+leaves.
+
+++f6++ cycles the level. The easy levels only move the machine's bat while
+the ball is coming towards it, and make it hesitate; the hard one tracks the
+ball wherever it is.
