@@ -789,6 +789,7 @@ table.admin-table {
   .admin-dialog select,
   .admin-dialog button,
   .admin-page .toolbar button,
+  .admin-page .toolbar select,
   .admin-page .toolbar .button-link {
     min-height: 44px;
     touch-action: manipulation;
@@ -1098,6 +1099,15 @@ table.admin-table {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+/* A select in a section head takes its width from its longest option, and the
+   sample app names are longer than anything else on the row. Capped so the
+   thing it sits beside is still the primary action, and so a narrow screen
+   gets two controls on one line rather than one control and a wrap. */
+.admin-section-head .toolbar select {
+  max-width: 14rem;
+  font-size: 0.9rem;
 }
 
 .admin-section-head h2 {
