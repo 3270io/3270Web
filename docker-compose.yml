@@ -7,7 +7,7 @@ services:
     # something else entirely.
     image: ghcr.io/3270io/3270web:local
     ports:
-      - "127.0.0.1:3270:3270"
+      - "3270:3270"
     environment:
       - GIN_MODE=release
       # /api/v1 — and MCP over HTTP at POST /api/v1/mcp, which is how an AI
