@@ -11,6 +11,10 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **An accessibility claim with an audit behind it** — thirteen surfaces
+  tested, four conformance failures fixed, and a statement that says where it
+  falls short rather than only where it does not. See
+  [Accessibility](accessibility.md).
 - **A door in the shape of the old one** — an HLLAPI-shaped endpoint, so a
   screen-scraper written against numbered functions and presentation-space
   positions can be pointed at 3270Web without being rewritten. See
@@ -166,10 +170,10 @@ proceed without them; procurement cannot.
       organisations. There is no identity model at all today.
 - [ ] **Attributable audit logging** — who accessed which host, when.
       Session-scoped logs exist; attributable records do not.
-- [ ] **WCAG 2.1 AA conformance statement** — most of the work is done (see
-      the accessibility section of
-      [Terminal Capabilities](terminal-capabilities.md)); what is missing is
-      the audit and the statement
+- [x] **WCAG 2.1 AA conformance statement** — *shipped: an audit across
+      thirteen surfaces, the failures it found fixed, and a statement that
+      names what conforms, what does not, and which two apparent failures are
+      deliberate. See [Accessibility](accessibility.md)*
 - [ ] **Distributable task and profile libraries** — both are server-side
       already; moving them between deployments is not solved
 

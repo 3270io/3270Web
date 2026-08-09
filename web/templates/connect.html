@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>3270Web - Connect</title>
     <!-- Without this, mobile browsers lay the page out at a ~980px virtual
@@ -35,7 +35,11 @@
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
     <div class="page-wrap">
-        <div class="card">
+        <!-- The connect form is the whole of this page's purpose; naming it
+             as the main landmark is what lets a screen-reader user jump to it
+             rather than walk the header. Attribute only, so nothing that
+             styles or scripts .card changes. -->
+        <div class="card" role="main">
             <div class="card-header">
                 <div class="brand-lockup">
                     {{ template "brand-mark" }}
