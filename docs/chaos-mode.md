@@ -1,10 +1,20 @@
+---
+description: >-
+  Chaos mode explores host screens by filling input fields and submitting
+  AID keys, discovering navigation paths and producing reusable workflow
+  JSON.
+---
+
 # Chaos Mode
 
 Chaos mode explores host screens by filling input fields with generated values and submitting AID keys (`Enter`, `Tab`, `PF*`, and others). It is useful for discovering navigation paths and producing reusable workflow JSON.
 
 ## Start a Chaos Run
 
-1. Connect to a host.
+1. Connect to a host. With no mainframe to hand, `sampleapp:petstore` is a
+   bundled application with enough menus, forms and guarded screens to give
+   a run something to map — see
+   [Bundled Sample Applications](sample-apps.md).
 2. Click **Start chaos exploration** in the toolbar.
 3. Watch run activity in:
    - the toolbar (`CHAOS` indicator + stats), and

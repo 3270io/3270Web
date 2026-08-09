@@ -1,3 +1,10 @@
+---
+description: >-
+  What an account meets when an administrator has assigned it host profiles
+  — a session manager to pick from, rather than a connect form nobody can
+  fill in.
+---
+
 # The session manager
 
 On an instance where an administrator has assigned host profiles, the connect
@@ -86,6 +93,14 @@ others. Either way, *Who this host is for* takes three lists:
 The three are an **or**, not an and: matching any one is enough. That is the
 shape these lists come in — "the payments team, plus Dave who covers for them".
 
+**Leave all three empty and the host is for everybody.** That is what every
+profile in an existing deployment is, so turning this on never quietly takes a
+host list away from the people using it.
+
+The audience is a restriction and not a display filter. Both paths that connect
+by name resolve profiles through the same check, so naming a host you were not
+given gets the same answer as naming one that does not exist.
+
 ### Sample apps as hosts
 
 A preset can point at one of the bundled sample apps instead of a mainframe.
@@ -103,14 +118,6 @@ Each sample app is offered on its own port (3271 upwards), so publishing more
 than one does not leave two presets fighting over a single listener. The port
 is fixed to that range: the sample apps are TN3270 servers 3270Web starts
 itself, and 3270 is what the web interface listens on.
-
-**Leave all three empty and the host is for everybody.** That is what every
-profile in an existing deployment is, so turning this on never quietly takes a
-host list away from the people using it.
-
-The audience is a restriction and not a display filter. Both paths that connect
-by name resolve profiles through the same check, so naming a host you were not
-given gets the same answer as naming one that does not exist.
 
 ### Groups
 

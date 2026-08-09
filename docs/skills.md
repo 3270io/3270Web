@@ -1,3 +1,9 @@
+---
+description: >-
+  The procedures the AI assistant follows are files, not prose compiled into
+  the binary — teach it your own application without waiting for a release.
+---
+
 # Skills and Extensions
 
 The procedures the AI assistant follows are files, not prose compiled into the

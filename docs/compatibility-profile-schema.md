@@ -1,3 +1,10 @@
+---
+description: >-
+  The CompatibilityProfile JSON document produced by both 3270Web and
+  3270Connect, field by field, so profiles from either tool can be diffed
+  against each other.
+---
+
 # CompatibilityProfile schema (v1.0.0)
 
 The `CompatibilityProfile` JSON document is the shared output format

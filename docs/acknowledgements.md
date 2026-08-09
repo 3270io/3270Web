@@ -1,3 +1,9 @@
+---
+description: >-
+  The projects 3270Web is built on, starting with s3270 and the x3270 family
+  that carries every screen, field and PF key.
+---
+
 # Acknowledgements
 
 ## s3270 and the x3270 family

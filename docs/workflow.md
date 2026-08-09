@@ -1,3 +1,9 @@
+---
+description: >-
+  Capture terminal actions as JSON recordings and replay them later, with
+  every recording and playback control explained.
+---
+
 # Recordings and Playback
 
 3270Web can capture terminal actions as JSON recordings and run them later.

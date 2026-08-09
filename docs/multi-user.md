@@ -1,3 +1,10 @@
+---
+description: >-
+  Running 3270Web on a port more than one person can reach: accounts,
+  assigned host profiles, data separation between users, and the audit
+  trail.
+---
+
 # Running a shared instance
 
 Everything here is about the same situation: 3270Web on a port more than one

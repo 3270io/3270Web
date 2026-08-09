@@ -1,4 +1,8 @@
 ---
+description: >-
+  Open a tab, connect to any TN3270 host and work exactly like you would at
+  a real 3270 terminal — with AI Chat, chaos exploration and session
+  recording.
 hide:
   - toc
 ---
@@ -166,7 +170,10 @@ workflow recording do the heavy lifting.
 
 1. Get 3270Web running — native Linux binary, Docker, or Docker Compose.
 2. Open 3270Web in your browser (`http://localhost:3270`).
-3. Enter your TN3270 host and port on the connect screen.
+3. Enter your TN3270 host and port on the connect screen. No mainframe? Enter
+   `sampleapp:petstore` for the bundled pet store — a counter, a back office
+   and a command line on every screen. See
+   [Bundled Sample Applications](sample-apps.md).
 4. Use the terminal — keyboard shortcuts, PF keys, and field navigation all work as expected.
 5. Optional: hit **Start recording** to capture the session for replay later.
 

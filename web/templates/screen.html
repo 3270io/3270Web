@@ -7,15 +7,24 @@
          miniature and every max-width media query below is dead, because
          the viewport reports 980px on a 412px phone. -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Live IBM 3270 terminal session in 3270Web.">
+    <meta name="theme-color" content="#03110d">
+    <meta name="color-scheme" content="dark light">
+    <!-- This page is a live session: the markup is whatever the host happens to
+         be showing, including hostnames, menu structure and record contents.
+         None of that belongs in a search index, and a crawler following a link
+         to a shared instance is exactly how it would get there. The connect
+         page is the front door and is the page that carries the social card. -->
+    <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=17">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=18">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=6">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
@@ -33,7 +42,7 @@
     <script src="/static/keymap.js?v=2" defer></script>
     <script src="/static/keyboard.js?v=15" defer></script>
     <script src="/static/initial-focus.js" defer></script>
-    <script src="/static/theme.js?v=9" defer></script>
+    <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/modal-utils.js?v=2" defer></script>
     <!-- ui.js must load before workflow.js: workflow.js's submit interceptor

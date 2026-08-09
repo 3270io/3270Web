@@ -1,3 +1,9 @@
+---
+description: >-
+  Toolbar controls, keyboard mappings, focus mode, the command palette and
+  the virtual keypad — everything an operator drives 3270Web with.
+---
+
 # Keyboard and Controls
 
 This page explains toolbar controls, keyboard mappings, and the virtual keypad.

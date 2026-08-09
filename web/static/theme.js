@@ -8,7 +8,13 @@
     { id: "theme-dark", name: "Midnight Cyan" },
     { id: "theme-light", name: "Paper Terminal" },
     { id: "theme-modern", name: "Neon Grid" },
-    { id: "theme-slick", name: "Ocean Ops" }
+    { id: "theme-slick", name: "Ocean Ops" },
+    // The four palettes the project site and docs sites share, so a palette
+    // picked there carries over to the terminal.
+    { id: "theme-io-phosphor", name: "3270.io Phosphor Green" },
+    { id: "theme-io-amber", name: "3270.io Amber CRT" },
+    { id: "theme-io-ice", name: "3270.io Ice" },
+    { id: "theme-io-daylight", name: "3270.io Daylight" }
   ];
 
   var fileThemes = [];

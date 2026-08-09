@@ -175,10 +175,22 @@ type SampleAppOption struct {
 const sampleAppPrefix = "sampleapp:"
 
 var sampleAppConfigs = []SampleAppConfig{
+	{ID: "petstore", Name: "Pet Store - Retail & Back Office (default)"},
 	{ID: "app1", Name: "Sample App 1 - Name Entry & Validation"},
 	{ID: "app2", Name: "Sample App 2 - RSS Newsreader"},
 	{ID: "app3", Name: "Sample App 3 - BMS Field Attribute Test Matrix"},
 }
+
+// defaultSampleAppID is what "mock" and "demo" reach, and what the sample app
+// picker offers first.
+//
+// It is the pet store rather than one of the single-purpose samples because
+// this is the application somebody sees when they are deciding whether 3270Web
+// is worth their time. The others each demonstrate one thing well; a screen
+// graph with a back office behind it is what chaos exploration, screen
+// discovery, natural-language navigation and the model handling all need in
+// order to demonstrate anything at all.
+const defaultSampleAppID = "petstore"
 
 // The sample apps start at 3271, not at 3270.
 //
@@ -1212,6 +1224,10 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		// cannot break out.
 		"ThemesJSON": themesJSON,
 		"Auth":       app.authView(c),
+		// Absolute origin for the connect page's social preview tags. Empty on
+		// a request with no usable Host, in which case the template emits no
+		// card rather than one pointing at a URL that cannot be fetched.
+		"BaseURL": pageBaseURL(c),
 	})
 }
 
@@ -3968,7 +3984,7 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
 	} else if hostname == "mock" || hostname == "demo" {
 		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
+		h, err = newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
 	} else {
 		execPath := resolveS3270Path(app.Config.ExecPath)
 		args := buildS3270Args(app.Config.S3270Options, hostname)
@@ -4208,7 +4224,7 @@ func (app *App) newHostFor(hostname string, profile *ConnectionProfile) (host.Ho
 		return newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
 	}
 	if hostname == "mock" || hostname == "demo" {
-		return newSampleAppHost("app1", defaultSampleAppPort, execPath, app.Config.S3270Options)
+		return newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
 	}
 
 	// A profile's target carries its own TLS ("L:"), skip-verify ("Y:") and LU

@@ -7,12 +7,44 @@
          miniature and every max-width media query below is dead, because
          the viewport reports 980px on a 412px phone. -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install. 3270Web renders the session as HTML and adds AI Chat, chaos exploration and workflow recording.">
+    <meta name="theme-color" content="#03110d">
+    <meta name="color-scheme" content="dark light">
+    <!--
+         Social preview, so an instance URL pasted into a team chat renders as
+         a card rather than a bare link. Only this page carries one: it is the
+         front door, and the pages behind it are a live session (see the robots
+         note in screen.html).
+
+         Every URL is absolute and built from the request, because a scraper
+         fetches og:image with no document to resolve a relative path against —
+         and a self-hosted instance has no configured public address to build
+         one from. When the origin cannot be determined the block is skipped
+         entirely: no card at all beats a card whose image 404s.
+    -->
+    {{ if .BaseURL }}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="{{ .BaseURL }}/">
+    <meta property="og:title" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, chaos exploration and workflow recording.">
+    <meta property="og:image" content="{{ .BaseURL }}/static/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="3270Web — the mainframe in a browser tab">
+    <meta name="twitter:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, chaos exploration and workflow recording.">
+    <meta name="twitter:image" content="{{ .BaseURL }}/static/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab">
+    {{ end }}
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=16">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=17">
     <!-- Shared design system layer; see the note in screen.html. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=17">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=6">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -21,7 +53,7 @@
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
-    <script src="/static/theme.js?v=9" defer></script>
+    <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/ui.js?v=21" defer></script>
     <script src="/static/connection-profiles.js" defer></script>

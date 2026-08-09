@@ -52,6 +52,28 @@ AUTH_MODE_ARG=""          # --auth: "", none or local
 AUTH_MODE_VALUE="none"    # resolved: none (one operator) or local (accounts)
 EXISTING_STACK=0          # 1 when this run is updating an install already here
 
+# Which options this run was actually given.
+#
+# "Settings you do not pass are carried over" is only implementable if the
+# script can tell a value that was typed from a default that merely looks like
+# one: --port 3270 and no --port at all produce the same PORT, and only the
+# first should override what an existing install is already published on.
+COMPOSE_DIR_EXPLICIT=0
+PORT_EXPLICIT=0
+BIND_EXPLICIT=0
+VERSION_EXPLICIT=0
+MCP_TOOLS_EXPLICIT=0
+
+# Where /data comes from, and it is the one setting a re-run must never decide
+# on its own: point a container that has accounts at a different (or new, or
+# empty) source and it comes up in first-run setup with every account still
+# sitting in the source it stopped using.
+DATA_MOUNT="./data"       # left side of the ":/data" mapping, as written
+DATA_DIR_PATH=""          # host directory to create and chown; empty for a volume
+DATA_IS_VOLUME=0          # 1 when DATA_MOUNT names a Docker volume
+DATA_IS_EXTERNAL=0        # 1 when that volume was not created by this stack
+PUBLISH_SPEC=""           # host side of the port mapping, e.g. 127.0.0.1:3270
+
 # ==========================================================================
 # 1. Palette
 #
@@ -701,22 +723,33 @@ install_docker() {
   eyebrow "INSTALL ${GLYPH_SEP} DOCKER"
   require_docker
 
-  local tag="latest"
-  [ "$VERSION" != "latest" ] && tag="$VERSION"
+  # Recreating the container is how this method upgrades, so everything the
+  # running one was given has to be read off it first. The data mount above
+  # all: `docker rm -f` and a `docker run` pointed somewhere else is exactly
+  # the shape of "the installer reset every account".
+  DATA_MOUNT="${HOME}/.3270web/data"
+  adopt_existing "" ""
+  resolve_data_mount
   choose_auth_mode
   resolve_api_token
+  assert_data_preserved
 
-  DATA_DIR_PATH="${DATA_DIR_PATH:-${HOME}/.3270web/data}"
+  local tag="latest"
+  [ "$VERSION" != "latest" ] && tag="$VERSION"
+  [ -z "$PUBLISH_SPEC" ] && PUBLISH_SPEC="${BIND}:${PORT}"
 
   step "image" "${IMAGE}:${tag}"
   step "name" "$CONTAINER_NAME"
-  step "listen" "${BIND}:${PORT} → 3270"
-  step "data" "${DATA_DIR_PATH} → /data"
+  step "listen" "${PUBLISH_SPEC} → 3270"
+  step "data" "${DATA_MOUNT} → /data"
   step_auth
   step_api
   printf '\n'
 
-  if port_in_use "$PORT"; then
+  # On an update the listener on that port is the container about to be
+  # replaced, so saying it is taken would be the installer warning about
+  # itself.
+  if [ "$EXISTING_STACK" -eq 0 ] && port_in_use "$PORT"; then
     warn "Port ${PORT} already has a listener."
     confirm "Continue anyway?" || die "Cancelled." 130
     printf '\n'
@@ -734,6 +767,9 @@ install_docker() {
 
   if $DOCKER ps -a --format '{{.Names}}' 2>/dev/null </dev/null | grep -qx "$CONTAINER_NAME"; then
     warn "A container named ${CONTAINER_NAME} already exists."
+    note "Recreating it is how this method upgrades. Its settings above were"
+    note "read off it, and ${DATA_MOUNT} — accounts, tokens, the audit trail —"
+    note "is mounted onto the new container unchanged."
     if confirm "Remove and recreate it?"; then
       $DOCKER rm -f "$CONTAINER_NAME" >/dev/null </dev/null
       step "removed" "previous ${CONTAINER_NAME}" "ok"
@@ -761,17 +797,21 @@ install_docker() {
     env_args+=(-e "AUTH_MODE=local")
   fi
 
-  prepare_data_dir "$DATA_DIR_PATH" || true
+  if [ "$DATA_IS_VOLUME" -eq 1 ]; then
+    step "data" "docker volume ${DATA_MOUNT} (kept)" "ok"
+  else
+    prepare_data_dir "$DATA_DIR_PATH" || true
+  fi
 
   $DOCKER run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
-    -p "${BIND}:${PORT}:3270" \
+    -p "${PUBLISH_SPEC}:3270" \
     "${env_args[@]}" \
-    -v "${DATA_DIR_PATH}:/data" \
+    -v "${DATA_MOUNT}:/data" \
     "${IMAGE}:${tag}" >/dev/null </dev/null
   step "started" "container ${CONTAINER_NAME}" "up"
-  step "data" "${DATA_DIR_PATH} → /data" "ok"
+  step "data" "${DATA_MOUNT} → /data" "ok"
   # `docker inspect` and the daemon's process list both show -e values, so say
   # where the token ended up rather than leaving it to be discovered.
   [ -n "$API_TOKEN_VALUE" ] && step "token" "in the container environment" "ok"
@@ -803,6 +843,40 @@ success_docker() {
 # folder has to be handed to this user or the server refuses to start.
 readonly RUNTIME_UID=10001
 readonly RUNTIME_GID=10001
+
+# normalize_path <path> — an absolute path with any "." or ".." components
+# resolved, so two spellings of one folder compare equal. Anything that is not
+# an absolute path (a volume name, a path whose parent does not exist yet) is
+# returned untouched.
+normalize_path() {
+  local p="$1" dir base
+  case "$p" in
+    /*) : ;;
+    *)  printf '%s' "$p"; return 0 ;;
+  esac
+  dir="$(dirname "$p")"
+  base="$(basename "$p")"
+  if [ -d "$dir" ]; then
+    printf '%s/%s' "$(cd "$dir" && pwd)" "$base"
+  else
+    printf '%s' "$p"
+  fi
+}
+
+# resolve_data_mount — work out what DATA_MOUNT means on this host.
+#
+# A bind mount needs a directory created and handed to the runtime user; a
+# named volume needs neither, and must not have a directory of that name
+# invented for it beside the stack file.
+resolve_data_mount() {
+  DATA_IS_VOLUME=0
+  case "$DATA_MOUNT" in
+    /*)        DATA_DIR_PATH="$DATA_MOUNT" ;;
+    "~"/*)     DATA_DIR_PATH="${HOME}/${DATA_MOUNT#"~"/}" ;;
+    ./*|../*)  DATA_DIR_PATH="${COMPOSE_DIR}/${DATA_MOUNT#./}" ;;
+    *)         DATA_IS_VOLUME=1; DATA_DIR_PATH="" ;;
+  esac
+}
 
 # prepare_data_dir <dir> — create it, hand it to the runtime user, and say so.
 prepare_data_dir() {
@@ -859,7 +933,7 @@ report_data_upgrade() {
   note "accounts, API tokens, the audit trail and saved tasks lived inside"
   note "the container, so every upgrade deleted them."
   note ""
-  note "The new stack keeps all of it in ${DATA_DIR_PATH}."
+  note "The new stack keeps all of it in ${DATA_MOUNT}."
   note ""
   note "The old volume stays mounted where it was for one more start, so"
   note "3270Web can move those runs into the folder itself. It says what it"
@@ -873,11 +947,200 @@ report_data_upgrade() {
 # 7c. Accounts, and re-running over an install that is already here
 # ==========================================================================
 
-# read_setting <file> <NAME> — the value of NAME= in an existing compose file,
+# read_setting <file> <NAME> — the value of NAME in an existing compose file,
 # ignoring commented-out lines. Empty when absent.
+#
+# Both spellings of an environment block are read. The installer writes the
+# list form, but a file somebody has edited by hand very often uses the mapping
+# form, and a re-run that could not see `AUTH_MODE: local` would write the
+# stack back out with accounts commented out -- taking away the sign-in page of
+# an instance that had one.
 read_setting() {
   [ -r "$1" ] || return 0
-  sed -n "s/^[[:space:]]*-[[:space:]]*$2=\\(.*\\)$/\\1/p" "$1" | tail -1
+  sed -n \
+    -e "s/^[[:space:]]*-[[:space:]]*$2=[\"']\\{0,1\\}\\([^\"']*\\)[\"']\\{0,1\\}[[:space:]]*\$/\\1/p" \
+    -e "s/^[[:space:]]*$2:[[:space:]]*[\"']\\{0,1\\}\\([^\"']*\\)[\"']\\{0,1\\}[[:space:]]*\$/\\1/p" \
+    "$1" | tail -1
+}
+
+# read_data_mount <compose-file> — the left side of the ":/data" mapping.
+#
+# Scanned inside volumes: blocks only, and by string rather than by regex, so
+# an absolute host path, a relative one and a named volume all come back as
+# written. The legacy ":/app/chaos-runs" entry is not a match and is skipped.
+read_data_mount() {
+  [ -r "$1" ] || return 0
+  awk '
+    /^[[:space:]]*volumes:/ { invol = 1; next }
+    invol && /^[[:space:]]*-/ {
+      line = $0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub(/[[:space:]]*$/, "", line)
+      gsub(/"/, "", line)
+      gsub(/\x27/, "", line)
+      n = index(line, ":/data")
+      if (n > 0) {
+        rest = substr(line, n)
+        if (rest == ":/data" || substr(rest, 1, 7) == ":/data:") {
+          print substr(line, 1, n - 1)
+          exit
+        }
+      }
+    }
+  ' "$1"
+}
+
+# read_published <compose-file> — the host side of the port mapping, e.g.
+# "127.0.0.1:3270" or "3270". The container side is always rewritten to 3270,
+# so only the part somebody chose is carried forward.
+read_published() {
+  [ -r "$1" ] || return 0
+  awk '
+    /^[[:space:]]*ports:/ { inports = 1; next }
+    inports && /^[[:space:]]*-/ {
+      line = $0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub(/[[:space:]]*$/, "", line)
+      gsub(/"/, "", line)
+      gsub(/\x27/, "", line)
+      if (line ~ /:[0-9]+$/) {
+        sub(/:[0-9]+$/, "", line)
+        print line
+        exit
+      }
+    }
+    inports && /^[[:space:]]*[A-Za-z_]+:/ { inports = 0 }
+  ' "$1"
+}
+
+# read_image_tag <compose-file> — the tag an existing stack is pinned to.
+read_image_tag() {
+  [ -r "$1" ] || return 0
+  sed -n "s|^[[:space:]]*image:[[:space:]]*${IMAGE}:\\([^[:space:]]*\\)[[:space:]]*\$|\\1|p" "$1" | tail -1
+}
+
+# apply_published <spec> — split a host-side mapping into BIND and PORT.
+apply_published() {
+  local spec="$1"
+  [ -n "$spec" ] || return 0
+  PUBLISH_SPEC="$spec"
+  case "$spec" in
+    *:*) BIND="${spec%:*}"; PORT="${spec##*:}" ;;
+    *)   BIND=""; PORT="$spec" ;;
+  esac
+}
+
+# ==========================================================================
+# 7c-i. Finding an install that is already here
+#
+# The installer defaults its project directory to ./3270web *relative to the
+# current directory*, and Compose derives its project name from that
+# directory's basename. Re-running from somewhere else -- which is the normal
+# thing to do when the command came from a docs page -- therefore lands on a
+# second, empty ./3270web that Compose still considers the same project: it
+# recreates the running container against a brand new data folder, and the
+# instance comes back up in first-run setup with every account still sitting in
+# the folder it stopped using.
+#
+# So an existing install is found through Docker, not through the current
+# directory.
+# ==========================================================================
+
+# container_label <label> — a label on the existing container, if there is one.
+container_label() {
+  [ -n "$DOCKER" ] || return 0
+  local value
+  value="$($DOCKER inspect --format "{{index .Config.Labels \"$1\"}}" "$CONTAINER_NAME" 2>/dev/null </dev/null || true)"
+  case "$value" in
+    "<no value>") value="" ;;
+  esac
+  printf '%s' "$value"
+}
+
+# container_env <NAME> — an environment variable on the existing container.
+#
+# The inspect is captured before the pipeline rather than piped into sed
+# directly: with `set -o pipefail` a failing inspect (no such container, which
+# is the ordinary case on a first install) would fail the whole pipeline, and
+# under `set -e` that ends the script instead of answering "not set".
+container_env() {
+  [ -n "$DOCKER" ] || return 0
+  local out
+  out="$($DOCKER inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER_NAME" 2>/dev/null </dev/null || true)"
+  printf '%s\n' "$out" | sed -n "s/^$1=\\(.*\\)\$/\\1/p" | tail -1
+  return 0
+}
+
+# container_data_mount — where the existing container gets /data from: a volume
+# name, or the host path of a bind mount.
+container_data_mount() {
+  [ -n "$DOCKER" ] || return 0
+  $DOCKER inspect --format \
+    '{{range .Mounts}}{{if eq .Destination "/data"}}{{if eq .Type "volume"}}{{.Name}}{{else}}{{.Source}}{{end}}{{end}}{{end}}' \
+    "$CONTAINER_NAME" 2>/dev/null </dev/null || true
+}
+
+# container_published — the host side of the existing container's mapping.
+container_published() {
+  [ -n "$DOCKER" ] || return 0
+  local spec
+  spec="$($DOCKER inspect --format \
+    '{{range $p, $c := .HostConfig.PortBindings}}{{range $c}}{{.HostIp}}:{{.HostPort}}{{end}}{{end}}' \
+    "$CONTAINER_NAME" 2>/dev/null </dev/null || true)"
+  # An unset HostIp means every interface; keep it that way rather than
+  # inventing a loopback bind an existing install did not ask for.
+  case "$spec" in
+    :*) spec="${spec#:}" ;;
+  esac
+  printf '%s' "$spec"
+}
+
+container_exists() {
+  [ -n "$DOCKER" ] || return 1
+  $DOCKER inspect "$CONTAINER_NAME" >/dev/null 2>&1 </dev/null
+}
+
+# locate_existing_stack — the directory of the Compose project already running
+# 3270Web, whether or not this run was started anywhere near it.
+locate_existing_stack() {
+  local dir
+  dir="$(container_label com.docker.compose.project.working_dir)"
+  [ -n "$dir" ] || return 0
+  [ -e "${dir}/docker-compose.yml" ] || return 0
+  printf '%s' "$dir"
+}
+
+# resolve_compose_dir — decide which directory this run updates.
+resolve_compose_dir() {
+  local existing
+  existing="$(locate_existing_stack)"
+  [ -n "$existing" ] || return 0
+  [ "$existing" = "$COMPOSE_DIR" ] && return 0
+
+  if [ "$COMPOSE_DIR_EXPLICIT" -eq 0 ]; then
+    COMPOSE_DIR="$existing"
+    step "found" "an install already running from ${existing}" "ok"
+    note "Updating that one. Pass --dir to work on a different stack."
+    return 0
+  fi
+
+  # --dir was given and points elsewhere. Writing a second stack here would not
+  # be a second install: Compose names its project after the directory, so
+  # bringing this one up recreates the container that is running -- against
+  # whatever ./data this directory has, which is nothing.
+  warn "3270Web is already installed at ${existing}."
+  note "Bringing up a second stack in ${COMPOSE_DIR} would not run alongside"
+  note "it. Compose recreates the container that is already running, against"
+  note "this directory's data folder, and the accounts, tokens and saved work"
+  note "in ${existing}/data would be left behind on an instance that no longer"
+  note "reads them."
+  note ""
+  note "To update the install that is here:"
+  note "  --dir ${existing}"
+  note "To move it, stop it and take its data folder with you:"
+  note "  cd ${existing} && ${DOCKER_COMPOSE:-docker compose} down"
+  note "  cp -a ${existing}/data ${COMPOSE_DIR}/data"
+  die "Refusing to recreate the running instance against an empty data folder."
 }
 
 # adopt_existing <compose-file> <env-file> — carry a previous run's choices
@@ -885,31 +1148,132 @@ read_setting() {
 # reconfiguring it.
 #
 # Someone re-running this to take a new image should not lose their accounts
-# setting, their port, or their API token because they typed a shorter command
-# the second time. Anything given explicitly on the command line still wins.
+# setting, their port, their pinned version or their API token because they
+# typed a shorter command the second time. Anything given explicitly on the
+# command line still wins.
 adopt_existing() {
   local file="$1" envfile="$2"
-  [ -e "$file" ] || return 0
+  local from_file=0
+  [ -e "$file" ] && from_file=1
+  if [ "$from_file" -eq 0 ] && ! container_exists; then
+    return 0
+  fi
   EXISTING_STACK=1
 
-  local previous_auth previous_token previous_tools
-  previous_auth="$(read_setting "$file" AUTH_MODE)"
-  previous_tools="$(read_setting "$file" MCP_TOOLS)"
+  local previous_auth previous_token previous_tools previous_data previous_publish previous_tag
+
+  previous_auth=""
+  previous_token=""
+  previous_tools=""
+  previous_data=""
+  previous_publish=""
+  previous_tag=""
+  if [ "$from_file" -eq 1 ]; then
+    previous_auth="$(read_setting "$file" AUTH_MODE)"
+    previous_tools="$(read_setting "$file" MCP_TOOLS)"
+    previous_data="$(read_data_mount "$file")"
+    previous_publish="$(read_published "$file")"
+    previous_tag="$(read_image_tag "$file")"
+  fi
+
+  # The running container is the fallback, and for an install made with
+  # --method docker it is the only record there is. It is also the truth when
+  # the stack file has drifted from what is actually running.
+  [ -z "$previous_auth" ] && previous_auth="$(container_env AUTH_MODE)"
+  [ -z "$previous_tools" ] && previous_tools="$(container_env MCP_TOOLS)"
+  [ -z "$previous_publish" ] && previous_publish="$(container_published)"
+  if [ -z "$previous_data" ]; then
+    previous_data="$(container_data_mount)"
+    # A volume named by the container was not created by this stack file, so
+    # Compose must be told to use that exact volume rather than create a
+    # project-prefixed one of its own -- which would come up empty.
+    case "$previous_data" in
+      ""|/*) : ;;
+      *)     DATA_IS_EXTERNAL=1 ;;
+    esac
+  fi
+
   if [ -z "$AUTH_MODE_ARG" ] && [ -n "$previous_auth" ]; then
     AUTH_MODE_VALUE="$previous_auth"
     AUTH_MODE_ARG="$previous_auth"
   fi
-  [ -n "$previous_tools" ] && [ "$MCP_TOOLS" = "interactive" ] && MCP_TOOLS="$previous_tools"
+  [ "$MCP_TOOLS_EXPLICIT" -eq 0 ] && [ -n "$previous_tools" ] && MCP_TOOLS="$previous_tools"
+
+  # Where /data comes from. Carried forward verbatim, because this is the
+  # setting that turns a re-run into "it reset the admin and every user": the
+  # accounts are not gone, the container is simply reading somewhere else.
+  if [ -n "$previous_data" ] && [ "$previous_data" != "$DATA_MOUNT" ]; then
+    DATA_MOUNT="$previous_data"
+    step "kept" "the data folder this install already uses: ${DATA_MOUNT}" "ok"
+    # An unnamed volume is one Docker made up when a stack mounted nothing on
+    # /data. Naming it in the stack is what keeps the accounts in it reachable,
+    # but it is worth saying out loud, because nobody chose that name and a
+    # `down -v` would take it away.
+    case "$DATA_MOUNT" in
+      *[!0-9a-f]*) : ;;
+      ????????????????????????????????????????????????????????????????)
+        note "That is an unnamed volume Docker created for this instance. The"
+        note "accounts are in it, so the stack names it rather than coming up"
+        note "empty beside it. To move them somewhere you can back up:"
+        note "  docker run --rm -v ${DATA_MOUNT}:/from -v \"\$PWD/data\":/to \\"
+        note "    alpine sh -c 'cp -a /from/. /to/'"
+        note "then point the volumes: entry at ./data and restart."
+        ;;
+    esac
+  fi
+
+  if [ "$PORT_EXPLICIT" -eq 0 ] && [ "$BIND_EXPLICIT" -eq 0 ] && [ -n "$previous_publish" ]; then
+    apply_published "$previous_publish"
+  fi
+
+  if [ "$VERSION_EXPLICIT" -eq 0 ] && [ -n "$previous_tag" ] && [ "$previous_tag" != "latest" ]; then
+    VERSION="$previous_tag"
+    step "kept" "the version this install is pinned to: ${previous_tag}" "ok"
+  fi
 
   # The token lives in .env, never in the stack file. Reusing it matters more
-  # than the rest: regenerating one silently breaks every client that has it.
-  if [ -z "$API_TOKEN_ARG" ] && [ -r "$envfile" ]; then
-    previous_token="$(sed -n 's/^API_TOKEN=\\(.*\\)$/\\1/p' "$envfile" | tail -1)"
+  # than the rest: regenerating one silently breaks every client that has it,
+  # and dropping it takes /api/v1 and MCP off an instance that was serving both.
+  if [ -z "$API_TOKEN_ARG" ]; then
+    if [ -r "$envfile" ]; then
+      previous_token="$(sed -n 's/^API_TOKEN=\(.*\)$/\1/p' "$envfile" | tail -1)"
+    fi
+    [ -z "$previous_token" ] && previous_token="$(container_env API_TOKEN)"
     if [ -n "$previous_token" ]; then
       API_TOKEN_ARG="$previous_token"
-      step "kept" "the API token already in .env" "ok"
+      step "kept" "the API token this install already serves" "ok"
     fi
   fi
+}
+
+# assert_data_preserved — stop before a start that would read the wrong folder.
+#
+# The carry-forward above is what keeps an existing install's accounts; this is
+# the check that it worked. An instance whose data folder holds accounts must
+# never be restarted against a different source, whatever combination of flags
+# and files led there.
+assert_data_preserved() {
+  local running
+  running="$(container_data_mount)"
+  [ -n "$running" ] || return 0
+
+  # A relative mount in a stack file and an absolute bind source on a container
+  # are routinely the same folder, so compare what they resolve to rather than
+  # how they are spelled. A volume name resolves to itself.
+  local wanted="$DATA_MOUNT"
+  [ "$DATA_IS_VOLUME" -eq 0 ] && [ -n "$DATA_DIR_PATH" ] && wanted="$DATA_DIR_PATH"
+  [ "$(normalize_path "$running")" = "$(normalize_path "$wanted")" ] && return 0
+
+  warn "This would change where 3270Web reads its accounts from."
+  note "running now:  ${running}"
+  note "would become: ${DATA_MOUNT}"
+  note ""
+  note "Accounts, API tokens, the audit trail and everyone's saved work live"
+  note "in the first one. Starting against the second brings the instance up"
+  note "in first-run setup with all of it still in the folder it left."
+  note ""
+  note "Point this run at the folder that is in use, or copy it across first."
+  die "Refusing to restart 3270Web against a different data folder."
 }
 
 # choose_auth_mode — decide whether this instance has accounts.
@@ -986,20 +1350,27 @@ install_compose() {
     die "Docker Compose is required for --method compose."
   fi
 
-  local tag="latest"
-  [ "$VERSION" != "latest" ] && tag="$VERSION"
+  # Before anything is resolved against the current directory: an install that
+  # is already running decides which directory this run updates.
+  resolve_compose_dir
+
   local file="${COMPOSE_DIR}/docker-compose.yml"
   local envfile="${COMPOSE_DIR}/.env"
-  DATA_DIR_PATH="${COMPOSE_DIR}/data"
   adopt_existing "$file" "$envfile"
+  resolve_data_mount
   choose_auth_mode
   resolve_api_token
+  assert_data_preserved
+
+  local tag="latest"
+  [ "$VERSION" != "latest" ] && tag="$VERSION"
+  [ -z "$PUBLISH_SPEC" ] && PUBLISH_SPEC="${BIND}:${PORT}"
 
   step "file" "$file"
   step "image" "${IMAGE}:${tag}"
-  step "listen" "${BIND}:${PORT} → 3270"
+  step "listen" "${PUBLISH_SPEC} → 3270"
   step "compose" "$DOCKER_COMPOSE"
-  step "data" "${DATA_DIR_PATH} → /data"
+  step "data" "${DATA_MOUNT} → /data"
   step_auth
   step_api
   printf '\n'
@@ -1008,11 +1379,12 @@ install_compose() {
 
   # Re-running is the ordinary way to take a new image or change a setting, so
   # it explains what it is about to do rather than asking whether to overwrite
-  # a file the person may not remember writing. Nothing in ./data is touched.
+  # a file the person may not remember writing. Nothing in the data folder is
+  # touched, and the previous file is kept beside the new one.
   if [ "$EXISTING_STACK" -eq 1 ]; then
     note "Updating the stack already in ${COMPOSE_DIR}."
     note "Settings not given on the command line are carried over, and"
-    note "${DATA_DIR_PATH} — accounts, tokens, the audit trail — is left alone."
+    note "${DATA_MOUNT} — accounts, tokens, the audit trail — is left alone."
     printf '\n'
     confirm "Rewrite the stack file and restart?" || die "Cancelled." 130
     printf '\n'
@@ -1029,25 +1401,52 @@ install_compose() {
   fi
 
   mkdir -p "$COMPOSE_DIR"
-  prepare_data_dir "$DATA_DIR_PATH" || true
+  if [ "$DATA_IS_VOLUME" -eq 1 ]; then
+    step "data" "docker volume ${DATA_MOUNT} (kept)" "ok"
+  else
+    prepare_data_dir "$DATA_DIR_PATH" || true
+  fi
 
   # An upgrade keeps the old chaos volume mounted where it was for one start.
   # 3270Web migrates anything it finds beside the program into the data
   # directory, so mounting it is what lets those runs move themselves; drop
   # the volume and they would be stranded in it instead.
-  local legacy_volume="" legacy_volume_decl=""
+  local legacy_volume="" volume_decls=""
   if [ "$LEGACY_CHAOS_VOLUME" -eq 1 ]; then
     legacy_volume="
       # UPGRADE: the old chaos-runs volume, mounted for one start so 3270Web
-      # can move its contents into ./data. Delete this line and the volumes:
-      # block at the end of the file once it has, then:
+      # can move its contents into the data folder. Delete this line and the
+      # entry in the volumes: block at the end of the file once it has, then:
       #   docker volume rm 3270web-chaos
       - 3270web-chaos:/app/chaos-runs"
-    legacy_volume_decl="
-
-volumes:
+    volume_decls="${volume_decls}
   # UPGRADE: see the note above; removable once the runs have moved.
   3270web-chaos:"
+  fi
+
+  # A data folder that is a Docker volume has to be declared, and declared as
+  # external when this stack did not create it: Compose otherwise prefixes the
+  # name with the project's and mounts a new, empty volume of its own.
+  if [ "$DATA_IS_VOLUME" -eq 1 ]; then
+    if [ "$DATA_IS_EXTERNAL" -eq 1 ]; then
+      volume_decls="${volume_decls}
+  # The volume this instance's accounts, API tokens, audit trail and saved
+  # work are already in. External, so Compose uses that exact volume rather
+  # than creating a project-prefixed one -- which would come up empty and put
+  # the instance back into first-run setup.
+  ${DATA_MOUNT}:
+    external: true"
+    else
+      volume_decls="${volume_decls}
+  ${DATA_MOUNT}:"
+    fi
+  fi
+
+  local legacy_volume_decl=""
+  if [ -n "$volume_decls" ]; then
+    legacy_volume_decl="
+
+volumes:${volume_decls}"
   fi
 
   # The API block is built here rather than inline so the stack reads the same
@@ -1103,6 +1502,23 @@ volumes:
     step "wrote" "${envfile} (0600)" "ok"
   fi
 
+  # The file this run replaces is kept beside it. Rewriting somebody's stack
+  # is a destructive edit to a file they may have added their own settings to,
+  # and a copy costs nothing next to reconstructing one from memory.
+  if [ -e "$file" ]; then
+    cp -p "$file" "${file}.bak" 2>/dev/null || cp "$file" "${file}.bak" || true
+    step "kept" "the previous stack at $(short_path "${file}.bak")" "ok"
+  fi
+
+  local ports_note
+  if [ "$PUBLISH_SPEC" = "$PORT" ]; then
+    ports_note="      # Published on every interface. Prefix a host address --
+      # \"127.0.0.1:${PORT}:3270\" -- to keep the terminal on this machine."
+  else
+    ports_note="      # Bound to ${PUBLISH_SPEC%:*} so the terminal is not exposed to the network
+      # by default. Change to \"${PORT}:3270\" to publish on every interface."
+  fi
+
   cat > "$file" <<YAML
 # 3270Web — https://3270Web.3270.io
 #
@@ -1114,9 +1530,8 @@ services:
     image: ${IMAGE}:${tag}
     container_name: ${CONTAINER_NAME}
     ports:
-      # Bound to ${BIND} so the terminal is not exposed to the network by
-      # default. Change to "${PORT}:3270" to publish on every interface.
-      - "${BIND}:${PORT}:3270"
+${ports_note}
+      - "${PUBLISH_SPEC}:3270"
     environment:
       - GIN_MODE=release
       # Listen on all interfaces *inside* the container. A published port
@@ -1131,17 +1546,20 @@ ${mcp_env}
       # - S3270_MODEL=3279-2-E
       # - S3270_CODE_PAGE=bracket
     volumes:${legacy_volume}
-      # Accounts, API tokens, the audit trail and everyone's saved work, in a
-      # folder beside this file so it can be backed up and inspected with
-      # ordinary tools. It has to outlive the container: recreating one
-      # without this -- which is what pulling a new image does -- takes every
-      # account with it, and an instance with AUTH_MODE=local comes back up in
-      # first-run setup for whoever reaches it first.
+      # Accounts, API tokens, the audit trail and everyone's saved work. It has
+      # to outlive the container: recreating one without this -- which is what
+      # pulling a new image does -- takes every account with it, and an
+      # instance with AUTH_MODE=local comes back up in first-run setup for
+      # whoever reaches it first.
+      #
+      # Do not repoint this at somewhere else without moving its contents. The
+      # accounts are in the folder named here; a container started against a
+      # different one does not find them and asks to be set up again.
       #
       # The server runs unprivileged as uid ${RUNTIME_UID} and a bind mount keeps the
       # host's ownership, so the folder belongs to that user:
-      #   sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ./data
-      - ./data:/data
+      #   sudo chown -R ${RUNTIME_UID}:${RUNTIME_GID} ${DATA_MOUNT}
+      - ${DATA_MOUNT}:/data
     restart: unless-stopped${legacy_volume_decl}
 YAML
   step "wrote" "$file" "ok"
@@ -1351,18 +1769,18 @@ parse_args() {
     case "$1" in
       --method)  METHOD="${2:-}"; shift 2 ;;
       --method=*) METHOD="${1#*=}"; shift ;;
-      --version) VERSION="${2:-}"; shift 2 ;;
-      --version=*) VERSION="${1#*=}"; shift ;;
-      --port)    PORT="${2:-}"; shift 2 ;;
-      --port=*)  PORT="${1#*=}"; shift ;;
-      --bind)    BIND="${2:-}"; shift 2 ;;
-      --bind=*)  BIND="${1#*=}"; shift ;;
-      --dir)     COMPOSE_DIR="${2:-}"; shift 2 ;;
-      --dir=*)   COMPOSE_DIR="${1#*=}"; shift ;;
+      --version) VERSION="${2:-}"; VERSION_EXPLICIT=1; shift 2 ;;
+      --version=*) VERSION="${1#*=}"; VERSION_EXPLICIT=1; shift ;;
+      --port)    PORT="${2:-}"; PORT_EXPLICIT=1; shift 2 ;;
+      --port=*)  PORT="${1#*=}"; PORT_EXPLICIT=1; shift ;;
+      --bind)    BIND="${2:-}"; BIND_EXPLICIT=1; shift 2 ;;
+      --bind=*)  BIND="${1#*=}"; BIND_EXPLICIT=1; shift ;;
+      --dir)     COMPOSE_DIR="${2:-}"; COMPOSE_DIR_EXPLICIT=1; shift 2 ;;
+      --dir=*)   COMPOSE_DIR="${1#*=}"; COMPOSE_DIR_EXPLICIT=1; shift ;;
       --api-token)   API_TOKEN_ARG="${2:-}"; shift 2 ;;
       --api-token=*) API_TOKEN_ARG="${1#*=}"; shift ;;
-      --mcp-tools)   MCP_TOOLS="${2:-}"; shift 2 ;;
-      --mcp-tools=*) MCP_TOOLS="${1#*=}"; shift ;;
+      --mcp-tools)   MCP_TOOLS="${2:-}"; MCP_TOOLS_EXPLICIT=1; shift 2 ;;
+      --mcp-tools=*) MCP_TOOLS="${1#*=}"; MCP_TOOLS_EXPLICIT=1; shift ;;
       --auth)    AUTH_MODE_ARG="${2:-}"; shift 2 ;;
       --auth=*)  AUTH_MODE_ARG="${1#*=}"; shift ;;
       --theme)   THEME="${2:-}"; shift 2 ;;
@@ -1395,6 +1813,14 @@ parse_args() {
   case "$MCP_TOOLS" in
     readonly|interactive|full) : ;;
     *) printf 'Unknown --mcp-tools: %s (want readonly, interactive or full)\n' "$MCP_TOOLS" >&2; exit 2 ;;
+  esac
+
+  # Absolute from here on. The project directory is compared against the one
+  # Docker reports for an install that is already running, and "3270web" and
+  # "/home/you/3270web" have to be able to match.
+  case "$COMPOSE_DIR" in
+    /*) : ;;
+    *)  COMPOSE_DIR="${PWD}/${COMPOSE_DIR#./}" ;;
   esac
 
   # The binary install writes its own .env and 3270Web mcp drives it over

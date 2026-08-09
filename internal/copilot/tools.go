@@ -191,13 +191,13 @@ func DefaultTools() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "connect_session",
-				Description: "Connect (or reconnect) this session to a target host, replacing any existing connection. Use this when the user asks to \"log in to\" / \"connect to\" / \"open\" a named application and no session is connected yet, or to switch to a different host mid-conversation. hostname is the same format accepted by the Connect page (e.g. \"mainframe.example.com:23\", or \"sampleapp:app1:3270\" for a local sample app).",
+				Description: "Connect (or reconnect) this session to a target host, replacing any existing connection. Use this when the user asks to \"log in to\" / \"connect to\" / \"open\" a named application and no session is connected yet, or to switch to a different host mid-conversation. hostname is the same format accepted by the Connect page (e.g. \"mainframe.example.com:23\", or \"sampleapp:petstore\" for the bundled pet store sample).",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"hostname": map[string]any{
 							"type":        "string",
-							"description": "Target host, e.g. \"mainframe.example.com:23\" or \"sampleapp:app1:3270\".",
+							"description": "Target host, e.g. \"mainframe.example.com:23\" or \"sampleapp:petstore\".",
 						},
 					},
 					"required":             []string{"hostname"},

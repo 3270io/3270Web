@@ -1,3 +1,10 @@
+---
+description: >-
+  Drive a 3270 session by conversation: AI Chat reads the current screen,
+  fills fields, presses keys and runs chaos exploration — with your approval
+  before each action.
+---
+
 # AI Chat Mode
 
 AI Chat mode is a side panel that lets you drive a 3270 session through conversation. You type instructions in plain language; the AI reads the current screen, fills fields, presses keys, and runs chaos exploration — all with your approval before each action.
