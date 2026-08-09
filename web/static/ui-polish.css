@@ -2172,6 +2172,75 @@ body[data-focus="on"] .sample-status {
 
 .profile-row-action.danger { color: var(--danger); }
 
+/* The bundled sample apps, and the typed-address box beside them. Both belong
+   to picking a session to open, so both are drawn only in that mode — see
+   renderSamples() in connection-profiles.js. */
+.profiles-samples,
+.profiles-direct {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline-soft);
+}
+
+/* [hidden] has to win: both blocks above set display, which would otherwise
+   override it and leave them on in the manage view. */
+.profiles-samples[hidden],
+.profiles-direct[hidden] {
+  display: none;
+}
+
+.profiles-samples h4 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.profiles-samples p { margin: 0; font-size: 0.74rem; }
+
+.profiles-sample-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Wider name column than a profile row: a sample app's name is the whole of
+   what identifies it, and the port beside it is three digits. */
+.profile-sample-row {
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+}
+
+.profile-sample-row:hover { border-color: var(--border); }
+
+.profiles-direct-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.profiles-direct-row label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+}
+
+.profiles-direct-row input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .profiles-form {
   display: flex;
   flex-direction: column;
@@ -2202,9 +2271,27 @@ body[data-focus="on"] .sample-status {
 }
 
 .profiles-form input[type="text"],
-.profiles-form input[type="number"] {
+.profiles-form input[type="number"],
+.profiles-form select {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* The bundled sample apps, offered above the connection fields they fill in. */
+.profiles-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profiles-sample[hidden] {
+  display: none;
+}
+
+.profiles-sample-hint {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .profiles-form-actions {

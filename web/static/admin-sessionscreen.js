@@ -130,11 +130,27 @@
       .filter(function (s) { return s !== ''; });
   }
 
+  // A preset is offered unless it says otherwise — and naming an audience
+  // offers it to them whatever the flag says, which is what stops a preset
+  // assigned to a group from the groups page reaching nobody. The server
+  // agrees; see ConnectionProfile.offered.
+  function isOffered(p) {
+    if (!p.notOffered) return true;
+    return !!((p.users || []).length || (p.groups || []).length || (p.roles || []).length);
+  }
+
   function audienceCell(p) {
     var td = el('td');
     var users = p.users || [];
     var groups = p.groups || [];
     var roles = p.roles || [];
+    if (!isOffered(p)) {
+      // Said here rather than as a missing row: the preset exists, and the
+      // difference between "nobody has it" and "it is not here" is the whole
+      // point of the state.
+      td.appendChild(el('span', 'admin-tag--unoffered', 'Not offered'));
+      return td;
+    }
     if (!users.length && !groups.length && !roles.length) {
       td.appendChild(el('span', 'admin-groups-none', 'Everyone'));
       return td;
@@ -171,16 +187,43 @@
     if (p.description) nameCell.appendChild(el('div', 'admin-session-id', p.description));
     tr.appendChild(nameCell);
 
-    // A bundled sample app is shown by the name it was chosen by; the
-    // "sampleapp:app1:3271" it is addressed as is an internal detail.
+    // A bundled sample app has no address worth printing — the preset is
+    // already named after the app, and "sampleapp:app1:3271" is how this
+    // process addresses a listener it starts itself — so the column says what
+    // the entry is instead. Same wording as the selection screen's own detail
+    // column; see startSelectionScreen.
     var sample = sampleAppFor(p.host);
     tr.appendChild(el('td', 'sessions-host',
-      sample ? sample.name : p.host + ':' + (p.port || 3270)));
+      sample
+        ? 'Bundled sample app · port ' + (p.port || sample.port)
+        : p.host + ':' + (p.port || 3270)));
     tr.appendChild(el('td', 'presets-conn', connectionFacts(p)));
     tr.appendChild(audienceCell(p));
 
     var actionsCell = el('td', 'admin-actions-cell');
     var actions = el('div', 'admin-actions');
+
+    // The one control the seeded sample apps exist for: everything about them
+    // is already decided, so putting them on the selection screen should not
+    // mean opening a form to change nothing.
+    if (!isOffered(p)) {
+      var offer = el('button', 'primary', 'Offer');
+      offer.type = 'button';
+      offer.title = 'Offer this preset to everyone';
+      offer.addEventListener('click', function () {
+        var payload = {};
+        Object.keys(p).forEach(function (key) { payload[key] = p[key]; });
+        payload.notOffered = false;
+        api('POST', '/api/admin/profiles', payload)
+          .then(function () {
+            setStatus(p.name + ' is now offered to everyone. Edit it to narrow that.', 'ok');
+            load();
+          })
+          .catch(function (error) { setStatus(error.message, 'error'); });
+      });
+      actions.appendChild(offer);
+    }
+
     var edit = el('button', '', 'Edit');
     edit.type = 'button';
     edit.addEventListener('click', function () { openPreset(p); });
@@ -294,13 +337,14 @@
 
   function fillSampleAppAdder() {
     if (!sampleAdd) return;
-    sampleAdd.hidden = !sampleApps.length;
 
     while (sampleAdd.options.length > 1) sampleAdd.remove(1);
+    var missing = 0;
     sampleApps.forEach(function (app) {
       var option = document.createElement('option');
       option.value = app.host;
       var already = !!publishedSampleHost(app.host);
+      if (!already) missing++;
       // Said on the option rather than by hiding it: an app that is missing
       // from the list reads as one this instance does not have.
       option.textContent = already ? app.name + ' (already added)' : app.name;
@@ -308,6 +352,11 @@
       sampleAdd.appendChild(option);
     });
     sampleAdd.value = '';
+    // The apps are seeded onto the list, so ordinarily every option here is
+    // already on it and the control is a menu of things you cannot choose.
+    // It comes back when one has been removed, which is the only state it
+    // was ever any use in.
+    sampleAdd.hidden = !missing;
   }
 
   if (sampleAdd) {
@@ -412,6 +461,9 @@
     dialog.querySelector('[data-preset-dialog-title]').textContent =
       p ? 'Edit ' + p.name : 'Add preset';
     presetForm.reset();
+    // A new preset is offered — somebody filling this form in is adding a
+    // host for people to use. Only the seeded sample apps start out withheld.
+    presetForm.querySelector('[data-preset-offered]').checked = p ? isOffered(p) : true;
     if (p) {
       presetForm.querySelector('#preset-name').value = p.name || '';
       presetForm.querySelector('#preset-description').value = p.description || '';
@@ -460,7 +512,12 @@
         skipVerify: presetForm.querySelector('[data-preset-skipverify]').checked,
         groups: splitList(presetForm.querySelector('#preset-groups').value),
         users: splitList(presetForm.querySelector('#preset-users').value),
-        roles: roles
+        roles: roles,
+        // Sent rather than left out: the store replaces the whole preset by
+        // name, so a field this form does not carry is a field the save
+        // clears — a withheld preset would quietly go out to everybody on the
+        // first edit of its description.
+        notOffered: !presetForm.querySelector('[data-preset-offered]').checked
       };
 
       // Renaming during an edit would otherwise leave the old entry behind:

@@ -58,6 +58,12 @@
                     or roles it names — an operator is never shown a host they
                     would be refused.
                 </p>
+                <p class="admin-dialog-desc">
+                    The bundled sample apps are here from the start, marked
+                    <strong>not offered</strong>: they are on this page and nowhere
+                    else until you <strong>Offer</strong> one, or give it an
+                    audience. Remove any you do not want and they stay removed.
+                </p>
                 <div class="admin-table-wrap">
                     <div class="admin-table-scroll">
                         <table class="admin-table presets-table">
@@ -191,6 +197,20 @@
                         <label>Connection</label>
                         <label class="preset-check"><input type="checkbox" name="tls" data-preset-tls> TLS</label>
                         <label class="preset-check"><input type="checkbox" name="skipVerify" data-preset-skipverify> Skip certificate verification</label>
+                    </div>
+                </div>
+
+                <!-- Outside the audience fieldset, which is hidden where
+                     there are no accounts to narrow anything to. Whether a
+                     preset is offered at all still means something there: it
+                     is what keeps a bundled sample app off the one operator's
+                     host list until they ask for it. -->
+                <div class="field preset-offer">
+                    <label class="preset-check"><input type="checkbox" data-preset-offered> Offer this preset</label>
+                    <div class="field-hint">
+                        Until it is offered it lives on this page and nowhere
+                        else — not on the selection screen, not on the connect
+                        page. Naming an audience below offers it to them.
                     </div>
                 </div>
 

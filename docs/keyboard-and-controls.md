@@ -70,8 +70,18 @@ and a description.
 
 - **Profiles** on the connect page picks one and connects.
 - **Profiles** in the terminal header manages the list.
-- The **+** button on the toolbar offers your profiles when opening another
-  session, and falls back to asking for a hostname if none are set up.
+- The **+ New session** button in the tab bar opens the same picker.
+
+When it is picking a session to open rather than managing the list, the
+picker also offers the [bundled sample apps](sample-apps.md) and a box to
+type an address into, so there is always something to connect to — including
+on an instance that has no profiles yet and no mainframe to reach.
+
+**Bundled sample app** at the top of the editor points a profile at one of
+those apps. Choosing it fills in the host and port and clears TLS, which the
+sample apps do not speak; typing over the host afterwards puts the list back
+to "a mainframe on the network". A profile pointing at a sample app is listed
+by the app's name rather than by the `sampleapp:` address it is dialled with.
 
 Each profile shows the target exactly as s3270 will see it — for example
 `L:Y:LU01@mainframe:992` — so what you check is what actually gets dialled.
@@ -132,8 +142,9 @@ You can keep up to six host sessions open at once. The tab bar sits directly
 above the toolbar and is there from the moment you connect, showing the one
 session you have and a **+ New session** button at the end of the row.
 
-- **+ New session** opens another one. Where connection profiles exist you
-  pick one from a list; otherwise you are asked for a host.
+- **+ New session** opens another one. It asks where to connect in the same
+  picker the **Profiles** button uses: your connection profiles, the bundled
+  sample apps, or an address you type.
 - Click a tab to switch to it.
 - The **×** on a tab closes that session; the others keep running. A single
   tab has no **×** — closing your only session is a disconnect, and

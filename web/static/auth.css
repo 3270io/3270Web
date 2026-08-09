@@ -1269,6 +1269,26 @@ table.admin-table {
   background: color-mix(in srgb, var(--term-color-yellow, #ffd166) 10%, transparent);
 }
 
+/* A preset that reaches nobody yet. Not a tag — it names an absence rather
+   than an audience — and stated plainly, because the row looks in every other
+   respect like one that is in use. */
+.admin-tag--unoffered {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+
+/* Whether a preset is offered at all sits above the audience it is offered
+   to, and reads as the question it is rather than as one more checkbox. */
+.preset-offer {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
 /* The group dialog's member and host pickers. A scrolling column of
    checkboxes: an instance with two hundred accounts must not push the save
    button off the bottom of the dialog, and a team is chosen by ticking names
