@@ -1,6 +1,7 @@
 package sessionmenu
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ func startTestMenu(t *testing.T) *Menu {
 // would pass any structural check and be unusable.
 func TestTheScreenListsEverySystemWithANumber(t *testing.T) {
 	m := startTestMenu(t)
-	screen, cursorRow, cursorCol := m.screen("")
+	screen, cursorRow, cursorCol := m.screen(0, "")
 
 	rows := map[int][]string{}
 	for _, f := range screen {
@@ -39,7 +40,7 @@ func TestTheScreenListsEverySystemWithANumber(t *testing.T) {
 		}
 	}
 
-	_, _, firstItem := layout(m.brand)
+	_, firstItem, _ := layout(m.brand)
 	for i, want := range []string{"CICSPROD", "CICSTEST", "TSO"} {
 		row := firstItem + i
 		line := strings.Join(rows[row], " ")
@@ -125,14 +126,18 @@ func TestTheListIsBoundedToWhatAScreenHolds(t *testing.T) {
 	}
 	defer m.Stop()
 
-	screen, _, _ := m.screen("")
+	screen, _, _ := m.screen(0, "")
 	for _, f := range screen {
 		if f.Row > 23 || f.Row < 0 {
 			t.Errorf("a field landed on row %d, off a 24-row screen", f.Row)
 		}
 	}
-	if want := maxEntriesFor(m.brand); len(m.entries) != want {
-		t.Errorf("the menu kept %d entries, want it capped at %d", len(m.entries), want)
+	// Nothing is dropped any more — the list pages.
+	if len(m.entries) != 40 {
+		t.Errorf("the menu kept %d of 40 entries; the rest are unreachable", len(m.entries))
+	}
+	if m.pageCount() < 2 {
+		t.Errorf("40 entries produced %d page(s)", m.pageCount())
 	}
 }
 
@@ -202,8 +207,13 @@ func TestTheDefaultBrandingIsUsedWhenNothingIsConfigured(t *testing.T) {
 	if !strings.Contains(joined, "3270.io") {
 		t.Errorf("the default screen does not name 3270.io:\n%s", joined)
 	}
-	if !strings.Contains(joined, "#####") {
-		t.Error("the default screen has no artwork")
+	if !strings.Contains(joined, "SESSION MANAGER") {
+		t.Error("the default screen does not say what it is")
+	}
+	// No artwork by default. Block letters ate a third of the screen and set
+	// an example a site would follow.
+	if strings.Contains(joined, "#####") {
+		t.Error("the default screen carries artwork")
 	}
 	if len(rows) != screenRows {
 		t.Errorf("the preview is %d rows, want %d", len(rows), screenRows)
@@ -230,6 +240,9 @@ func TestBrandingReplacesTheDefault(t *testing.T) {
 	}
 	if strings.Contains(joined, "3270.io") {
 		t.Error("the default title survived a deployment's own branding")
+	}
+	if !strings.Contains(joined, "SESSION MANAGER") {
+		t.Error("branding removed what the screen is")
 	}
 }
 
@@ -315,9 +328,90 @@ func TestTooManyBannerLinesAreRefusedRatherThanDrawn(t *testing.T) {
 func TestAnEmptyBannerMeansNoArtworkRatherThanTheDefault(t *testing.T) {
 	joined := strings.Join(Preview(Branding{Title: "ACME", Banner: []string{}}, testEntries()), "\n")
 	if strings.Contains(joined, "#####") {
-		t.Errorf("the default artwork came back:\n%s", joined)
+		t.Errorf("artwork appeared from somewhere:\n%s", joined)
 	}
 	if !strings.Contains(joined, "ACME") {
 		t.Error("the title is missing")
+	}
+}
+
+// A list longer than a screen pages rather than losing its tail. Truncating
+// was the easy answer and the wrong one: the hosts it dropped would be
+// invisible to the operator and to whoever assigned them.
+func TestALongListPagesRatherThanBeingTruncated(t *testing.T) {
+	var many []Entry
+	for i := 1; i <= 26; i++ {
+		many = append(many, Entry{Name: fmt.Sprintf("CICS%02d", i), Detail: "mvs1.example:992"})
+	}
+	m, err := Start(Branding{}, many)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Stop()
+
+	if len(m.entries) != 26 {
+		t.Fatalf("the menu kept %d of 26 entries", len(m.entries))
+	}
+	pages := m.pageCount()
+	if pages < 2 {
+		t.Fatalf("26 entries produced %d page(s)", pages)
+	}
+
+	// Every entry appears on exactly one page, and its number is the same one
+	// on whichever page it is found — that is what makes "type 21" learnable.
+	seen := map[string]int{}
+	for page := 0; page < pages; page++ {
+		for _, row := range PreviewPage(Branding{}, many, page) {
+			for i, e := range many {
+				if strings.Contains(row, e.Name+" ") || strings.HasSuffix(row, e.Name) {
+					if !strings.Contains(row, fmt.Sprintf("%3d %s", i+1, e.Name)) {
+						t.Errorf("%s is numbered wrongly on page %d: %q", e.Name, page, row)
+					}
+					seen[e.Name]++
+				}
+			}
+		}
+	}
+	for _, e := range many {
+		if seen[e.Name] != 1 {
+			t.Errorf("%s appears on %d pages, want exactly 1", e.Name, seen[e.Name])
+		}
+	}
+
+	// And the screen says there is more than one page, or nobody looks.
+	first := strings.Join(PreviewPage(Branding{}, many, 0), "\n")
+	if !strings.Contains(first, "Page 1 of "+fmt.Sprint(pages)) {
+		t.Errorf("the screen does not say which page this is:\n%s", first)
+	}
+	if !strings.Contains(first, "PF8") || !strings.Contains(first, "PF7") {
+		t.Error("the key legend does not offer paging on a paged menu")
+	}
+
+	// A single-page menu must not offer paging keys that do nothing.
+	short := strings.Join(Preview(Branding{}, testEntries()), "\n")
+	if strings.Contains(short, "PF8") {
+		t.Error("a one-page menu offers a paging key")
+	}
+}
+
+// Paging past either end stays put rather than wrapping or going blank.
+func TestPagingStopsAtBothEnds(t *testing.T) {
+	var many []Entry
+	for i := 0; i < 20; i++ {
+		many = append(many, Entry{Name: fmt.Sprintf("H%02d", i), Detail: "h.example:23"})
+	}
+	m, _ := Start(Branding{}, many)
+	defer m.Stop()
+
+	for _, page := range []int{-5, 0, 1, 99} {
+		screen, _, _ := m.screen(page, "")
+		if len(screen) == 0 {
+			t.Errorf("page %d rendered nothing", page)
+		}
+		for _, f := range screen {
+			if f.Row < 0 || f.Row >= screenRows {
+				t.Errorf("page %d put a field on row %d", page, f.Row)
+			}
+		}
 	}
 }

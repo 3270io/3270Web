@@ -192,6 +192,12 @@ proceed without them; procurement cannot.
       thirteen surfaces, the failures it found fixed, and a statement that
       names what conforms, what does not, and which two apparent failures are
       deliberate. See [Accessibility](accessibility.md)*
+- [x] **A session manager** — *shipped: an administrator assigns published host
+      profiles to groups, roles or named accounts, and an operator whose
+      account reaches one mainframe is connected straight to it while one who
+      reaches several lands on a real 3270 selection screen. Branded, paged,
+      and driven by the terminal's own keys. See
+      [The session manager](session-manager.md)*
 - [ ] **Distributable task and profile libraries** — both are server-side
       already; moving them between deployments is not solved
 

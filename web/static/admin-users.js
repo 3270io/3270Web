@@ -18,6 +18,10 @@
   var dialogs = {};
   var lastFocus = null;
   var cache = [];
+  // Every group in use and where groups come from, both from the listing, so
+  // the dialog can offer names and explain when it will not accept a change.
+  var knownGroups = [];
+  var groupsFromProvider = false;
 
   document.querySelectorAll('[data-dialog]').forEach(function (el) {
     dialogs[el.getAttribute('data-dialog')] = el;
@@ -136,6 +140,21 @@
       : pill('pill--user', 'User'));
     tr.appendChild(roleCell);
 
+    // The teams this account is in, which is what decides the mainframes it is
+    // offered. Shown as its own column rather than buried in a dialog: an
+    // administrator looking for "who can reach production" is reading down it.
+    var groupsCell = el('td');
+    if ((user.groups || []).length === 0) {
+      groupsCell.appendChild(el('span', 'admin-groups-none', '—'));
+    } else {
+      var wrapGroups = el('div', 'admin-groups');
+      user.groups.forEach(function (name) {
+        wrapGroups.appendChild(el('span', 'admin-group-tag', name));
+      });
+      groupsCell.appendChild(wrapGroups);
+    }
+    tr.appendChild(groupsCell);
+
     var statusCell = el('td');
     if (user.disabled) {
       statusCell.appendChild(pill('pill--off', 'Disabled'));
@@ -160,6 +179,10 @@
         openReset(user);
       }));
     }
+
+    actions.appendChild(actionButton('Groups', '', function () {
+      openGroups(user);
+    }));
 
     // Each of these would lock the administrator out of the page they are
     // standing on, so the server refuses them and the UI does not offer them.
@@ -218,7 +241,7 @@
     if (!users.length) {
       var tr = el('tr');
       var td = el('td', 'admin-empty');
-      td.colSpan = 5;
+      td.colSpan = 6;
       td.appendChild(el('strong', '', 'No accounts yet'));
       td.appendChild(document.createTextNode('Add one to let somebody sign in.'));
       tr.appendChild(td);
@@ -238,12 +261,16 @@
 
   function load() {
     return api('GET', '/api/admin/users')
-      .then(function (data) { render(data.users || []); })
+      .then(function (data) {
+        knownGroups = data.groups || [];
+        groupsFromProvider = !!data.groupsFromProvider;
+        render(data.users || []);
+      })
       .catch(function (error) {
         rows.textContent = '';
         var tr = el('tr');
         var td = el('td', 'admin-empty');
-        td.colSpan = 5;
+        td.colSpan = 6;
         td.appendChild(el('strong', '', 'Could not load accounts'));
         td.appendChild(document.createTextNode(error.message));
         tr.appendChild(td);
@@ -293,6 +320,143 @@
     var meter = form.querySelector('[data-pw-meter]');
     if (meter) meter.setAttribute('data-score', '0');
     openDialog('reset');
+  }
+
+  /* ---------------------------------------------------------------- groups */
+
+  var groupsTarget = null;
+
+  function openGroups(user) {
+    groupsTarget = user;
+    var dialog = dialogs.groups;
+    if (!dialog) return;
+    dialog.querySelector('[data-groups-name]').textContent = user.username;
+
+    var input = dialog.querySelector('#groups-input');
+    input.value = (user.groups || []).join(', ');
+
+    // An account the directory owns cannot have its groups edited here: the
+    // next sign-in would overwrite whatever was typed, so the control says so
+    // instead of accepting a change that will not last.
+    var fromProvider = user.external && groupsFromProvider;
+    dialog.querySelector('[data-groups-provider]').hidden = !fromProvider;
+    input.readOnly = fromProvider;
+    dialog.querySelector('[data-groups-save]').disabled = fromProvider;
+
+    // Offer the names already in use, so the same team is not spelled two ways.
+    var list = dialog.querySelector('[data-known-groups]');
+    list.textContent = '';
+    knownGroups.forEach(function (name) {
+      var option = document.createElement('option');
+      option.value = name;
+      list.appendChild(option);
+    });
+
+    openDialog('groups');
+  }
+
+  var groupsForm = document.querySelector('[data-groups-form]');
+  if (groupsForm) {
+    groupsForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!groupsTarget) return;
+      var raw = groupsForm.querySelector('#groups-input').value;
+      var groups = raw.split(',').map(function (s) { return s.trim(); })
+        .filter(function (s) { return s !== ''; });
+
+      api('PATCH', '/api/admin/users/' + encodeURIComponent(groupsTarget.id), { groups: groups })
+        .then(function () {
+          setStatus('Groups updated for ' + groupsTarget.username + '.', 'ok');
+          closeDialogs();
+          load();
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); });
+    });
+  }
+
+  /* -------------------------------------------------------------- branding */
+
+  // The selection screen an operator meets before anything of their own
+  // organisation's. The preview is rendered by the server from the same builder
+  // the terminal draws from, so what is shown here is the screen rather than an
+  // impression of it.
+
+  function brandingDialog() { return dialogs.branding; }
+
+  function loadBranding() {
+    return api('GET', '/api/admin/menu-branding').then(function (data) {
+      var dialog = brandingDialog();
+      if (!dialog) return;
+      var brand = data.branding || {};
+      dialog.querySelector('#branding-title-input').value = brand.Title || brand.title || '';
+      dialog.querySelector('#branding-banner').value = (brand.Banner || brand.banner || []).join('\n');
+      dialog.querySelector('#branding-footer').value = brand.Footer || brand.footer || '';
+      var limits = data.limits || {};
+      dialog.querySelector('[data-branding-limits]').textContent =
+        'Up to ' + limits.bannerLines + ' lines of ' + limits.lineWidth +
+        ' characters. ' + limits.charset + '.';
+      return refreshPreview();
+    });
+  }
+
+  function refreshPreview() {
+    return api('GET', '/api/admin/menu-preview').then(function (data) {
+      var pre = brandingDialog().querySelector('[data-branding-preview]');
+      pre.textContent = (data.rows || []).join('\n');
+    });
+  }
+
+  function brandingPayload() {
+    var dialog = brandingDialog();
+    return {
+      Title: dialog.querySelector('#branding-title-input').value,
+      Banner: dialog.querySelector('#branding-banner').value.split('\n'),
+      Footer: dialog.querySelector('#branding-footer').value
+    };
+  }
+
+  var brandingOpen = document.querySelector('[data-branding-open]');
+  if (brandingOpen) {
+    brandingOpen.addEventListener('click', function () {
+      loadBranding()
+        .then(function () { openDialog('branding'); })
+        .catch(function (error) { setStatus(error.message, 'error'); });
+    });
+  }
+
+  var brandingForm = document.querySelector('[data-branding-form]');
+  if (brandingForm) {
+    brandingForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      api('POST', '/api/admin/menu-branding', brandingPayload())
+        .then(function (data) {
+          // What the server changed is shown rather than swallowed: silently
+          // dropping a character somebody drew artwork with is how a banner
+          // ends up wrong on a screen the person editing it never sees.
+          var notes = brandingForm.querySelector('[data-branding-notes]');
+          if ((data.notes || []).length) {
+            notes.querySelector('span').textContent = data.notes.join('. ') + '.';
+            notes.hidden = false;
+          } else {
+            notes.hidden = true;
+          }
+          setStatus('Selection screen updated.', 'ok');
+          return refreshPreview();
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); });
+    });
+  }
+
+  var brandingReset = document.querySelector('[data-branding-reset]');
+  if (brandingReset) {
+    brandingReset.addEventListener('click', function () {
+      api('POST', '/api/admin/menu-branding', { reset: true })
+        .then(function () {
+          setStatus('Selection screen restored to the default.', 'ok');
+          return loadBranding();
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); });
+    });
   }
 
   var addButton = document.querySelector('[data-admin-add]');

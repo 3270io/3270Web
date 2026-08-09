@@ -28,6 +28,7 @@
                     </div>
                 </div>
                 <div class="toolbar">
+                    <button type="button" data-branding-open>Session screen</button>
                     <a href="/admin/audit"><button type="button">Audit trail</button></a>
                     <a href="/"><button type="button">Back to 3270Web</button></a>
                 </div>
@@ -60,15 +61,16 @@
                             <tr>
                                 <th scope="col">Account</th>
                                 <th scope="col">Role</th>
+                                <th scope="col">Groups</th>
                                 <th scope="col">Status</th>
                                 <th scope="col">Created</th>
                                 <th scope="col"><span class="visually-hidden">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody data-admin-rows>
-                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
-                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
-                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                            <tr class="admin-skeleton"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -143,6 +145,85 @@
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
                     <button type="submit">Reset password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Groups -->
+    <div class="admin-dialog" data-dialog="groups" hidden>
+        <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="groups-title">
+            <h2 id="groups-title">Groups</h2>
+            <p class="admin-dialog-desc">
+                Which teams <strong data-groups-name></strong> belongs to. Groups
+                decide which mainframes an account is offered, not what it may do
+                here — that is the role.
+            </p>
+            <form class="auth-form" data-groups-form>
+                <div class="field">
+                    <label for="groups-input">Groups</label>
+                    <input type="text" id="groups-input" name="groups"
+                           autocapitalize="none" autocorrect="off" spellcheck="false"
+                           list="known-groups" aria-describedby="groups-hint">
+                    <datalist id="known-groups" data-known-groups></datalist>
+                    <div class="field-hint" id="groups-hint">
+                        Separated by commas. A group exists because somebody is in
+                        it, so a new name here creates one.
+                    </div>
+                </div>
+                <div class="auth-alert auth-alert--info" data-groups-provider hidden>
+                    <span>
+                        This account's groups come from the identity provider and
+                        are refreshed at every sign-in. Change them there.
+                    </span>
+                </div>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-dialog-cancel>Cancel</button>
+                    <button type="submit" data-groups-save>Save groups</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Session-selection screen branding -->
+    <div class="admin-dialog" data-dialog="branding" hidden>
+        <div class="admin-dialog-content admin-dialog-content--wide" role="dialog"
+             aria-modal="true" aria-labelledby="branding-title">
+            <h2 id="branding-title">Session selection screen</h2>
+            <p class="admin-dialog-desc">
+                What an operator meets when their account can reach more than one
+                mainframe. It is a 3270 screen, so what you type here is drawn on a
+                character grid — printable ASCII only.
+            </p>
+
+            <div class="branding-preview-wrap">
+                <pre class="branding-preview" data-branding-preview aria-label="Preview of the selection screen"></pre>
+            </div>
+
+            <form class="auth-form" data-branding-form>
+                <div class="field">
+                    <label for="branding-title-input">Title</label>
+                    <input type="text" id="branding-title-input" name="title" maxlength="40"
+                           autocomplete="off" spellcheck="false">
+                </div>
+                <div class="field">
+                    <label for="branding-banner">Banner</label>
+                    <textarea id="branding-banner" name="banner" rows="6" spellcheck="false"
+                              autocapitalize="none" autocorrect="off"
+                              aria-describedby="branding-banner-hint"></textarea>
+                    <div class="field-hint" id="branding-banner-hint" data-branding-limits></div>
+                </div>
+                <div class="field">
+                    <label for="branding-footer">Footer <span class="subtle">optional</span></label>
+                    <input type="text" id="branding-footer" name="footer" maxlength="78"
+                           autocomplete="off" spellcheck="false"
+                           placeholder="Support: extension 4400">
+                </div>
+                <div class="auth-alert auth-alert--warn" data-branding-notes hidden><span></span></div>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-branding-reset>Restore the default</button>
+                    <button type="button" data-dialog-cancel>Cancel</button>
+                    <button type="submit">Save</button>
                 </div>
             </form>
         </div>

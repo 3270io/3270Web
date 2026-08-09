@@ -60,6 +60,7 @@ nav:
   - Connect and Use 3270Web: configuration.md
   - User Accounts and Sign-In: authentication.md
   - Running a Shared Instance: multi-user.md
+  - The Session Manager: session-manager.md
   - Recordings and Playback: workflow.md
   - Guided Business Tasks: business-tasks.md
   - Chaos Mode: chaos-mode.md

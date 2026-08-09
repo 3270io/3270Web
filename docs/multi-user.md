@@ -15,6 +15,7 @@ pointed at, and what is written down.
 | Control | Default | What it decides |
 |---|---|---|
 | [`AUTH_MODE`](authentication.md) | `none` | Whether there are accounts at all, and whether an identity provider issues them |
+| [Assigned hosts](session-manager.md) | everyone | Which mainframes each account is offered, and the screen it chooses from |
 | [Session and data separation](#what-is-separated-and-what-is-not) | on with accounts | What one account can see of another's |
 | [`TRUST_PROXY_HEADERS`](#running-without-tls) | off | Whether cookies are marked `Secure` behind a TLS proxy |
 | [API tokens](#api-tokens) | — | What an automated client may reach |
