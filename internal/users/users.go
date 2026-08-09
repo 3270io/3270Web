@@ -189,6 +189,11 @@ type fileFormat struct {
 	// see EffectiveRole. Kept beside the accounts rather than in a file of its
 	// own so a backup of one cannot silently disagree with the other.
 	GroupRoles map[string]authz.Role `json:"groupRoles,omitempty"`
+	// Groups are the declared teams: the ones an administrator made on purpose,
+	// which therefore exist while they are still empty. Membership is not here
+	// — it stays on each account, where it is read from on every request — so
+	// this is the name, its description and when it was declared. See groups.go.
+	Groups []Group `json:"groups,omitempty"`
 }
 
 // load reads the file. A missing file is an empty store, not an error: that is
@@ -701,12 +706,13 @@ func (s *Store) SetGroups(username string, groups []string) error {
 	return s.save(f)
 }
 
-// Groups returns every group name any account belongs to, sorted.
+// Groups returns every group name this instance knows, sorted.
 //
-// There is no separate registry of groups: a group exists because somebody is
-// in it. A registry would be a second place for a name to live and a second
-// way for it to be spelled, and the only thing it would add is the ability to
-// create an empty group — which reaches nobody by definition.
+// Three things can make a name a group, and all three count here: a declared
+// record (groups.go), a role assignment, and an account that carries it. The
+// declared record is what lets a group be prepared before anyone is in it;
+// the other two are what an instance that predates the record has, and what a
+// directory feeds in at each sign-in.
 func (s *Store) Groups() ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -715,6 +721,13 @@ func (s *Store) Groups() ([]string, error) {
 		return nil, err
 	}
 	seen := make(map[string]string)
+	// A declared group exists while it is empty; that is the point of it.
+	for _, g := range f.Groups {
+		key := strings.ToLower(strings.TrimSpace(g.Name))
+		if key != "" && seen[key] == "" {
+			seen[key] = strings.TrimSpace(g.Name)
+		}
+	}
 	// A group with a role assigned exists even while nobody is in it: the
 	// assignment is the membership that keeps the name alive.
 	for g := range f.GroupRoles {

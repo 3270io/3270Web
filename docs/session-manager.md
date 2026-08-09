@@ -79,9 +79,10 @@ each one is for.
 The administration area manages these directly: **Admin → Session screen**
 lists every published preset with the audience it carries, and adds, edits and
 removes them in place. The same thing can be done from the connect page — open
-**Profiles** as an administrator, tick **Share with everyone** — and both
-routes write the same store, so a preset made in one room is editable in the
-other. Either way, *Who this host is for* takes three lists:
+**Profiles** as an administrator, tick **Share with everyone** — and from
+**Admin → Groups**, which sets the same audience from the team's side. Every
+route writes the same store, so a preset made in one room is editable in the
+others. Either way, *Who this host is for* takes three lists:
 
 | Field | Meaning |
 |---|---|
@@ -100,26 +101,55 @@ The audience is a restriction and not a display filter. Both paths that connect
 by name resolve profiles through the same check, so naming a host you were not
 given gets the same answer as naming one that does not exist.
 
+### Sample apps as hosts
+
+A preset can point at one of the bundled sample apps instead of a mainframe.
+The preset dialog offers them in a **Bundled sample app** list; choosing one
+fills in the host and port, and the preset then behaves like any other — it
+appears on the selection screen, carries an audience, and can be assigned to a
+group.
+
+That is what makes the whole feature usable before there is a mainframe to
+reach. An instance being evaluated, or one being used to teach on, can publish
+the sample apps, put the trainees in a group, and give the group those hosts;
+everybody who signs in meets a real selection screen with real systems on it.
+
+Each sample app is offered on its own port (3271 upwards), so publishing more
+than one does not leave two presets fighting over a single listener. The port
+is fixed to that range: the sample apps are TN3270 servers 3270Web starts
+itself, and 3270 is what the web interface listens on.
+
 ### Groups
 
-Groups are teams, kept on the account. On their own they say nothing about
-permission — they decide which mainframes an account is offered — and exist so
-access can be decided for a team rather than a person at a time.
+Groups are teams. On their own they say nothing about permission — they decide
+which mainframes an account is offered — and exist so access can be decided for
+a team rather than a person at a time.
 
-Set them on the **Accounts** page. A group exists because somebody is in it, so
-typing a new name creates one; the field offers the names already in use so the
-same team is not spelled two ways.
+**Admin → Groups** is where they are made and maintained: name a group, tick
+the accounts in it, tick the host presets it should reach, and — where a team
+administers this instance — give it a role. A group may be empty, so the teams
+can be prepared before the accounts arrive; anyone added later inherits the
+hosts the group already has. See
+[managing groups](authentication.md#managing-groups).
 
-A group *can* carry a role, when an administrator assigns one under
-**Accounts → Group roles**: everyone in the group then holds that role on top
-of their own, for as long as they are in it. See
+That page and this one edit the same fact from opposite sides. Ticking a preset
+on a group adds the group to that preset's *Groups* audience; naming a group in
+the audience here puts the preset on that group's host list. There is one copy
+of it, so the two cannot disagree.
+
+Membership is also editable one account at a time, on the **Accounts** page —
+useful when somebody joins a team and the team is not what you came to change.
+
+A group *can* carry a role: everyone in it then holds that role on top of their
+own, for as long as they are in it. See
 [roles from groups](authentication.md#roles-from-groups).
 
 Under [`AUTH_MODE=oidc`](authentication.md#single-sign-on-oidc) with
-`OIDC_GROUPS_CLAIM` set, these are the **directory's own groups**, refreshed at
-every sign-in. The team somebody is on is already recorded somewhere, and it is
-not here. The Accounts page will not let those be edited, since the next
-sign-in would overwrite the change.
+`OIDC_GROUPS_CLAIM` set, membership comes from the **directory's own groups**,
+refreshed at every sign-in. The team somebody is on is already recorded
+somewhere, and it is not here. Those accounts cannot have their membership
+edited on either page, since the next sign-in would overwrite the change —
+though the group itself can still be given hosts and a role here.
 
 ---
 

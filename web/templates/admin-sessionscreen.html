@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=18">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=6">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -122,6 +122,23 @@
                 <button type="button" class="admin-dialog-close" data-dialog-cancel aria-label="Close">&times;</button>
             </div>
             <form class="auth-form" data-preset-form>
+                <!-- A preset can point at one of the bundled sample apps just
+                     as well as at a mainframe, and on an instance being
+                     evaluated or taught on there is nothing else to point it
+                     at. Offered as a list because the alternative is knowing
+                     that they are addressed as "sampleapp:<id>". -->
+                <div class="field preset-sample" data-preset-sample-field hidden>
+                    <label for="preset-sample">Bundled sample app <span class="subtle">optional</span></label>
+                    <select id="preset-sample" data-preset-sample aria-describedby="preset-sample-hint">
+                        <option value="">A mainframe on the network</option>
+                    </select>
+                    <div class="field-hint" id="preset-sample-hint">
+                        Choosing one fills in the host and port below. The sample
+                        apps are TN3270 servers 3270Web starts itself, so a preset
+                        naming one works with no mainframe to reach.
+                    </div>
+                </div>
+
                 <div class="preset-grid">
                     <div class="field">
                         <label for="preset-name">Name</label>
@@ -181,6 +198,12 @@
                                autocomplete="off" autocapitalize="none" spellcheck="false"
                                placeholder="payments, operations">
                         <datalist id="preset-known-groups" data-preset-known-groups></datalist>
+                        <div class="field-hint">
+                            Separated by commas, chosen from the groups this
+                            instance knows. Make and maintain them on the
+                            <a href="/admin/groups">Groups</a> page, where a group
+                            can also be assigned its hosts from the other side.
+                        </div>
                     </div>
                     <div class="field">
                         <label for="preset-users">Users</label>

@@ -391,6 +391,7 @@ against that host, and when* — which has to survive being asked months later.
 | First administrator created, or a wrong setup code | address |
 | Account created, changed, deleted | who did it, and to whom |
 | Group role assigned or cleared | who did it, the group, the role it now grants |
+| Group created, changed, deleted | who did it, the group, and what changed — its name, description, membership or hosts |
 | Host preset published or removed | who did it, the preset, who it is offered to |
 | API token issued, revoked, or refused | token id, account, scopes |
 | Session opened, or refused | account, target host, and why it was refused |

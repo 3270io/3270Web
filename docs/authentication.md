@@ -96,11 +96,14 @@ followed by the most recent audit entries. The numbers refresh themselves
 every half minute while the page is open.
 
 Every page in the area carries the same navigation — **Overview**,
-**Accounts**, **Session screen**, **Audit trail** and **Logs** — so nothing
-administrative is more than one click from anything else. The Session screen
-page manages what the [session-selection screen](session-manager.md) offers
-and to whom: the published host presets, each with the users, groups or roles
-it is for, and the branding at the top of the screen.
+**Accounts**, **Groups**, **Session screen**, **Audit trail** and **Logs** —
+so nothing administrative is more than one click from anything else. The
+Session screen page manages what the
+[session-selection screen](session-manager.md) offers and to whom: the
+published host presets, each with the users, groups or roles it is for, and
+the branding at the top of the screen. Groups sits between the two because it
+is what joins them — an account goes into a team on one side, and a team is
+offered a mainframe on the other.
 
 ### Live terminal sessions
 
@@ -156,11 +159,68 @@ does not sign them out. Demotion is the direction that matters: a demoted
 administrator who kept the role until their session expired could restore it
 from the Accounts page they were still standing on.
 
+## Managing groups
+
+A group is a team. It decides which mainframes its members are offered, and it
+can carry a role, so an instance is administered by "whoever is on the ops
+rota" rather than by a list of names that goes out of date.
+
+The **Groups** page, at `/admin/groups`, is where a group is made and
+maintained. One row per team, and one dialog that does the whole job:
+
+| Field | What it does |
+|---|---|
+| **Name** | What the group is called. No commas — a comma separates one group from the next everywhere a list of them is typed |
+| **Description** | An optional note, shown beside the name in the table |
+| **Role granted** | The role every member holds on top of their own; see [Roles from groups](#roles-from-groups) |
+| **Members** | The accounts in the group, ticked from the account list |
+| **Hosts offered** | The published host presets the group's members are offered on the [session manager](session-manager.md) — a bundled sample app counts, so a group can be given hosts before there is a mainframe to reach |
+
+**A group may be empty.** That is deliberate: an instance is usually set up
+teams-first — the host list is written before the people arrive — and a group
+that only existed while somebody was in it could not be prepared in advance.
+Create the group, assign it its hosts, and everyone added later inherits them
+with nothing further to configure.
+
+**Hosts are assigned from either side, and it is one fact.** Ticking a preset
+here adds the group to that preset's audience, which is the same list the
+Session screen page edits from the preset's side. Untick it and the group
+loses the host. One caution the page repeats: a preset that ends up naming
+nobody at all is offered to *everyone* — that is the long-standing rule that
+stops switching audiences on from taking a host list away from an instance
+already using one — so the page says so when a change leaves a preset in that
+state.
+
+**Renaming a group carries everything with it**: its members, the role it
+grants and the presets it reaches, including the group's name inside each
+preset's audience. Renaming is what to do when the same team ends up spelled
+two ways; the old name stops existing rather than lingering as an empty group
+beside the new one.
+
+**Deleting a group** removes it from every account in it, drops the role it
+granted, and strips its name from every preset that offered it. The accounts
+and the presets themselves are untouched — only the group is.
+
+Groups that predate this page are listed alongside declared ones, marked
+**in use**: those are names that exist only because an account carries one or
+a role is assigned to one, including the groups an identity provider sends.
+They can be described, renamed, filled and deleted like any other.
+
+Where [single sign-on](#single-sign-on-oidc) maps a groups claim, membership
+of a directory-owned account belongs to the directory: those accounts appear
+in the member list marked **single sign-on** and cannot be ticked here,
+because the next sign-in would overwrite the change. Change them in the
+directory.
+
+Creating, changing and deleting a group is written to the audit trail as
+`group.created`, `group.updated` and `group.deleted`.
+
 ### Roles from groups
 
-A role can be assigned to a group, under **Accounts → Group roles**. Everyone
-in the group then holds that role *on top of* whatever their account holds in
-its own right — an account's effective role is the stronger of the two.
+A role can be assigned to a group, on the **Groups** page or under
+**Accounts → Group roles**. Everyone in the group then holds that role *on top
+of* whatever their account holds in its own right — an account's effective role
+is the stronger of the two.
 Inheritance is additive only: being in a group never takes a role away, so
 adding somebody to a team cannot quietly demote them.
 
@@ -173,8 +233,9 @@ sessions that are already open, exactly as a direct role change does.
 The self-lockout rules extend to cover inheritance:
 
 - You cannot clear a group's role assignment if your own administrator role
-  depends on it, and you cannot remove your own account from such a group —
-  both are self-demotion wearing different clothes.
+  depends on it, you cannot remove your own account from such a group, and you
+  cannot delete the group — all three are self-demotion wearing different
+  clothes.
 - The assignment that keeps the instance's *only* enabled administrator
   cannot be removed, just as that administrator cannot be demoted, disabled
   or deleted. The guard counts inherited roles, so a deployment may

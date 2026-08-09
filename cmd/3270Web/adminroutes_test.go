@@ -51,6 +51,11 @@ var adminOnlyRoutes = map[string]bool{
 	"POST /api/admin/profiles":        true,
 	"POST /api/admin/profiles/delete": true,
 	"POST /api/admin/group-roles":     true,
+	"GET /admin/groups":               true,
+	"GET /api/admin/groups":           true,
+	"POST /api/admin/groups":          true,
+	"PATCH /api/admin/groups/:name":   true,
+	"DELETE /api/admin/groups/:name":  true,
 }
 
 // A signed-in account is not the same as an entitled one. The existing

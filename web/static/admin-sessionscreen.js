@@ -20,6 +20,8 @@
   var lastFocus = null;
   var knownGroups = [];
   var knownUsers = [];
+  // The bundled sample apps a preset may point at instead of a mainframe.
+  var sampleApps = [];
   var editingName = null;
 
   document.querySelectorAll('[data-dialog]').forEach(function (el) {
@@ -166,7 +168,11 @@
     if (p.description) nameCell.appendChild(el('div', 'admin-session-id', p.description));
     tr.appendChild(nameCell);
 
-    tr.appendChild(el('td', 'sessions-host', p.host + ':' + (p.port || 3270)));
+    // A bundled sample app is shown by the name it was chosen by; the
+    // "sampleapp:app1:3271" it is addressed as is an internal detail.
+    var sample = sampleAppFor(p.host);
+    tr.appendChild(el('td', 'sessions-host',
+      sample ? sample.name : p.host + ':' + (p.port || 3270)));
     tr.appendChild(el('td', 'presets-conn', connectionFacts(p)));
     tr.appendChild(audienceCell(p));
 
@@ -212,6 +218,64 @@
     profiles.forEach(function (p) { rows.appendChild(renderRow(p)); });
   }
 
+  /* ---------------------------------------------------------- sample apps */
+
+  // The bundled sample apps, offered as a list so a preset can name one
+  // without anybody having to know the "sampleapp:<id>" form. Choosing one
+  // fills the host and port in; typing over them afterwards is allowed, and
+  // puts the select back to "a mainframe on the network".
+
+  function fillSampleApps() {
+    var field = document.querySelector('[data-preset-sample-field]');
+    var select = document.querySelector('[data-preset-sample]');
+    if (!field || !select) return;
+    field.hidden = !sampleApps.length;
+
+    while (select.options.length > 1) select.remove(1);
+    sampleApps.forEach(function (app) {
+      var option = document.createElement('option');
+      option.value = app.host;
+      option.textContent = app.name;
+      option.setAttribute('data-port', app.port);
+      select.appendChild(option);
+    });
+  }
+
+  function sampleAppFor(hostValue) {
+    var host = String(hostValue || '').trim().toLowerCase();
+    for (var i = 0; i < sampleApps.length; i++) {
+      if (String(sampleApps[i].host).toLowerCase() === host) return sampleApps[i];
+    }
+    return null;
+  }
+
+  var sampleSelect = document.querySelector('[data-preset-sample]');
+  if (sampleSelect) {
+    sampleSelect.addEventListener('change', function () {
+      if (!presetForm) return;
+      var chosen = sampleAppFor(sampleSelect.value);
+      if (!chosen) return;
+      presetForm.querySelector('#preset-host').value = chosen.host;
+      presetForm.querySelector('#preset-port').value = chosen.port;
+      // A sample app is a plaintext listener on loopback that this process
+      // started. TLS against it cannot succeed, so leaving a tick behind from
+      // a previous edit would only produce a preset that fails to connect.
+      presetForm.querySelector('[data-preset-tls]').checked = false;
+      presetForm.querySelector('[data-preset-skipverify]').checked = false;
+      if (!presetForm.querySelector('#preset-name').value.trim()) {
+        presetForm.querySelector('#preset-name').value = chosen.name;
+      }
+    });
+  }
+
+  var hostInput = document.querySelector('#preset-host');
+  if (hostInput && sampleSelect) {
+    hostInput.addEventListener('input', function () {
+      var chosen = sampleAppFor(hostInput.value);
+      sampleSelect.value = chosen ? chosen.host : '';
+    });
+  }
+
   function fillDatalist(selector, names) {
     var list = document.querySelector(selector);
     if (!list) return;
@@ -228,8 +292,10 @@
       .then(function (data) {
         knownGroups = data.groups || [];
         knownUsers = data.usernames || [];
+        sampleApps = data.sampleApps || [];
         fillDatalist('[data-preset-known-groups]', knownGroups);
         fillDatalist('[data-preset-known-users]', knownUsers);
+        fillSampleApps();
         // With nobody to narrow an audience to, the fieldset would only
         // mislead: everything published is for the one operator.
         var audience = document.querySelector('[data-preset-audience]');
@@ -272,6 +338,11 @@
       presetForm.querySelectorAll('[data-preset-role]').forEach(function (box) {
         box.checked = (p.roles || []).indexOf(box.value) !== -1;
       });
+    }
+    // After the fields, so the select agrees with the host actually loaded.
+    if (sampleSelect) {
+      var sample = p ? sampleAppFor(p.host) : null;
+      sampleSelect.value = sample ? sample.host : '';
     }
     openDialog('preset');
   }

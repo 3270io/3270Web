@@ -390,6 +390,13 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	admin.POST("/api/admin/profiles", app.AdminSaveProfileHandler)
 	admin.POST("/api/admin/profiles/delete", app.AdminDeleteProfileHandler)
 	admin.POST("/api/admin/group-roles", app.AdminSetGroupRoleHandler)
+	// Groups as things in their own right: made, named, filled and pointed at
+	// mainframes from one page instead of three. See admingroups.go.
+	admin.GET(adminGroupsPath, app.AdminGroupsPageHandler)
+	admin.GET("/api/admin/groups", app.AdminListGroupsHandler)
+	admin.POST("/api/admin/groups", app.AdminCreateGroupHandler)
+	admin.PATCH("/api/admin/groups/:name", app.AdminUpdateGroupHandler)
+	admin.DELETE("/api/admin/groups/:name", app.AdminDeleteGroupHandler)
 	r.POST("/connect", app.ConnectHandler)
 	r.GET("/screen", app.ScreenHandler)
 	r.GET("/screen/content", app.ScreenContentHandler)
@@ -4145,36 +4152,7 @@ func (app *App) startHostSessionWithProfile(c *gin.Context, hostname string, pro
 		return nil, err
 	}
 
-	var h host.Host
-	var err error
-
-	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
-		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
-			return nil, fmt.Errorf("invalid sample app port %d", samplePort)
-		}
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
-	} else if hostname == "mock" || hostname == "demo" {
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
-	} else {
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		// A profile's target carries its own TLS ("L:"), skip-verify ("Y:")
-		// and LU prefixes, and its overrides are appended after the global
-		// flags so the profile's value is the one s3270 ends up using.
-		target := hostname
-		var overrides []string
-		if profile != nil {
-			target = profile.s3270Target()
-			overrides = profile.overrideArgs()
-		}
-		args := buildS3270Args(app.Config.S3270Options, "")
-		args = append(args, overrides...)
-		if strings.TrimSpace(target) != "" {
-			args = append(args, target)
-		}
-		h = host.NewS3270(execPath, args...)
-	}
+	h, err := app.newHostFor(hostname, profile)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create host: %w", err)
@@ -4262,6 +4240,50 @@ func sampleAppPort(port int) int {
 		return defaultSampleAppPort
 	}
 	return port
+}
+
+// newHostFor builds the connection a target names, whether that target is a
+// mainframe on the network or one of the bundled sample apps.
+//
+// It exists because there is more than one way into a session — the connect
+// form, a profile the account was assigned, and the session-selection screen
+// re-pointing a live session — and each one used to decide for itself how to
+// turn a target into a host. The selection screen's copy did not know about
+// sample apps, so a preset naming one appeared on the menu, was offered to
+// whoever it was assigned to, and failed on selection with a hostname s3270
+// could not resolve. A sample app is a listener this process starts, not an
+// address to dial; that has to be decided in one place or a path will miss it
+// again.
+//
+// profile may be nil, which is the bare-hostname case.
+func (app *App) newHostFor(hostname string, profile *ConnectionProfile) (host.Host, error) {
+	execPath := resolveS3270Path(app.Config.ExecPath)
+
+	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
+		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
+			return nil, fmt.Errorf("invalid sample app port %d", samplePort)
+		}
+		return newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
+	}
+	if hostname == "mock" || hostname == "demo" {
+		return newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
+	}
+
+	// A profile's target carries its own TLS ("L:"), skip-verify ("Y:") and LU
+	// prefixes, and its overrides are appended after the global flags so the
+	// profile's value is the one s3270 ends up using.
+	target := hostname
+	var overrides []string
+	if profile != nil {
+		target = profile.s3270Target()
+		overrides = profile.overrideArgs()
+	}
+	args := buildS3270Args(app.Config.S3270Options, "")
+	args = append(args, overrides...)
+	if strings.TrimSpace(target) != "" {
+		args = append(args, target)
+	}
+	return host.NewS3270(execPath, args...), nil
 }
 
 func newSampleAppHost(id string, port int, execPath string, opts config.S3270Options) (host.Host, error) {

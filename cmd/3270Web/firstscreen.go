@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -118,10 +117,19 @@ func (app *App) firstScreenFor(c *gin.Context) bool {
 func (app *App) startSelectionScreen(c *gin.Context, profiles []ConnectionProfile) bool {
 	entries := make([]sessionmenu.Entry, 0, len(profiles))
 	for _, p := range profiles {
+		// The detail column is there to tell two similarly-named systems
+		// apart, which for a mainframe is its address. A bundled sample app
+		// has no address worth printing — "sampleapp:app1:3271" is how this
+		// process addresses a listener it starts itself — so it says what the
+		// entry is instead.
+		detail := p.displayTarget()
+		if label := sampleAppPresetLabel(p); label != "" {
+			detail = "bundled sample app"
+		}
 		entries = append(entries, sessionmenu.Entry{
 			Name:        p.Name,
 			Description: p.Description,
-			Detail:      p.displayTarget(),
+			Detail:      detail,
 		})
 	}
 
@@ -237,12 +245,15 @@ func (app *App) swapSessionHost(c *gin.Context, s *session.Session, profile Conn
 		return err
 	}
 
-	args := buildS3270Args(app.Config.S3270Options, "")
-	args = append(args, profile.overrideArgs()...)
-	if t := strings.TrimSpace(profile.s3270Target()); t != "" {
-		args = append(args, t)
+	// Built the same way every other connecting path builds it, which is what
+	// makes a preset naming a bundled sample app work here. This used to
+	// assemble s3270 arguments itself and knew nothing about sample apps, so
+	// such a preset was drawn on the menu, chosen, and then failed on a
+	// hostname s3270 could not resolve. See newHostFor.
+	next, err := app.newHostFor(profile.displayTarget(), &profile)
+	if err != nil {
+		return fmt.Errorf("connect to %s: %w", target, err)
 	}
-	next := host.NewS3270(resolveS3270Path(app.Config.ExecPath), args...)
 	if err := next.Start(); err != nil {
 		return fmt.Errorf("connect to %s: %w", target, err)
 	}

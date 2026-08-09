@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=18">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=6">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=7">
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
 </head>
@@ -207,8 +207,9 @@
                            list="known-groups" aria-describedby="groups-hint">
                     <datalist id="known-groups" data-known-groups></datalist>
                     <div class="field-hint" id="groups-hint">
-                        Separated by commas. A group exists because somebody is in
-                        it, so a new name here creates one.
+                        Separated by commas. A name that is not yet a group becomes
+                        one. To make a group, name it, fill it and assign it hosts
+                        in one place, use the <a href="/admin/groups">Groups</a> page.
                     </div>
                 </div>
                 <div class="auth-alert auth-alert--info" data-groups-provider hidden>
@@ -240,8 +241,8 @@
             </p>
             <div class="group-roles-list" data-group-roles-list></div>
             <p class="field-hint" data-group-roles-empty hidden>
-                No groups exist yet. Put an account in a group and it will
-                appear here.
+                No groups exist yet. Make one on the
+                <a href="/admin/groups">Groups</a> page and it will appear here.
             </p>
             <div class="admin-dialog-actions">
                 <button type="button" data-dialog-cancel>Done</button>
