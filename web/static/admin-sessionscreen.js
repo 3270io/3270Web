@@ -63,7 +63,12 @@
     return fetch(url, options).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) {
-          throw new Error(data.error || ('Request failed (' + response.status + ')'));
+          var failure = new Error(data.error || ('Request failed (' + response.status + ')'));
+          // The body of a refusal is carried on the error rather than thrown
+          // away. A library import answers a 400 with the report naming which
+          // entry it could not store, and that is the half worth showing.
+          failure.data = data;
+          throw failure;
         }
         return data;
       });
@@ -596,6 +601,171 @@
           return loadBranding();
         })
         .catch(function (error) { setStatus(error.message, 'error'); });
+    });
+  }
+
+  /* -------------------------------------------------------------- library */
+
+  /* The presets and the recorded tasks as one document, so a second
+     deployment is set up by importing rather than by retyping. The server
+     does the deciding; this is a file picker, a report and two buttons.
+
+     Choosing a file runs the import as a dry run, which is the only reason
+     the flow has two steps: the report of what would change is worth reading
+     before anything changes, and an administrator pointing a file at a
+     production host list should not find out what was in it afterwards. */
+  var libraryFile = document.querySelector('[data-library-file]');
+  var libraryReportEl = document.querySelector('[data-library-report]');
+  var libraryRows = document.querySelector('[data-library-rows]');
+  var libraryNotes = document.querySelector('[data-library-notes]');
+  var libraryActions = document.querySelector('[data-library-actions]');
+  var libraryApply = document.querySelector('[data-library-apply]');
+  var libraryReplace = document.querySelector('[data-library-replace]');
+  // The parsed document, held between the dry run and the import so the file
+  // is read once and the two passes cannot disagree about what was in it.
+  var libraryDoc = null;
+
+  var libraryDownload = document.querySelector('[data-library-download]');
+  if (libraryDownload) {
+    libraryDownload.addEventListener('click', function () {
+      var include = document.querySelector('[data-library-include]').value;
+      var url = '/api/library?download=1';
+      if (include) url += '&include=' + encodeURIComponent(include);
+      // A navigation rather than a fetch: the response carries
+      // Content-Disposition, and letting the browser handle it is what puts
+      // the file in the downloads folder instead of in memory.
+      window.location.href = url;
+    });
+  }
+
+  function clearLibraryReport() {
+    libraryDoc = null;
+    if (libraryRows) libraryRows.textContent = '';
+    if (libraryReportEl) libraryReportEl.hidden = true;
+    if (libraryNotes) libraryNotes.hidden = true;
+    if (libraryActions) libraryActions.hidden = true;
+  }
+
+  /* problem is the refusal that came with the report, when there was one. It
+     is repeated beside the table as well as in the status line at the top of
+     the page: the report is what somebody is reading when a file is refused,
+     and a table of results with the reason it did not happen three screens
+     away reads as a record of things that did. */
+  function renderLibraryReport(report, problem) {
+    if (!libraryRows) return;
+    libraryRows.textContent = '';
+    (report.entries || []).forEach(function (entry) {
+      var tr = el('tr');
+      tr.appendChild(el('td', '', entry.name || ''));
+      tr.appendChild(el('td', '', entry.kind === 'task' ? 'Task' : 'Host preset'));
+      var action = el('td');
+      action.appendChild(el('strong', '', entry.action || ''));
+      tr.appendChild(action);
+      tr.appendChild(el('td', 'subtle', entry.reason || ''));
+      libraryRows.appendChild(tr);
+    });
+    libraryReportEl.hidden = (report.entries || []).length === 0;
+
+    var caption = document.querySelector('[data-library-caption]');
+    if (caption) {
+      if (problem) {
+        // A refused import reports dryRun:false — it was a real attempt — but
+        // nothing was written, and a caption saying what the file "did" would
+        // be the one line on the page that is untrue.
+        caption.textContent = 'What this file would have done. It was refused, so nothing was written.';
+      } else if (report.dryRun) {
+        caption.textContent = 'What importing this file would do. Nothing has been written.';
+      } else {
+        caption.textContent = 'What importing this file did.';
+      }
+    }
+
+    var notes = (report.notes || []).slice();
+    // Given a full stop if it has none: the notes are joined into one
+    // paragraph, and a refusal running straight into the next sentence reads
+    // as one long claim about the host list.
+    if (problem) notes.unshift(/[.!?]$/.test(problem) ? problem : problem + '.');
+    if (notes.length && libraryNotes) {
+      libraryNotes.querySelector('span').textContent = notes.join(' ');
+      libraryNotes.hidden = false;
+    } else if (libraryNotes) {
+      libraryNotes.hidden = true;
+    }
+  }
+
+  function libraryTally(report) {
+    return 'Adds ' + (report.added || 0) +
+      ', replaces ' + (report.replaced || 0) +
+      ', skips ' + (report.skipped || 0) + '.';
+  }
+
+  function libraryImportURL(dryRun) {
+    var url = '/api/library?';
+    if (dryRun) url += 'dryRun=true&';
+    return url + 'onConflict=' + (libraryReplace && libraryReplace.checked ? 'replace' : 'skip');
+  }
+
+  function dryRunLibrary() {
+    if (!libraryDoc) return;
+    api('POST', libraryImportURL(true), libraryDoc)
+      .then(function (data) {
+        var report = data.report || {};
+        renderLibraryReport(report);
+        libraryActions.hidden = false;
+        setStatus('Nothing has changed yet. ' + libraryTally(report), 'ok');
+      })
+      .catch(function (error) {
+        // A refusal carries the same report, and it is the useful half of the
+        // answer: it names the entry this instance cannot store.
+        if (error.data && error.data.report) renderLibraryReport(error.data.report, error.message);
+        libraryActions.hidden = true;
+        setStatus(error.message, 'error');
+      });
+  }
+
+  if (libraryFile) {
+    libraryFile.addEventListener('change', function () {
+      clearLibraryReport();
+      var file = libraryFile.files && libraryFile.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          libraryDoc = JSON.parse(reader.result);
+        } catch (_) {
+          setStatus('That file is not a 3270Web library.', 'error');
+          return;
+        }
+        dryRunLibrary();
+      };
+      reader.onerror = function () { setStatus('That file could not be read.', 'error'); };
+      reader.readAsText(file);
+    });
+  }
+
+  // Changing the conflict answer re-asks the question rather than leaving a
+  // report on screen that describes the other policy.
+  if (libraryReplace) {
+    libraryReplace.addEventListener('change', dryRunLibrary);
+  }
+
+  if (libraryApply) {
+    libraryApply.addEventListener('click', function () {
+      if (!libraryDoc) return;
+      api('POST', libraryImportURL(false), libraryDoc)
+        .then(function (data) {
+          var report = data.report || {};
+          renderLibraryReport(report);
+          libraryActions.hidden = true;
+          libraryFile.value = '';
+          libraryDoc = null;
+          setStatus('Library imported. ' + libraryTally(report), 'ok');
+          return load();
+        })
+        .catch(function (error) {
+          if (error.data && error.data.report) renderLibraryReport(error.data.report, error.message);
+          setStatus(error.message, 'error');
+        });
     });
   }
 

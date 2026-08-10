@@ -1447,3 +1447,24 @@ table.admin-table {
   font-weight: 400;
   opacity: 0.75;
 }
+
+/* An import report is as long as the library it describes, which can be two
+   hundred entries. Bounding it keeps the Import button — the thing somebody
+   has come here to press — on the same screen as the summary of what it will
+   do, instead of a page and a half below the list. */
+.library-report .admin-table-scroll {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+/* Whether the table is what would happen or what did. It is the difference
+   between a preview and a receipt, and the words in the rows ("replaced")
+   cannot carry it on their own. */
+.library-report caption {
+  caption-side: top;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}

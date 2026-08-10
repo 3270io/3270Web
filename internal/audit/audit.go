@@ -63,6 +63,14 @@ const (
 	EventProfilePublished Event = "profile.published"
 	EventProfileRemoved   Event = "profile.removed"
 
+	// A library moves a deployment's tasks and host presets in one document.
+	// Both directions are recorded: the export because it is the moment a copy
+	// of the host list leaves the instance, and the import because it is a bulk
+	// change to what operators are offered that no per-preset line would show
+	// as one act.
+	EventLibraryExported Event = "library.exported"
+	EventLibraryImported Event = "library.imported"
+
 	// Opening is recorded; routine closing is not. Sessions end in four ways —
 	// the person closes one, the idle reaper takes it, the server restarts, an
 	// administrator disconnects it — and only the first and last have anybody

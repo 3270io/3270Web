@@ -212,6 +212,49 @@ by somebody who cannot edit it.
 
 ---
 
+## Moving a set-up to another instance
+
+Presets are usually built on a test instance and then have to appear on the
+production one. Retyping forty of them is where two environments start
+disagreeing about which mainframe a name points at, so **Admin → Session
+screen → Library** moves them as a file instead — together with the
+[Guided Business Tasks](business-tasks.md) recorded on the instance, because a
+task drives an application on a particular mainframe and a catalogue that
+arrives without its host list is a menu of operations none of which run.
+
+Download the library, take the file to the other instance, choose it there.
+Choosing it reports what it would change, entry by entry, and writes nothing;
+the import happens when you press **Import**. Whether an existing name is left
+alone or overwritten is a checkbox, and either way the report says which
+happened to each entry.
+
+A file this build cannot store in full is not stored at all. One malformed
+preset refuses the whole library, with that preset named — the alternative is
+storing the good half and leaving somebody to work out where it stopped, which
+is the state a library exists to avoid.
+
+What a library will not carry:
+
+- **Audiences that name individual accounts.** Those accounts exist only on
+  the instance the file came from, and a file handed to another site should
+  not carry a staff list. Groups and roles survive. A preset whose only
+  audience was named accounts arrives **not offered**, so a lost restriction
+  cannot quietly become "everyone".
+- **Nothing secret**, because a preset holds none: a host, a port, TLS
+  settings, an LU and a terminal model. Sign-on credentials are typed by the
+  person signing on.
+- **Tasks an installed extension contributed.** Install the extension at the
+  far end; copying its tasks would freeze a duplicate that stops changing when
+  the extension is updated.
+
+Each of these is written into the file's own `notes`, so the person opening it
+at the other end can see why an audience is narrower than it was. The same
+thing is on the API as `GET` and `POST /api/v1/library` — see
+[REST API](rest-api.md#get-apiv1library-and-post-apiv1library) — which is the
+form to use from a deployment pipeline.
+
+---
+
 ## Related
 
 - [User accounts and sign-in](authentication.md) — roles, and single sign-on

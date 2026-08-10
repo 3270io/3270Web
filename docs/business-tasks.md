@@ -313,6 +313,15 @@ done
 Imported tasks go through the same validation as everything else, so a task
 edited by hand in version control cannot reach the runner malformed.
 
+For moving a whole catalogue rather than one task, `GET` and
+`POST /api/v1/library` do it in one call each way — and carry the connection
+profiles with it, which is usually what a task catalogue needs at the far end
+to be worth anything. That import reports what it did entry by entry, can be
+asked what it *would* do first, and refuses a file it cannot store in full
+rather than storing half of it. See
+[REST API](rest-api.md#get-apiv1library-and-post-apiv1library), or
+**Admin → Session screen → Library** for the same thing without curl.
+
 ## Limits
 
 - 200 tasks in the catalogue, 100 steps in a task.

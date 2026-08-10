@@ -44,6 +44,12 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.POST("/tasks", app.APISaveTask)
 	g.POST("/sessions/:id/tasks/run", app.APIRunTask)
 
+	// The task catalogue and the host presets as one document, so a
+	// deployment's configuration moves in one call each way instead of one
+	// call per entry. GET returns exactly what POST accepts. See library.go.
+	g.GET("/library", app.LibraryExportHandler)
+	g.POST("/library", app.LibraryImportHandler)
+
 	// Skills and instructions are not session-scoped either — the catalogue
 	// is the same whichever host you are connected to, and a client will
 	// usually want to read it before opening a session at all.

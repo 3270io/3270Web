@@ -17,6 +17,12 @@ read before an evaluation; this one is for deciding what to build.
 
 Newest first. Every item here is live and documented.
 
+- **A deployment's set-up as a file** — the host presets and the recorded
+  tasks in one versioned document, so a second instance is configured by
+  importing rather than by retyping forty entries in the right order. It says
+  what it would change before it changes anything, and a file it cannot store
+  in full it does not store at all. See
+  [The session manager](session-manager.md#moving-a-set-up-to-another-instance).
 - **An accessibility claim with an audit behind it** — thirteen surfaces
   tested, four conformance failures fixed, and a statement that says where it
   falls short rather than only where it does not. See
@@ -204,8 +210,15 @@ proceed without them; procurement cannot.
       reaches several lands on a real 3270 selection screen. Branded, paged,
       and driven by the terminal's own keys. See
       [The session manager](session-manager.md)*
-- [ ] **Distributable task and profile libraries** — both are server-side
-      already; moving them between deployments is not solved
+- [x] **Distributable task and profile libraries** — *shipped: the recorded
+      tasks and the host presets as one versioned document, downloaded from one
+      deployment and imported into the next. The import says what it would do
+      before it does it, reports every entry, and refuses a file it cannot
+      store in full rather than storing half — because the state a library
+      exists to prevent is two instances quietly disagreeing about which
+      mainframe a name points at. Audiences naming individual accounts are left
+      out, since those accounts exist only where the file came from. See
+      [The session manager](session-manager.md#moving-a-set-up-to-another-instance)*
 
 ## Web-native and integration
 

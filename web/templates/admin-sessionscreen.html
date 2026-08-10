@@ -125,6 +125,72 @@
                     </div>
                 </form>
             </section>
+
+            <!-- Moving this configuration somewhere else. The presets above and
+                 the Guided Business Tasks recorded on this instance are the two
+                 halves of what a deployment is set up to do, and setting a
+                 second one up by retyping them is how two environments start
+                 disagreeing about which mainframe a name points at. -->
+            <section class="admin-section" aria-labelledby="library-title">
+                <div class="admin-section-head">
+                    <h2 id="library-title">Library</h2>
+                </div>
+                <p class="admin-dialog-desc">
+                    The host presets and the recorded tasks as one file, for
+                    carrying this instance's set-up to another one. Nothing
+                    secret travels in it — a preset holds a host, a port and its
+                    connection settings, never a sign-on — and audiences that
+                    name individual accounts are left out, because those accounts
+                    exist only here.
+                </p>
+
+                <div class="toolbar">
+                    <label class="visually-hidden" for="library-include">What to include</label>
+                    <select id="library-include" data-library-include>
+                        <option value="">Presets and tasks</option>
+                        <option value="profiles">Host presets only</option>
+                        <option value="tasks">Tasks only</option>
+                    </select>
+                    <button type="button" data-library-download>Download library</button>
+                </div>
+
+                <div class="field" style="margin-top:1rem">
+                    <label for="library-file">Import a library</label>
+                    <input type="file" id="library-file" accept="application/json,.json"
+                           data-library-file aria-describedby="library-file-hint">
+                    <div class="field-hint" id="library-file-hint">
+                        Choosing a file says what it would change. Nothing is
+                        written until you import it, and a file this instance
+                        cannot store in full is not stored at all.
+                    </div>
+                </div>
+
+                <div class="admin-table-wrap library-report" data-library-report hidden>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <caption data-library-caption></caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Entry</th>
+                                    <th scope="col">Kind</th>
+                                    <th scope="col">Result</th>
+                                    <th scope="col">Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody data-library-rows></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="auth-alert auth-alert--warn" data-library-notes hidden><span></span></div>
+
+                <div class="admin-dialog-actions" data-library-actions hidden>
+                    <label class="preset-check">
+                        <input type="checkbox" data-library-replace>
+                        Replace entries that are already here
+                    </label>
+                    <button type="button" data-library-apply>Import</button>
+                </div>
+            </section>
         </div>
     </div>
 
