@@ -376,16 +376,49 @@ screen-scraper that still speaks HLLAPI.
 
 ## AI-assisted use
 
-Build on the existing AI panel, chaos and workflow plumbing.
+Mostly shipped, and listed here because a section of unchecked boxes reads as
+though none of it exists.
 
-- [ ] **Natural-language → keystrokes** — "describe the screen action you
-      want" as a tool call
-- [ ] **One-click "Explain this screen"** — the panel already has
-      `get_screen`; a button can chain it with a fixed prompt
-- [ ] **AI-proposed task authoring** — let the assistant suggest the
-      parameters and outputs the wizard asks about, with a human confirming.
-      Nothing about Guided Business Tasks should *require* AI — that is the
-      difference between a differentiator and a dependency.
+What is live: a chat panel beside the terminal that **drives the session
+through a tool surface of about thirty calls** — read the screen, write a
+field, press an AID key, wait for the host, connect somewhere, run and steer a
+chaos exploration, annotate what it learns, catalogue a business function,
+generate a workflow from one. Six AI providers to choose between, each with
+its own credentials. Procedures kept as
+[skills and instructions](skills.md) in files, so an installation can add its
+own without editing a prompt. An [MCP server](mcp.md) over stdio and HTTP with
+safety tiers and a host allowlist, offering every Guided Business Task as a
+tool of its own. Per-call approval, and an auto mode that still stops at
+`ask_user`. And everything read from a host wrapped as untrusted data, because
+a screen can be made to read like an instruction and the assistant is told,
+in the prompt, not to take one from it.
+
+See [AI Chat Mode](ai-chat.md), [AI Providers](ai-providers.md),
+[Skills and Extensions](skills.md) and [MCP Server](mcp.md).
+
+What is left is narrower than the section used to imply:
+
+- [x] **Natural-language → keystrokes** — *shipped: this is what the tool
+      surface is. "Fill in the account number and press Enter" resolves to
+      `write_field` and `send_key` against the screen the assistant just
+      read, with the call shown before it runs unless auto mode is on*
+- [x] **AI-proposed task authoring** — *shipped by a different route than the
+      one imagined here: a chaos run's discovered business function converts
+      into a task draft, guards derived from the screen text the run captured,
+      for a human to confirm. Nothing about Guided Business Tasks requires AI
+      — the authoring wizard works from a plain recording — which is the
+      difference between a differentiator and a dependency*
+- [ ] **"Explain this screen" from the terminal, at any point** — it exists
+      as a starter chip on an empty chat, which is the one moment an operator
+      is least likely to need it. The screen worth explaining is the one that
+      appeared four transactions into a flow, and reaching the explanation
+      from there currently means typing the request
+- [ ] **An assistant that knows what this build can do** — the tool surface
+      grew out of chaos exploration and has not kept pace with the terminal
+      around it. Snapshots, the display toggles, the connection's own account
+      of itself, the task catalogue and now the printer session are all on the
+      API and none of them are tools, so an assistant asked whether 3270Web
+      can do those things has no way to find out that it can
 
 ## Where the leverage is
 
