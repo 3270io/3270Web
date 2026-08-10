@@ -109,6 +109,14 @@ func TestAPIv1DenyList(t *testing.T) {
 		t.Error("POST /api/v1/sessions/:id/tasks/run should be part of the token API")
 	}
 
+	// The printer session is on the token surface too, and for the same kind
+	// of reason: the case for a printer LU is unattended, so requiring a
+	// browser to collect the output would defeat it. Named here so that
+	// removing it reads as a decision rather than as a route going missing.
+	if w := doScoped(r, http.MethodGet, "/api/v1/sessions/"+sess.ID+"/printer", token); w.Code == http.StatusNotFound {
+		t.Error("GET /api/v1/sessions/:id/printer should be part of the token API")
+	}
+
 	for _, d := range denied {
 		// Both the bare path under /api/v1 and the session-scoped form.
 		for _, p := range []string{"/api/v1" + d.path, "/api/v1/sessions/" + sess.ID + d.path} {

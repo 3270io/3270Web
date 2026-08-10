@@ -30,6 +30,7 @@ var stateNames = []string{
 	"themes",
 	"snapshots",
 	"screen-traces",
+	printerSpoolDirName,
 	"skills",
 	"instructions",
 	"extensions",

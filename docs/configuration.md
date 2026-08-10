@@ -201,6 +201,7 @@ where the rest of the deployment is described.
 | `ALLOW_SCREEN_TRACE` | off | [Screen tracing](rest-api.md#apiv1sessionsidscreen-trace), which writes every screen the terminal draws to a file on the server — including whatever was typed into a field the host did not mark hidden |
 | `EMBED_ORIGINS` | unset | Framing the terminal in a page on another origin, and calling the API from one. Names the exact origins; there is no wildcard. See [Embedding 3270Web](embedding.md) |
 | `DATA_DIR` | beside the program | Where accounts, tokens, the audit trail and saved work are written. The Docker image sets `/data`; see [Keeping the state](multi-user.md#keeping-the-state) |
+| `PR3287_PATH` | found on the path | Where the `pr3287` binary is, for [printer sessions](printer-sessions.md). Not a gate — the feature is available wherever the binary is, and reports that it is not where it is missing |
 | `ALLOWED_HOSTS` | unset | Which mainframes this instance may connect to, as comma-separated globs, on every path. Unset means any host the usual validation allows — see [Limiting what an instance can reach](multi-user.md#limiting-what-an-instance-can-reach) |
 | `RATE_LIMIT_CONNECT` / `_CHAOS` / `_TRANSFER` / `_AI` / `_AICONTROL` | 20 / 10 / 20 / 60 / 120 | Requests a minute per account on the routes that cost the instance something. 0 turns one off |
 | `AUDIT_LOG_PATH` | `audit.log` beside the account store | Where the [audit trail](multi-user.md#the-audit-trail) is written. It is always on; this only moves it |

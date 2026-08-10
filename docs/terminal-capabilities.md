@@ -100,6 +100,22 @@ verbatim, so what you check is what gets dialled.
 | Dataset creation options — record format, record length, block size, space allocation | ✅ |
 | PDS member names (`USER.DATA(MEMBER)`) | ✅ |
 
+## Printer sessions
+
+| Capability | 3270Web |
+|---|:---:|
+| 3287 printer emulation — LU1 (SCS) and LU3 (3270) datastreams | ✅ |
+| Bind a named printer LU, or the printer associated with the display LU | ✅ |
+| Printer session follows the terminal's host, port and TLS terms | ✅ |
+| Jobs collected as files, downloadable from the browser or the API | ✅ |
+| Line length, code page, carriage control, formfeed and end-of-job handling | ✅ |
+| Printing to a printer physically attached to the operator's machine | ❌ |
+
+The last row is the honest one, and it is what a browser trades away
+everywhere else too: the job reaches the browser as a file, and what happens
+after that is the operating system's business. See
+[Printer sessions](printer-sessions.md).
+
 ## Accessibility
 
 | Capability | 3270Web |

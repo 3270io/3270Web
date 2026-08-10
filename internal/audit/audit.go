@@ -82,6 +82,12 @@ const (
 	EventSessionDenied Event = "session.denied"
 	EventSessionClosed Event = "session.closed"
 
+	// A printer session binds a second LU on the host in the account's name
+	// and writes what the host sends to it into a file on this server. Both
+	// halves are worth a line: which LU was taken, and by whom.
+	EventPrinterStarted Event = "printer.started"
+	EventPrinterStopped Event = "printer.stopped"
+
 	EventFileTransfer  Event = "file.transfer"
 	EventSettingsSaved Event = "settings.saved"
 	EventAppRestarted  Event = "app.restarted"

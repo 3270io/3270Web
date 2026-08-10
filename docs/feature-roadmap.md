@@ -88,10 +88,11 @@ The honest half, and the reason the next section exists. These are
 capabilities the established emulators have had for years and 3270Web does
 not:
 
-- **Printer sessions.** 3287 and 3812 emulation, LU1 (SCS) and LU3
-  datastreams, printer definition files. Standard equipment in the desktop
-  clients; absent here. A shop whose batch output arrives on a printer LU
-  cannot replace its emulator with 3270Web today.
+- **Printing to the operator's own printer.** A 3287 printer LU is now bound
+  and collected — see [Printer sessions](printer-sessions.md) — but the job
+  arrives in the browser as a file. An installed client can hand it to the
+  print spooler on the desk it is installed on; a browser tab cannot, and no
+  amount of work here changes that.
 - **Protocols beyond TN3270.** TN5250 for IBM i, and VT for everything
   else, usually ship in the same box. 3270Web speaks TN3270 and TN3270E
   only.
@@ -112,11 +113,12 @@ not:
 Derived from the section above. None of these make 3270Web better at what it
 is already good at — they remove reasons an evaluation stops early.
 
-- [ ] **3287 printer session** — LU1 (SCS) and LU3 (PDS) datastreams, with
-      output to a file, a browser download or a system printer. `pr3287`
-      ships alongside `s3270` and speaks both, so the protocol work is
-      largely a matter of driving it and deciding where a browser-delivered
-      terminal is allowed to send paper
+- [x] **3287 printer session** — *shipped: a printer LU bound beside the
+      terminal session, by name or as the display LU's associated printer, on
+      the same host and the same TLS terms. Each job the host prints arrives
+      as a file to download, from the panel or over the API. `pr3287` does the
+      protocol; what this adds is where a browser-delivered terminal is
+      allowed to send paper. See [Printer sessions](printer-sessions.md)*
 - [ ] **TN5250** — the same terminal, the same recording and task
       machinery, pointed at IBM i. A larger job than it looks: 5250 has its
       own field model and its own AID set, and pretending otherwise is how
@@ -141,6 +143,13 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **Somewhere for the batch output to go** — a 3287 printer LU bound beside
+  the terminal session, by name or as the associated printer of the display
+  LU the host bound, and always on the same host and TLS terms as the session
+  it belongs to. What the host prints arrives as a file to download rather
+  than as paper, which is the trade a browser makes; a job too large to keep
+  is named as truncated rather than quietly ending early. See
+  [Printer sessions](printer-sessions.md).
 - **A deployment's set-up as a file** — the host presets and the recorded
   tasks in one versioned document, so a second instance is configured by
   importing rather than by retyping forty entries in the right order. It says

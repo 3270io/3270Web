@@ -22,7 +22,7 @@ FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl s3270 \
+    && apt-get install -y --no-install-recommends ca-certificates curl s3270 pr3287 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 app \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /app app
