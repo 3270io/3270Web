@@ -141,8 +141,14 @@ func TestChoosingASystemSettlesOnTheScreenTheTerminalAsksFor(t *testing.T) {
 		t.Error("main.go: the screen the terminal fetches after a keystroke no longer settles a " +
 			"selection, so choosing a system waits for the key after it")
 	}
-	if !strings.Contains(body, "s.Host == nil") {
-		t.Error("main.go: ScreenContentHandler does not notice that settling ended the session")
+	// Checked as "reads the host under the lock, then decides on that value"
+	// rather than as the literal `s.Host == nil` this once pinned. That
+	// expression was itself the bug: an unlocked read racing the swap in
+	// resetSessionHost. Pinning the safe form keeps the behaviour this test
+	// exists for without inviting the race back.
+	if !strings.Contains(body, "h := app.sessionHost(s)") || !strings.Contains(body, "if h == nil {") {
+		t.Error("main.go: ScreenContentHandler does not notice that settling ended the session, " +
+			"or reads s.Host without the session lock")
 	}
 }
 

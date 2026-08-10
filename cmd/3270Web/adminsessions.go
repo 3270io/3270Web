@@ -13,6 +13,7 @@ import (
 
 	"github.com/jnnngs/3270Web/internal/audit"
 	"github.com/jnnngs/3270Web/internal/authz"
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -66,9 +67,14 @@ func (app *App) ownerNames() map[string]string {
 func (app *App) toAdminSessionView(s *session.Session, names map[string]string, now time.Time) adminSessionView {
 	var last time.Time
 	busy := false
+	var h host.Host
 	withSessionLock(s, func() {
 		last = s.LastAccess
 		busy = s.Playback != nil && s.Playback.Active
+		// Read inside the lock the rest of this already holds: a reconnect
+		// swapping s.Host while an administrator loads this page is a data
+		// race, and a session mid-swap could leave the interface nil.
+		h = s.Host
 	})
 	if !busy {
 		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil && eng.Active() {
@@ -85,7 +91,7 @@ func (app *App) toAdminSessionView(s *session.Session, names map[string]string, 
 		OwnerID:     s.OwnerID,
 		Host:        s.TargetHost,
 		Port:        s.TargetPort,
-		Connected:   s.Host.IsConnected(),
+		Connected:   h != nil && h.IsConnected(),
 		LastAccess:  last.UTC().Format(time.RFC3339),
 		IdleSeconds: idle,
 		Busy:        busy,
