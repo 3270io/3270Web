@@ -22,7 +22,7 @@ follows from it.
 The table describes **how each emulator is delivered and what it offers for
 automation** — facts each vendor states plainly and that rarely change from
 release to release. It is deliberately not a feature-by-feature grid: nobody
-can honestly audit nine products from the outside, and a tick in a column
+can honestly audit eight products from the outside, and a tick in a column
 you cannot verify is worse than no column at all. Each vendor's own
 documentation is the authority on that vendor's product. Rows were checked
 against published documentation in August 2026; if one is wrong or has gone
@@ -35,23 +35,19 @@ fixed.
 | **Quick3270** | Installed Windows application | Windows client and server, Citrix and Terminal Server | Commercial, per seat | VBScript macro language with an editor and debugger, EHLLAPI (32- and 64-bit), a session API and COM automation |
 | **Vista TN3270** | Installed Windows application | Windows | Commercial, low per-seat fee | Fully tailorable keyboard, multiple paste buffers, JCL-aware selection — aimed at the programmer at the keyboard |
 | **Mocha TN3270** | Installed application, one per platform | Windows, macOS, ChromeOS, iOS, Android | Commercial, per seat | Keyboard definition and user-defined function keys |
-| **IBM Personal Communications** (PCOMM) | Installed Windows application | Windows | Commercial, per seat | EHLLAPI, a session API (PCSAPI), macro and script support |
 | **HCL Z and I Emulator for Web** | Browser, served from an application server | Browser client; Windows, Linux or z server | Commercial, licensed per user | EHLLAPI and the host-access toolkit APIs, including a J2EE connector |
 | **Inventu Viewer+** (formerly Flynet Viewer) | Browser, served from a Windows server — no plug-in, no applet | Browser client; Windows Server | Commercial | Server-side screen integration, with generated web services |
 | **Ericom PowerTerm WebConnect HostView** | Browser, served from a central server | Browser client; Windows or Linux server | Commercial | Centrally managed sessions, with scripting in the PowerTerm client |
 | **x3270 / wc3270 / c3270 / s3270** | Installed command-line or X11 application | Linux, Unix, Windows, macOS | Open source (BSD-3-Clause) | The `s3270` scripting protocol — the same engine 3270Web drives |
-
-HCL also offers Z and I Emulator for Windows, built on the Personal
-Communications base, so that row describes both.
 
 ### Reading the table
 
 Three delivery models, and which one a product picked decides most of
 everything else about it.
 
-**Installed desktop clients** — Quick3270, Vista TN3270, Mocha TN3270,
-PCOMM, the x3270 family — have the deepest terminal fidelity and the widest
-set of integration points, because they have a whole operating system to
+**Installed desktop clients** — Quick3270, Vista TN3270, Mocha TN3270 and
+the x3270 family — have the deepest terminal fidelity and the widest set of
+integration points, because they have a whole operating system to
 reach into: an EHLLAPI library that a twenty-year-old binary can load, a
 printer session that appears as a real device, a COM object another desktop
 application can drive. What that costs is per-machine. Something is
