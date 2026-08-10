@@ -9,6 +9,19 @@
 (function () {
     "use strict";
 
+    // How much of one print job reaches the conversation. A job may be
+    // megabytes — a nightly report is exactly what a printer LU receives — and
+    // the download endpoint serves all of it, correctly, to a browser writing
+    // a file. Matches maxJobChars in internal/mcptools/bindings.go, so the two
+    // surfaces cut a long job at the same place.
+    const MAX_JOB_CHARS = 20000;
+
+    // How long to follow a task run, and how often to look. The ceiling is the
+    // server's own maxTaskRunDuration: past it there is nothing left to wait
+    // for, because the run's context has been cancelled.
+    const TASK_RUN_TIMEOUT_MS = 5 * 60 * 1000;
+    const TASK_POLL_MS = 750;
+
     async function getJSON(url) {
         const resp = await fetch(url, { credentials: "same-origin" });
         const text = await resp.text();
@@ -28,6 +41,18 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body || {}),
         });
+        const text = await resp.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (_) { data = { raw: text }; }
+        if (!resp.ok) {
+            const msg = (data && data.error) || resp.statusText || ("HTTP " + resp.status);
+            return { ok: false, error: msg, status: resp.status };
+        }
+        return { ok: true, data };
+    }
+
+    async function deleteJSON(url) {
+        const resp = await fetch(url, { method: "DELETE", credentials: "same-origin" });
         const text = await resp.text();
         let data = null;
         try { data = text ? JSON.parse(text) : null; } catch (_) { data = { raw: text }; }
@@ -321,6 +346,198 @@
             const res = await getJSON("/extensions");
             if (!res.ok) return { error: res.error };
             return res.data;
+        },
+
+        // What the terminal can do besides drive a screen: the connection's
+        // own account of itself, the display toggles, screen snapshots, the
+        // printer session and the saved task catalogue. Each of these was on
+        // the HTTP API before it was a tool, which meant an assistant asked
+        // whether 3270Web could do it had no way to find out that it could.
+        async get_connection_details(_args) {
+            const res = await getJSON("/host/query");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async get_display_toggles(_args) {
+            const res = await getJSON("/host/toggles");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async set_display_toggle(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            if (typeof (args && args.value) !== "boolean") {
+                return { error: "value required, and must be true or false" };
+            }
+            const res = await postJSON("/host/toggles", { name, value: args.value });
+            if (!res.ok) return { error: res.error };
+            // The toggle changes how the terminal draws, so the page has to
+            // re-read the screen or the operator sees the old rendering until
+            // something else happens to refresh it.
+            if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
+            return res.data;
+        },
+        async snapshot_take(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            const res = await postJSON("/screen/snapshots", { name });
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async snapshot_list(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (name) {
+                const one = await getJSON("/screen/snapshots?name=" + encodeURIComponent(name));
+                if (!one.ok) return { error: one.error };
+                return one.data;
+            }
+            const res = await getJSON("/screen/snapshots");
+            if (!res.ok) return { error: res.error };
+            // Names and sizes only. The listing carries every snapshot's full
+            // text, which is right for a caller that means to diff them itself
+            // and wrong for a model that asked what it is holding.
+            const held = (res.data && res.data.snapshots) || [];
+            return {
+                count: held.length,
+                snapshots: held.map(function (entry) {
+                    const snap = entry.snapshot || {};
+                    return {
+                        name: entry.name,
+                        taken_at: entry.taken_at,
+                        rows: snap.rows,
+                        cols: snap.cols,
+                        status: snap.status,
+                    };
+                }),
+            };
+        },
+        async snapshot_diff(args) {
+            const left = (args && String(args.left || "").trim()) || "";
+            if (!left) return { error: "left required" };
+            const body = { left };
+            const right = (args && String(args.right || "").trim()) || "";
+            if (right) body.right = right;
+            const res = await postJSON("/screen/snapshots/diff", body);
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async snapshot_delete(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            const res = await deleteJSON("/screen/snapshots?name=" + encodeURIComponent(name));
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async printer_status(_args) {
+            const res = await getJSON("/printer/status");
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        // The printer panel polls while it is open, so neither of these has to
+        // tell it anything: a printer the assistant started shows up there on
+        // its own within a poll.
+        async printer_start(args) {
+            const lu = (args && String(args.lu || "").trim()) || "";
+            const res = await postJSON("/printer/start", lu ? { lu } : { associate: true });
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async printer_stop(_args) {
+            const res = await postJSON("/printer/stop", {});
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
+        async printer_read_job(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required" };
+            const resp = await fetch("/printer/jobs/download?name=" + encodeURIComponent(name), {
+                credentials: "same-origin",
+            });
+            const text = await resp.text();
+            if (!resp.ok) {
+                let detail = text;
+                try { detail = (JSON.parse(text) || {}).error || text; } catch (_) { /* keep the body */ }
+                return { error: detail || ("HTTP " + resp.status) };
+            }
+            // A print job may be megabytes; a conversation may not be.
+            if (text.length > MAX_JOB_CHARS) {
+                return {
+                    name,
+                    truncated: true,
+                    bytes: text.length,
+                    text: text.slice(0, MAX_JOB_CHARS),
+                    note: "Only the first " + MAX_JOB_CHARS + " characters are shown. " +
+                        "The whole job is downloadable from the printer panel.",
+                };
+            }
+            return { name, truncated: false, bytes: text.length, text };
+        },
+        async list_tasks(_args) {
+            const res = await getJSON("/tasks");
+            if (!res.ok) return { error: res.error };
+            // The catalogue carries each task's recorded steps. What decides
+            // whether a task answers the user's question is its name, what it
+            // asks for and what it returns — the steps are how, and the model
+            // does not drive them itself.
+            const tasks = (res.data && res.data.tasks) || [];
+            return {
+                count: tasks.length,
+                tasks: tasks.map(function (t) {
+                    return {
+                        name: t.name,
+                        description: t.description,
+                        source: t.source,
+                        steps: Array.isArray(t.steps) ? t.steps.length : 0,
+                        parameters: (t.parameters || []).map(function (p) {
+                            return {
+                                name: p.name, description: p.description,
+                                required: !!p.required, example: p.example,
+                                sensitive: !!p.sensitive,
+                            };
+                        }),
+                        outputs: (t.outputs || []).map(function (o) { return o.label || o.name; }),
+                    };
+                }),
+            };
+        },
+        async run_task(args) {
+            const name = (args && String(args.name || "").trim()) || "";
+            if (!name) return { error: "name required — call list_tasks to see what is saved" };
+            const body = { name };
+            if (args && args.parameters && typeof args.parameters === "object") {
+                // Task parameters are strings. A model that sends an account
+                // number as 12345678 gets it coerced rather than a type error
+                // it cannot act on.
+                const params = {};
+                Object.keys(args.parameters).forEach(function (key) {
+                    const value = args.parameters[key];
+                    params[key] = value == null ? "" : String(value);
+                });
+                body.parameters = params;
+            }
+            const started = await postJSON("/tasks/run", body);
+            if (!started.ok) return { error: started.error };
+
+            // The browser's run is asynchronous so the panel can show it in
+            // flight; the model wants the answer. Poll to the same ceiling the
+            // server gives a run, then report the timeout rather than claiming
+            // an outcome nobody observed.
+            for (let waited = 0; waited < TASK_RUN_TIMEOUT_MS; waited += TASK_POLL_MS) {
+                await settle(TASK_POLL_MS);
+                const status = await getJSON("/tasks/status");
+                if (!status.ok) return { error: status.error };
+                if (status.data && status.data.running) continue;
+                if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
+                if (status.data && status.data.error) {
+                    return { task: name, completed: false, error: status.data.error };
+                }
+                return { task: name, result: (status.data && status.data.result) || null };
+            }
+            return {
+                task: name,
+                error: "the run was still going after " + (TASK_RUN_TIMEOUT_MS / 1000) +
+                    " seconds. Check the task panel; do not start it again.",
+            };
         },
     };
 

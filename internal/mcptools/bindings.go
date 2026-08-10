@@ -312,7 +312,207 @@ func bindings() map[string]Tool {
 				return passthrough(c, http.MethodGet, "/api/v1/extensions", nil, nil)
 			},
 		},
+
+		// --- The connection, and the terminal's own settings -------------
+		"get_connection_details": {
+			Tier: TierRead, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/query"), nil, nil)
+			},
+		},
+		"get_display_toggles": {
+			Tier: TierRead, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/toggles"), nil, nil)
+			},
+		},
+		"set_display_toggle": {
+			// Interactive, not read-only, because it changes the terminal —
+			// but not destructive and not open-world: nothing is transmitted
+			// to the host and no field is modified. What changes is how the
+			// display is drawn.
+			Tier: TierInteract, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				name := stringArg(c.Args, "name")
+				if name == "" {
+					return "", fmt.Errorf("name is required")
+				}
+				value, ok := c.Args["value"].(bool)
+				if !ok {
+					return "", fmt.Errorf("value is required and must be true or false")
+				}
+				return passthrough(c, http.MethodPost, sessionPath(c.SessionID, "/toggles"), nil,
+					map[string]any{"name": name, "value": value})
+			},
+		},
+
+		// --- Snapshots ---------------------------------------------------
+		// Taking, listing and comparing are the read tier: a snapshot reads
+		// the screen and keeps the answer in this process for the life of the
+		// session, and nothing reaches the host, which is what the tiers are
+		// about. Deleting is not reading, whatever it does or does not touch,
+		// and a connection that promised to observe should not offer it.
+		"snapshot_take": {
+			Tier: TierRead, OpenWorld: true, HostData: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				name := stringArg(c.Args, "name")
+				if name == "" {
+					return "", fmt.Errorf("name is required")
+				}
+				return passthrough(c, http.MethodPost, sessionPath(c.SessionID, "/snapshots"), nil,
+					map[string]any{"name": name})
+			},
+		},
+		"snapshot_list": {
+			Tier: TierRead, HostData: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				if name := stringArg(c.Args, "name"); name != "" {
+					return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/snapshots"),
+						url.Values{"name": {name}}, nil)
+				}
+				// The bare listing carries every snapshot's full text, which
+				// is right for a caller that means to diff them itself and
+				// wrong for a model that asked what it is holding. Summarised
+				// here rather than at the endpoint: the endpoint's shape is
+				// documented and something already depends on it.
+				res, err := c.Inv.Do(c.Ctx, http.MethodGet, sessionPath(c.SessionID, "/snapshots"), nil, nil)
+				if err != nil {
+					return "", err
+				}
+				if !res.OK() {
+					return strings.TrimSpace(string(res.Body)), nil
+				}
+				return summariseSnapshots(res.Body)
+			},
+		},
+		"snapshot_diff": {
+			Tier: TierRead, OpenWorld: true, HostData: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				left := stringArg(c.Args, "left")
+				if left == "" {
+					return "", fmt.Errorf("left is required")
+				}
+				body := map[string]any{"left": left}
+				if right := stringArg(c.Args, "right"); right != "" {
+					body["right"] = right
+				}
+				return passthrough(c, http.MethodPost, sessionPath(c.SessionID, "/snapshots/diff"), nil, body)
+			},
+		},
+		"snapshot_delete": {
+			Tier: TierInteract, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				name := stringArg(c.Args, "name")
+				if name == "" {
+					return "", fmt.Errorf("name is required")
+				}
+				return passthrough(c, http.MethodDelete, sessionPath(c.SessionID, "/snapshots"),
+					url.Values{"name": {name}}, nil)
+			},
+		},
+
+		// --- The printer session bound beside this one -------------------
+		"printer_status": {
+			Tier: TierRead, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/printer"), nil, nil)
+			},
+		},
+		"printer_start": {
+			// Open-world: it opens a second connection to the same host and
+			// asks it to bind an LU. Not destructive — nothing is printed by
+			// starting a printer, and stopping it leaves the jobs alone.
+			Tier: TierInteract, OpenWorld: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				body := map[string]any{}
+				if lu := stringArg(c.Args, "lu"); lu != "" {
+					body["lu"] = lu
+				} else {
+					body["associate"] = true
+				}
+				return passthrough(c, http.MethodPost, sessionPath(c.SessionID, "/printer"), nil, body)
+			},
+		},
+		"printer_stop": {
+			Tier: TierInteract, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				return passthrough(c, http.MethodDelete, sessionPath(c.SessionID, "/printer"), nil, nil)
+			},
+		},
+		"printer_read_job": {
+			Tier: TierRead, HostData: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				name := stringArg(c.Args, "name")
+				if name == "" {
+					return "", fmt.Errorf("name is required")
+				}
+				res, err := c.Inv.Do(c.Ctx, http.MethodGet, sessionPath(c.SessionID, "/printer/jobs"),
+					url.Values{"name": {name}}, nil)
+				if err != nil {
+					return "", err
+				}
+				if !res.OK() {
+					return strings.TrimSpace(string(res.Body)), nil
+				}
+				return clipJob(name, res.Body), nil
+			},
+		},
 	}
+}
+
+// maxJobChars bounds what one print job contributes to a conversation.
+//
+// A job may be megabytes — a nightly report is exactly the kind of thing a
+// printer LU receives — and the endpoint serves all of it, correctly, to a
+// caller that is writing a file. A model is not writing a file, and handing it
+// eight megabytes spends the context on a listing it was asked to summarise.
+const maxJobChars = 20000
+
+// clipJob returns a print job as the model should see it, cut short if it has
+// to be, and saying so rather than trailing off mid-line.
+func clipJob(name string, body []byte) string {
+	text := string(body)
+	if len(text) <= maxJobChars {
+		return text
+	}
+	return text[:maxJobChars] + fmt.Sprintf(
+		"\n\n[Job %s is %d bytes; the first %d are above. "+
+			"Download the whole file from the printer panel or GET the job with ?name= to read the rest.]",
+		name, len(body), maxJobChars)
+}
+
+// summariseSnapshots renders the snapshot listing without the screen text.
+func summariseSnapshots(body []byte) (string, error) {
+	// A pointer, so that a body without a "snapshots" key is told apart from
+	// one carrying an empty list. Both decode without error into a nil slice,
+	// and reporting a shape this does not recognise as "you are holding
+	// nothing" would be a confident wrong answer.
+	var payload struct {
+		Snapshots *[]struct {
+			Name     string `json:"name"`
+			TakenAt  string `json:"taken_at"`
+			Snapshot struct {
+				Rows   int    `json:"rows"`
+				Cols   int    `json:"cols"`
+				Status string `json:"status"`
+			} `json:"snapshot"`
+		} `json:"snapshots"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || payload.Snapshots == nil {
+		// Better the raw listing than nothing: the shape moved, and a model
+		// that can read JSON can still work with it.
+		return strings.TrimSpace(string(body)), nil
+	}
+	held := *payload.Snapshots
+	if len(held) == 0 {
+		return "This session is holding no snapshots. Take one with snapshot_take.", nil
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d snapshot(s) held. Call snapshot_list with a name to read one in full.\n", len(held))
+	for _, s := range held {
+		fmt.Fprintf(&b, "\n- %s (taken %s, %dx%d)", s.Name, s.TakenAt, s.Snapshot.Rows, s.Snapshot.Cols)
+	}
+	return b.String(), nil
 }
 
 // passthrough performs a request and returns its body as the model sees it.

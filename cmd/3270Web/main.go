@@ -427,6 +427,13 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET("/screen/print", app.PrintScreenHandler)
 	r.GET("/screen/history", app.ScreenHistoryHandler)
 
+	// Point-in-time screen copies and the comparison between two of them, by
+	// cookie. The same store the API surface uses. See snapshots.go.
+	r.POST("/screen/snapshots", app.SnapshotTakeHandler)
+	r.GET("/screen/snapshots", app.SnapshotListHandler)
+	r.DELETE("/screen/snapshots", app.SnapshotDeleteHandler)
+	r.POST("/screen/snapshots/diff", app.SnapshotDiffHandler)
+
 	// IND$FILE file transfer. See transfer.go.
 	r.POST("/transfer/send", app.TransferSendHandler)
 	r.POST("/transfer/receive", app.TransferReceiveHandler)

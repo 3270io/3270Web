@@ -143,6 +143,15 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **An assistant that knows what this build can do** — the terminal grew past
+  its own tool surface. Snapshots, the display toggles, the connection's own
+  account of itself, the printer session and the task catalogue were on the
+  API and nowhere an assistant could reach, so one asked whether 3270Web could
+  compare a screen against the one a flow used to land on answered from what
+  it could see — a keyboard and an exploration engine. They are tools now,
+  declared once and offered to the chat panel and the MCP server alike, which
+  also gives the panel the saved tasks it never had. See
+  [AI Chat Mode](ai-chat.md#beyond-the-screen).
 - **Somewhere for the batch output to go** — a 3287 printer LU bound beside
   the terminal session, by name or as the associated printer of the display
   LU the host bound, and always on the same host and TLS terms as the session
@@ -380,10 +389,12 @@ Mostly shipped, and listed here because a section of unchecked boxes reads as
 though none of it exists.
 
 What is live: a chat panel beside the terminal that **drives the session
-through a tool surface of about thirty calls** — read the screen, write a
+through a tool surface of about forty calls** — read the screen, write a
 field, press an AID key, wait for the host, connect somewhere, run and steer a
 chaos exploration, annotate what it learns, catalogue a business function,
-generate a workflow from one. Six AI providers to choose between, each with
+generate a workflow from one, run a saved task and report its answer, freeze a
+screen and say which rows moved since, read what the connection negotiated,
+change a display toggle, collect what the host printed. Six AI providers to choose between, each with
 its own credentials. Procedures kept as
 [skills and instructions](skills.md) in files, so an installation can add its
 own without editing a prompt. An [MCP server](mcp.md) over stdio and HTTP with
@@ -413,12 +424,17 @@ What is left is narrower than the section used to imply:
       is least likely to need it. The screen worth explaining is the one that
       appeared four transactions into a flow, and reaching the explanation
       from there currently means typing the request
-- [ ] **An assistant that knows what this build can do** — the tool surface
-      grew out of chaos exploration and has not kept pace with the terminal
-      around it. Snapshots, the display toggles, the connection's own account
-      of itself, the task catalogue and now the printer session are all on the
-      API and none of them are tools, so an assistant asked whether 3270Web
-      can do those things has no way to find out that it can
+- [x] **An assistant that knows what this build can do** — *shipped: the
+      capabilities that were on the API and nowhere a model could reach are
+      tools now. Snapshots — take, list, diff, delete — so a flow can be
+      checked against the screen it used to land on; the display toggles; the
+      connection's own account of itself; the printer session and the jobs it
+      has collected; and the Guided Business Task catalogue, with a run that
+      waits and returns the answer rather than the step list. Declared once
+      and offered on both surfaces, the chat panel and the
+      [MCP server](mcp.md), and named in the system prompt — a tool a model
+      has to guess at is a capability it will tell the user this build does
+      not have. See [AI Chat Mode](ai-chat.md#beyond-the-screen)*
 
 ## Where the leverage is
 

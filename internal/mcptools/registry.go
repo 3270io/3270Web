@@ -133,12 +133,20 @@ type Tool struct {
 // ReadOnly reports whether the tool only observes.
 func (t Tool) ReadOnly() bool { return t.Tier == TierRead && !t.Destructive }
 
-// omitted are tools declared to the browser panel that have no meaning over
-// MCP, with the reason. ask_user asks the operator through the panel's own
-// UI; an MCP client is already a conversation with the user and asks them
-// directly.
+// omitted are tools in the shared catalogue that this registry deliberately
+// does not bind, with the reason.
+//
+// Two reasons appear here. ask_user has no meaning over MCP at all: it asks
+// the operator through the panel's own UI, and an MCP client is already a
+// conversation with the user and asks them directly. The task pair has a
+// meaning but a better implementation elsewhere — cmd/3270Web builds a tool
+// per saved task from the same catalogue and keeps it in step as the catalogue
+// changes, which a generic HTTP passthrough cannot do. Binding them here as
+// well would register each name twice on one server.
 var omitted = map[string]string{
-	"ask_user": "an MCP client asks the user directly",
+	"ask_user":   "an MCP client asks the user directly",
+	"list_tasks": "cmd/3270Web serves the task catalogue itself, with a tool per task",
+	"run_task":   "cmd/3270Web serves the task catalogue itself, with a tool per task",
 }
 
 // registry is the joined catalogue, built once at init.

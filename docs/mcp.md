@@ -128,11 +128,18 @@ environment variable. **The default is `interactive`.**
 
 | `MCP_TOOLS` | Adds | For |
 |---|---|---|
-| `readonly` | `get_screen`, `wait_for_unlock`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_tasks`, `list_sessions` | Reading and reporting on a session someone else is driving |
-| `interactive` *(default)* | + `send_key`, `write_field`, `submit_screen`, `move_cursor`, `connect_session`, `use_session`, the hint and annotation writes, `run_task` and the generated `task_*` tools | Driving a session the way a person at the keyboard would |
+| `readonly` | `get_screen`, `wait_for_unlock`, `get_connection_details`, `get_display_toggles`, `snapshot_take`, `snapshot_list`, `snapshot_diff`, `printer_status`, `printer_read_job`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_tasks`, `list_sessions` | Reading and reporting on a session someone else is driving |
+| `interactive` *(default)* | + `send_key`, `write_field`, `submit_screen`, `move_cursor`, `connect_session`, `use_session`, `set_display_toggle`, `snapshot_delete`, `printer_start`, `printer_stop`, the hint and annotation writes, `run_task` and the generated `task_*` tools | Driving a session the way a person at the keyboard would |
 | `full` | + `chaos_start`, `chaos_stop`, `chaos_resume` | Automated chaos exploration |
 
 Each tier includes the ones below it.
+
+Taking a snapshot is in the read tier even though it stores something. What it
+stores is a copy of the screen held in this process for the life of the
+session, and nothing reaches the host — which is what the tiers are about. So
+a read-only connection can still capture a screen and ask what moved since,
+which is most of the point of having snapshots. Deleting one is in the tier
+above, because deleting is not reading.
 
 Chaos is a tier of its own not because a single key press is safer than
 another, but because a person pressing keys is watching and an unattended
