@@ -674,10 +674,13 @@
 
     // -- Empty state -------------------------------------------------------
 
+    // The screen chip goes through explainScreen rather than sending its own
+    // label as text, so the chip and the Terminal-menu item are the same ask
+    // and both pin the screen they were pressed on.
     const EXAMPLE_PROMPTS = [
-        "Explain the current screen",
-        "Run chaos monkey to explore this app",
-        "Give me a business overview of this app",
+        { label: "Explain this screen", run: () => explainScreen() },
+        { label: "Run chaos monkey to explore this app" },
+        { label: "Give me a business overview of this app" },
     ];
 
     function renderEmptyState() {
@@ -699,8 +702,10 @@
             const chip = document.createElement("button");
             chip.type = "button";
             chip.className = "copilot-example-chip";
-            chip.textContent = p;
-            chip.addEventListener("click", function () { send(p); });
+            chip.textContent = p.label;
+            chip.addEventListener("click", function () {
+                if (p.run) p.run(); else send(p.label);
+            });
             chips.appendChild(chip);
         });
         wrap.appendChild(chips);
@@ -1742,7 +1747,9 @@
         }
         for (const m of history) {
             if (m.role === "user") {
-                appendMessage("user", m.content || "");
+                // `display` is set when the turn carried a pinned screen; the
+                // bubble shows what was asked, not what was attached to it.
+                appendMessage("user", m.display || m.content || "");
             } else if (m.role === "assistant") {
                 if (m.content) appendMessage("assistant", m.content);
                 if (Array.isArray(m.tool_calls)) {
@@ -1757,11 +1764,86 @@
         scrollToBottom(true);
     }
 
-    async function send(text) {
+    // -- Explain this screen ----------------------------------------------
+
+    // The screen worth explaining is hardly ever the first one. It is the one
+    // that arrived four transactions into a flow, which is exactly the screen
+    // the host is most likely to replace while the question is being asked —
+    // an inactivity timeout, a broadcast message, the next panel of a
+    // conversational transaction. An assistant told only "explain this screen"
+    // reads the display a round later and explains whatever is there by then,
+    // which is worse than not answering: it is a confident answer about a
+    // screen nobody asked about.
+    //
+    // So the ask carries its own evidence. The screen is captured at the
+    // moment the operator asks for it and travels with the question.
+
+    const EXPLAIN_ASK = "Explain this screen.";
+
+    // captureScreenBlock reads the display as it stands and formats it for the
+    // model. Returns "" if there is nothing to capture — not connected, or the
+    // read failed — in which case the question is still worth asking, it just
+    // arrives without a pinned screen.
+    async function captureScreenBlock() {
+        let data;
+        try {
+            const resp = await fetch("/screen.json", { credentials: "same-origin" });
+            if (!resp.ok) return "";
+            data = await resp.json();
+        } catch (_) {
+            return "";
+        }
+        if (!data || typeof data.text !== "string" || !data.text.trim()) return "";
+
+        const lines = [];
+        lines.push("## The screen the operator is asking about");
+        lines.push("Captured from the display at the moment the question was asked. "
+            + "Explain THIS screen, not whatever get_screen returns now — the host may "
+            + "have redrawn since.");
+        if (data.status) lines.push("- Status: " + data.status);
+        if (data.hasCursor) {
+            lines.push("- Cursor: row " + data.cursorRow + ", col " + data.cursorCol);
+        }
+        const fields = Array.isArray(data.fields) ? data.fields : [];
+        const inputs = fields.filter(function (f) { return f && !f.protected; });
+        lines.push("- Input fields: " + inputs.length
+            + (data.formatted ? "" : " (unformatted screen)"));
+        lines.push("");
+        lines.push("```");
+        lines.push(data.text.replace(/\s+$/, ""));
+        lines.push("```");
+        // Hidden fields are already masked server-side (screen_redaction.go),
+        // so no password reaches the provider or the persisted transcript.
+        return wrapUntrustedHostContent(lines.join("\n"));
+    }
+
+    // explainScreen is the whole point of the affordance: one click, from the
+    // terminal, at any point in a conversation — including a conversation that
+    // is already forty messages long, where the starter chips are long gone.
+    async function explainScreen() {
+        setOpen(true);
+        if (sendInFlight) {
+            appendMessage("error", "The assistant is still working on the last message — "
+                + "ask again once it has finished.");
+            return;
+        }
+        const pinned = await captureScreenBlock();
+        await send(EXPLAIN_ASK, { pinned });
+    }
+
+    // send commits one user turn. `opts.pinned`, when present, is host-derived
+    // text captured at the moment the ask was made — see explainScreen. It is
+    // carried in the history message rather than in the per-turn context block
+    // so that a follow-up question ("what is the field on line 12 for?") still
+    // has the screen the conversation is about, and shown in the transcript as
+    // `opts.display` so the bubble stays the sentence the operator asked
+    // rather than eighty columns of green screen.
+    async function send(text, opts) {
         text = String(text || "").trim();
         if (!text) return;
         if (sendInFlight) return;
         sendInFlight = true;
+        const pinned = (opts && opts.pinned) ? String(opts.pinned) : "";
         try {
             if (!toolSchema) {
                 try {
@@ -1795,7 +1877,9 @@
             }
             await refreshConnectionState();
 
-            history.push({ role: "user", content: text });
+            history.push(pinned
+                ? { role: "user", content: text + "\n\n" + pinned, display: text }
+                : { role: "user", content: text });
             saveHistory();
             appendMessage("user", text);
             clearInput();
@@ -1958,8 +2042,24 @@
         });
     }
 
+    // Every "Explain this screen" control on the page — the Terminal menu, the
+    // button in the composer, and anything the command palette clicks on their
+    // behalf — reaches the same function. Delegated from the document rather
+    // than bound per control, so a trigger added to a template later works
+    // with no second registration to remember.
+    function attachExplainTriggers() {
+        document.addEventListener("click", function (event) {
+            const target = event.target;
+            if (!target || typeof target.closest !== "function") return;
+            if (!target.closest("[data-explain-screen]")) return;
+            event.preventDefault();
+            explainScreen();
+        });
+    }
+
     function init() {
         attachToolbarToggle();
+        attachExplainTriggers();
         attachInputHandlers();
         renderHistoryAfterLoad();
         // Switching provider changes the header, the credential prompt and the
@@ -1985,5 +2085,6 @@
         close: () => setOpen(false),
         clear: clearHistory,
         settings: () => window.AIProvider.openSettings(),
+        explainScreen,
     };
 })();

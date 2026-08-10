@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=20">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=21">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
@@ -84,8 +84,8 @@
          init to render whichever backend is selected. -->
     <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=5" defer></script>
-    <script src="/static/ui-polish.js?v=11" defer></script>
+    <script src="/static/copilot-panel.js?v=6" defer></script>
+    <script src="/static/ui-polish.js?v=12" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
          origin. See web/static/embed.js. -->
@@ -187,6 +187,15 @@
                             <button type="button" class="appmenu-item" role="menuitem" data-history-open>
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 7 7 6.97 6.97 0 0 1-4.95-2.05l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
                                 <span class="appmenu-label">Screen history</span>
+                            </button>
+                            <!-- The assistant's read of the panel in front of
+                                 you. It belongs beside Find and Screen history
+                                 because it is a screen tool: what it explains
+                                 is this screen, captured when you ask, not
+                                 whichever one the host draws next. -->
+                            <button type="button" class="appmenu-item" role="menuitem" data-explain-screen>
+                                <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
+                                <span class="appmenu-label">Explain this screen<span class="appmenu-sub">Ask the assistant what you are looking at</span></span>
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
                             <button type="button" class="appmenu-item" role="menuitem" data-transfer-open>
@@ -1239,6 +1248,18 @@ Select = Enter"></textarea>
             <span class="copilot-provider-name" data-copilot-provider-name></span>
         </div>
         <form class="copilot-panel-form" data-copilot-form>
+            <!-- The same ask as the Terminal menu's, kept in the composer
+                 because the starter chips only exist on an empty chat, and an
+                 operator with a conversation already going is the one most
+                 likely to reach a screen worth explaining. -->
+            <button
+                type="button"
+                class="copilot-explain"
+                data-explain-screen
+                data-tippy-content="Explain this screen"
+                aria-label="Explain this screen">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
+            </button>
             <textarea
                 rows="2"
                 placeholder="Ask about the screen, or say what to do…"

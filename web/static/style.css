@@ -4982,6 +4982,39 @@ body.copilot-open .page-wrap {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
 }
+/* Explain-this-screen, in the composer. Sits at the same baseline as Send
+   and reads as an accessory to the box rather than a second submit, so the
+   quiet border stays until it is hovered or focused. */
+.copilot-explain {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.copilot-explain svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.copilot-explain:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.copilot-explain:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .copilot-send {
   align-self: flex-end;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
