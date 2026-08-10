@@ -76,6 +76,14 @@ body {
   border-left: 1px solid var(--hairline-soft);
   overflow-x: auto;
   scrollbar-width: none;
+  /* The row scrolls sideways, and a box that scrolls in one axis clips in
+     both: the open trigger's 1px top border sat a hair outside this box's
+     padding edge and was simply not painted, so a menu read as open on
+     three sides. The padding moves the clip edge clear of it and the
+     negative margin gives the height straight back, so the bar does not
+     grow to pay for a border. */
+  padding-block: 3px;
+  margin-block: -3px;
 }
 
 .appbar-menus::-webkit-scrollbar {
@@ -952,6 +960,34 @@ body.touch-device .appmenu-select {
 
 body.touch-device .appbar .session-tab {
   min-height: 40px;
+}
+
+/* The tab is the container; the button inside it is what a finger lands on,
+   and that was still 26px tall. The close cross beside it was 14px wide and
+   sat right against the label, which is not a small target so much as two
+   targets a thumb cannot tell apart — the miss switches session instead of
+   closing one, or closes one instead of switching. */
+body.touch-device .appbar .session-tab-label {
+  min-height: 40px;
+  touch-action: manipulation;
+}
+
+body.touch-device .appbar .session-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  touch-action: manipulation;
+}
+
+/* Narrow screens drop this button's words, which left a 28px square. It
+   opens a session — it can afford a thumb's worth of room. */
+body.touch-device .session-tab-new {
+  min-width: 44px;
+  min-height: 40px;
+  justify-content: center;
+  touch-action: manipulation;
 }
 
 /* The size steppers are .icon-button, so touch.css has already given them

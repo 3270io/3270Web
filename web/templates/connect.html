@@ -50,9 +50,17 @@
          chrome-less terminal behind a full-chrome connect form is worse than
          either on its own. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
+    <!-- Touch support. Every rule is behind body.touch-device, which touch.js
+         adds only on a coarse pointer, so a desktop renders unchanged.
+         touch.js already knows this page has no terminal and builds no key
+         bar here; what it does do is mark the body, which is what gives the
+         connect form thumb-sized controls. Without the pair loaded, the first
+         page an operator meets on a phone was the one page with none of it. -->
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=6">
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
+    <script src="/static/touch.js?v=4" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js" defer></script>
     <script src="/static/ui.js?v=22" defer></script>

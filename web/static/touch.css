@@ -147,6 +147,23 @@
   white-space: nowrap;
 }
 
+/* On a phone in portrait the six primary keys and the drawer toggle share
+ * under 50px each, and at the default size every label longer than three
+ * characters was cut off mid-word: the Enter key read "Ente" and Reset read
+ * "Rese". These are the keys somebody presses without looking, so the row
+ * keeps its one-row shape — a key that has moved is worse than a key that is
+ * small — and the type comes down until the words fit. */
+@media (max-width: 560px) {
+  .touch-key-row {
+    gap: 4px;
+  }
+
+  .touch-key-row--primary .touch-key {
+    padding-inline: 3px;
+    font-size: 0.8rem;
+  }
+}
+
 .touch-key:active {
   background: var(--accent-soft, rgba(120, 180, 255, 0.28));
   transform: translateY(1px);
@@ -209,6 +226,23 @@ body.touch-device .copilot-panel-form textarea {
   font-size: 16px;
 }
 
+/* The chat panel is full-screen furniture on a phone and its own controls
+ * were still mouse-sized: a 27px close cross in the corner, 26px header
+ * buttons and 30px example chips. The chips in particular are the panel's
+ * invitation to try it, and they were the hardest thing on it to hit. */
+body.touch-device .copilot-icon-button,
+body.touch-device .copilot-example-chip,
+body.touch-device .copilot-connect-btn,
+body.touch-device .copilot-panel-form button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+body.touch-device .copilot-icon-button {
+  min-width: 40px;
+  justify-content: center;
+}
+
 /* ---- Reaching the rest of the interface ------------------------------ */
 
 /* Toolbar and modal controls are sized for a mouse pointer. A finger needs
@@ -243,6 +277,28 @@ body.touch-device .ai-primary-btn,
 body.touch-device .copilot-modal-footer button {
   min-height: 44px;
   touch-action: manipulation;
+}
+
+/* The connect form and the dialogs it opens.
+ *
+ * These are plain buttons in a card rather than toolbar or icon furniture, so
+ * none of the rules above reached them, and they came out at 33-37px — on the
+ * one page every phone user meets before anything else. The host field is
+ * included for the 16px: it is the field somebody types into on this page, and
+ * below 16px iOS Safari zooms in on focus and does not zoom back out. */
+body.touch-device .connect-row button,
+body.touch-device .modal button,
+body.touch-device .saved-hosts-row button,
+body.touch-device .auth-submit,
+body.touch-device .auth-form button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+body.touch-device .connect-row input,
+body.touch-device .auth-form input {
+  min-height: 44px;
+  font-size: 16px;
 }
 
 /* An 80-column screen does not fit across a phone. Scrolling it sideways is
