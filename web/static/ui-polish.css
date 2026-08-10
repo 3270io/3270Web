@@ -2438,6 +2438,159 @@ body[data-hotspots="off"] .screen-hotspot {
   padding: 1px 8px;
 }
 
+/* Printer session — see printer.js. The panel is a short form and a list, and
+   the list is the part that matters: an operator opens this because something
+   was printed, not because they want to admire the options.
+
+   The dialog is 420px like every other one, so everything here is written to
+   fit that rather than to widen it: labels sit above their inputs, and both
+   the form and the fieldset carry min-width: 0. A fieldset does not shrink
+   below its content on its own — its default min-width is min-content — which
+   is exactly how a form like this ends up hanging out of the dialog it is in. */
+.printer-status {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.printer-status[data-error] {
+  color: var(--danger, #d9534f);
+}
+
+.printer-status[hidden] {
+  display: none;
+}
+
+.printer-form {
+  min-width: 0;
+}
+
+.printer-form fieldset {
+  min-width: 0;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 6px;
+  margin: 12px 0 0;
+  padding: 10px 12px 12px;
+}
+
+.printer-form legend {
+  padding: 0 6px;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+/* A disabled fieldset means a printer is already bound; the greying is the
+   only cue that the form is not the thing to use next. */
+.printer-form fieldset[disabled] {
+  opacity: 0.55;
+}
+
+.printer-choice {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.printer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px 0;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.printer-field-label {
+  color: var(--fg-muted);
+}
+
+.printer-form input[type="text"],
+.printer-form input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+
+.printer-check {
+  display: block;
+  font-size: 0.82rem;
+  margin: 4px 0;
+}
+
+.printer-advanced {
+  margin-top: 10px;
+}
+
+.printer-advanced summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+.printer-jobs-heading {
+  margin: 16px 0 6px;
+  font-size: 0.85rem;
+}
+
+.printer-jobs-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.printer-job-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 32vh;
+  overflow-y: auto;
+}
+
+.printer-job {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+
+.printer-job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.printer-job-size {
+  color: var(--fg-muted);
+  font-family: var(--mono);
+}
+
+.printer-job-truncated {
+  color: var(--danger, #d9534f);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.printer-job-actions {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.printer-job-download,
+.printer-job-delete {
+  font-size: 0.78rem;
+}
+
 /* The cursor when it is resting on protected text — see the "Cursor over
    protected text" section of keyboard.js. It is drawn as an underscore rather
    than a block so the character underneath stays readable, which is what a

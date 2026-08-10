@@ -159,6 +159,10 @@
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
                                 <span class="appmenu-label">Print screen</span>
                             </button>
+                            <button type="button" class="appmenu-item" role="menuitem" data-printer-open>
+                                <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12v4H6V3zm13 6H5a3 3 0 0 0-3 3v5h4v4h12v-4h4v-5a3 3 0 0 0-3-3zm-3 10H8v-4h8v4zm2.5-6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+                                <span class="appmenu-label">Printer session<span class="appmenu-sub">Bind a 3287 LU, collect its jobs</span></span>
+                            </button>
                             <div class="appmenu-sep" role="separator"></div>
                             <a class="appmenu-item appmenu-item-danger" role="menuitem" href="/disconnect" data-disconnect-open>
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.92 6.92 0 0 1 19 12a7 7 0 0 1-14 0 6.92 6.92 0 0 1 2.59-5.41L6.17 5.17A8.93 8.93 0 0 0 3 12a9 9 0 0 0 18 0 8.93 8.93 0 0 0-3.17-6.83z"/></svg>
@@ -766,6 +770,68 @@
             </div>
         </div>
     </div>
+    <!-- Printer session. Batch output on a mainframe does not come back on the
+         display: the host binds a separate 3287 printer LU and sends the job
+         there. There is no printer attached to the server, so each job lands
+         here as a file and the operator takes it from this panel. -->
+    <div class="modal-backdrop" data-printer-modal hidden>
+        <div class="modal modal-printer" role="dialog" aria-modal="true" aria-labelledby="printer-modal-title" aria-describedby="printer-modal-desc" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="printer-modal-title">Printer session</h3>
+                <button type="button" class="modal-close" data-printer-close>Close</button>
+            </div>
+            <p id="printer-modal-desc">Bind a 3287 printer LU alongside this terminal session, on the same host. Jobs the host prints arrive here as files — download the ones you need before the session ends.</p>
+            <div data-printer-status class="printer-status" role="status" aria-live="polite">Loading…</div>
+
+            <form data-printer-form class="printer-form">
+                <fieldset data-printer-fields>
+                    <legend>Which LU</legend>
+                    <label class="printer-choice">
+                        <input type="radio" name="printer-bind" value="associate" data-printer-bind checked>
+                        <span>The printer associated with this session&rsquo;s display LU</span>
+                    </label>
+                    <label class="printer-choice">
+                        <input type="radio" name="printer-bind" value="lu" data-printer-bind>
+                        <span>A printer LU by name</span>
+                    </label>
+                    <label class="printer-field">
+                        <span class="printer-field-label">Printer LU</span>
+                        <input type="text" data-printer-lu placeholder="PRT001" autocomplete="off" spellcheck="false" maxlength="64" disabled>
+                    </label>
+
+                    <details class="printer-advanced">
+                        <summary>Print options</summary>
+                        <label class="printer-field">
+                            <span class="printer-field-label">Line length (MPP)</span>
+                            <input type="number" data-printer-mpp min="40" max="256" placeholder="132">
+                        </label>
+                        <label class="printer-field">
+                            <span class="printer-field-label">Code page</span>
+                            <input type="text" data-printer-codepage placeholder="cp037" autocomplete="off" spellcheck="false" maxlength="32">
+                        </label>
+                        <label class="printer-field">
+                            <span class="printer-field-label">End-of-job timeout (seconds)</span>
+                            <input type="number" data-printer-eoj min="0" max="3600" placeholder="0">
+                        </label>
+                        <label class="printer-check"><input type="checkbox" data-printer-crlf checked> End lines with CR/LF</label>
+                        <label class="printer-check"><input type="checkbox" data-printer-blanklines> Keep blank lines</label>
+                        <label class="printer-check"><input type="checkbox" data-printer-ffskip checked> Ignore a formfeed at the top of a page</label>
+                        <label class="printer-check"><input type="checkbox" data-printer-ffthru> Pass formfeeds through (SCS)</label>
+                        <label class="printer-check"><input type="checkbox" data-printer-ignoreeoj> Ignore the host&rsquo;s end-of-job</label>
+                        <label class="printer-check"><input type="checkbox" data-printer-skipcc> Drop ASA carriage control</label>
+                    </details>
+                </fieldset>
+                <div class="modal-actions">
+                    <button type="submit" data-printer-start>Start printer</button>
+                    <button type="button" data-printer-stop hidden>Stop printer</button>
+                    <button type="button" data-printer-refresh>Refresh</button>
+                </div>
+            </form>
+
+            <h4 class="printer-jobs-heading">Print jobs</h4>
+            <div data-printer-jobs class="printer-jobs"></div>
+        </div>
+    </div>
     <div class="modal-backdrop" data-chaos-runs-modal hidden>
         <div class="modal modal-chaos-runs" role="dialog" aria-modal="true" aria-labelledby="chaos-runs-modal-title" tabindex="-1">
             <div class="modal-header">
@@ -1198,6 +1264,7 @@ Select = Enter"></textarea>
     </div>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/host-details.js" defer></script>
+    <script src="/static/printer.js" defer></script>
     <script src="/static/logs.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/session-expiry.js?v=2" defer></script>

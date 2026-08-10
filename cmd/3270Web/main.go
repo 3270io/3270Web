@@ -37,6 +37,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/oidc"
+	"github.com/jnnngs/3270Web/internal/printer"
 	"github.com/jnnngs/3270Web/internal/render"
 	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
@@ -142,6 +143,10 @@ type App struct {
 	snapshotStoreOnce sync.Once
 	screenTraceStore  *screenTraceStore
 	screenTraceOnce   sync.Once
+	// printerStore holds the 3287 printer session bound beside a terminal
+	// session, and where its jobs are spooled. See printer.go.
+	printerStore *printerStore
+	printerOnce  sync.Once
 	// catalogueFields holds the skills/instructions/extensions catalogue and
 	// the per-conversation load trackers. See skills.go.
 	catalogueFields
@@ -425,6 +430,16 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// IND$FILE file transfer. See transfer.go.
 	r.POST("/transfer/send", app.TransferSendHandler)
 	r.POST("/transfer/receive", app.TransferReceiveHandler)
+
+	// The 3287 printer session bound beside this one, and the jobs the host
+	// has sent it. See printer.go.
+	r.GET("/printer/status", app.PrinterStatusHandler)
+	r.POST("/printer/start", app.PrinterStartHandler)
+	r.POST("/printer/stop", app.PrinterStopHandler)
+	r.GET("/printer/jobs", app.PrinterJobsHandler)
+	r.GET("/printer/jobs/download", app.PrinterJobDownloadHandler)
+	r.POST("/printer/jobs/delete", app.PrinterJobDeleteHandler)
+
 	r.POST("/submit", app.SubmitHandler)
 	r.POST("/submit/async", app.SubmitAsyncHandler)
 	r.POST("/prefs", app.PrefsHandler)
@@ -573,6 +588,13 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "token" {
 		os.Exit(runTokenCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	// The print spool helper, which pr3287 runs for each finished job. It
+	// reads the job on stdin and must not start a server or raise a window
+	// either, so it is dispatched with the other subcommands. See
+	// printspool.go.
+	if len(os.Args) > 1 && os.Args[1] == printer.SpoolSubcommand {
+		os.Exit(runPrintSpool(os.Args[2:], os.Stdin, os.Stderr))
 	}
 
 	installDir := resolveBaseDir()
@@ -1169,6 +1191,11 @@ func (app *App) cleanupSession(s *session.Session) {
 	if app.screenTraceStore != nil {
 		app.screenTraceStore.forget(s.ID)
 	}
+	// A printer session is the one piece of per-session state with a process
+	// and a directory behind it, so ending the session has to end both: the
+	// process holds an LU bound on the host, and the spool holds output that
+	// nothing can reach once the session that owned it is gone.
+	app.stopPrinterFor(s.ID)
 	// Which skills a conversation has already been given is only meaningful
 	// while that conversation exists, and the map would otherwise grow by one
 	// entry per session for the life of the process.
