@@ -625,6 +625,20 @@ It is deliberately read-only: you cannot type into a screen from five
 minutes ago, and pretending otherwise would be worse than not offering
 it. History is per session and does not survive a disconnect.
 
+## Explaining a screen
+
+**Terminal → Explain this screen** (also in the command palette, and as the
+bulb button beside the chat input) asks the AI assistant what the screen in
+front of you is — useful for an unfamiliar transaction, or a panel several
+steps into a flow somebody else recorded.
+
+The screen is captured as you ask and sent with the question, so the answer
+describes the screen that prompted it rather than whatever the host has
+redrawn by the time the assistant replies. Follow-up questions are answered
+against the same screen. Hidden password fields are masked before anything
+leaves 3270Web. Setting up a provider is covered in
+[AI Chat Mode](ai-chat.md).
+
 ## Copying from the screen
 
 The screen is rendered as text with input fields spliced into it, so

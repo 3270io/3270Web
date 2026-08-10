@@ -156,6 +156,15 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **A question about the screen in front of you** — "explain this screen" was
+  a starter chip on an empty chat, which is the one moment an operator is
+  least likely to need it; the screen worth explaining is the one that arrived
+  four transactions into a flow. It is now a click from the Terminal menu, the
+  chat composer or the command palette, at any point in a conversation. The
+  screen goes with the question rather than being read a round later, because
+  a host is free to redraw while the question is being asked and an answer
+  about the wrong screen is worse than none. See
+  [AI Chat Mode](ai-chat.md#explain-this-screen).
 - **An assistant that knows what this build can do** — the terminal grew past
   its own tool surface. Snapshots, the display toggles, the connection's own
   account of itself, the printer session and the task catalogue were on the
@@ -398,8 +407,9 @@ screen-scraper that still speaks HLLAPI.
 
 ## AI-assisted use
 
-Mostly shipped, and listed here because a section of unchecked boxes reads as
-though none of it exists.
+Complete, and kept here rather than deleted: what an AI section promises is
+the part a reader is most entitled to check, and a list of what was actually
+built is the only honest way to let them.
 
 What is live: a chat panel beside the terminal that **drives the session
 through a tool surface of about forty calls** — read the screen, write a
@@ -420,7 +430,7 @@ in the prompt, not to take one from it.
 See [AI Chat Mode](ai-chat.md), [AI Providers](ai-providers.md),
 [Skills and Extensions](skills.md) and [MCP Server](mcp.md).
 
-What is left is narrower than the section used to imply:
+What this section once listed as outstanding, and where each of it landed:
 
 - [x] **Natural-language → keystrokes** — *shipped: this is what the tool
       surface is. "Fill in the account number and press Enter" resolves to
@@ -432,11 +442,13 @@ What is left is narrower than the section used to imply:
       for a human to confirm. Nothing about Guided Business Tasks requires AI
       — the authoring wizard works from a plain recording — which is the
       difference between a differentiator and a dependency*
-- [ ] **"Explain this screen" from the terminal, at any point** — it exists
-      as a starter chip on an empty chat, which is the one moment an operator
-      is least likely to need it. The screen worth explaining is the one that
-      appeared four transactions into a flow, and reaching the explanation
-      from there currently means typing the request
+- [x] **"Explain this screen" from the terminal, at any point** — *shipped:
+      one click from the Terminal menu, from the composer, or from the command
+      palette, at any point in a conversation rather than only on an empty
+      one. The screen is captured when the question is asked and carried with
+      it, so the answer is about the screen that prompted the question and not
+      whichever one the host drew while it was being asked. See
+      [AI Chat Mode](ai-chat.md#explain-this-screen)*
 - [x] **An assistant that knows what this build can do** — *shipped: the
       capabilities that were on the API and nowhere a model could reach are
       tools now. Snapshots — take, list, diff, delete — so a flow can be

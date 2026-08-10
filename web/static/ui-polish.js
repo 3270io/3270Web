@@ -94,6 +94,9 @@
     { label: "Focus mode — fill the screen", group: "Terminal", sel: "[data-focus-toggle]", icon: "eye", hint: "Alt+Enter" },
     { label: "Find on screen", group: "Terminal", sel: "[data-find-open]", icon: "search", hint: "Ctrl+F — searches input values too" },
     { label: "Screen history", group: "Terminal", sel: "[data-history-open]", icon: "doc", hint: "Look back at earlier screens" },
+    // Matches the Terminal menu's entry rather than calling the panel directly,
+    // so the palette keeps hiding it wherever that control is absent.
+    { label: "Explain this screen", group: "Terminal", sel: "[data-explain-screen]", icon: "bulb", hint: "Ask the assistant what you are looking at" },
     { label: "File transfer (IND$FILE)", group: "Terminal", sel: "[data-transfer-open]", icon: "upload", hint: "Send or receive a host file" },
     { label: "Toggle hotspots", group: "Terminal", sel: "[data-hotspots-toggle]", icon: "bulb", hint: "Clickable PF labels and URLs" },
     { label: "Copy screen", group: "Terminal", sel: "[data-copy-screen]", icon: "doc", hint: "Whole screen as text" },

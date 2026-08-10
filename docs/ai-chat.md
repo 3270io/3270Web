@@ -65,6 +65,50 @@ Examples:
 
 The AI reads the current screen before acting, then proposes one tool call at a time.
 
+## Explain This Screen
+
+Sooner or later a screen arrives that nobody recognises — an unfamiliar
+transaction, a panel four steps into a flow somebody else recorded, an
+error code with no legend on it. Asking about that screen should not
+require typing a sentence describing it.
+
+**Explain this screen** does it in one click, from three places:
+
+- **Terminal → Explain this screen** in the menu bar.
+- The bulb button beside the chat input, whenever the panel is open.
+- ++ctrl+k++, then *Explain this screen*.
+
+The panel opens if it was closed, and the question is asked for you.
+
+The screen is captured **at the moment you ask** and travels with the
+question. This matters more than it sounds. The screen worth explaining is
+rarely the first one, and the host is free to redraw at any time — an
+inactivity timeout, a broadcast message, the next panel of a conversational
+transaction. An assistant told only *"explain this screen"* reads the
+display a round later and explains whatever is there by then, which is
+worse than no answer: it is a confident answer about a screen you were not
+asking about. Pinning the screen to the question removes that gap.
+
+Because the screen is part of the message rather than a passing note,
+follow-up questions still work — *"what is the field on line 12 for?"* is
+answered against the screen you asked about, not the one now on the
+display.
+
+Two details worth knowing:
+
+- The transcript shows your question, not the eighty columns of screen
+  attached to it. The screen is there for the model; the panel stays
+  readable.
+- Hidden fields are masked before the screen leaves 3270Web, so a password
+  typed into a sign-on panel is never sent to the AI provider and never
+  written to the stored conversation. This is the same redaction the
+  [REST API](rest-api.md) applies.
+
+As with anything read from a host, the captured screen reaches the model
+wrapped in `<untrusted-host-data>` tags: a screen is text somebody else
+controls, and text that reads like an instruction is still data. See
+[What the model sees](mcp.md#what-the-model-sees).
+
 ## Tool Approval
 
 Each AI action requires explicit approval:
@@ -191,6 +235,8 @@ Click **Clear** in the panel header to remove all messages from the current chat
 
 Press ++ctrl+k++ (++cmd+k++ on macOS) and run *Toggle AI chat* to
 show or hide the panel without reaching for the menu bar; *AI provider
-settings* in the same palette opens the provider dialog. All other 3270
+settings* in the same palette opens the provider dialog, and *Explain this
+screen* asks about the panel in front of you without opening the chat
+first. All other 3270
 key bindings remain active while the panel is open; see
 [Keyboard and Controls](keyboard-and-controls.md).
