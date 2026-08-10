@@ -92,9 +92,14 @@ not:
   datastreams, printer definition files. Standard equipment in the desktop
   clients; absent here. A shop whose batch output arrives on a printer LU
   cannot replace its emulator with 3270Web today.
-- **Protocols beyond TN3270.** TN5250 for IBM i, and VT for everything
-  else, usually ship in the same box. 3270Web speaks TN3270 and TN3270E
-  only.
+- **Protocols beyond TN3270.** 5250, the protocol AS/400 and IBM i hosts
+  drive their terminals with, and VT for everything else, usually ship in the
+  same box. 3270Web speaks TN3270 and TN3270E only — and so does `s3270`
+  underneath it, which carries no 5250 at all. Those hosts are still
+  reachable, through a 3270 front end of their own rather than through
+  anything 3270Web does; see
+  [AS/400 and IBM i hosts](terminal-model-limits.md#as400-and-ibm-i-hosts)
+  for the two conditions that come with it.
 - **A loadable EHLLAPI library.** The
   [HLLAPI-shaped endpoint](rest-api.md#post-apiv1sessionsidhllapi) ports a
   screen-scraper by changing *how* it calls rather than what it does — but
@@ -117,10 +122,16 @@ is already good at — they remove reasons an evaluation stops early.
       ships alongside `s3270` and speaks both, so the protocol work is
       largely a matter of driving it and deciding where a browser-delivered
       terminal is allowed to send paper
-- [ ] **TN5250** — the same terminal, the same recording and task
-      machinery, pointed at IBM i. A larger job than it looks: 5250 has its
-      own field model and its own AID set, and pretending otherwise is how
-      an emulator ends up subtly wrong on both
+- [ ] **5250, for AS/400 and IBM i** — the same terminal, the same recording
+      and task machinery, pointed at the platform whose green screens are not
+      3270 ones. A larger job than it looks, and larger from here than from
+      most places: `s3270` has no 5250 in it, so this is a second protocol
+      engine rather than a switch on the existing one. 5250 has its own field
+      model and its own AID set, and pretending otherwise is how an emulator
+      ends up subtly wrong on both. Meanwhile these hosts are reachable
+      through their own 3270 front end —
+      [model 2 only, with the 5250 function keys arriving as PF-key
+      sequences](terminal-model-limits.md#as400-and-ibm-i-hosts)
 - [ ] **VT emulation** — commonly in the same box as 3270, and the reason a
       shop can standardise on one client. Worth doing only if it does not
       compromise the 3270 path, which is what 3270Web is actually for
