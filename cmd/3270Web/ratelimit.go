@@ -70,8 +70,14 @@ var rateLimitedRoutes = map[string]rateCategory{
 	"POST /api/v1/sessions/:id/chaos/resume": rateChaos,
 	"POST /transfer/send":                    rateTransfer,
 	"POST /transfer/receive":                 rateTransfer,
-	"POST /api/ai/chat":                      rateAI,
-	"POST /api/copilot/chat":                 rateAI,
+	// Binding a printer LU opens a second connection to the host and starts a
+	// subprocess to hold it. A start that the host refuses leaves nothing
+	// registered, so without a limit a loop of bad LU names is a loop of
+	// process launches. Counted as a connection, because that is what it is.
+	"POST /printer/start":               rateConnect,
+	"POST /api/v1/sessions/:id/printer": rateConnect,
+	"POST /api/ai/chat":                 rateAI,
+	"POST /api/copilot/chat":            rateAI,
 
 	// The control plane. Every one of these makes this server issue a request
 	// to an origin the caller chose and read the answer into memory, so they

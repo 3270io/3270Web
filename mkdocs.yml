@@ -79,6 +79,7 @@ nav:
   - AI Chat Mode: ai-chat.md
   - AI Providers: ai-providers.md
   - Keyboard and Controls: keyboard-and-controls.md
+  - Printer Sessions: printer-sessions.md
   - Screen Size and Model Guide: terminal-model-limits.md
   - REST API: rest-api.md
   - Embedding 3270Web: embedding.md

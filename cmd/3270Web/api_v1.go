@@ -186,6 +186,18 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.DELETE("/screen-trace", app.APIStopScreenTrace)
 	g.GET("/screen-trace", app.APIScreenTraceStatus)
 
+	// The 3287 printer session. On the token surface as well as the browser's
+	// because the case for it is unattended: a job runs overnight, the output
+	// goes to a printer LU, and something has to collect it in the morning
+	// without a person watching a panel. Its jobs are files on the server, but
+	// files this session's own printer wrote — unlike file transfer, which
+	// reaches whatever the host names. See printer.go.
+	g.POST("/printer", app.APIPrinterStart)
+	g.GET("/printer", app.APIPrinterStatus)
+	g.DELETE("/printer", app.APIPrinterStop)
+	g.GET("/printer/jobs", app.APIPrinterJobs)
+	g.DELETE("/printer/jobs", app.APIPrinterJobDelete)
+
 	// Chaos exploration.
 	g.POST("/chaos/start", app.ChaosStartHandler)
 	g.POST("/chaos/stop", app.ChaosStopHandler)

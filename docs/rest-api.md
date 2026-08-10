@@ -94,6 +94,11 @@ cookie is never involved.
 | `POST` | `/api/v1/sessions/:id/screen-trace` | Start recording every screen the terminal draws |
 | `GET` | `/api/v1/sessions/:id/screen-trace` | Report the trace, or download it with `?download=1` |
 | `DELETE` | `/api/v1/sessions/:id/screen-trace` | Stop recording |
+| `POST` | `/api/v1/sessions/:id/printer` | Bind a 3287 printer LU beside this session |
+| `GET` | `/api/v1/sessions/:id/printer` | Report the printer and the jobs it has collected |
+| `DELETE` | `/api/v1/sessions/:id/printer` | Stop the printer, keeping its jobs |
+| `GET` | `/api/v1/sessions/:id/printer/jobs` | List the print jobs, or download one with `?name=` |
+| `DELETE` | `/api/v1/sessions/:id/printer/jobs?name=` | Drop one print job |
 | `POST` | `/api/v1/sessions/:id/hllapi` | Drive the terminal with HLLAPI-shaped calls: function numbers, one-based positions, return codes |
 | `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
 | `POST` | `/api/v1/tasks` | Add or replace a task |
@@ -468,6 +473,74 @@ second concurrent start would silently redirect the first and is refused with
 Ending the session drops this server's record of where the trace went. The
 file stays on disk for whoever asked for it.
 
+### `/api/v1/sessions/:id/printer`
+
+Binds a 3287 printer LU alongside the terminal session, and collects what the
+host prints to it. Batch output does not come back on the display: the host
+binds a separate printer LU and sends the job there, and something has to be
+listening.
+
+On the token surface as well as the browser's because the case for it is
+unattended — a job runs overnight and something collects it in the morning.
+[Printer sessions](printer-sessions.md) is the full page; this is the API
+shape.
+
+```sh
+curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" -d '{"lu":"PRT001","mpp":132}' \
+  http://127.0.0.1:3270/api/v1/sessions/$ID/printer
+```
+
+Body fields, all optional: `lu` names a printer LU, or `associate: true`
+requests the printer paired with this session's own display LU (the terminal
+is asked what that is; the caller does not supply it). Then `code_page`,
+`mpp` (40–256), `eoj_timeout`, `crlf`, `blank_lines`, `ff_skip`, `ff_thru`,
+`ignore_eoj` and `skip_cc`. A body with neither `lu` nor `associate` binds by
+association.
+
+The host, the port and the TLS terms are **not** settable: a printer session
+always follows the terminal session it belongs to. An endpoint that took a
+hostname would be a way to make the server open connections wherever it can
+reach, and the real case is always the printer LU on the mainframe the caller
+is already connected to.
+
+`GET` returns `available` (whether this installation has a `pr3287` binary at
+all), `running`, the `printer` itself, and the `jobs` collected so far:
+
+```json
+{
+  "available": true,
+  "running": true,
+  "printer": {
+    "session": "1900afaa…",
+    "host": "mainframe.example",
+    "port": 992,
+    "lu": "PRT001",
+    "tls": true,
+    "started_at": "2026-08-10T09:14:02Z",
+    "running": true
+  },
+  "jobs": [
+    {"name": "job-20260810T091455Z-3fa1c209.prt", "bytes": 18422,
+     "received_at": "2026-08-10T09:14:55Z", "truncated": false}
+  ]
+}
+```
+
+`GET /printer/jobs` lists them; the same path with `?name=` returns one job as
+an attachment. The name is checked against the shape this server generates, so
+nothing else under the spool directory or outside it is reachable.
+`DELETE /printer/jobs?name=` drops one.
+
+Without a `pr3287` binary the start call returns `501` naming what to install.
+A printer that will not bind — an unknown LU, an LU somebody else holds —
+returns `502` carrying what `pr3287` said, because that sentence is usually
+the whole diagnosis.
+
+One printer per session; a second start is refused with `409`. Stopping the
+printer keeps its jobs. Ending the *session* deletes them, along with the
+spool directory: the jobs belong to the session that collected them.
+
 ### `POST /api/v1/sessions/:id/hllapi`
 
 A compatibility surface for screen-scrapers written against HLLAPI.
@@ -724,6 +797,12 @@ that already drive 3270Web through the cookie.
 |---|---|---|
 | `POST` | `/profile` | Probe the current session and return the `CompatibilityProfile` JSON. |
 | `GET` | `/profile` | Return the cached profile for the current session. |
+| `GET` | `/printer/status` | The session's printer session and the jobs it has collected. |
+| `POST` | `/printer/start` | Bind a printer LU. Same body as the API route; see [Printer sessions](printer-sessions.md). |
+| `POST` | `/printer/stop` | Stop the printer, keeping its jobs. |
+| `GET` | `/printer/jobs` | List the print jobs. |
+| `GET` | `/printer/jobs/download?name=` | Download one job as an attachment. |
+| `POST` | `/printer/jobs/delete?name=` | Drop one job. |
 | `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
 | `GET` | `/chaos/screens` | Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. `?include_previews=false` omits previews. |
