@@ -479,6 +479,11 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/api/profiles", app.ProfilesSaveHandler)
 	r.POST("/api/profiles/delete", app.ProfilesDeleteHandler)
 
+	// The two of them as one portable document, for moving a deployment's
+	// configuration to another deployment. See library.go.
+	r.GET("/api/library", app.LibraryExportHandler)
+	r.POST("/api/library", app.LibraryImportHandler)
+
 	// Guided Business Tasks. See tasks.go.
 	r.GET("/tasks", app.TasksListHandler)
 	r.POST("/tasks/save", app.TasksSaveHandler)

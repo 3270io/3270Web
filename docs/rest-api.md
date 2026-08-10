@@ -98,6 +98,8 @@ cookie is never involved.
 | `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
 | `POST` | `/api/v1/tasks` | Add or replace a task |
 | `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
+| `GET` | `/api/v1/library` | Download the tasks and host presets as one portable document |
+| `POST` | `/api/v1/library` | Import one, or ask what importing it would do |
 
 ### `POST /api/v1/sessions`
 
@@ -632,6 +634,85 @@ status cannot express "step 3 saw the wrong screen".
 | `400` | A parameter was rejected. Nothing was sent to the host. |
 | `404` | No such session, or no such task. |
 | `409` | The session is not connected, or a run is already in progress on it. |
+
+### `GET /api/v1/library` and `POST /api/v1/library`
+
+A **library** is this deployment's Guided Business Tasks and connection
+profiles as one document, for carrying a set-up to another deployment. `GET`
+returns exactly what `POST` accepts, so the file downloaded from one instance
+is the body posted to the next.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://test.internal:3270/api/v1/library > library.json
+
+curl -H "Authorization: Bearer $API_TOKEN" -H 'Content-Type: application/json' \
+  --data-binary @library.json \
+  'http://prod.internal:3270/api/v1/library?dryRun=true'
+```
+
+The document:
+
+```json
+{
+  "formatVersion": 1,
+  "exportedAt": "2026-04-02T09:14:00Z",
+  "instance": "test.internal:3270",
+  "tasks": [ … ],
+  "profiles": [ … ],
+  "notes": ["Host presets were read from the published list every account connects through."]
+}
+```
+
+**Query parameters**
+
+| Parameter | Where | Meaning |
+|---|---|---|
+| `include` | `GET` | `tasks`, `profiles`, or both (the default) |
+| `download` | `GET` | `1` to be offered as a file rather than shown |
+| `onConflict` | `POST` | `skip` (default) leaves an existing name alone; `replace` overwrites it |
+| `dryRun` | `POST` | `true` reports what would happen and writes nothing |
+
+**Three rules worth knowing before pointing this at a production instance.**
+
+*Nothing is written until everything validates.* A library holding one entry
+this build refuses is refused whole, with that entry named, rather than half
+stored. The refusal is a `400` carrying the same report a success carries.
+
+*A library covers the set you administer.* Tasks are always your own
+catalogue. Host presets are the published list for an administrator — and for
+the single operator of an instance with no accounts — and your own presets for
+anybody else. The report says which under `profileScope`.
+
+*It is not a backup.* Audiences that name individual accounts are dropped on
+export: those accounts exist only on the deployment the file came from, and a
+file meant to be handed to another site should not carry a staff list. Groups
+and roles survive, since those are names two deployments plausibly share. A
+preset whose only audience was named accounts arrives **not offered**, so
+losing the restriction cannot silently turn "these four people" into
+"everyone". Tasks contributed by an installed extension are left out too —
+install the extension at the far end instead. Every one of these is recorded
+in the document's own `notes`.
+
+The report:
+
+```json
+{
+  "dryRun": true,
+  "profileScope": "published",
+  "added": 12, "replaced": 0, "skipped": 1, "rejected": 0,
+  "entries": [
+    { "kind": "profile", "name": "Production TSO", "action": "added" },
+    { "kind": "task", "name": "Account balance enquiry", "action": "skipped",
+      "reason": "a task with this name is already here" }
+  ],
+  "notes": ["Host presets go into the published list every account connects through."]
+}
+```
+
+An administrator who would rather not use curl has the same thing on
+**Session screen → Library**: download, choose a file, read what it would
+change, import.
 
 ## Browser-session endpoints
 

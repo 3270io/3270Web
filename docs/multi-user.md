@@ -401,6 +401,7 @@ against that host, and when* — which has to survive being asked months later.
 | Group role assigned or cleared | who did it, the group, the role it now grants |
 | Group created, changed, deleted | who did it, the group, and what changed — its name, description, membership or hosts |
 | Host preset published or removed | who did it, the preset, who it is offered to |
+| Library exported or imported | who did it, how many tasks and presets, and which host list they went into |
 | API token issued, revoked, or refused | token id, account, scopes |
 | Session opened, or refused | account, target host, and why it was refused |
 | Session disconnected by an administrator | who did it, whose session, target host |
@@ -422,6 +423,10 @@ anything written to it is disclosed for as long as it exists.
 
 Successful API calls are not recorded either — only refused ones. A line per
 request would turn the trail into an access log and bury everything else in it.
+The exceptions are the calls that are administration rather than use: a
+library export is the moment a copy of the host list leaves the instance, and a
+library import is a bulk change to what operators are offered, so both are
+recorded whichever door they came in by.
 
 ### The file
 
