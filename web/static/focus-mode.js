@@ -60,6 +60,15 @@
       if (typeof window.sizeScreenContainer === "function") {
         window.sizeScreenContainer();
       }
+      // Announce the layout again now the terminal has taken its size. The
+      // virtual keypad scales itself into the space left beneath the terminal,
+      // and on the first announcement above there is no new size to scale
+      // against yet — it measured the old layout, claimed the room the
+      // terminal was about to take, and the two overflowed between them.
+      // Terminal first, keypad into what remains.
+      window.requestAnimationFrame(function () {
+        window.dispatchEvent(new CustomEvent("h3270:layout-changed", { detail: { source: "focus-settled" } }));
+      });
     });
   }
 

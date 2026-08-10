@@ -292,10 +292,14 @@ the thing behaves like a terminal. The rest of this list is shipping; see
       on any cell of the display, which is what makes "position the cursor
       beside your choice" screens operable. See
       [Keyboard and Controls](keyboard-and-controls.md#cursor-on-protected-text)*
-- [ ] **Focus mode vs. a MAX-size keypad** — the two ask for opposite things
-      and the keypad currently wins, leaving the terminal a tile in the
-      corner of a full screen. Which should take priority is a product call,
-      not a bug fix
+- [x] **Focus mode vs. a MAX-size keypad** — *shipped, and the call is that the
+      terminal wins: focus mode exists to give the terminal the display, so the
+      keyboard takes a share of it and the terminal takes the rest. Measuring
+      first found the two were not merely fighting over the space — they were
+      bidding for it, each sizing itself from what the other had just released,
+      until both overflowed and the terminal's first rows were pushed above the
+      top edge. See
+      [Keyboard and Controls](keyboard-and-controls.md#focus-mode-and-the-keypad)*
 
 ## s3270 actions not yet surfaced
 

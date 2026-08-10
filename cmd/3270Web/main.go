@@ -1567,7 +1567,10 @@ func (app *App) ScreenHandler(c *gin.Context) {
 	// on the selection screen sees that system rather than one more frame of
 	// the menu.
 	app.settleSelection(c, s)
-	if s.Host == nil {
+	// Read the host once, under the session lock, and decide on that value.
+	// Testing s.Host directly here raced resetSessionHost's swap.
+	h := app.sessionHost(s)
+	if h == nil {
 		// settleSelection ended the session — PF3 on the menu, which is "I did
 		// not want any of these". Marked as a disconnect for the same reason
 		// Disconnect is: landing on the page that decides where this account
@@ -1577,7 +1580,6 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		return
 	}
 
-	h := app.sessionHost(s)
 	if err := h.UpdateScreen(); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
@@ -1681,13 +1683,18 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 	// only on the next submit left somebody who had chosen a system looking at
 	// "the session opens in a moment" until they pressed another key.
 	app.settleSelection(c, s)
-	if s.Host == nil {
+	// Read the host once, under the session lock, and decide on that value.
+	// This handler is the browser's screen poller, so it ran concurrently with
+	// every reconnect and workflow load; testing s.Host directly here was a
+	// data race with resetSessionHost's swap, and could observe a host that
+	// had already been Stop()ped.
+	h := app.sessionHost(s)
+	if h == nil {
 		// PF3 on the menu ended it. Answered the way a session that is gone is
 		// answered, which the terminal already knows how to act on.
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	h := app.sessionHost(s)
 	if err := h.UpdateScreen(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
