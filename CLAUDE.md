@@ -6,12 +6,11 @@ This repository is open source. Everything in it is publicly readable —
 code comments, docs (which publish to 3270Web.3270.io), commit messages,
 PR titles and bodies, and issue comments.
 
-**Do not name commercial terminal emulators, and do not frame work as
-matching, catching up to, or copying one.** No comparison tables with
-another vendor's name in a column header, no "*product* ships this and we
-don't", no "closes the gap against *product*", no links to another
-vendor's site or price list. This applies to commit messages and PR
-descriptions exactly as much as to code and docs.
+**Outside the one section named below, do not name commercial terminal
+emulators, and do not frame work as matching, catching up to, or copying
+one.** No "*product* ships this and we don't", no "closes the gap against
+*product*". This applies to commit messages and PR descriptions exactly as
+much as to code and docs.
 
 Write the same point in terms of the user and the category instead:
 
@@ -20,6 +19,25 @@ Write the same point in terms of the user and the category instead:
 - ✅ "Years of muscle memory from another terminal emulator."
 - ❌ Naming two rival products and saying both ship the feature.
 - ❌ Calling something "the most-cited gap against *vendor*".
+
+**The one exception** is `## The field, and where 3270Web sits in it` in
+`docs/feature-roadmap.md`, which compares 3270Web with named products
+because a reader deciding between them deserves the comparison in one
+place. Rules that section keeps, and that any edit to it must keep:
+
+- **The set of named products is fixed.** Do not add a vendor to that
+  table, and do not name one anywhere else on the site, without being asked
+  to by name.
+- **Only verifiable, stable facts** — delivery model, platform, licence
+  model, published automation surface. No feature-by-feature tick grid
+  against another vendor: a claim about what a competitor *lacks* is the
+  one most likely to be wrong and the one that reads worst.
+- **Neutral and current.** Say what each product is for, not what is wrong
+  with it. Keep the "checked in *month year*" line honest, and keep the
+  "where the field is ahead" subsection — a comparison that only flatters
+  the home team is not worth reading.
+- Comparison against the *category* ("where the category generally sits")
+  is preferred anywhere a specific vendor is not required.
 
 Naming a **file format or protocol** for interoperability is fine and
 sometimes unavoidable — a `.KMP` keymap importer has to say which format it
