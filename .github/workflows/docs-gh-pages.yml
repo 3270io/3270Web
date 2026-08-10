@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - docs/**
+      # The theme override emits the title, the social card and the structured
+      # data. A change confined to it changes every published page, so leaving
+      # it out of this list would let that change sit unpublished until some
+      # unrelated edit under docs/ happened to carry it along.
+      - overrides/**
       - mkdocs.yml
       - requirements-docs.txt
       - .github/workflows/docs-gh-pages.yml

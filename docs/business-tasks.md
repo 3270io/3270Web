@@ -1,8 +1,9 @@
 ---
+seo_title: "Guided business tasks: a form instead of a green screen"
 description: >-
   Turn a recorded screen flow into a guided task with named inputs and a
   named answer, so someone can get a result without navigating a green
-  screen.
+  screen themselves.
 ---
 
 # Guided Business Tasks

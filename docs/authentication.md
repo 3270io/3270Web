@@ -1,8 +1,9 @@
 ---
+seo_title: "3270Web user accounts, sign-in, groups and OIDC SSO"
 description: >-
-  3270Web has no sign-in by default. AUTH_MODE=local adds accounts, per-user
-  passwords and expiring sessions — turn it on whenever more than one person
-  can reach the port.
+  3270Web has no sign-in by default. AUTH_MODE=local adds accounts, groups,
+  passwords and OIDC single sign-on — turn it on as soon as the port is
+  shared.
 ---
 
 # User Accounts and Sign-In

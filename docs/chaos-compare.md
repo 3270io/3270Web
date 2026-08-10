@@ -1,7 +1,8 @@
 ---
+seo_title: "Compare two chaos mind maps to find host differences"
 description: >-
   Diff two exported chaos mind maps to surface divergence between two hosts
-  or two builds, and confirm that a fix or migration did not regress a
+  or two builds, and confirm that a fix or a migration did not regress a
   transaction.
 ---
 

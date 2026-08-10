@@ -1,8 +1,8 @@
 ---
+seo_title: "CompatibilityProfile schema as 3270Web writes it"
 description: >-
-  The CompatibilityProfile JSON document produced by both 3270Web and
-  3270Connect, field by field, so profiles from either tool can be diffed
-  against each other.
+  The CompatibilityProfile document 3270Web captures from a browser session,
+  field by field, so it can be diffed against one 3270Connect produced.
 ---
 
 # CompatibilityProfile schema (v1.0.0)

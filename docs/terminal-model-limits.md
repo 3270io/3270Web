@@ -1,7 +1,9 @@
 ---
+seo_title: "3270 screen sizes and terminal models 2, 3, 4 and 5"
 description: >-
-  3270 screen sizes by terminal model: rows, columns, and where each model
-  is typically used.
+  3270 screen sizes model by model — rows, columns and where each one is
+  typically used — plus how to choose between them, including for AS/400 and
+  IBM i hosts.
 ---
 
 # Screen Size and Model Guide

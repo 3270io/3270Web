@@ -1,8 +1,9 @@
 ---
+seo_title: "AI Chat Mode: drive a 3270 session by conversation"
 description: >-
   Drive a 3270 session by conversation: AI Chat reads the current screen,
-  fills fields, presses keys and runs chaos exploration — with your approval
-  before each action.
+  fills fields, presses keys and runs chaos exploration, with your approval
+  each time.
 ---
 
 # AI Chat Mode

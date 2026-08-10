@@ -1,7 +1,8 @@
 ---
+seo_title: "The 3270Web session manager and assigned host profiles"
 description: >-
-  What an account meets when an administrator has assigned it host profiles
-  — a session manager to pick from, rather than a connect form nobody can
+  What an account meets once an administrator has assigned it host profiles
+  — a session manager to pick from, instead of a connect form nobody can
   fill in.
 ---
 
