@@ -51,6 +51,21 @@
     return out;
   }
 
+  // A fixed panel is positioned against the layout viewport, so that is what it
+  // has to be clamped to. window.innerWidth and .innerHeight report the visual
+  // viewport, which on a phone is a different box the moment anything overflows
+  // or the page is pinch-zoomed — clamping to it puts the panel's right-hand
+  // edge somewhere off the side of the screen.
+  function viewportWidth() {
+    var width = document.documentElement ? document.documentElement.clientWidth : 0;
+    return width > 0 ? width : window.innerWidth;
+  }
+
+  function viewportHeight() {
+    var height = document.documentElement ? document.documentElement.clientHeight : 0;
+    return height > 0 ? height : window.innerHeight;
+  }
+
   // Panels are positioned in JS rather than by CSS alone because they are
   // fixed-position (so no ancestor's overflow can clip them) and must stay
   // inside the viewport on a narrow screen, where a right-hand menu would
@@ -60,13 +75,13 @@
     var rect = menu.trigger.getBoundingClientRect();
     var margin = 8;
 
-    panel.style.maxHeight = Math.max(180, window.innerHeight - rect.bottom - margin * 2) + "px";
+    panel.style.maxHeight = Math.max(180, viewportHeight() - rect.bottom - margin * 2) + "px";
     panel.style.left = "0px";
     panel.style.top = rect.bottom + 4 + "px";
 
     var width = panel.offsetWidth;
     var left = menu.alignEnd ? rect.right - width : rect.left;
-    var maxLeft = window.innerWidth - width - margin;
+    var maxLeft = viewportWidth() - width - margin;
     if (left > maxLeft) {
       left = maxLeft;
     }

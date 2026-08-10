@@ -883,8 +883,11 @@ body.embedded .appbar-host {
   }
 
   /* On a phone the menus lose the tug of war with the action cluster and end
-     up in a sideways-scrolling peephole a trigger and a half wide. Give them
-     their own row instead: it costs 34px of height and turns four half-hidden
+     up in a sideways-scrolling peephole a trigger and a half wide. Two rows
+     instead: the mark and the named menus on the first, because that is what
+     somebody is looking for when they reach for the bar, and the action
+     cluster on its own row underneath, still at the right-hand end where it
+     is on a desktop. It costs a row of height and turns four half-hidden
      menus back into four menus. */
   .appbar-bar {
     gap: 4px;
@@ -892,26 +895,68 @@ body.embedded .appbar-host {
     flex-wrap: wrap;
   }
 
+  .appbar-brand {
+    order: 1;
+  }
+
   .appbar-menus {
-    order: 3;
-    flex: 1 1 100%;
-    padding-left: 0;
-    border-left: none;
-    border-top: 1px solid var(--hairline-soft);
-    padding-top: 4px;
+    order: 2;
+    flex: 1 1 auto;
   }
 
   .appbar-actions {
-    margin-left: auto;
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+    padding-top: 4px;
+    border-top: 1px solid var(--hairline-soft);
   }
 }
 
-/* Coarse pointers get bigger targets — the same rule touch.css applies to
-   the rest of the session. */
+/* Coarse pointers get bigger targets — the same 44px touch.css applies to
+   the rest of the session, and for the same reason: below it a thumb misses.
+   touch.css reaches .icon-button, so the chat and palette buttons were already
+   right; everything the bar introduced — the named triggers, the avatar and
+   kebab triggers, the Tasks action, the menu items themselves — was sized for
+   a mouse and left at 30-35px. */
 body.touch-device .appmenu-item {
   padding-block: 10px;
+  min-height: 44px;
+  align-items: center;
+}
+
+body.touch-device .appmenu-trigger,
+body.touch-device .appbar-action,
+body.touch-device .appmenu-chip {
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 body.touch-device .appmenu-trigger {
   padding-block: 9px;
+}
+
+body.touch-device .appmenu-trigger-icon,
+body.touch-device .appbar-actions .appbar-action {
+  min-width: 44px;
+  justify-content: center;
+}
+
+body.touch-device .appmenu-select {
+  min-height: 44px;
+  /* Below 16px a mobile browser zooms the page in when the control takes
+     focus, and does not zoom back out. */
+  font-size: 16px;
+}
+
+body.touch-device .appbar .session-tab {
+  min-height: 40px;
+}
+
+/* The size steppers are .icon-button, so touch.css has already given them
+   44px; the row they sit on has to make room rather than clip them. */
+body.touch-device .appmenu-size {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }

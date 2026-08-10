@@ -1859,6 +1859,21 @@ pre, pre input, textarea {
   min-width: 0;
 }
 
+/* The column is as wide as the terminal so the bar above it lines up with the
+   screen below. On a phone the terminal has been shrunk to fit the viewport
+   and is narrower still, and sizing the bar to *that* leaves it wrapping onto
+   extra rows with empty space either side of it. Below the phone breakpoint
+   the column takes the width it is given and the terminal centres in it. */
+@media (max-width: 560px) {
+  .terminal-width-column {
+    width: 100%;
+  }
+
+  .terminal-width-column > .terminal-shell {
+    align-self: center;
+  }
+}
+
 .terminal-width-column > .appbar,
 .terminal-width-column > .context-bar,
 /* The sample-app chip sizes to its content — see the note in
@@ -1960,8 +1975,6 @@ pre, pre input, textarea {
   .terminal-size-slider {
     width: 110px;
   }
-
-    }
 }
 
 /* Phone widths.
