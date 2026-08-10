@@ -219,7 +219,7 @@ const defaultSampleAppPort = 3271
 
 // appVersion can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
-var appVersion = "0.3.2"
+var appVersion = "0.4.0"
 
 // newApp constructs the application with its program files and its state in
 // the same directory, which is what a desktop install and `go run` both have.
