@@ -76,6 +76,14 @@ Paging keys are only offered when there is more than one page. A list longer
 than the screen pages rather than being cut off: the numbers are global, so
 system 21 is 21 on whichever page it is found.
 
+### Columns
+
+`SYSTEM` is as wide as the longest profile name on the menu, so a list of
+descriptive names — "Pet Store - Retail & Back Office" rather than `CICSPRD1` —
+is readable without opening anything. Short names keep the tight layout above.
+The column stops growing where `DESCRIPTION` would be squeezed below a usable
+width; a name longer than the room left is shortened with a trailing `>`.
+
 ---
 
 ## Deciding who gets which mainframes

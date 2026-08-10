@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func testEntries() []Entry {
@@ -391,6 +392,63 @@ func TestALongListPagesRatherThanBeingTruncated(t *testing.T) {
 	short := strings.Join(Preview(Branding{}, testEntries()), "\n")
 	if strings.Contains(short, "PF8") {
 		t.Error("a one-page menu offers a paging key")
+	}
+}
+
+// A profile name is what the operator recognises the system by, so the column
+// it is drawn in is sized to the names actually on the menu. The bundled
+// sample apps are the long end of what a real deployment produces.
+func TestTheSystemColumnGrowsToTheNamesOnTheMenu(t *testing.T) {
+	names := []string{
+		"Game - Bat & Ball",
+		"Pet Store - Retail & Back Office (default)",
+		"Sample App 1 - Name Entry & Validation",
+		"Sample App 3 - BMS Field Attribute Test Matrix",
+	}
+	entries := make([]Entry, 0, len(names))
+	for _, name := range names {
+		entries = append(entries, Entry{Name: name, Detail: "bundled sample app"})
+	}
+
+	rendered := strings.Join(Preview(Branding{}, entries), "\n")
+	for _, name := range names {
+		if !strings.Contains(rendered, name) {
+			t.Errorf("%q was shortened on the menu:\n%s", name, rendered)
+		}
+	}
+	// The description still has a column of its own beside them.
+	if !strings.Contains(rendered, "bundled sample app") {
+		t.Errorf("the description column was squeezed out:\n%s", rendered)
+	}
+}
+
+// Growing the column for long names must not push a short-named menu's
+// description halfway across the screen, and nothing may run off the edge.
+func TestTheSystemColumnStaysWithinTheScreen(t *testing.T) {
+	short := Preview(Branding{}, testEntries())
+	if !strings.Contains(strings.Join(short, "\n"), "CICSPROD         Production CICS region") {
+		t.Errorf("short names lost their tight columns:\n%s", strings.Join(short, "\n"))
+	}
+
+	long := Entry{Name: strings.Repeat("N", 120), Description: strings.Repeat("D", 120)}
+	for _, row := range Preview(Branding{}, []Entry{long}) {
+		if utf8.RuneCountInString(row) > screenCols {
+			t.Errorf("a row is %d columns wide, want at most %d: %q", utf8.RuneCountInString(row), screenCols, row)
+		}
+		// The screen is encoded into a 3270 code page; anything outside it
+		// reaches the terminal as a question mark.
+		for _, r := range row {
+			if r < 0x20 || r > 0x7E {
+				t.Errorf("row %q carries %q, which the code page cannot draw", row, r)
+			}
+		}
+	}
+	// Even against a name that wants the whole screen, the description keeps
+	// the column it was promised.
+	_, descriptionCol, descriptionCols := columns([]Entry{long})
+	if descriptionCols < minDescriptionWidth {
+		t.Errorf("DESCRIPTION starts at column %d leaving %d, want at least %d",
+			descriptionCol, descriptionCols, minDescriptionWidth)
 	}
 }
 

@@ -352,12 +352,60 @@ const (
 	// starts one column after it.
 	selectionCol = 15
 
-	// Column positions for the list, chosen so a 15-character system name and
-	// a 44-character description both fit without wrapping.
-	colSel         = marginCol + 1
-	colName        = marginCol + 5
-	colDescription = marginCol + 22
+	// Column positions for the list. SEL and SYSTEM are fixed; where
+	// DESCRIPTION begins depends on how long the names on this menu actually
+	// are — see nameWidth.
+	colSel  = marginCol + 1
+	colName = marginCol + 5
+
+	// The gap between the two text columns. Two spaces, so a name that runs
+	// to its full width still reads as a separate column.
+	colGap = 2
+
+	// The narrowest the SYSTEM column goes. Short names should not drag the
+	// column in behind them and leave the list looking ragged against a
+	// description column that starts halfway across the screen.
+	minNameWidth = 15
+
+	// What DESCRIPTION keeps whatever the names do. A description squeezed
+	// below this stops being a sentence and starts being an ellipsis.
+	minDescriptionWidth = 22
+
+	// The widest SYSTEM can grow to, so the two floors above cannot fight.
+	maxNameWidth = screenCols - marginCol - colName - colGap - minDescriptionWidth
 )
+
+// nameWidth is how many columns the SYSTEM column gets on this menu.
+//
+// It used to be a fixed 15, which is a fine width for the eight-character
+// names a mainframe region has and a poor one for everything else: a profile
+// called "Pet Store - Retail & Back Office" arrived as "Pet Store - Re…", and
+// a list of those is a list an operator cannot read. The column is now as wide
+// as the longest name on the menu, bounded so the description keeps a usable
+// column of its own.
+//
+// Measured across every entry rather than the page being drawn, so the columns
+// do not shift under an operator paging through the list.
+func nameWidth(entries []Entry) int {
+	widest := minNameWidth
+	for _, e := range entries {
+		if n := len(strings.TrimSpace(e.Name)); n > widest {
+			widest = n
+		}
+	}
+	if widest > maxNameWidth {
+		widest = maxNameWidth
+	}
+	return widest
+}
+
+// columns says where the two text columns of the list sit, and how wide they
+// are, for a given set of entries.
+func columns(entries []Entry) (nameCols, descriptionCol, descriptionCols int) {
+	nameCols = nameWidth(entries)
+	descriptionCol = colName + nameCols + colGap
+	return nameCols, descriptionCol, screenCols - marginCol - descriptionCol
+}
 
 // layout says where the list starts and how tall it is for this branding.
 func layout(brand Branding) (heading, firstItem, perPage int) {
@@ -419,6 +467,8 @@ func (m *Menu) screen(page int, message string) (go3270.Screen, int, int) {
 			Row: rowTitleRule + 1 + i, Col: marginCol, Intense: true, Content: line})
 	}
 
+	nameCols, colDescription, descriptionCols := columns(m.entries)
+
 	screen = append(screen,
 		go3270.Field{Row: heading, Col: colSel, Color: go3270.Blue, Content: "SEL"},
 		go3270.Field{Row: heading, Col: colName, Color: go3270.Blue, Content: "SYSTEM"},
@@ -435,9 +485,9 @@ func (m *Menu) screen(page int, message string) (go3270.Screen, int, int) {
 			// system is the same whichever page it was found on — which is
 			// what makes "type 12" something an operator can learn.
 			go3270.Field{Row: row, Col: colSel, Intense: true, Content: fmt.Sprintf("%3d", i+1)},
-			go3270.Field{Row: row, Col: colName, Content: truncate(entry.Name, 15)},
+			go3270.Field{Row: row, Col: colName, Content: truncate(entry.Name, nameCols)},
 			go3270.Field{Row: row, Col: colDescription, Color: go3270.Green,
-				Content: truncate(describe(entry), screenCols-colDescription-marginCol)},
+				Content: truncate(describe(entry), descriptionCols)},
 		)
 	}
 
@@ -494,7 +544,10 @@ func (m *Menu) connectingScreen(entry Entry) (go3270.Screen, int, int) {
 		{Row: rowTitle, Col: screenCols - marginCol - 15, Color: go3270.Turquoise,
 			Content: "SESSION MANAGER"},
 		{Row: rowTitleRule, Col: marginCol, Color: go3270.Blue, Content: rule},
-		{Row: 8, Col: marginCol, Intense: true, Content: "Connecting to " + truncate(entry.Name, 40)},
+		// Room for the whole name: this line is the confirmation that the
+		// right system was chosen, and the list above it may itself have had
+		// to shorten the name to keep its columns.
+		{Row: 8, Col: marginCol, Intense: true, Content: "Connecting to " + truncate(entry.Name, MaxLineWidth-len("Connecting to "))},
 		{Row: 10, Col: marginCol, Color: go3270.Green, Content: truncate(describe(entry), 70)},
 		{Row: 12, Col: marginCol, Content: "The session opens in a moment."},
 	}, 12, marginCol
@@ -515,6 +568,12 @@ func describe(e Entry) string {
 	}
 }
 
+// truncate bounds a string to what the column can draw, marking what it cut.
+//
+// The marker is ASCII. A "…" is not in the code page the screen is encoded
+// into, so what the terminal actually drew was a question mark — a name that
+// had been shortened was indistinguishable from a name somebody had typed a
+// "?" into. Everything else here is already ASCII-only for the same reason.
 func truncate(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= max {
@@ -523,7 +582,7 @@ func truncate(s string, max int) string {
 	if max <= 1 {
 		return s[:max]
 	}
-	return s[:max-1] + "…"
+	return s[:max-1] + ">"
 }
 
 // Preview renders the screen as plain text, one string per display row.

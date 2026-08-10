@@ -98,21 +98,7 @@
     slider.value = String(current);
   }
 
-  function shellFullyVisible(shell) {
-    if (!shell) {
-      return false;
-    }
-    var rect = shell.getBoundingClientRect();
-    return rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1;
-  }
-
-  function fitsViewport(shell) {
-    // Terminal sizing should be constrained by the terminal shell itself, not
-    // by unrelated page chrome (e.g. an on-screen keyboard shown below it).
-    return shellFullyVisible(shell);
-  }
-
-  // The width to fit against. It must be the *layout* viewport: when content
+  // The width to fall back on. It must be the *layout* viewport: when content
   // overflows, a mobile browser widens the visual viewport to contain it, so
   // window.innerWidth reports the overflowing width (1607 on a 412px phone)
   // and every candidate size looks like it already fits. documentElement
@@ -125,29 +111,93 @@
     return window.innerWidth;
   }
 
-  // Width-only variant, used for automatic fitting. Vertical overflow just
-  // means the page scrolls, which is normal; horizontal overflow clips columns
-  // off the right edge of a 3270 screen, which is not. Requiring both would
-  // force the text smaller than it needs to be on a phone held in portrait.
-  function fitsViewportWidth(shell) {
-    if (!shell) {
-      return false;
+  function edgeSize(styles, names) {
+    var total = 0;
+    for (var i = 0; i < names.length; i += 1) {
+      var value = Number.parseFloat(styles[names[i]]);
+      total += Number.isFinite(value) ? value : 0;
     }
-    var rect = shell.getBoundingClientRect();
-    return rect.left >= -1 && rect.right <= layoutViewportWidth() + 1;
+    return total;
   }
 
-  function fitToLargestSize(elements, predicate, floorPx) {
+  // How much room the terminal actually has.
+  //
+  // Not the viewport. The terminal sits in a column inside the page card, and
+  // that column is what it has to fit into — measuring the window instead is
+  // how a tablet ended up with a grid wider than the bar above it, hanging
+  // over the card's right-hand edge and no longer centred on anything: every
+  // candidate size "fitted" because the window was wider than the card.
+  function availableWidth(shell) {
+    var column = shell && shell.closest ? shell.closest(".terminal-width-column") : null;
+    var host = (column && column.parentElement) || (shell && shell.parentElement);
+    if (!host) {
+      return layoutViewportWidth();
+    }
+    var styles = window.getComputedStyle(host);
+    var width = host.clientWidth - edgeSize(styles, ["paddingLeft", "paddingRight"]);
+    if (!Number.isFinite(width) || width <= 0) {
+      return layoutViewportWidth();
+    }
+    return width;
+  }
+
+  // What the terminal would need to show every column.
+  //
+  // The grid's own box plus the bezel around it, rather than the bezel's
+  // measured width: below the tablet breakpoint the shell scrolls, and a
+  // scroll container is always exactly as wide as the room it was given, so
+  // measuring it answers "it fits" however far the grid inside it overflows.
+  function requiredWidth(elements) {
+    var styles = window.getComputedStyle(elements.shell);
+    var chrome = edgeSize(styles, [
+      "paddingLeft",
+      "paddingRight",
+      "borderLeftWidth",
+      "borderRightWidth"
+    ]);
+    return elements.container.getBoundingClientRect().width + chrome;
+  }
+
+  // Width-only, used for automatic fitting. Vertical overflow just means the
+  // page scrolls, which is normal; horizontal overflow clips columns off the
+  // right edge of a 3270 screen, which is not. Requiring both would force the
+  // text smaller than it needs to be on a phone held in portrait.
+  function fitsWidth(elements) {
+    if (!elements || !elements.shell || !elements.container) {
+      return false;
+    }
+    return requiredWidth(elements) <= availableWidth(elements.shell) + 1;
+  }
+
+  function fitsViewport(elements) {
+    // Terminal sizing should be constrained by the terminal shell itself, not
+    // by unrelated page chrome (e.g. an on-screen keyboard shown below it).
+    if (!fitsWidth(elements)) {
+      return false;
+    }
+    var rect = elements.shell.getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= window.innerHeight + 1;
+  }
+
+  // ceilingPx bounds the search from above, which is what makes a shrink a
+  // shrink: without it the binary search happily returns a size larger than
+  // the one it was asked to correct, and a terminal that merely overflowed
+  // came back bigger than the operator left it.
+  function fitToLargestSize(elements, predicate, floorPx, ceilingPx) {
     var fits = predicate || fitsViewport;
     var floor = Number.isFinite(floorPx) ? floorPx : minCellSizePx;
+    var ceiling = Number.isFinite(ceilingPx) ? Math.min(maxCellSizePx, Math.round(ceilingPx)) : maxCellSizePx;
+    if (ceiling < floor) {
+      ceiling = floor;
+    }
     var low = floor;
-    var high = maxCellSizePx;
+    var high = ceiling;
     var best = floor;
 
     while (low <= high) {
       var mid = Math.floor((low + high) / 2);
       writeCellSize(mid);
-      if (fits(elements.shell)) {
+      if (fits(elements)) {
         best = mid;
         low = mid + 1;
       } else {
@@ -231,8 +281,8 @@
         // meant that on a phone — where the 24 rows never fit the height —
         // every nudge of the slider was immediately overridden, so the control
         // fought the person using it. Vertical overflow just scrolls.
-        if (!fitsViewportWidth(elements.shell)) {
-          current = fitToLargestSize(elements, fitsViewportWidth);
+        if (!fitsWidth(elements)) {
+          current = fitToLargestSize(elements, fitsWidth, minCellSizePx, current);
           updateSlider(elements.slider, current);
           updateSizeLabel(elements.label, current, baseline);
         }
@@ -294,7 +344,7 @@
     // trivially "fits", and it only reaches its true width once the first
     // screen is painted into it.
     function enforceWidthFit() {
-      if (enforcingWidthFit || fitsViewportWidth(elements.shell)) {
+      if (enforcingWidthFit || fitsWidth(elements)) {
         return;
       }
       // writeCellSize re-runs the container sizing, which can mutate the very
@@ -302,7 +352,10 @@
       // re-entering the binary search from our own writes.
       enforcingWidthFit = true;
       try {
-        current = fitToLargestSize(elements, fitsViewportWidth);
+        // Ceilinged at the size already on screen: this is the correction for
+        // a terminal that is too wide, and it has no business making one
+        // bigger than it was asked to be.
+        current = fitToLargestSize(elements, fitsWidth, minCellSizePx, current);
         sizeIsDerived = true;
         persistSize(current);
         updateSlider(elements.slider, current);
