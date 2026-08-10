@@ -169,14 +169,33 @@
     return requiredWidth(elements) <= availableWidth(elements.shell) + 1;
   }
 
+  // How much of the viewport below the terminal is already spoken for. Zero
+  // everywhere except focus mode: in the normal layout a terminal taller than
+  // the viewport simply scrolls, and letting page chrome shrink it there is
+  // what drove the text smaller than it needed to be on a phone.
+  //
+  // Focus mode has nowhere to scroll, so the on-screen keypad is not
+  // "unrelated chrome" there — it is the other occupant of a fixed budget.
+  // Reserving its floor here is what lets the terminal be sized once and take
+  // what it wants, with the keypad scaling into the remainder afterwards.
+  function reservedBelowTerminal() {
+    if (document.body.getAttribute("data-focus") !== "on") {
+      return 0;
+    }
+    var kp = window.ThreeSeventyWeb && window.ThreeSeventyWeb.keypad;
+    if (!kp || typeof kp.reservedHeight !== "function") {
+      return 0;
+    }
+    var reserved = kp.reservedHeight();
+    return Number.isFinite(reserved) && reserved > 0 ? reserved : 0;
+  }
+
   function fitsViewport(elements) {
-    // Terminal sizing should be constrained by the terminal shell itself, not
-    // by unrelated page chrome (e.g. an on-screen keyboard shown below it).
     if (!fitsWidth(elements)) {
       return false;
     }
     var rect = elements.shell.getBoundingClientRect();
-    return rect.top >= 0 && rect.bottom <= window.innerHeight + 1;
+    return rect.top >= 0 && rect.bottom <= window.innerHeight - reservedBelowTerminal() + 1;
   }
 
   // ceilingPx bounds the search from above, which is what makes a shrink a
@@ -306,6 +325,11 @@
       // The comfortable floor is a preference, not a licence to clip columns —
       // if the result is too wide for the viewport, width wins.
       enforceWidthFit();
+      // Nor a licence to clip rows. In the normal layout a terminal taller
+      // than the viewport just scrolls, which is why the floor holds there.
+      // Focus mode has nowhere to scroll to, so a floor it cannot honour puts
+      // the first rows above the top edge instead.
+      enforceViewportFit();
       persistSize(current);
       updateSlider(elements.slider, current);
       updateSizeLabel(elements.label, current, baseline);
@@ -329,6 +353,7 @@
     var stored = Number.parseFloat(localStorage.getItem(storageSizeKey) || "");
     var current = Number.isFinite(stored) && stored > 0 ? writeCellSize(stored) : writeCellSize(baseline);
     var enforcingWidthFit = false;
+    var enforcingViewportFit = false;
     // Whether the size on screen was derived by shrinking to fit rather than
     // asked for. A derived size may be recomputed freely when the viewport
     // changes shape; one the user chose is left alone.
@@ -362,6 +387,35 @@
         updateSizeLabel(elements.label, current, baseline);
       } finally {
         enforcingWidthFit = false;
+      }
+    }
+
+    // The vertical twin of enforceWidthFit, and deliberately narrower: it only
+    // applies in focus mode, because that is the only layout with nowhere to
+    // scroll. Everywhere else a terminal taller than the viewport is normal
+    // and the comfortable floor is the right answer.
+    function enforceViewportFit() {
+      if (enforcingWidthFit || enforcingViewportFit) {
+        return;
+      }
+      if (document.body.getAttribute("data-focus") !== "on") {
+        return;
+      }
+      if (fitsViewport(elements)) {
+        return;
+      }
+      enforcingViewportFit = true;
+      try {
+        // Ceilinged at the size already on screen, for the same reason the
+        // width correction is: this exists to bring an overflowing terminal
+        // back, never to make one bigger than it was asked to be.
+        current = fitToLargestSize(elements, fitsViewport, minCellSizePx, current);
+        sizeIsDerived = true;
+        persistSize(current);
+        updateSlider(elements.slider, current);
+        updateSizeLabel(elements.label, current, baseline);
+      } finally {
+        enforcingViewportFit = false;
       }
     }
 

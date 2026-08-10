@@ -70,6 +70,22 @@ The rail overlays nothing: the terminal reserves its height, so the top row
 of the screen — which on a 3270 is the title and message line — is never
 covered when the rail slides out.
 
+#### Focus mode and the keypad
+
+Focus mode and a MAX-size virtual keypad want the same space, and focus
+mode is the one layout with nowhere to scroll. **The terminal wins**: the
+keyboard is held to about a third of the display, and the terminal takes
+everything else.
+
+That is a deliberate call rather than a compromise. Focus mode exists to
+give the terminal the screen, and an operator who would rather have the
+larger keyboard has a better answer available — leave focus mode, where the
+keypad is free to take its full size and the page simply scrolls.
+
+The keypad scales further down in focus mode than it does elsewhere, so all
+of it stays on screen rather than running off the bottom edge. Leaving focus
+mode restores whatever size it had before.
+
 ### File transfer (IND$FILE)
 
 **Terminal → File transfer** (also in the command palette) sends a file to

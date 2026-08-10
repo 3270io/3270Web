@@ -8,6 +8,11 @@
   var keypadModeStorageKey = "h3270KeypadMode";
   var keypadScaleRafId = 0;
   var keypadResizeObserver = null;
+  var keypadNaturalHeight = 0;
+  // The largest share of the display the virtual keyboard may take in focus
+  // mode. Focus mode promises the terminal the screen; a third of it is
+  // enough for the keys to stay hittable without the promise becoming a lie.
+  var FOCUS_KEYPAD_MAX_FRACTION = 0.35;
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
   // Set for one focusin cycle when Ctrl+Tab (or Ctrl+Shift+Tab) deliberately
@@ -2199,6 +2204,31 @@
     keypad.style.zoom = "";
   }
 
+  function focusModeActive() {
+    return document.body.getAttribute("data-focus") === "on";
+  }
+
+  // How far the keypad may be scaled down. Focus mode is the only layout with
+  // nowhere to scroll, so it is the only one where the keyboard gives up more
+  // of itself to keep the terminal whole.
+  function keypadMinScale() {
+    return focusModeActive() ? 0.3 : 0.45;
+  }
+
+  // keypadReservedHeight is how much of the display below the terminal is
+  // already spoken for, which is what the terminal's own fitting subtracts
+  // before deciding how large it can be. Because the keypad is sized from a
+  // share of the viewport in focus mode rather than from the terminal's
+  // leftovers, this is a settled number by the time the terminal asks.
+  function keypadReservedHeight() {
+    var keypad = getKeypadElement();
+    if (!keypad || keypad.hidden || keypad.children.length === 0) {
+      return 0;
+    }
+    var height = Math.ceil(keypad.getBoundingClientRect().height || 0);
+    return height > 0 ? height + 8 : 0;
+  }
+
   function syncKeypadAutoScale() {
     var keypad = getKeypadElement();
     if (!keypad) {
@@ -2219,11 +2249,30 @@
       return;
     }
 
+    // Remembered so the terminal can be fitted against the room this keypad
+    // is entitled to keep. See keypadReservedHeight below.
+    keypadNaturalHeight = naturalHeight;
+
     var keypadRect = keypad.getBoundingClientRect();
     var parent = keypad.parentElement;
     var parentRect = parent ? parent.getBoundingClientRect() : null;
     var availableWidth = Math.max(1, Math.floor((parentRect ? parentRect.width : window.innerWidth) - 4));
-    var availableHeight = Math.max(1, Math.floor(window.innerHeight - keypadRect.top - 8));
+
+    // Outside focus mode the keypad takes the room left beneath the terminal,
+    // and anything that does not fit scrolls. In focus mode nothing scrolls,
+    // and measuring the leftover room is a feedback loop with the terminal's
+    // own fitting: the terminal shrinks, the keypad grows into what it just
+    // vacated, and the two chase each other until both overflow the display.
+    // So focus mode gives the keyboard a fixed share of the viewport — a
+    // number that depends on nothing which is itself being resized — and the
+    // terminal takes everything else. That is what "the terminal wins" has to
+    // mean to be implementable.
+    var availableHeight;
+    if (focusModeActive()) {
+      availableHeight = Math.max(1, Math.floor(window.innerHeight * FOCUS_KEYPAD_MAX_FRACTION));
+    } else {
+      availableHeight = Math.max(1, Math.floor(window.innerHeight - keypadRect.top - 8));
+    }
 
     var widthScale = availableWidth / naturalWidth;
     var heightScale = availableHeight / naturalHeight;
@@ -2231,9 +2280,14 @@
     if (!isFinite(scale) || scale <= 0) {
       scale = 1;
     }
-    // Keep the keyboard usable even on very small viewports.
-    if (scale < 0.45) {
-      scale = 0.45;
+    // Keep the keyboard usable even on very small viewports. Focus mode is the
+    // one place it yields further: the mode exists to give the terminal the
+    // display, and a keypad that would not shrink past its comfortable floor
+    // is what pushed the terminal's first rows off the top edge — on a 3270
+    // panel, the title and message line.
+    var floor = keypadMinScale();
+    if (scale < floor) {
+      scale = floor;
     }
 
     if (Math.abs(scale - 1) < 0.01) {
@@ -2276,6 +2330,13 @@
         keypadResizeObserver.observe(shell);
       }
     }
+
+    // Published for the terminal's own fitting, which has to know how much
+    // room below it is spoken for before it decides how large it can be.
+    window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+    window.ThreeSeventyWeb.keypad = {
+      reservedHeight: keypadReservedHeight
+    };
   }
 
   function applyKeypadMode(container, mode, buttons) {
