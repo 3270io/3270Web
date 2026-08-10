@@ -1,8 +1,9 @@
 ---
+seo_title: "AI providers: Copilot, Claude, OpenAI, Ollama and more"
 description: >-
   Point AI Chat at GitHub Copilot, Claude, OpenAI, Google AI, a local Ollama
-  model or any OpenAI-compatible endpoint, to match your licensing and data-
-  residency rules.
+  model or any OpenAI-compatible endpoint, to match your data-residency
+  rules.
 ---
 
 # AI Providers

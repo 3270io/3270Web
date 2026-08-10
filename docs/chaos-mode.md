@@ -1,8 +1,9 @@
 ---
+seo_title: "Chaos Mode: automatic 3270 screen discovery in 3270Web"
 description: >-
-  Chaos mode explores host screens by filling input fields and submitting
-  AID keys, discovering navigation paths and producing reusable workflow
-  JSON.
+  Chaos mode explores host screens on its own by filling input fields and
+  submitting AID keys, discovering navigation paths and producing reusable
+  workflow JSON.
 ---
 
 # Chaos Mode

@@ -1,7 +1,9 @@
 ---
+seo_title: "Install and run 3270Web on Linux, Docker or Windows"
 description: >-
-  Install and run 3270Web: the one-line installer, the Docker image, the
-  Windows executable, and building from source.
+  Install and run 3270Web four ways: the one-line Linux installer, the
+  Docker image, the Windows executable, or a build from source with the Go
+  toolchain.
 ---
 
 # Install and Run

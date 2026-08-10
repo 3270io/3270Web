@@ -1,7 +1,9 @@
 ---
+seo_title: "3287 printer sessions: bind an LU and collect the output"
 description: >-
   Bind a 3287 printer LU beside a terminal session. The host prints, the job
-  arrives as a file, and you download it — from the panel or over the API.
+  arrives as a file, and you download it — from the panel or over the REST
+  API.
 ---
 
 # Printer sessions

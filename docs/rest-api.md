@@ -1,4 +1,5 @@
 ---
+seo_title: "3270Web REST API v1: drive a session over JSON HTTP"
 description: >-
   The versioned JSON HTTP API for non-browser clients — RPA bots, CI jobs
   and integration scripts — gated by a Bearer token and enabled per

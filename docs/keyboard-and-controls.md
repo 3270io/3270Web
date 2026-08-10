@@ -1,7 +1,9 @@
 ---
+seo_title: "3270Web keyboard mappings, menu bar and command palette"
 description: >-
-  The menu bar, keyboard mappings, focus mode, the command palette and the
-  virtual keypad — everything an operator drives 3270Web with.
+  The menu bar, physical keyboard mappings, focus mode, hotspots, screen
+  history, the command palette and the virtual keypad — how an operator
+  drives 3270Web.
 ---
 
 # Keyboard and Controls

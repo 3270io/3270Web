@@ -1,4 +1,5 @@
 ---
+seo_title: "3270Web accessibility and WCAG 2.1 Level AA conformance"
 description: >-
   Where 3270Web stands against WCAG 2.1 Level AA: what was tested, what
   conforms, and the exceptions — written to be useful in a procurement

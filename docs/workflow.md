@@ -1,7 +1,9 @@
 ---
+seo_title: "Record a 3270 session in 3270Web and play it back later"
 description: >-
-  Capture terminal actions as JSON recordings and replay them later, with
-  every recording and playback control explained.
+  Capture what you do at the terminal as a JSON recording, then load, play,
+  step through and debug it later — with every recording and playback
+  control explained.
 ---
 
 # Recordings and Playback

@@ -1,7 +1,9 @@
 ---
+seo_title: "3270Web feature roadmap and where it sits in the field"
 description: >-
-  How 3270Web compares with the other 3270 terminal emulators, and what it
-  may do next. A menu, not a schedule.
+  How 3270Web compares with the other 3270 terminal emulators available
+  today, and what it may do next — a menu of candidate work rather than a
+  dated schedule.
 ---
 
 # Feature Roadmap

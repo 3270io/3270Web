@@ -1,7 +1,9 @@
 ---
+seo_title: "Acknowledgements: the projects 3270Web is built on"
 description: >-
-  The projects 3270Web is built on, starting with s3270 and the x3270 family
-  that carries every screen, field and PF key.
+  The open-source projects 3270Web is built on, starting with s3270 and the
+  x3270 family that carries every screen, field and PF key in a browser
+  session.
 ---
 
 # Acknowledgements

@@ -1,7 +1,9 @@
 ---
+seo_title: "3270Web terminal capabilities, feature by feature"
 description: >-
-  What 3270Web provides today, capability by capability — a checklist to
-  take into an evaluation rather than a roadmap.
+  What 3270Web provides today, capability by capability: terminal fidelity,
+  screen tools, sessions, keyboard, file transfer, printing and
+  accessibility.
 ---
 
 # Terminal Capabilities

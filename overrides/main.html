@@ -18,6 +18,30 @@
   there is nothing per-repo in here to diverge — if the two copies differ,
   one of them is behind.
 #}
+{#
+  The page title.
+
+  Material builds `<title>` from the navigation label — "MCP Server", "Chaos
+  Mode" — and those are written to be read in a sidebar, where the surrounding
+  nav already supplies the context. On a search results page there is no
+  sidebar, so the same string arrives as two words with nothing around them,
+  and it is far shorter than the roughly sixty characters a result row will
+  show.
+
+  `seo_title` in a page's front matter is the title for that context: the whole
+  string, used verbatim, naming the product because nothing else on the results
+  page does. It is deliberately a separate key from `title` — setting `title`
+  would rewrite the sidebar entry and the <h1> along with it, and the sidebar
+  wants the short form. A page without the key keeps Material's default.
+#}
+{% block htmltitle %}
+  {%- if page and page.meta and page.meta.seo_title %}
+    <title>{{ page.meta.seo_title }}</title>
+  {%- else %}
+    {{- super() }}
+  {%- endif %}
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
   <script>
@@ -62,9 +86,13 @@
     {%- set og_image = base ~ "assets/og-image.png" %}
     {%- set description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
     {%- set tagline = config.extra.tagline if config.extra and config.extra.tagline else config.site_description %}
-    {#- The home page has no useful <h1> to borrow — it is a hero — so it is
-        titled with the product and its tagline instead of "Home". -#}
-    {%- if page and page.is_homepage %}
+    {#- The same title the <title> element carries, so a shared link and a
+        search result describe the page the same way. Falling back: the home
+        page has no useful <h1> to borrow — it is a hero — so it is titled with
+        the product and its tagline instead of "Home". -#}
+    {%- if page and page.meta and page.meta.seo_title %}
+      {%- set title = page.meta.seo_title %}
+    {%- elif page and page.is_homepage %}
       {%- set title = config.site_name ~ " — " ~ tagline %}
     {%- else %}
       {%- set title = (page.title | striptags) ~ " — " ~ config.site_name %}

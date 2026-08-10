@@ -1,8 +1,9 @@
 ---
+seo_title: "Connect 3270Web to a host, and every setting explained"
 description: >-
-  Connection setup and the full Settings modal — hostnames and ports, TLS,
-  terminal model, fonts, and every option 3270Web puts in front of an
-  operator.
+  Connect to a host and tune everything 3270Web exposes: hostnames and
+  ports, TLS, terminal model, fonts, opt-in capabilities and the reverse-
+  proxy options.
 ---
 
 # Connect and Use 3270Web

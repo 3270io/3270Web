@@ -1,3 +1,10 @@
+---
+seo_title: "Bundled sample TN3270 applications for trying 3270Web"
+description: >-
+  3270Web can start TN3270 sample applications on loopback — a pet store and
+  two games — so you can try the terminal, chaos mode and AI Chat with no
+  mainframe.
+---
 # Bundled Sample Applications
 
 3270Web ships with TN3270 applications it can start for you, so you can try

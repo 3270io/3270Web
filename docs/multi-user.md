@@ -1,7 +1,8 @@
 ---
+seo_title: "Running 3270Web as a shared instance for a whole team"
 description: >-
-  Running 3270Web on a port more than one person can reach: accounts,
-  assigned host profiles, data separation between users, and the audit
+  Running 3270Web on a port a whole team can reach: accounts, assigned host
+  profiles, what is separated between users, rate limits and the audit
   trail.
 ---
 

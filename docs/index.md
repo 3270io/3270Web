@@ -1,4 +1,5 @@
 ---
+seo_title: "3270Web — IBM 3270 terminal emulation in a browser tab"
 description: >-
   Open a tab, connect to any TN3270 host and work exactly like you would at
   a real 3270 terminal — with AI Chat, chaos exploration and session

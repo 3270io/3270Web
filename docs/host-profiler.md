@@ -1,7 +1,9 @@
 ---
+seo_title: "Host Compatibility Profiler for a live TN3270 session"
 description: >-
   Probe the active 3270 session for a CompatibilityProfile: the negotiated
-  terminal model, protocol options, discovered capabilities and timing.
+  terminal model, protocol options, discovered capabilities and round-trip
+  timing.
 ---
 
 # Host Compatibility Profiler

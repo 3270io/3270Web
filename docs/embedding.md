@@ -1,4 +1,5 @@
 ---
+seo_title: "Embed 3270Web in a portal page or your own front end"
 description: >-
   Put 3270Web inside another application: an iframe in a portal page, or a
   single-page app that talks to the API and never shows the terminal at all.

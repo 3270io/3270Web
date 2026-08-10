@@ -1,7 +1,9 @@
 ---
+seo_title: "Skills and extensions: teach the assistant your screens"
 description: >-
-  The procedures the AI assistant follows are files, not prose compiled into
-  the binary — teach it your own application without waiting for a release.
+  The procedures the browser assistant follows are files on disk, not prose
+  compiled into the binary — teach it your own 3270 application, with no
+  release needed.
 ---
 
 # Skills and Extensions
