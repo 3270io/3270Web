@@ -6,15 +6,24 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/mcptools"
 )
 
-// The tools MCP adds that the browser panel has no use for.
+// The tools this server attaches on top of the mcptools registry.
 //
-// The panel's session is whichever tab you are looking at and its task menu
-// is on screen, so list_sessions, use_session, list_tasks and run_task exist
-// only here — they are not in copilot.DefaultTools() and so are not in the
-// mcptools registry either.
+// Two of them are MCP's alone. The panel's session is whichever tab you are
+// looking at, so list_sessions and use_session have nothing to do in a browser
+// and are declared here in full.
+//
+// list_tasks and run_task are not: they are in copilot.DefaultTools() like any
+// other tool, because the chat panel offers them too. What is here is only the
+// MCP half of their wiring. The registry lists them as omitted (see
+// mcptools.Omitted) precisely so this file can bind them to the handlers in
+// mcp_tasks.go, which read the same catalogue that generates the per-task
+// task_* tools instead of passing an HTTP body through. Their description and
+// schema are taken from the shared catalogue rather than restated, so the two
+// surfaces cannot end up describing the same tool differently.
 //
 // Their descriptors live in this file rather than beside their handlers
 // because two things need them: buildMCPServer, which attaches a handler to
@@ -67,49 +76,49 @@ func mcpOnlyTools() []mcpOnlyTool {
 		},
 		{
 			Tier: mcptools.TierRead,
-			Tool: &mcp.Tool{
-				Name: "list_tasks",
-				Description: "List the Guided Business Tasks saved on this server: named, recorded operations " +
-					"such as a balance enquiry, each with the values it needs and the answer it returns. " +
-					"Prefer running one of these over driving the screens by hand — a task checks it is on the " +
-					"screen it expects before typing, and stops rather than continuing against an unexpected one.",
-				InputSchema: noArgsSchema(),
-				Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
-			},
+			Tool: sharedTool("list_tasks", &mcp.ToolAnnotations{ReadOnlyHint: true}),
 		},
 		{
 			Tier: mcptools.TierInteract,
-			Tool: &mcp.Tool{
-				Name: "run_task",
-				Description: "Run a saved Guided Business Task by name against the current 3270 session. " +
-					"Each task is also offered as its own tool (task_<name>) with the parameters it declares; " +
-					"use this when your client does not show those, or when the name came from list_tasks.",
-				InputSchema: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"name": map[string]any{
-							"type":        "string",
-							"description": "Task name exactly as list_tasks reports it.",
-						},
-						"parameters": map[string]any{
-							"type":                 "object",
-							"description":          "Values for the task's declared parameters, as name/value pairs of strings.",
-							"additionalProperties": map[string]any{"type": "string"},
-						},
-					},
-					"required":             []string{"name"},
-					"additionalProperties": false,
-				},
-				Annotations: &mcp.ToolAnnotations{
-					DestructiveHint: boolPtr(true),
-					OpenWorldHint:   boolPtr(true),
-				},
-			},
+			Tool: sharedTool("run_task", &mcp.ToolAnnotations{
+				DestructiveHint: boolPtr(true),
+				OpenWorldHint:   boolPtr(true),
+			}),
 		},
 	}
 
 	sort.Slice(out, func(i, j int) bool { return out[i].Tool.Name < out[j].Tool.Name })
 	return out
+}
+
+// sharedTool builds an MCP descriptor from the shared catalogue's declaration.
+//
+// The description and schema are the ones the chat panel is given, so a tool
+// that exists on both surfaces is described once. Only the annotations differ,
+// because they are an MCP concept and the panel has no use for them.
+//
+// It panics on a name the catalogue does not declare, for the same reason the
+// registry does: the alternative is a tool advertised with an empty
+// description, which reads to a model as a tool that does nothing.
+func sharedTool(name string, annotations *mcp.ToolAnnotations) *mcp.Tool {
+	for _, declared := range copilot.DefaultTools() {
+		if declared.Function.Name != name {
+			continue
+		}
+		schema := declared.Function.Parameters
+		if schema == nil {
+			schema = noArgsSchema()
+		}
+		return &mcp.Tool{
+			Name:        name,
+			Description: declared.Function.Description,
+			InputSchema: schema,
+			Annotations: annotations,
+		}
+	}
+	panic(fmt.Sprintf(
+		"mcp: tool %q is bound here but is not in copilot.DefaultTools(); "+
+			"declare it there, or give it a descriptor of its own in mcpOnlyTools()", name))
 }
 
 // addMCPOnlyTool attaches a handler to a declared descriptor, if the tier

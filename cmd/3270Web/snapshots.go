@@ -175,13 +175,8 @@ func (app *App) captureSnapshot(s *session.Session) (*host.Snapshot, int, error)
 	return snap, http.StatusOK, nil
 }
 
-// APITakeSnapshot handles POST /api/v1/sessions/:id/snapshots — freeze the
-// screen and keep it under a name.
-func (app *App) APITakeSnapshot(c *gin.Context) {
-	s, ok := app.apiSessionFromPath(c)
-	if !ok {
-		return
-	}
+// writeTakeSnapshot freezes the screen and keeps it under a name.
+func (app *App) writeTakeSnapshot(c *gin.Context, s *session.Session) {
 	var body struct {
 		Name string `json:"name"`
 	}
@@ -207,14 +202,10 @@ func (app *App) APITakeSnapshot(c *gin.Context) {
 	c.JSON(http.StatusCreated, entry)
 }
 
-// APIListSnapshots handles GET /api/v1/sessions/:id/snapshots. With ?name= it
-// returns that one snapshot in full; without, the list, each with its text so
-// a caller can diff them itself if it would rather not ask the server to.
-func (app *App) APIListSnapshots(c *gin.Context) {
-	s, ok := app.apiSessionFromPath(c)
-	if !ok {
-		return
-	}
+// writeSnapshotList answers a listing request. With ?name= it returns that one
+// snapshot in full; without, the list, each with its text so a caller can diff
+// them itself if it would rather not ask the server to.
+func (app *App) writeSnapshotList(c *gin.Context, s *session.Session) {
 	if name := strings.TrimSpace(c.Query("name")); name != "" {
 		entry, found := app.snapshots().get(s.ID, name)
 		if !found {
@@ -227,14 +218,10 @@ func (app *App) APIListSnapshots(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"snapshots": app.snapshots().list(s.ID)})
 }
 
-// APIDeleteSnapshot handles DELETE /api/v1/sessions/:id/snapshots?name=.
-// Deleting one that is not there succeeds, so a retried request does not
-// report a failure for a delete that already took effect.
-func (app *App) APIDeleteSnapshot(c *gin.Context) {
-	s, ok := app.apiSessionFromPath(c)
-	if !ok {
-		return
-	}
+// writeSnapshotDelete drops one snapshot. Deleting one that is not there
+// succeeds, so a retried request does not report a failure for a delete that
+// already took effect.
+func (app *App) writeSnapshotDelete(c *gin.Context, s *session.Session) {
 	name := strings.TrimSpace(c.Query("name"))
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
@@ -244,17 +231,13 @@ func (app *App) APIDeleteSnapshot(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// APIDiffSnapshots handles POST /api/v1/sessions/:id/snapshots/diff.
+// writeSnapshotDiff compares two screens.
 //
 // "right" may be omitted, and then the comparison is against the screen as it
 // stands now. That is the shape the feature is actually used in — capture a
 // screen, do something, ask what moved — and making the caller take a second
 // snapshot first would only add a name it has no use for.
-func (app *App) APIDiffSnapshots(c *gin.Context) {
-	s, ok := app.apiSessionFromPath(c)
-	if !ok {
-		return
-	}
+func (app *App) writeSnapshotDiff(c *gin.Context, s *session.Session) {
 	var body struct {
 		Left  string `json:"left"`
 		Right string `json:"right"`
@@ -300,4 +283,69 @@ func (app *App) APIDiffSnapshots(c *gin.Context) {
 		"identical": diff.Identical,
 		"lines":     diff.Lines,
 	})
+}
+
+// One implementation, two doors, as with connection details and the display
+// toggles: the browser arrives with its session cookie, the API with a bearer
+// token. The cookie door exists because the chat panel runs its tool loop in
+// the page, and a tool the assistant cannot reach is a capability it will tell
+// the user this build does not have.
+
+// SnapshotTakeHandler handles POST /screen/snapshots — the cookie door.
+func (app *App) SnapshotTakeHandler(c *gin.Context) {
+	if s := app.browserSessionOr404(c); s != nil {
+		app.writeTakeSnapshot(c, s)
+	}
+}
+
+// SnapshotListHandler handles GET /screen/snapshots — the cookie door.
+func (app *App) SnapshotListHandler(c *gin.Context) {
+	if s := app.browserSessionOr404(c); s != nil {
+		app.writeSnapshotList(c, s)
+	}
+}
+
+// SnapshotDeleteHandler handles DELETE /screen/snapshots?name= — the cookie
+// door.
+func (app *App) SnapshotDeleteHandler(c *gin.Context) {
+	if s := app.browserSessionOr404(c); s != nil {
+		app.writeSnapshotDelete(c, s)
+	}
+}
+
+// SnapshotDiffHandler handles POST /screen/snapshots/diff — the cookie door.
+func (app *App) SnapshotDiffHandler(c *gin.Context) {
+	if s := app.browserSessionOr404(c); s != nil {
+		app.writeSnapshotDiff(c, s)
+	}
+}
+
+// The API door.
+
+// APITakeSnapshot handles POST /api/v1/sessions/:id/snapshots.
+func (app *App) APITakeSnapshot(c *gin.Context) {
+	if s, ok := app.apiSessionFromPath(c); ok {
+		app.writeTakeSnapshot(c, s)
+	}
+}
+
+// APIListSnapshots handles GET /api/v1/sessions/:id/snapshots.
+func (app *App) APIListSnapshots(c *gin.Context) {
+	if s, ok := app.apiSessionFromPath(c); ok {
+		app.writeSnapshotList(c, s)
+	}
+}
+
+// APIDeleteSnapshot handles DELETE /api/v1/sessions/:id/snapshots?name=.
+func (app *App) APIDeleteSnapshot(c *gin.Context) {
+	if s, ok := app.apiSessionFromPath(c); ok {
+		app.writeSnapshotDelete(c, s)
+	}
+}
+
+// APIDiffSnapshots handles POST /api/v1/sessions/:id/snapshots/diff.
+func (app *App) APIDiffSnapshots(c *gin.Context) {
+	if s, ok := app.apiSessionFromPath(c); ok {
+		app.writeSnapshotDiff(c, s)
+	}
 }

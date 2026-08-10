@@ -112,6 +112,27 @@ The AI can perform the following actions on your 3270 session:
 | Write field | Writes text into an unprotected field at a given row and column |
 | Submit screen | Writes modified fields then presses `Enter` |
 
+## Beyond the Screen
+
+The panel drives more of this build than the keyboard does. Each of the
+following was on the [REST API](rest-api.md) before it was a tool, which meant
+an assistant asked whether 3270Web could do it had no way to find out that it
+could — and answered from what it *could* see, which was a keyboard and an
+exploration engine.
+
+| Ask for | Tool used | What it does |
+|---|---|---|
+| Run a saved task | `list_tasks` / `run_task` | Lists the [Guided Business Tasks](business-tasks.md) saved here — each with the values it needs and the answer it returns — and runs one by name. Preferred over driving the screens by hand: a task verifies it is on the screen it expects before typing |
+| Check a screen against a known-good one | `snapshot_take` / `snapshot_diff` | Freezes the screen under a name, then reports which rows moved — against another snapshot or against the screen as it stands. The answer is the rows that differ, not a pass or a fail |
+| Manage what is held | `snapshot_list` / `snapshot_delete` | Names and sizes of the snapshots this session holds, and how to make room |
+| Describe the connection | `get_connection_details` | What was negotiated: TN3270E, the bound LU, the terminal type, TLS, byte counts. None of it is on the screen, and all of it matters when a session renders but misbehaves |
+| Change what the terminal shows | `get_display_toggles` / `set_display_toggle` | Reads and writes the terminal's own display settings — monocase, crosshair, cursor blink, the underscore under input fields |
+| Collect printed output | `printer_status` / `printer_start` / `printer_stop` / `printer_read_job` | Reports the [3287 printer session](printer-sessions.md) bound beside this one and every job it has collected, binds or ends one, and reads what the host printed. Batch output goes to a printer LU, never to the screen |
+
+Snapshots live in memory for the life of the session and are never written to
+disk. A long print job is cut short before it reaches the conversation; the
+reply says so, and the whole file stays downloadable from the printer panel.
+
 ## Chaos Integration
 
 The AI can run and monitor chaos exploration directly from the chat panel. This gives you the same capability as the Automation menu, but driven by conversation.
