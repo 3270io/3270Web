@@ -10,7 +10,8 @@ What an enterprise 3270 terminal is expected to do, and what 3270Web
 provides. Every capability below is implemented and shipping — the tables
 are a checklist you can take into an evaluation, not a roadmap.
 
-For what may come next, see the [Feature Roadmap](feature-roadmap.md).
+For how 3270Web compares with the other emulators in this category, and for
+what may come next, see the [Feature Roadmap](feature-roadmap.md).
 
 ---
 

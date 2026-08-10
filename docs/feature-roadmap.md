@@ -1,7 +1,7 @@
 ---
 description: >-
-  Candidates for what 3270Web may do next. A menu, not a schedule — for what
-  it does today, read Terminal Capabilities.
+  How 3270Web compares with the other 3270 terminal emulators, and what it
+  may do next. A menu, not a schedule.
 ---
 
 # Feature Roadmap
@@ -12,6 +12,130 @@ item is a candidate, not a commitment, and the order is not a queue.
 For what 3270Web provides **today**, see
 [Terminal Capabilities](terminal-capabilities.md). That page is the one to
 read before an evaluation; this one is for deciding what to build.
+
+## The field, and where 3270Web sits in it
+
+A roadmap is a set of choices, and the choices are made against a category
+that already exists. So the comparison comes first, and the rest of the page
+follows from it.
+
+The table describes **how each emulator is delivered and what it offers for
+automation** — facts each vendor states plainly and that rarely change from
+release to release. It is deliberately not a feature-by-feature grid: nobody
+can honestly audit eight products from the outside, and a tick in a column
+you cannot verify is worse than no column at all. Each vendor's own
+documentation is the authority on that vendor's product. Rows were checked
+against published documentation in August 2026; if one is wrong or has gone
+stale, [tell us](https://github.com/3270io/3270Web/issues) and it gets
+fixed.
+
+| Emulator | How it reaches the user | Runs on | Licence | Automation surface |
+|---|---|---|---|---|
+| **3270Web** | A URL. One Go binary or container serves the terminal to a browser tab | Any modern browser; server on Linux, Windows, macOS or Docker | Open source (MIT) | REST/JSON API, recorded workflows replayed as JSON, Guided Business Tasks, an HLLAPI-shaped endpoint, and an MCP server |
+| **Quick3270** | Installed Windows application | Windows client and server, Citrix and Terminal Server | Commercial, per seat | VBScript macro language with an editor and debugger, EHLLAPI (32- and 64-bit), a session API and COM automation |
+| **Vista TN3270** | Installed Windows application | Windows | Commercial, low per-seat fee | Fully tailorable keyboard, multiple paste buffers, JCL-aware selection — aimed at the programmer at the keyboard |
+| **Mocha TN3270** | Installed application, one per platform | Windows, macOS, ChromeOS, iOS, Android | Commercial, per seat | Keyboard definition and user-defined function keys |
+| **HCL Z and I Emulator for Web** | Browser, served from an application server | Browser client; Windows, Linux or z server | Commercial, licensed per user | EHLLAPI and the host-access toolkit APIs, including a J2EE connector |
+| **Inventu Viewer+** (formerly Flynet Viewer) | Browser, served from a Windows server — no plug-in, no applet | Browser client; Windows Server | Commercial | Server-side screen integration, with generated web services |
+| **Ericom PowerTerm WebConnect HostView** | Browser, served from a central server | Browser client; Windows or Linux server | Commercial | Centrally managed sessions, with scripting in the PowerTerm client |
+| **x3270 / wc3270 / c3270 / s3270** | Installed command-line or X11 application | Linux, Unix, Windows, macOS | Open source (BSD-3-Clause) | The `s3270` scripting protocol — the same engine 3270Web drives |
+
+### Reading the table
+
+Three delivery models, and which one a product picked decides most of
+everything else about it.
+
+**Installed desktop clients** — Quick3270, Vista TN3270, Mocha TN3270 and
+the x3270 family — have the deepest terminal fidelity and the widest set of
+integration points, because they have a whole operating system to
+reach into: an EHLLAPI library that a twenty-year-old binary can load, a
+printer session that appears as a real device, a COM object another desktop
+application can drive. What that costs is per-machine. Something is
+packaged, installed, patched and version-matched on every desk, and the
+Windows-only ones decide what the desk has to be.
+
+**Server-delivered browser sessions** — Z and I Emulator for Web, Inventu
+Viewer+, PowerTerm WebConnect, 3270Web — put nothing on the desk. One place
+to upgrade, one place to control who reaches which host, and a Chromebook or
+a tablet is as good a terminal as a laptop. The trade is that anything which
+had to touch the local machine has to be re-earned some other way, over an
+API rather than a DLL.
+
+**Open source** — the x3270 family and 3270Web — means the thing can be
+read, forked, audited and deployed without a purchase order. It is the
+smaller half of this category by a distance. 3270Web builds directly on
+`s3270`; see [Acknowledgements](acknowledgements.md).
+
+### Where 3270Web is different
+
+Comparing against the category rather than against any one product, because
+these are axes rather than checkboxes:
+
+| Axis | Where the category generally sits | 3270Web |
+|---|---|---|
+| Getting a terminal onto a desk | An install, or a server product plus a client entitlement per user | A URL |
+| Automating a flow | A vendor macro language, or EHLLAPI against a presentation space | The recording made in the browser **is** the JSON an API replays — no second language in between |
+| Serving somebody who does not know the application | Out of scope: the operator is expected to learn the green screen | [Guided Business Tasks](business-tasks.md) — named inputs, a named answer, no green screen |
+| Finding out what an application actually does | Documentation, or a person with twenty years of it | [Chaos exploration](chaos-mode.md) walks it and produces a screen mind-map, diffable between two hosts |
+| Regression-testing a host application | Left to whatever test tooling the shop already has | Named screen snapshots, diffed row by row, over the API |
+| Accessibility | Rarely stated in public documentation at all | A tested [WCAG 2.1 AA statement](accessibility.md), including where it falls short |
+| AI | Increasingly offered, generally as the vendor's own service | Bring your own provider — [six of them](ai-providers.md) — plus an [MCP server](mcp.md) any agent can drive |
+| Reading the source | Closed, with the x3270 family the long-standing exception | Open, on GitHub |
+
+### Where the field is ahead
+
+The honest half, and the reason the next section exists. These are
+capabilities the established emulators have had for years and 3270Web does
+not:
+
+- **Printer sessions.** 3287 and 3812 emulation, LU1 (SCS) and LU3
+  datastreams, printer definition files. Standard equipment in the desktop
+  clients; absent here. A shop whose batch output arrives on a printer LU
+  cannot replace its emulator with 3270Web today.
+- **Protocols beyond TN3270.** TN5250 for IBM i, and VT for everything
+  else, usually ship in the same box. 3270Web speaks TN3270 and TN3270E
+  only.
+- **A loadable EHLLAPI library.** The
+  [HLLAPI-shaped endpoint](rest-api.md#post-apiv1sessionsidhllapi) ports a
+  screen-scraper by changing *how* it calls rather than what it does — but
+  only if it can be rebuilt. A binary that links the DLL and has no
+  surviving source still needs the DLL.
+- **DBCS and bidirectional language support.** Arabic, Hebrew, and the
+  double-byte character sets. Neither is a rendering tweak; both reach the
+  code page handling and the field model.
+- **Macro-file import.** The `.KMP` keyboard importer has an equivalent
+  problem one layer up: an organisation with three hundred recorded macros
+  has three hundred reasons not to move.
+
+## Category parity
+
+Derived from the section above. None of these make 3270Web better at what it
+is already good at — they remove reasons an evaluation stops early.
+
+- [ ] **3287 printer session** — LU1 (SCS) and LU3 (PDS) datastreams, with
+      output to a file, a browser download or a system printer. `pr3287`
+      ships alongside `s3270` and speaks both, so the protocol work is
+      largely a matter of driving it and deciding where a browser-delivered
+      terminal is allowed to send paper
+- [ ] **TN5250** — the same terminal, the same recording and task
+      machinery, pointed at IBM i. A larger job than it looks: 5250 has its
+      own field model and its own AID set, and pretending otherwise is how
+      an emulator ends up subtly wrong on both
+- [ ] **VT emulation** — commonly in the same box as 3270, and the reason a
+      shop can standardise on one client. Worth doing only if it does not
+      compromise the 3270 path, which is what 3270Web is actually for
+- [ ] **DBCS and bidirectional language support** — double-byte character
+      sets, and right-to-left screens with the field-level orientation rules
+      that go with them. Reaches the code page handling, the field model and
+      the renderer, in that order
+- [ ] **A native EHLLAPI shim** — a small DLL that presents the classic
+      entry points and forwards them to the HLLAPI-shaped endpoint, for the
+      binaries that cannot be rebuilt. The semantics are already
+      implemented; what is missing is a library for them to load
+- [ ] **Macro-file import** — read an existing macro file and report what it
+      could not translate, the way the `.KMP` keyboard importer already
+      does. A report of the twelve lines that need a human is worth more
+      than a silent partial conversion
 
 ## Recently shipped
 
