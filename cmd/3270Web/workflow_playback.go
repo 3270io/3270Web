@@ -19,8 +19,36 @@ func (e unsupportedWorkflowStepError) Error() string {
 	return fmt.Sprintf("unsupported workflow step type: %s", e.StepType)
 }
 
+// workflowAbortError ends a run rather than skipping a step. It is raised by
+// the decision steps only: everywhere else a failed step is logged and the run
+// continues, which is right for a step that acts and wrong for one that
+// decides. See workflow_control.go.
+type workflowAbortError struct {
+	Reason string
+}
+
+func (e workflowAbortError) Error() string {
+	return e.Reason
+}
+
 func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 	if s == nil || workflow == nil {
+		return
+	}
+
+	// A recording is compiled when it is loaded, so a block that does not
+	// close has already been refused by then. Compiling again here is for the
+	// callers that build a recording in memory and never went through a load,
+	// and it costs one pass over the steps.
+	program, err := compileWorkflowSteps(workflow.Steps)
+	if err != nil {
+		withSessionLock(s, func() {
+			if s.Playback != nil {
+				s.Playback.Active = false
+			}
+			s.PlaybackCompletedAt = time.Now()
+		})
+		addPlaybackEvent(s, fmt.Sprintf("Playback refused: %v", err))
 		return
 	}
 
@@ -30,6 +58,7 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 		}
 		s.Playback.Active = true
 		s.Playback.TotalSteps = len(workflow.Steps)
+		s.Playback.Variables = nil
 	})
 
 	defer func() {
@@ -48,7 +77,15 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 		addPlaybackEvent(s, "Playback stopped")
 	}()
 
-	for i, step := range workflow.Steps {
+	// The run is a program counter rather than a range, because a recording
+	// that makes decisions does not necessarily visit its steps in order —
+	// an If skips a block, an EndWhile goes backwards. A recording with no
+	// decisions in it walks 0, 1, 2 … and behaves exactly as it always did.
+	total := len(workflow.Steps)
+	run := newWorkflowRunState()
+	executed := 0
+
+	for pc := 0; pc >= 0 && pc < total; {
 		if shouldStopPlayback(s) {
 			addPlaybackEvent(s, "Playback stop acknowledged")
 			return
@@ -58,13 +95,29 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 			return
 		}
 
+		executed++
+		if executed > maxWorkflowStepsExecuted {
+			addPlaybackEvent(s, fmt.Sprintf("Playback stopped: this recording has run %d steps without finishing, which is further than a flow that is going to finish gets", maxWorkflowStepsExecuted))
+			return
+		}
+
+		step := workflow.Steps[pc]
+		control := isControlFlowStepType(step.Type)
+
 		delayMin, delayMax := workflowDelayForStep(workflow, step)
+		if control && step.StepDelay == nil {
+			// A decision never reaches the host, so the pacing delay that
+			// exists to keep a host comfortable has nothing to pace. A step
+			// that names its own delay still gets it.
+			delayMin, delayMax = 0, 0
+		}
 		delayUsed := randomDelay(delayMin, delayMax)
+		stepIndex := pc
 		withSessionLock(s, func() {
 			if s.Playback == nil {
 				return
 			}
-			s.Playback.CurrentStep = i + 1
+			s.Playback.CurrentStep = stepIndex + 1
 			s.Playback.CurrentStepType = step.Type
 			s.Playback.CurrentDelayMin = delayMin
 			s.Playback.CurrentDelayMax = delayMax
@@ -78,29 +131,247 @@ func (app *App) playWorkflow(s *session.Session, workflow *WorkflowConfig) {
 			}
 		}
 
-		if err := app.applyWorkflowStep(s, step); err != nil {
-			var unsupportedErr unsupportedWorkflowStepError
-			if errors.As(err, &unsupportedErr) {
-				addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped unsupported step: %s", i+1, len(workflow.Steps), unsupportedErr.StepType))
-				continue
+		if control {
+			next, err := app.runWorkflowControlStep(s, program, pc, run)
+			if err != nil {
+				addPlaybackEvent(s, fmt.Sprintf("Playback stopped at step %d/%d (%s): %v", pc+1, total, canonicalWorkflowStepType(step.Type), err))
+				return
 			}
-			addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped failed step (%s): %v", i+1, len(workflow.Steps), step.Type, err))
+			pc = next
+			markDebugStepTaken(s)
 			continue
 		}
 
-		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: %s", i+1, len(workflow.Steps), step.Type))
-
-		withSessionLock(s, func() {
-			if s.Playback == nil {
+		resolved, err := resolveWorkflowStepText(step, run.vars)
+		if err == nil {
+			err = app.applyWorkflowStep(s, resolved)
+		}
+		if err != nil {
+			var abortErr workflowAbortError
+			if errors.As(err, &abortErr) {
+				addPlaybackEvent(s, fmt.Sprintf("Playback stopped at step %d/%d (%s): %v", pc+1, total, step.Type, abortErr.Reason))
 				return
 			}
-			if s.Playback.Mode == "debug" && s.Playback.Paused {
-				s.Playback.StepRequested = false
+			var unsupportedErr unsupportedWorkflowStepError
+			if errors.As(err, &unsupportedErr) {
+				addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped unsupported step: %s", pc+1, total, unsupportedErr.StepType))
+				pc++
+				continue
 			}
-		})
+			addPlaybackEvent(s, fmt.Sprintf("Step %d/%d skipped failed step (%s): %v", pc+1, total, step.Type, err))
+			pc++
+			continue
+		}
+
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: %s", pc+1, total, step.Type))
+		markDebugStepTaken(s)
+		pc++
 	}
 
 	addPlaybackEvent(s, "Playback completed")
+}
+
+func markDebugStepTaken(s *session.Session) {
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			return
+		}
+		if s.Playback.Mode == "debug" && s.Playback.Paused {
+			s.Playback.StepRequested = false
+		}
+	})
+}
+
+// resolveWorkflowStepText fills ${name} into the text an acting step types or
+// checks.
+//
+// A failure here ends the run rather than skipping the step, for the same
+// reason a failed decision does: the alternative is typing the characters
+// "${balance}" into a field on a live host, which is a wrong value entered
+// confidently rather than a step that did not happen.
+func resolveWorkflowStepText(step session.WorkflowStep, vars workflowVariables) (session.WorkflowStep, error) {
+	if !strings.Contains(step.Text, "${") {
+		return step, nil
+	}
+	switch strings.TrimSpace(step.Type) {
+	case "FillString", "CheckValue":
+		text, err := substituteWorkflowVariables(step.Text, vars)
+		if err != nil {
+			return step, workflowAbortError{Reason: err.Error()}
+		}
+		step.Text = text
+	}
+	return step, nil
+}
+
+// runWorkflowControlStep runs one decision and answers with the step to run
+// next. Every error it returns ends the run: see workflow_control.go for why a
+// decision that cannot be made is not a step that can be skipped.
+func (app *App) runWorkflowControlStep(s *session.Session, program *workflowProgram, pc int, run *workflowRunState) (int, error) {
+	step := program.steps[pc]
+	stepType := canonicalWorkflowStepType(step.Type)
+	total := len(program.steps)
+
+	switch stepType {
+	case stepSetVariable:
+		value, err := app.workflowVariableValue(s, step, run.vars)
+		if err != nil {
+			return 0, err
+		}
+		run.vars[step.Variable] = value
+		if step.Sensitive {
+			run.sensitive[step.Variable] = true
+		}
+		publishWorkflowVariables(s, run)
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: SetVariable %s = %s", pc+1, total, step.Variable, run.loggable(step.Variable, value)))
+		return pc + 1, nil
+
+	case stepIf:
+		result, err := app.evaluateWorkflowStepCondition(s, step, run.vars)
+		if err != nil {
+			return 0, err
+		}
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: If %s — %s", pc+1, total, describeWorkflowCondition(step), workflowBranchTaken(result)))
+		if result {
+			return pc + 1, nil
+		}
+		return workflowJumpTarget(program.ifFalse, pc, stepIf)
+
+	case stepElse:
+		// Reached by running off the end of the then-branch, so the rest of
+		// this If has already been decided against.
+		return workflowJumpTarget(program.elseEnd, pc, stepElse)
+
+	case stepEndIf:
+		return pc + 1, nil
+
+	case stepWhile:
+		limit := step.MaxIterations
+		if limit <= 0 {
+			limit = defaultWorkflowLoopLimit
+		}
+		if run.loops[pc] >= limit {
+			return 0, workflowAbortError{Reason: fmt.Sprintf("the loop at step %d is still true after %d passes, so it is not going to end on its own", pc+1, limit)}
+		}
+		result, err := app.evaluateWorkflowStepCondition(s, step, run.vars)
+		if err != nil {
+			return 0, err
+		}
+		if !result {
+			// Reset so an enclosing loop that comes back here starts this
+			// one's count again rather than inheriting the last pass.
+			delete(run.loops, pc)
+			addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: While %s — leaving the loop", pc+1, total, describeWorkflowCondition(step)))
+			return workflowJumpTarget(program.whileFalse, pc, stepWhile)
+		}
+		run.loops[pc]++
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: While %s — pass %d", pc+1, total, describeWorkflowCondition(step), run.loops[pc]))
+		return pc + 1, nil
+
+	case stepEndWhile:
+		return workflowJumpTarget(program.whileStart, pc, stepEndWhile)
+
+	case stepStop:
+		reason, err := substituteWorkflowVariables(step.Text, run.vars)
+		if err != nil {
+			return 0, err
+		}
+		if strings.TrimSpace(reason) == "" {
+			reason = "the recording asked to stop here"
+		}
+		addPlaybackEvent(s, fmt.Sprintf("Step %d/%d: Stop — %s", pc+1, total, reason))
+		return total, nil
+	}
+
+	return 0, fmt.Errorf("unhandled control step %q", step.Type)
+}
+
+// workflowJumpTarget reads a resolved jump. Compilation fills every one of
+// these in, so a missing target means the program and the steps have come
+// apart — and the wrong answer to that is zero, which would silently restart
+// the recording from its first step.
+func workflowJumpTarget(targets map[int]int, pc int, stepType string) (int, error) {
+	target, ok := targets[pc]
+	if !ok {
+		return 0, fmt.Errorf("the %s at step %d has no resolved block to jump to", stepType, pc+1)
+	}
+	return target, nil
+}
+
+func workflowBranchTaken(result bool) string {
+	if result {
+		return "true, taking this branch"
+	}
+	return "false, taking the other branch"
+}
+
+// workflowVariableValue answers with what a SetVariable step should store:
+// either a literal with any variables of its own filled in, or the text at a
+// place on the screen, trimmed of the spaces a field is padded with.
+func (app *App) workflowVariableValue(s *session.Session, step session.WorkflowStep, vars workflowVariables) (string, error) {
+	if step.Coordinates == nil {
+		return substituteWorkflowVariables(step.Text, vars)
+	}
+	screen, err := app.workflowScreen(s)
+	if err != nil {
+		return "", err
+	}
+	text, err := screenRegionText(screen, step.Coordinates.Row, step.Coordinates.Column, step.Coordinates.Length)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func (app *App) evaluateWorkflowStepCondition(s *session.Session, step session.WorkflowStep, vars workflowVariables) (bool, error) {
+	var screen *host.Screen
+	if step.Coordinates != nil {
+		var err error
+		screen, err = app.workflowScreen(s)
+		if err != nil {
+			return false, err
+		}
+	}
+	return evaluateWorkflowCondition(step, vars, screen)
+}
+
+// workflowScreen reads the screen as it stands now. It refreshes first: a
+// condition asked between two host round-trips must be answered against what
+// the host has drawn, not against whatever was cached before the last key.
+func (app *App) workflowScreen(s *session.Session) (*host.Screen, error) {
+	h := app.sessionHost(s)
+	if h == nil {
+		return nil, errors.New("session host is unavailable")
+	}
+	if err := h.UpdateScreen(); err != nil {
+		return nil, err
+	}
+	screen := hostScreenSnapshot(h)
+	if screen == nil {
+		return nil, errors.New("screen is unavailable")
+	}
+	return screen, nil
+}
+
+// publishWorkflowVariables copies what the run knows onto the playback state,
+// so /workflow/status can answer "what did it read?" while the run is going.
+func publishWorkflowVariables(s *session.Session, run *workflowRunState) {
+	snapshot := make(map[string]string, len(run.vars))
+	for name, value := range run.vars {
+		if run.sensitive[name] {
+			// Set, and deliberately not said. The run still has the value;
+			// the status endpoint is read by more people than the run is.
+			snapshot[name] = "(hidden)"
+			continue
+		}
+		snapshot[name] = value
+	}
+	withSessionLock(s, func() {
+		if s.Playback == nil {
+			return
+		}
+		s.Playback.Variables = snapshot
+	})
 }
 
 func (app *App) applyWorkflowStep(s *session.Session, step session.WorkflowStep) error {

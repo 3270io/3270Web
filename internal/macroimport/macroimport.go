@@ -85,11 +85,11 @@ type Result struct {
 // person who has to fix it, so it says what the recording format can do
 // instead rather than only what it cannot.
 const (
-	reasonControlFlow  = "a recording is a straight line of steps, with no branching, loops or subroutine calls"
-	reasonVariable     = "a recording carries literal values, not variables"
+	reasonControlFlow  = "a recording has decisions of its own now, but which lines belong inside this branch, and what its condition compares on which part of the screen, is not something this importer will guess at — see the If, While and Stop steps in the recording documentation"
+	reasonVariable     = "a recording has variables now, but where this value came from is not knowable from the file — a SetVariable step names the row and column it reads"
 	reasonExpression   = "its arguments are an expression rather than literal values"
 	reasonDialog       = "a replayed recording has nobody at the keyboard to answer a dialog"
-	reasonScreenRead   = "reads screen text into a variable — a Guided Business Task names an output instead of storing one"
+	reasonScreenRead   = "reads screen text into a variable — a SetVariable step does that, given the row, column and length to read, and a Guided Business Task names an output instead of storing one"
 	reasonExternal     = "reaches outside the terminal session"
 	reasonCursor       = "text typed with no known cursor position — a recording step names the row and column, and where the host left the cursor is not knowable from the file"
 	reasonWholeScreen  = "searches the whole screen — a recording checks the text at a named row and column"

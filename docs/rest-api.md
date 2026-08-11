@@ -815,7 +815,7 @@ curl -H "Authorization: Bearer $API_TOKEN" \
     {
       "line": 8,
       "source": "If Session.Screen.GetString(1, 1, 5) = \"READY\" Then",
-      "reason": "a recording is a straight line of steps, with no branching, loops or subroutine calls"
+      "reason": "a recording has decisions of its own now, but which lines belong inside this branch, and what its condition compares on which part of the screen, is not something this importer will guess at — see the If, While and Stop steps in the recording documentation"
     }
   ],
   "advisories": ["Wait times were read as milliseconds. …"],
@@ -863,6 +863,7 @@ that already drive 3270Web through the cookie.
 | `GET` | `/printer/jobs` | List the print jobs. |
 | `GET` | `/printer/jobs/download?name=` | Download one job as an attachment. |
 | `POST` | `/printer/jobs/delete?name=` | Drop one job. |
+| `GET` | `/workflow/status` | Recording and playback state for the current session: the step a run is on, its recent events, and `playbackVariables` — what a recording that makes decisions has read so far. See [Recordings and Playback](workflow.md#decisions-variables-and-loops). |
 | `POST` | `/workflow/import-macro` | Translate an uploaded macro file and load the result as this session's recording. Returns the same report as the API route, without the recording itself. See [Recordings and Playback](workflow.md#importing-a-macro-file). |
 | `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |

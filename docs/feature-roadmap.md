@@ -76,7 +76,7 @@ these are axes rather than checkboxes:
 | Axis | Where the category generally sits | 3270Web |
 |---|---|---|
 | Getting a terminal onto a desk | An install, or a server product plus a client entitlement per user | A URL |
-| Automating a flow | A vendor macro language, or EHLLAPI against a presentation space | The recording made in the browser **is** the JSON an API replays — no second language in between |
+| Automating a flow | A vendor macro language, or EHLLAPI against a presentation space | The recording made in the browser **is** the JSON an API replays — no second language in between, and it decides, repeats and remembers without becoming one |
 | Serving somebody who does not know the application | Out of scope: the operator is expected to learn the green screen | [Guided Business Tasks](business-tasks.md) — named inputs, a named answer, no green screen |
 | Finding out what an application actually does | Documentation, or a person with twenty years of it | [Chaos exploration](chaos-mode.md) walks it and produces a screen mind-map, diffable between two hosts |
 | Regression-testing a host application | Left to whatever test tooling the shop already has | Named screen snapshots, diffed row by row, over the API |
@@ -111,12 +111,15 @@ not:
 - **DBCS and bidirectional language support.** Arabic, Hebrew, and the
   double-byte character sets. Neither is a rendering tweak; both reach the
   code page handling and the field model.
-- **A macro language with decisions in it.** Macro files now import — see
-  [Recordings and Playback](workflow.md#importing-a-macro-file) — but what
-  imports is the straight-line part of one. A recording has no branch, no loop
-  and no variable, so a macro that reads a balance and decides what to do
-  about it still needs a person, and the established emulators ship full
-  scripting languages with editors and debuggers around them.
+- **A scripting language with an editor and a debugger around it.** A
+  recording now decides, repeats and remembers — see
+  [Decisions, variables and loops](workflow.md#decisions-variables-and-loops)
+  — which closes the part of this gap that mattered most: a flow that reads a
+  balance and takes a different path is now a recording rather than a person.
+  What the established emulators still have is the rest of a language and the
+  tooling around it: arithmetic, subroutines, an editor that knows the syntax,
+  a debugger with breakpoints. Playback steps and shows every decision it
+  makes, and that is not the same thing.
 
 ## Category parity
 
@@ -150,6 +153,21 @@ is already good at — they remove reasons an evaluation stops early.
       entry points and forwards them to the HLLAPI-shaped endpoint, for the
       binaries that cannot be rebuilt. The semantics are already
       implemented; what is missing is a library for them to load
+- [x] **Decisions in a recording** — *shipped: `SetVariable`, `If`/`Else`/
+      `EndIf`, `While`/`EndWhile` and `Stop` as ordinary steps in the same flat
+      list, so a flow can read a balance off the screen and take a different
+      path, or press a key until the host stops saying MORE. Every loop is
+      bounded, a decision that cannot be made stops the run rather than
+      guessing a branch, and a recording whose blocks do not close is refused
+      when it is loaded rather than half-way through. See
+      [Decisions, variables and loops](workflow.md#decisions-variables-and-loops)*
+- [ ] **Translating a macro's decisions, not just its steps** — the importer
+      reports a branch against its line number, and now has step types it could
+      translate one into. What it does not have is a way to know which lines
+      belong inside the branch and what the condition should compare on which
+      part of the screen; that is a judgement about the host's screens rather
+      than a translation of the file. Worth doing only for the shapes where it
+      is unambiguous, and reported as untranslated everywhere else
 - [x] **Macro-file import** — *shipped: a macro file written against the
       session automation object model becomes a recording, and every line that
       would not translate is reported with its number, its text and the reason
@@ -162,6 +180,18 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **A recording that can decide** — the flow a shop actually has is not a
+  straight line: read the balance and take a different path under the limit,
+  press a key until the host stops saying MORE, skip the confirmation panel on
+  the days it is not drawn. Recordings now carry `SetVariable`, `If`/`Else`,
+  `While` and `Stop` as ordinary steps in the same flat list every reader of a
+  recording already walks, so nothing else had to learn a second shape. The
+  restraint is the design: a loop is always bounded, a condition that cannot be
+  evaluated ends the run instead of picking a branch, and a `${name}` that
+  names nothing stops the run rather than typing those characters into a field
+  on a live host. Blocks that do not close are refused when the file is
+  loaded, before it has touched anything. See
+  [Decisions, variables and loops](workflow.md#decisions-variables-and-loops).
 - **The shelf of macros that was keeping a shop where it is** — a macro file
   written for an installed emulator is read here and becomes a recording, and
   the lines it will not take are named rather than dropped: this branch, that
