@@ -23,7 +23,7 @@
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=21">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
@@ -316,6 +316,15 @@
                                             <span class="appmenu-label">Load a recording…</span>
                                         </button>
                                     </form>
+                                    <!-- Years of macros written against an installed
+                                         emulator are the reason a shop cannot move.
+                                         This reads one and says, line by line, what it
+                                         could not translate. See macro-import.js. -->
+                                    <input type="file" accept=".mac,.vbs,.bas,.txt" class="workflow-file-input" data-macro-import-file hidden>
+                                    <button type="button" class="appmenu-item" role="menuitem" data-macro-import-open {{ if or .RecordingActive .PlaybackActive }}disabled{{ end }}>
+                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L17.5 8H14zM7.5 12h2.2l1.3 2.1 1.3-2.1h2.2l-2.4 3.5 2.5 3.6h-2.2L11 17l-1.4 2.1H7.4l2.5-3.6z"/></svg>
+                                        <span class="appmenu-label">Import a macro file…<span class="appmenu-sub">Translate a macro written for an installed terminal emulator</span></span>
+                                    </button>
                                     {{ end }}
                                     <div class="workflow-controls" role="none">
                                         {{ if .LoadedWorkflow }}
@@ -776,6 +785,31 @@
             <div class="modal-actions">
                 <button type="button" data-host-details-refresh>Refresh</button>
                 <button type="button" data-host-details-copy>Copy</button>
+            </div>
+        </div>
+    </div>
+    <!-- Macro import. What matters here is not the steps it produced but the
+         lines it would not translate: a partial conversion that names them is
+         worth more than a confident-looking one that drops them quietly. -->
+    <div class="modal-backdrop" data-macro-import-modal hidden>
+        <div class="modal modal-macro-import" role="dialog" aria-modal="true" aria-labelledby="macro-import-modal-title" aria-describedby="macro-import-modal-desc" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="macro-import-modal-title">Import a macro file</h3>
+                <button type="button" class="modal-close" data-macro-import-close>Close</button>
+            </div>
+            <p id="macro-import-modal-desc">A macro file becomes a recording, and every line that could not be translated is listed here with the reason.</p>
+            <div data-macro-import-status class="macro-import-status" role="status" aria-live="polite" hidden></div>
+            <p data-macro-import-summary class="macro-import-summary"></p>
+            <ul data-macro-import-advisories class="macro-import-advisories" hidden></ul>
+            <!-- The dialog is 420px like every other one, so the report is a
+                 list rather than a table: a line of somebody's macro and the
+                 reason it was left out both need the full column width. -->
+            <div data-macro-import-notes-wrap class="macro-import-notes-wrap" hidden>
+                <h4 class="macro-import-notes-heading">Lines left out of the recording</h4>
+                <ol class="macro-import-notes" data-macro-import-notes></ol>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-macro-import-close>Done</button>
             </div>
         </div>
     </div>
@@ -1285,6 +1319,7 @@ Select = Enter"></textarea>
     </div>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/host-details.js" defer></script>
+    <script src="/static/macro-import.js" defer></script>
     <script src="/static/printer.js" defer></script>
     <script src="/static/logs.js" defer></script>
     <script src="/static/notifications.js" defer></script>
