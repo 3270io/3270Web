@@ -110,6 +110,39 @@ type WorkflowStep struct {
 	Coordinates *WorkflowCoordinates `json:"Coordinates,omitempty"`
 	Text        string               `json:"Text,omitempty"`
 	StepDelay   *WorkflowDelayRange  `json:"StepDelay,omitempty"`
+
+	// The rest are the decision steps: SetVariable, If/Else/EndIf,
+	// While/EndWhile and Stop. They are fields on the same struct rather
+	// than a step type of their own because everything that reads a
+	// recording — playback, the chaos engine, the tools an assistant is
+	// given — reads this one flat list of steps, and a nested shape would
+	// mean teaching all of them a second one. A recording that makes no
+	// decisions carries none of these fields and serialises exactly as it
+	// did before.
+
+	// Variable names the variable a SetVariable step writes, or the one an
+	// If or While step reads for the left-hand side of its comparison.
+	Variable string `json:"Variable,omitempty"`
+	// Operator is the comparison an If or While step makes. See
+	// workflow_control.go for the set; an operator outside it is refused
+	// when the recording is loaded rather than at the moment it runs.
+	Operator string `json:"Operator,omitempty"`
+	// IgnoreCase folds case for that comparison. Off by default, because a
+	// host that answers in upper case answers in upper case every time and
+	// a comparison that quietly matches more than it was asked to is worse
+	// than one that says it found nothing.
+	IgnoreCase bool `json:"IgnoreCase,omitempty"`
+	// MaxIterations bounds a While loop. Zero means the default bound: a
+	// loop against a host that never changes its screen is otherwise a
+	// session wedged until somebody notices.
+	MaxIterations int `json:"MaxIterations,omitempty"`
+	// Sensitive marks a SetVariable step whose value must not be written
+	// down. The run still uses it — ${name} fills the field it was read for
+	// — but the run log and the status endpoint say it was set rather than
+	// what it was set to. A variable read from a password field would
+	// otherwise put that password in a log somebody is meant to be able to
+	// read over a shoulder.
+	Sensitive bool `json:"Sensitive,omitempty"`
 }
 
 // WorkflowParameter documents a business input that was resolved into one or
@@ -177,6 +210,12 @@ type WorkflowPlayback struct {
 	CurrentDelayMin  float64
 	CurrentDelayMax  float64
 	CurrentDelayUsed time.Duration
+	// Variables holds what the recording has read or been told so far, so a
+	// run that made a decision can be asked what it decided on. Kept on the
+	// playback rather than on the session because it belongs to one run:
+	// the next run starts knowing nothing, which is what makes a replay a
+	// replay.
+	Variables map[string]string
 }
 
 type WorkflowEvent struct {

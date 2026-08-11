@@ -107,13 +107,18 @@ host.
 
 Each of these is reported against its line rather than approximated:
 
-- **Branching, loops and subroutine calls.** A recording is a straight line of
-  steps. `If`, `For`, `Do`, `Call` and the rest have no counterpart, so the
-  decision has to be made before the flow runs — or the flow has to become a
-  [Guided Business Task](business-tasks.md), which does have named inputs.
-- **Variables.** A recording carries literal values. A macro that reads a
-  balance into a variable is doing something a task's *named output* does and
-  a recording cannot.
+- **Branching, loops and subroutine calls.** A recording has
+  [decisions of its own](#decisions-variables-and-loops) — `If`, `While`,
+  `Stop` — and the importer still will not write one for you. Which lines
+  belong inside a branch, and what its condition should compare on which part
+  of the screen, is a judgement about the host's screens rather than a
+  translation of the file; guessing it would produce a flow that takes the
+  wrong path confidently. `If`, `For`, `Do`, `Call` and the rest are reported
+  with their line numbers, and the branch is written by hand against the step
+  types above.
+- **Variables.** A recording has variables too, and the same rule applies: a
+  `SetVariable` step names the row, column and length it reads, and where the
+  macro's value came from is not knowable from the file.
 - **Text typed with no known cursor position.** `SendKeys "USER<Tab>PASS"`
   types `USER` where the macro last put the cursor, and `PASS` into whichever
   field the host moved to — which is not knowable from the file. The first
@@ -199,6 +204,147 @@ Common action types:
 - `PressEnter`
 - `PressTab`
 - `PressPF<n>` (for example `PressPF3`)
+
+## Decisions, Variables and Loops
+
+Everything above describes a straight line: fill this field, press that key,
+check that text. That is the whole of what a recorded flow needs when the
+answer is the same every time.
+
+It is not the whole of what a flow needs when the host has an opinion. Read
+the balance, and take a different path if it is under the limit. Press Enter
+until the screen stops saying `MORE`. Skip the confirmation panel on the days
+the host does not draw one. Those need a recording that can decide, and the
+step types below are that.
+
+They are ordinary steps in the same `Steps` array — nothing nests, and a
+recording that makes no decisions is byte-for-byte the file it always was.
+
+| Step | What it does |
+|---|---|
+| `SetVariable` | Remember a literal, or the text at a place on the screen |
+| `If` … `Else` … `EndIf` | Run one group of steps or the other |
+| `While` … `EndWhile` | Repeat a group of steps while something stays true |
+| `Stop` | End the run here, and say why |
+
+### Reading something off the screen
+
+`SetVariable` with `Coordinates` reads that region of the screen and trims the
+padding a field carries; with `Text` instead, it stores that literal.
+
+```json
+{
+  "Type": "SetVariable",
+  "Variable": "balance",
+  "Coordinates": { "Row": 12, "Column": 40, "Length": 12 }
+}
+```
+
+Anywhere a later `FillString` or `CheckValue` writes `${balance}`, the value
+goes in:
+
+```json
+{
+  "Type": "FillString",
+  "Coordinates": { "Row": 5, "Column": 21 },
+  "Text": "ACCT ${account}"
+}
+```
+
+A name that has not been set is an error that ends the run, rather than an
+empty string quietly typed into a field. To type the two characters `${`
+literally, write `$${`.
+
+Add `"Sensitive": true` to a `SetVariable` step that reads a password or
+anything else that should not be written down. The run still uses the value —
+`${name}` fills the field it was read for — but the run log and the status
+endpoint say the variable was set rather than what it was set to.
+
+### Asking a question about the screen
+
+`If` and `While` compare one thing against another. The left-hand side is
+either `Coordinates` (a region of the screen, trimmed) or `Variable` (one you
+set earlier) — one or the other, never both. `Text` is what it is compared
+against, and may itself contain `${…}`.
+
+```json
+[
+  {
+    "Type": "If",
+    "Coordinates": { "Row": 24, "Column": 2, "Length": 9 },
+    "Operator": "contains",
+    "Text": "NOT FOUND"
+  },
+  { "Type": "Stop", "Text": "the host has no record of that account" },
+  { "Type": "EndIf" }
+]
+```
+
+The comparisons are `equals`, `notEquals`, `contains`, `notContains`,
+`startsWith`, `endsWith`, `isEmpty`, `isNotEmpty`, `greaterThan`,
+`greaterOrEqual`, `lessThan` and `lessOrEqual`. The symbolic spellings
+(`==`, `!=`, `>`, `>=`, `<`, `<=`) mean the same thing. Add
+`"IgnoreCase": true` to fold case; comparisons are case-sensitive without it.
+
+The four numeric comparisons read a number the way a green screen writes one:
+grouped with commas, and negative by a leading sign, a trailing one, or a pair
+of brackets — `1,240.55`, `45.00-`, `(12)` and `1,000CR` all parse. A value
+that is not a number ends the run rather than being compared as zero, because
+a screen that did not say what the recording expected is worth stopping for.
+
+### Repeating until the host is done
+
+```json
+[
+  {
+    "Type": "While",
+    "Coordinates": { "Row": 24, "Column": 70, "Length": 4 },
+    "Operator": "equals",
+    "Text": "MORE",
+    "MaxIterations": 20
+  },
+  { "Type": "PressPF8" },
+  { "Type": "EndWhile" }
+]
+```
+
+Every `While` is bounded. `MaxIterations` sets the bound, up to 10000; without
+it, a loop stops after 100 passes. A loop that reaches its bound ends the run
+and says so — a host that never changes its screen would otherwise hold the
+session until somebody noticed.
+
+### What stops a run
+
+Everywhere else in playback, a step that fails is logged and the run carries
+on to the next one. That is right for a step that acts and wrong for a step
+that decides: carrying on past an `If` whose condition could not be evaluated
+means guessing which branch was wanted, and the wrong guess types real values
+into a real host. So these end the run instead:
+
+- a condition that cannot be evaluated — a region off the screen, a variable
+  that was never set, a comparison of a number against text
+- a `${name}` in a step's text that names nothing the run has set
+- a `While` that reaches its iteration bound
+- a `Stop` step, which is the deliberate one; it counts as a completed run,
+  and its `Text` is the reason in the log
+
+Structural mistakes are caught earlier still. A recording whose blocks do not
+close, or whose comparison names an operator that does not exist, is refused
+when it is **loaded** — before it has typed anything anywhere. The message
+names the step number.
+
+### Watching it decide
+
+The Workflow Status widget carries each decision as it is made — which branch
+an `If` took and on what value, which pass a `While` is on, what a
+`SetVariable` read. `GET /workflow/status` returns the same events, plus
+`playbackVariables`: what the run knows, which survives the end of the run so
+"what did it read?" is answerable afterwards.
+
+!!! note "Variables are per run"
+    A run starts knowing nothing. That is what makes a replay a replay — a
+    recording that behaved differently on its second run because of something
+    left over from its first would be much harder to trust.
 
 ### Business metadata fields
 

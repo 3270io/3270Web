@@ -149,6 +149,7 @@ rather than merely tolerate it.
 | Runs in a browser tab — no emulator install, no thick client | ✅ |
 | Public REST/JSON API for RPA and CI integration | ✅ |
 | Workflow recording and playback, with pause, step and debug | ✅ |
+| Decisions in a recording — read a value off the screen, branch on it, repeat a group of steps while a condition holds | ✅ |
 | Guided Business Tasks — run a recorded flow from a form and get an answer, no green screen | ✅ |
 | Task authoring from a recording — record once, mark the answer, save to a shared catalogue | ✅ |
 | Task authoring from a chaos run — convert a discovered path into a runnable task | ✅ |

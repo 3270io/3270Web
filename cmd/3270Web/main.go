@@ -2403,6 +2403,7 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"playbackStepLabel":       playbackStepLabel(s),
 		"playbackDelayRange":      playbackDelayRangeLabel(s),
 		"playbackDelayApplied":    playbackDelayAppliedLabel(s),
+		"playbackVariables":       playbackVariablesSnapshot(s),
 		"playbackEvents":          events,
 		"chaosActive":             chaosState != nil && chaosState.Active,
 		"chaosStepsRun":           chaosStateStepsRun(chaosState),
@@ -3854,6 +3855,14 @@ func parseWorkflowPayload(payload []byte) (*WorkflowConfig, error) {
 	if len(workflow.Steps) == 0 {
 		return nil, errors.New("workflow contains no steps")
 	}
+	// A recording that makes decisions is checked here rather than while it
+	// runs. An If whose block never closes, or a comparison naming an
+	// operator that does not exist, is a mistake in the file; finding it at
+	// load costs a pass over the steps, and finding it at step forty costs a
+	// half-finished flow against a live host. See workflow_control.go.
+	if _, err := compileWorkflowSteps(workflow.Steps); err != nil {
+		return nil, err
+	}
 	return &workflow, nil
 }
 
@@ -3955,6 +3964,26 @@ func playbackStepIndex(s *session.Session) int {
 		return s.Playback.CurrentStep
 	}
 	return s.LastPlaybackStep
+}
+
+// playbackVariablesSnapshot answers with what the run has read or been told,
+// for the recordings that make decisions. It survives the end of the run
+// deliberately: "which branch did it take, and on what value" is a question
+// asked after the run finished, not during it.
+func playbackVariablesSnapshot(s *session.Session) map[string]string {
+	if s == nil {
+		return nil
+	}
+	s.Lock()
+	defer s.Unlock()
+	if s.Playback == nil || len(s.Playback.Variables) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(s.Playback.Variables))
+	for name, value := range s.Playback.Variables {
+		out[name] = value
+	}
+	return out
 }
 
 func playbackStepType(s *session.Session) string {
