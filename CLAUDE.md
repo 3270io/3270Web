@@ -71,6 +71,14 @@ go test -v -cover ./...
 docker build -t 3270web .
 docker-compose up          # dev: maps to localhost:3270
 
+# The lab: the bundled sample apps as a TN3270 host, this terminal, and
+# 3270Connect's operations console, on one network
+docker compose -f docker-compose.lab.yml up -d
+
+# The sample apps served as an ordinary host, for anything outside this
+# process (cmd/3270Web/sampleapphost.go)
+go run ./cmd/3270Web sampleapp --app petstore:3271 --app app1:3272
+
 # Windows .exe (PowerShell)
 .\scripts\build-windows.ps1
 ```

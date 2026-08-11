@@ -1,0 +1,137 @@
+# The lab — https://3270Web.3270.io
+#
+#   docker compose -f docker-compose.lab.yml up -d
+#
+# Three containers on one network: a TN3270 host to practise against, the
+# browser terminal, and the automation console. The point of running them
+# together is the thing neither does alone — a workflow you can watch a person
+# perform in the terminal, then replay a hundred times from the console,
+# against the same application.
+#
+#   http://localhost:3270    the terminal. Connect to  sampleapps  port 3271
+#   http://localhost:9200    the console. Start a run with the workflow in
+#                            lab/workflow-sampleapp.json
+#
+# The applications are this repository's bundled samples served as an ordinary
+# host, so they behave like one: they negotiate TN3270, they hold session
+# state, and they are the same screens the terminal offers internally. Nothing
+# here is a mainframe and nothing here has data behind it, which is what makes
+# it safe to point a load test at.
+#
+# This file builds 3270Web from this checkout and pulls the published
+# 3270Connect image. The mirror of it in the 3270Connect repository does the
+# reverse.
+
+services:
+  # ------------------------------------------------------------------------
+  # The host to practise against.
+  #
+  # The sample applications, served over TCP by the `sampleapp` subcommand
+  # rather than inside a terminal session, so anything on this network can dial
+  # them. Built from this checkout, which is what makes this stack the way to
+  # try a change to one of them against a real client.
+  # ------------------------------------------------------------------------
+  sampleapps:
+    build: .
+    image: ghcr.io/3270io/3270web:local
+    command:
+      - sampleapp
+      - --app
+      - petstore:3271
+      - --app
+      - app1:3272
+    ports:
+      # Published on loopback so a terminal on this machine — including one
+      # that is not in this stack — can be pointed at them too. Containers in
+      # the stack reach them as "sampleapps:3271" and do not need this.
+      - "127.0.0.1:3271:3271"
+      - "127.0.0.1:3272:3272"
+    # The image's own healthcheck asks the web UI for /healthz, and this
+    # service is not running the web UI. A TN3270 listener has nothing to
+    # answer an HTTP probe with, so the check is what a client does: open the
+    # port. bash explicitly, because /dev/tcp is a bash feature and CMD-SHELL
+    # is /bin/sh.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3271' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------------
+  # The terminal: drive the sample host by hand, and record what you did.
+  # ------------------------------------------------------------------------
+  3270web:
+    build: .
+    image: ghcr.io/3270io/3270web:local
+    depends_on:
+      sampleapps:
+        condition: service_healthy
+    ports:
+      # Loopback, because this lab runs without a sign-in — see AUTH_MODE
+      # below. Everything here is reachable from this machine and from nowhere
+      # else.
+      - "127.0.0.1:3270:3270"
+    environment:
+      - GIN_MODE=release
+      - WEBUI_BIND=0.0.0.0
+      # No accounts, deliberately: a lab you have to create an administrator
+      # for before you can look at it is a lab nobody looks at. That is only
+      # acceptable because of the loopback binding above. For anything with
+      # more than one person on it, set AUTH_MODE=local and read
+      # https://3270Web.3270.io/multi-user/
+    volumes:
+      # A named volume rather than a folder, so the lab needs no chown before
+      # it starts and `down -v` is enough to reset it.
+      - 3270web-data:/data
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------------
+  # The console: replay that workflow, concurrently, and watch it happen.
+  # ------------------------------------------------------------------------
+  3270connect:
+    image: ghcr.io/3270io/3270connect:latest
+    depends_on:
+      sampleapps:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9200:9200"
+    environment:
+      - DASHBOARD_BIND=0.0.0.0
+    volumes:
+      - 3270connect-data:/data
+      # A workflow already pointed at the sample host, for the command-line
+      # runs at the bottom of this file. The console's own dialog takes a
+      # workflow uploaded from the browser rather than a path, so for that one
+      # you pick the same file out of this checkout.
+      #
+      # Read-only: this is an example to copy, and an example a run can
+      # rewrite stops being one.
+      - ./lab/workflow-sampleapp.json:/data/workflow-sampleapp.json:ro
+    restart: unless-stopped
+
+volumes:
+  3270web-data:
+  3270connect-data:
+
+# Running the workflow from the command line instead of the console — this is
+# the headless path, the one a CI job takes:
+#
+#   docker compose -f docker-compose.lab.yml run --rm 3270connect \
+#     -config workflow-sampleapp.json -headless
+#
+# And as a load test. It stays up serving its own console when the run
+# finishes, as a load run always does, so stop it with Ctrl+C:
+#
+#   docker compose -f docker-compose.lab.yml run --rm 3270connect \
+#     -config workflow-sampleapp.json -headless -concurrent 25 -runtime 120
+#
+# To watch a run live on the page at http://localhost:9200, start it from the
+# console rather than here: the console tracks the runs it launched itself, and
+# a `compose run` container is a separate process tree it can only see the
+# metrics of.
+#
+# To take it all down, including the run history and the terminal's saved work:
+#
+#   docker compose -f docker-compose.lab.yml down -v

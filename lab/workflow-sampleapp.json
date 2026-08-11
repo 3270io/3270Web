@@ -1,0 +1,36 @@
+{
+  "Host": "sampleapps",
+  "Port": 3272,
+  "OutputFilePath": "output.html",
+  "EveryStepDelay": { "Min": 0.1, "Max": 0.3 },
+  "RampUpBatchSize": 50,
+  "RampUpDelay": 1.5,
+  "EndOfTaskDelay": { "Min": 0.5, "Max": 1.5 },
+  "Steps": [
+    { "Type": "Connect" },
+    {
+      "Type": "CheckValue",
+      "Coordinates": { "Row": 1, "Column": 29, "Length": 24 },
+      "Text": "3270 Example Application"
+    },
+    { "Type": "AsciiScreenGrab" },
+    {
+      "Type": "FillString",
+      "Coordinates": { "Row": 5, "Column": 21 },
+      "Text": "user1-firstname"
+    },
+    {
+      "Type": "FillString",
+      "Coordinates": { "Row": 6, "Column": 21 },
+      "Text": "user1-lastname"
+    },
+    { "Type": "PressEnter" },
+    {
+      "Type": "CheckValue",
+      "Coordinates": { "Row": 1, "Column": 29, "Length": 24 },
+      "Text": "3270 Example Application"
+    },
+    { "Type": "AsciiScreenGrab" },
+    { "Type": "Disconnect" }
+  ]
+}

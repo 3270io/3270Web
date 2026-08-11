@@ -63,6 +63,50 @@ only. On a shared instance the headless API will not start one unless
 
 `mock` and `demo` are accepted as shorthand for the default sample.
 
+## As a Host for Something Else
+
+Everything above starts a listener inside this process, on loopback. That is
+right for the terminal and no use to anything else: a colleague's laptop, an
+automation run in another container, a CI job that wants a 3270 host that
+behaves like one and does not need booking.
+
+`3270Web sampleapp` serves the same applications as an ordinary TN3270 host,
+in the foreground, until you stop it.
+
+```bash
+3270Web sampleapp                                   # the pet store on 3271
+3270Web sampleapp --app petstore:3271 --app app1:3272
+3270Web sampleapp --app wordle,snake,pong           # ports assigned from 3271
+3270Web sampleapp --list                            # what there is to serve
+```
+
+| Option | Default | Purpose |
+|---|---|---|
+| `--app <id[:port]>` | `petstore` | Application to serve. Repeatable, and accepts a comma-separated list. Ports not given are assigned from 3271 upwards. |
+| `--bind <address>` | `0.0.0.0` | Interface to listen on. `127.0.0.1` keeps it local. |
+| `--list` | | Print the available applications and exit. |
+
+Unlike every other listener in 3270Web, this one binds every interface by
+default — there is no other reason to run it. That is safe here and nowhere
+else in the product: these are demonstration screens with no data behind them
+and nothing to sign in to. Nothing about them is a mainframe.
+
+!!! tip "The lab"
+    `docker-compose.lab.yml` in this repository runs three containers on one
+    network: these applications as a TN3270 host, the terminal, and
+    [3270Connect](https://3270connect.3270.io)'s operations console. Drive an
+    application by hand in the terminal, then replay it a hundred times from
+    the console, against the same screens.
+
+    ```bash
+    docker compose -f docker-compose.lab.yml up -d
+    ```
+
+    ```
+    http://localhost:3270    the terminal. Connect to "sampleapps", port 3271
+    http://localhost:9200    the console
+    ```
+
 ## What Is Bundled
 
 | Target | Application |
