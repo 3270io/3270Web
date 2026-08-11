@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/macroimport"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -24,7 +25,9 @@ Sub Main
     Session.Screen.MoveTo 10, 15
     Session.Screen.SendKeys "ACCT100<Enter>"
     If Session.Screen.GetString(1, 1, 5) = "READY" Then
+        Session.Screen.SendKeys "<PF3>"
     End If
+    MsgBox "done"
     Session.Disconnect
 End Sub
 `
@@ -100,13 +103,13 @@ func TestImportMacroLoadsTheTranslatedRecording(t *testing.T) {
 	if res.Name != "account-inquiry.json" {
 		t.Errorf("name = %q, want the macro's own name with a json extension", res.Name)
 	}
-	if res.StepTotal != 6 {
-		t.Errorf("stepTotal = %d, want 6", res.StepTotal)
+	if res.StepTotal != 9 {
+		t.Errorf("stepTotal = %d, want 9", res.StepTotal)
 	}
-	// The two lines of the untranslatable branch are reported rather than
-	// dropped, and they say which lines they were.
-	if len(res.Notes) != 2 {
-		t.Fatalf("notes = %+v, want two", res.Notes)
+	// The branch came across as decision steps; the dialog did not, and says
+	// so against its own line.
+	if len(res.Notes) != 1 {
+		t.Fatalf("notes = %+v, want one", res.Notes)
 	}
 	for _, note := range res.Notes {
 		if note.Line == 0 || strings.TrimSpace(note.Source) == "" || strings.TrimSpace(note.Reason) == "" {
@@ -130,7 +133,7 @@ func TestImportMacroLoadsTheTranslatedRecording(t *testing.T) {
 	if len(payload) == 0 {
 		t.Fatal("no recording was loaded into the session")
 	}
-	if name != "account-inquiry.json" || stepTotal != 6 {
+	if name != "account-inquiry.json" || stepTotal != 9 {
 		t.Errorf("loaded recording is %q with %d steps", name, stepTotal)
 	}
 
@@ -148,7 +151,7 @@ func TestImportMacroLoadsTheTranslatedRecording(t *testing.T) {
 	for _, step := range workflow.Steps {
 		types = append(types, step.Type)
 	}
-	want := "Connect FillString PressEnter FillString PressEnter Disconnect"
+	want := "Connect FillString PressEnter FillString PressEnter If PressPF3 EndIf Disconnect"
 	if got := strings.Join(types, " "); got != want {
 		t.Errorf("steps = %q, want %q", got, want)
 	}
@@ -160,8 +163,75 @@ func TestImportMacroLoadsTheTranslatedRecording(t *testing.T) {
 		case "Connect", "Disconnect", "FillString", "CheckValue":
 			continue
 		}
+		if isControlFlowStepType(step.Type) {
+			continue
+		}
 		if _, ok := workflowKeyForStepType(step.Type); !ok {
 			t.Errorf("step type %q is not one playback can run", step.Type)
+		}
+	}
+
+	// And the blocks it emitted have to resolve, because a recording whose
+	// blocks do not close is refused as a whole when it is loaded — an import
+	// that produced one would have translated a branch into a file nobody can
+	// play.
+	if _, err := compileWorkflowSteps(workflow.Steps); err != nil {
+		t.Errorf("the translated recording does not compile: %v", err)
+	}
+}
+
+// TestImportedBranchesCompile puts the shapes that emit decision steps through
+// the same compilation playback does. The blocks are written by one piece of
+// code and closed by another, and an If left open is not a step that fails —
+// it is a recording that cannot be loaded at all.
+func TestImportedBranchesCompile(t *testing.T) {
+	macros := map[string]string{
+		"if-else": `If Session.Screen.GetString(1, 1, 5) = "READY" Then
+    Session.Screen.SendKeys "<Enter>"
+Else
+    Session.Screen.SendKeys "<PF3>"
+End If
+`,
+		"elseif-chain": `If Session.Screen.GetString(1, 1, 1) = "A" Then
+    Session.Screen.SendKeys "<PF1>"
+ElseIf Session.Screen.GetString(1, 1, 1) = "B" Then
+    Session.Screen.SendKeys "<PF2>"
+ElseIf Session.Screen.GetString(1, 1, 1) = "C" Then
+    Session.Screen.SendKeys "<PF3>"
+Else
+    Session.Screen.SendKeys "<PF4>"
+End If
+`,
+		"nested-loop": `balance = Session.Screen.GetString(12, 20, 10)
+Do While Session.Screen.GetString(24, 2, 4) = "MORE"
+    If balance > 1000 Then
+        Session.Screen.PutString balance, 5, 20
+    End If
+    Session.Screen.SendKeys "<Enter>"
+Loop
+`,
+		"inline-if": `If Session.Screen.GetString(1, 1, 2) = "OK" Then Session.Screen.SendKeys "<Enter>" Else Session.Screen.SendKeys "<PF3>"
+`,
+		"exit-sub": `Sub Main
+    If Session.Screen.GetString(1, 1, 1) = "X" Then
+        Exit Sub
+    End If
+    Session.Screen.SendKeys "<Enter>"
+End Sub
+`,
+	}
+	for name, src := range macros {
+		result := macroimport.Translate(src)
+		if len(result.Notes) != 0 {
+			t.Errorf("%s: expected a clean translation, got %+v", name, result.Notes)
+		}
+		program, err := compileWorkflowSteps(result.Steps)
+		if err != nil {
+			t.Errorf("%s: the translated recording does not compile: %v", name, err)
+			continue
+		}
+		if !program.hasControlFlow {
+			t.Errorf("%s: nothing in the translation decides anything", name)
 		}
 	}
 }
@@ -188,8 +258,8 @@ func TestImportMacroRefusesAFileWithNoStepsButStillReportsWhy(t *testing.T) {
 	if res.Error == "" {
 		t.Error("a refusal with no message tells the operator nothing")
 	}
-	if len(res.Report.Notes) != 2 {
-		t.Errorf("notes = %+v, want one per line", res.Report.Notes)
+	if len(res.Report.Notes) != 1 {
+		t.Errorf("notes = %+v, want the loop reported once", res.Report.Notes)
 	}
 
 	// Nothing was loaded, so a recording that was already there survives a
@@ -301,10 +371,10 @@ func TestAPITranslateMacroReturnsTheRecordingWithoutASession(t *testing.T) {
 	if res.Workflow == nil {
 		t.Fatal("no recording came back; converting a directory of macros needs the file itself")
 	}
-	if len(res.Workflow.Steps) != res.StepTotal || res.StepTotal != 6 {
-		t.Errorf("stepTotal = %d with %d steps, want 6", res.StepTotal, len(res.Workflow.Steps))
+	if len(res.Workflow.Steps) != res.StepTotal || res.StepTotal != 9 {
+		t.Errorf("stepTotal = %d with %d steps, want 9", res.StepTotal, len(res.Workflow.Steps))
 	}
-	if len(res.Notes) != 2 {
+	if len(res.Notes) != 1 {
 		t.Errorf("notes = %+v, want the same report the browser gets", res.Notes)
 	}
 	// Nothing about the caller's host is known here, so the recording says so

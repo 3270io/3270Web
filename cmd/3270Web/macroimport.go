@@ -94,6 +94,11 @@ func (app *App) ImportMacroHandler(c *gin.Context) {
 		return
 	}
 
+	if err := macroBlocksResolve(workflow); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	raw, err := json.Marshal(workflow)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "the translated recording could not be encoded"})
@@ -127,6 +132,10 @@ func (app *App) APITranslateMacro(c *gin.Context) {
 	// replays it through a session gets that session's host; a caller writing
 	// the file out fills the field in.
 	workflow := macroWorkflow("", 0, name, result)
+	if err := macroBlocksResolve(workflow); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, macroTranslationResponse{
 		Name:       recordingNameForMacro(name),
 		StepTotal:  len(workflow.Steps),
@@ -197,6 +206,26 @@ func macroWorkflow(host string, port int, sourceName string, result macroimport.
 		Description: macroDescription(sourceName, result),
 		Steps:       steps,
 	}
+}
+
+// macroBlocksResolve checks that the branches and loops a translation
+// produced close the way playback needs them to.
+//
+// It is the one thing about a translated recording nobody downstream can
+// recover from: a step that did not translate is reported and a step that
+// fails is logged, but a recording whose If has no EndIf is refused as a
+// whole when it is played, and the operator is left with a file, a report
+// that said the branch converted, and nothing that runs. The translator
+// closes every block it opens; this is the assertion that says so at the
+// point where the file would otherwise be handed over.
+func macroBlocksResolve(workflow *WorkflowConfig) error {
+	if workflow == nil || len(workflow.Steps) == 0 {
+		return nil
+	}
+	if _, err := compileWorkflowSteps(workflow.Steps); err != nil {
+		return fmt.Errorf("the translated recording's branches do not resolve, so it was not loaded: %v", err)
+	}
+	return nil
 }
 
 func macroDescription(sourceName string, result macroimport.Result) string {

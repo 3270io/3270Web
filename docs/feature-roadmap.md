@@ -161,25 +161,42 @@ is already good at — they remove reasons an evaluation stops early.
       guessing a branch, and a recording whose blocks do not close is refused
       when it is loaded rather than half-way through. See
       [Decisions, variables and loops](workflow.md#decisions-variables-and-loops)*
-- [ ] **Translating a macro's decisions, not just its steps** — the importer
-      reports a branch against its line number, and now has step types it could
-      translate one into. What it does not have is a way to know which lines
-      belong inside the branch and what the condition should compare on which
-      part of the screen; that is a judgement about the host's screens rather
-      than a translation of the file. Worth doing only for the shapes where it
-      is unambiguous, and reported as untranslated everywhere else
+- [x] **Translating a macro's decisions, not just its steps** — *shipped: a
+      branch, a loop and a variable in a macro file become `If`/`Else`/`EndIf`,
+      `While`/`EndWhile` and `SetVariable` steps, where the file says enough for
+      the translation to be a translation. Which lines are inside a block is the
+      file's own structure; the condition has to name a row, column and length,
+      or a variable already read, compared against a literal. Everything else is
+      reported — and a branch that did not translate takes its body with it,
+      because the failure worth preventing is the one where the `If` is dropped
+      and the steps inside it start running every time. See
+      [Importing a macro file](workflow.md#the-branches-and-loops-it-reads)*
 - [x] **Macro-file import** — *shipped: a macro file written against the
-      session automation object model becomes a recording, and every line that
-      would not translate is reported with its number, its text and the reason
-      — branching, a variable, text typed at a position the file cannot know.
-      One click in the Automation menu, and on the API without a session so a
-      directory of them converts in one pass. See
+      session automation object model becomes a recording — its steps, and the
+      branches, loops and variables the file says enough about — and every line
+      that would not translate is reported with its number, its text and the
+      reason. One click in the Automation menu, and on the API without a
+      session so a directory of them converts in one pass. See
       [Recordings and Playback](workflow.md#importing-a-macro-file)*
 
 ## Recently shipped
 
 Newest first. Every item here is live and documented.
 
+- **The decisions in the shelf of macros, not just the steps** — a recording
+  learned to decide, and the importer could still only hand over the straight
+  parts of a file, which left the branch — the reason the macro was written at
+  all — for a person. Now a branch, a loop and a variable come across as steps
+  where the file says enough for that to be a translation rather than a guess:
+  the block structure is the file's own, and the condition has to name a place
+  on the screen or a variable already read. What holds it together is one rule
+  going the other way — a branch whose condition did not translate takes its
+  body with it. Dropping the `If` and keeping its contents would turn steps
+  that ran on some days into steps that run on every day, against a live host,
+  under a report that said the branch needed a human and nothing about where
+  its statements went. The report now names the branch, the reason, and how
+  many statements went with it. See
+  [Importing a macro file](workflow.md#the-branches-and-loops-it-reads).
 - **A recording that can decide** — the flow a shop actually has is not a
   straight line: read the balance and take a different path under the limit,
   press a key until the host stops saying MORE, skip the confirmation panel on
@@ -194,8 +211,9 @@ Newest first. Every item here is live and documented.
   [Decisions, variables and loops](workflow.md#decisions-variables-and-loops).
 - **The shelf of macros that was keeping a shop where it is** — a macro file
   written for an installed emulator is read here and becomes a recording, and
-  the lines it will not take are named rather than dropped: this branch, that
-  variable, this text typed at a position the file cannot know. The refusals
+  the lines it will not take are named rather than dropped: this condition
+  nothing can read a position out of, that value computed from two others,
+  this text typed at a position the file cannot know. The refusals
   are the feature. Guessing a coordinate would produce a flow that types an
   account number into whatever field the host happened to leave the cursor in,
   and that is discovered in production rather than in the report. The
