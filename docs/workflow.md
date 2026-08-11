@@ -103,22 +103,80 @@ optional as they are in the language itself.
 Function keys are read as `<PF3>` or `<F3>`; both mean the same key to the
 host.
 
+### The branches and loops it reads
+
+A macro is not a straight line, and neither is a recording any more. Where the
+file says enough for the translation to be a translation rather than a guess,
+the [decision steps](#decisions-variables-and-loops) come across too:
+
+| The macro says | The recording gets |
+|---|---|
+| `If Session.Screen.GetString(5, 20, 8) = "APPROVED" Then` … `Else` … `End If` | `If` / `Else` / `EndIf`, comparing that row, column and length |
+| `ElseIf … Then` | an `Else` holding a further `If`, closed at the end of the block |
+| `If … Then <statement>` on one line | the same branch, around that one statement |
+| `Do While …` … `Loop`, `While …` … `Wend` | `While` / `EndWhile` |
+| `Do Until …` … `Loop` | `While` testing the exact opposite |
+| `balance = Session.Screen.GetString(12, 20, 10)` | `SetVariable balance`, reading that region |
+| `label = "REFER"`, `copy = balance` | `SetVariable`, holding the literal or the other variable |
+| `If balance > 1000 Then` | `If` comparing the variable, numerically |
+| `Session.Screen.PutString balance, 9, 20` | `FillString` typing `${balance}` at row 9, column 20 |
+| `Exit Sub`, in a file that declares one routine | `Stop` |
+
+The condition is the part that has to be readable. An `If` or a `While` in a
+recording compares **one** thing — a named row, column and length on the
+screen, or a variable this file has already set — against **one** literal
+value. That is what `GetString(5, 20, 8) = "APPROVED"` says exactly, which is
+why it converts. A condition that calls a function, joins two tests with `And`,
+or searches the whole screen says none of it, and is reported instead.
+
+!!! warning "A branch that does not translate takes its body with it"
+    This is the one rule worth reading twice. If the condition on an `If`
+    cannot be translated, **the statements inside it are left out too**, and
+    the report says how many.
+
+    The alternative is the worst outcome available: the `If` is dropped, the
+    statements inside it survive, and steps that ran on some days now run on
+    every day — against a live host, confidently, with a report that mentioned
+    the branch but not that its contents had escaped it.
+
+    So a reported branch is a hole in the recording, not a line to tidy up
+    later. Write it by hand against the step types in
+    [Decisions, variables and loops](#decisions-variables-and-loops), and run
+    the result in **Debug recording** before it matters.
+
 ### What it will not do, and why
 
 Each of these is reported against its line rather than approximated:
 
-- **Branching, loops and subroutine calls.** A recording has
-  [decisions of its own](#decisions-variables-and-loops) — `If`, `While`,
-  `Stop` — and the importer still will not write one for you. Which lines
-  belong inside a branch, and what its condition should compare on which part
-  of the screen, is a judgement about the host's screens rather than a
-  translation of the file; guessing it would produce a flow that takes the
-  wrong path confidently. `If`, `For`, `Do`, `Call` and the rest are reported
-  with their line numbers, and the branch is written by hand against the step
-  types above.
-- **Variables.** A recording has variables too, and the same rule applies: a
-  `SetVariable` step names the row, column and length it reads, and where the
-  macro's value came from is not knowable from the file.
+- **A condition that is not a comparison.** `If Session.Screen.Search("READY")
+  Then` asks a question a recording cannot: which row and column would it be
+  comparing? So is `Trim(GetString(…)) = "A"`, and so is any condition joining
+  two tests with `And`, `Or` or `Not` — a recording tests one thing at a time,
+  and the same branch written as nested `If`s converts.
+- **Counted loops.** `For i = 1 To 10` counts, and a recording has no
+  arithmetic to count with. The loop that translates is the one that repeats
+  while the screen still says something.
+- **`Select Case`.** Several cases decided at once; a recording decides one
+  comparison at a time. Written as nested `If`s it converts.
+- **A loop tested at the bottom.** `Do … Loop While` runs its body before it
+  tests anything, and a recording's `While` tests first — a translated one
+  would run the body once even where the macro would not have.
+- **A loop that leaves early.** `Exit Do` has no counterpart: a recording's
+  `While` has no way out but its own condition, so a translated loop would
+  carry on where the macro stopped.
+- **A file that jumps.** `GoTo`, `GoSub`, `Resume` and `On Error` land
+  somewhere a list of steps cannot follow, and skipping the branch a jump sits
+  in removes the jump but not the lines it was jumping over. One of them
+  anywhere in the file means **no** branch or loop in it is translated; the
+  ordinary steps still are, in the order the file writes them.
+- **A value that has to be computed.** `total = balance + 1` is not a value
+  this file can hand over: a `SetVariable` step remembers a literal, another
+  variable, or the text at a named row, column and length. The name is then
+  forgotten rather than left pointing at what it held before, so a later
+  condition reading a stale value is reported instead of quietly working.
+- **A variable that may not have been set.** One assigned inside a branch is
+  not known after it: the branch may not run, and a step reading a variable
+  nothing set stops the run against a live host.
 - **Text typed with no known cursor position.** `SendKeys "USER<Tab>PASS"`
   types `USER` where the macro last put the cursor, and `PASS` into whichever
   field the host moved to — which is not knowable from the file. The first
@@ -134,9 +192,9 @@ Each of these is reported against its line rather than approximated:
 - **Anything outside the terminal session** — files, other applications, the
   operating system.
 
-### Two differences in meaning worth knowing
+### Differences in meaning worth knowing
 
-The report names both when they apply:
+The report names each of these when it applies:
 
 - **A wait for text becomes a check, not a wait.** Playback waits for the
   keyboard to unlock before every step, but it does not poll for text. If the
@@ -144,6 +202,18 @@ The report names both when they apply:
 - **Wait times are read as milliseconds.** A macro that counted in seconds
   replays faster than it ran, which is the safer way to be wrong; the step
   delays in the recording are where to correct it.
+- **A comparison against the screen ignores the field's padding.** The macro
+  compared the padded value, so `GetString(5, 20, 8) = "APPROVED"` was false
+  when the field was wider than the word. A recording trims first, which is
+  almost always the comparison that was meant — but it is not the same
+  comparison.
+- **Every loop is bounded.** A `While` still true after 100 passes ends the
+  run rather than repeating for ever. Set `MaxIterations` on that step if the
+  flow genuinely needs more.
+- **A file of several routines becomes one flow.** Their steps follow one
+  another in the order the file writes them, rather than in the order
+  something called them — and `Exit Sub` is reported rather than translated,
+  because what it returns to is not in the file.
 
 The translated recording is a recording like any other — edit it in **View
 recording**, save it as a [Guided Business Task](business-tasks.md), or feed

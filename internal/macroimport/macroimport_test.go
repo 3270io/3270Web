@@ -13,8 +13,17 @@ func stepSummary(steps []session.WorkflowStep) string {
 	parts := make([]string, 0, len(steps))
 	for _, step := range steps {
 		part := step.Type
+		if step.Variable != "" {
+			part += " " + step.Variable
+		}
 		if step.Coordinates != nil {
 			part += "@" + itoa(step.Coordinates.Row) + "," + itoa(step.Coordinates.Column)
+			if step.Coordinates.Length > 0 {
+				part += "," + itoa(step.Coordinates.Length)
+			}
+		}
+		if step.Operator != "" {
+			part += " " + step.Operator
 		}
 		if step.Text != "" {
 			part += "=" + step.Text
@@ -76,13 +85,10 @@ End Sub
 
 func TestTranslateReportsWhatItCannotDo(t *testing.T) {
 	src := `Sub Main
-    If Session.Screen.GetString(1, 1, 5) = "READY" Then
-        Session.Screen.SendKeys "<Enter>"
-    End If
     For i = 1 To 10
     Next
     MsgBox "done"
-    balance = Session.Screen.GetString(12, 20, 10)
+    total = balance + 1
     Session.Screen.WaitForString "BALANCE"
     Session.Screen.WaitForCursor 5, 20
     Session.Screen.SendKeys "<Wibble>"
@@ -99,15 +105,12 @@ End Sub
 		line   int
 		reason string
 	}{
-		{2, reasonControlFlow}, // If ... Then
-		{4, reasonControlFlow}, // End If
-		{5, reasonControlFlow}, // For
-		{6, reasonControlFlow}, // Next
-		{7, reasonDialog},      // MsgBox
-		{8, reasonVariable},    // assignment
-		{9, reasonWholeScreen}, // WaitForString with no position
-		{10, reasonCursorWait}, // WaitForCursor
-		{12, reasonExpression}, // PutString with a variable
+		{2, reasonCountedLoop},     // For, which has no arithmetic to count with
+		{4, reasonDialog},          // MsgBox
+		{5, reasonVariable},        // a value computed rather than read
+		{6, reasonWholeScreen},     // WaitForString with no position
+		{7, reasonCursorWait},      // WaitForCursor
+		{9, reasonUnknownVariable}, // PutString naming a variable nothing set
 	}
 	for _, want := range checks {
 		got, ok := byLine[want.line]
@@ -121,16 +124,20 @@ End Sub
 			t.Errorf("line %d note carries no source text", want.line)
 		}
 	}
-	if note, ok := byLine[11]; !ok || !strings.Contains(note.Reason, "Wibble") {
-		t.Errorf("an unknown key mnemonic should name itself, got %+v", byLine[11])
+	if note, ok := byLine[8]; !ok || !strings.Contains(note.Reason, "Wibble") {
+		t.Errorf("an unknown key mnemonic should name itself, got %+v", byLine[8])
 	}
-	if note, ok := byLine[13]; !ok || !strings.Contains(note.Reason, "Frobnicate") {
-		t.Errorf("an unknown method should name itself, got %+v", byLine[13])
+	if note, ok := byLine[10]; !ok || !strings.Contains(note.Reason, "Frobnicate") {
+		t.Errorf("an unknown method should name itself, got %+v", byLine[10])
 	}
-	// The one thing inside the untranslatable branch that could be translated
-	// still is: the report is per line, not per file.
-	if got := stepSummary(res.Steps); got != "PressEnter" {
-		t.Fatalf("steps = %q, want the one translatable line to survive", got)
+	// The closing `Next` belongs to the loop that was already reported; a
+	// second note about it would only lengthen a report whose job is to be
+	// read.
+	if _, ok := byLine[3]; ok {
+		t.Errorf("the closer of a reported block should not be reported again: %+v", byLine[3])
+	}
+	if len(res.Steps) != 0 {
+		t.Fatalf("steps = %q, want nothing from a file of statements that do not translate", stepSummary(res.Steps))
 	}
 }
 

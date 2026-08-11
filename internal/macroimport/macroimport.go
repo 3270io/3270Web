@@ -85,8 +85,8 @@ type Result struct {
 // person who has to fix it, so it says what the recording format can do
 // instead rather than only what it cannot.
 const (
-	reasonControlFlow  = "a recording has decisions of its own now, but which lines belong inside this branch, and what its condition compares on which part of the screen, is not something this importer will guess at — see the If, While and Stop steps in the recording documentation"
-	reasonVariable     = "a recording has variables now, but where this value came from is not knowable from the file — a SetVariable step names the row and column it reads"
+	reasonControlFlow  = "a construct the recording format has no counterpart for — the decisions it does have are If, While, SetVariable and Stop"
+	reasonVariable     = "a SetVariable step remembers a literal, or the text at a named row, column and length, and this value is neither — where it came from is outside this file"
 	reasonExpression   = "its arguments are an expression rather than literal values"
 	reasonDialog       = "a replayed recording has nobody at the keyboard to answer a dialog"
 	reasonScreenRead   = "reads screen text into a variable — a SetVariable step does that, given the row, column and length to read, and a Guided Business Task names an output instead of storing one"
@@ -99,16 +99,38 @@ const (
 	reasonDanglingWait = "a wait with no step after it, so there is nothing for the delay to belong to"
 )
 
+// Reasons a branch or a loop did not come across. A block that does not
+// translate takes its body with it, so each of these is written to say what
+// would have to change for the block — not only its first line — to convert.
+const (
+	reasonConditionShape    = "its condition is not something a recording can test: an If or a While compares one place on the screen, named by row, column and length, or one variable this file has already set, against a literal value"
+	reasonConditionCombined = "its condition joins more than one test with And, Or or Not, and a recording tests one thing at a time — written as nested Ifs, each test on its own, it translates"
+	reasonCountedLoop       = "counts through a range, and a recording has no arithmetic to count with — the loop that translates is one that repeats while the screen still says something"
+	reasonPostTestLoop      = "tests after its body has already run, and a recording's While tests first, so a translated loop would run the body once even where the macro would not have"
+	reasonSelectCase        = "chooses between several cases at once, and a recording decides one comparison at a time — written as nested Ifs it translates"
+	reasonLoopExit          = "leaves the loop early, and a recording's While has no way out but its own condition, so a translated loop would carry on where the macro stopped"
+	reasonUnclosedBlock     = "is never closed by a matching %s, so which lines are inside it is not something this file says"
+	reasonOrphanCloser      = "closes a block that was never opened above it"
+	reasonJump              = "transfers control to somewhere else in the file, and a recording runs its steps in order"
+	reasonJumpInFile        = "this file transfers control with GoTo, GoSub, Resume or On Error somewhere, and where a jump lands cannot be expressed as a list of steps — so no branch or loop in it was translated, this one included"
+	reasonExitAmongRoutines = "ends one of the several routines this file declares, and a recording is a single flow, so what it returns to is not knowable from the file"
+	reasonVariableTarget    = "assigns to something a recording cannot name — a variable in a recording is a letter followed by letters, digits or underscores"
+	reasonUnknownVariable   = "types the value of a name nothing in this file set to something a recording can read"
+)
+
 // Translate reads a macro file and returns the recording it becomes.
 //
 // It never fails: a file with nothing translatable in it comes back with no
 // steps and a note per line, which is the honest answer to "can this be
 // imported" and a more useful one than an error.
 func Translate(src string) Result {
-	t := &translator{}
-	for _, ln := range logicalLines(src) {
+	lines := logicalLines(src)
+	t := &translator{plan: planBlocks(lines), vars: make(map[string]int)}
+	for i, ln := range lines {
+		t.index = i
 		t.statement(ln)
 	}
+	t.closeOpenBlocks()
 	if t.pendingDelay > 0 {
 		t.note(t.pendingDelayLine, reasonDanglingWait)
 	}
@@ -120,6 +142,20 @@ type translator struct {
 	notes      []Note
 	statements int
 	translated int
+
+	// plan is the file's block structure, read before anything was
+	// translated: the opener of a block decides whether the block converts,
+	// and what decides that is partly what comes after it.
+	plan  *blockPlan
+	index int
+	// frames is the stack of blocks currently open.
+	frames []frameState
+	// vars names every variable this file has set to something a recording
+	// can read, against the block depth it was set at. A variable set inside a
+	// branch is forgotten when the branch closes: the branch may not run, and
+	// a step reading a variable that was never set stops the run on a live
+	// host rather than doing what the macro did.
+	vars map[string]int
 
 	// The cursor as the macro leaves it. Known only while it can be derived
 	// from the file itself: a statement that names a position sets it, and
@@ -133,9 +169,35 @@ type translator struct {
 	pendingDelay     float64
 	pendingDelayLine line
 
-	sawWaitForString bool
-	sawTimedWait     bool
-	sawConnect       bool
+	sawWaitForString   bool
+	sawTimedWait       bool
+	sawConnect         bool
+	sawScreenCondition bool
+	sawTranslatedLoop  bool
+}
+
+// frameState is one open block: what it is, whether steps were emitted for it
+// that have to be closed, and — when it did not translate — the line and the
+// reason that will be reported once its extent is known.
+type frameState struct {
+	kind       string
+	line       line
+	translated bool
+	// openIfs counts the If steps this frame opened, which is one plus one
+	// for each ElseIf: a flat list of steps closes them one at a time.
+	openIfs int
+	// skipping suppresses everything until the block closes. It is set when
+	// the block did not translate, and also when an ElseIf part-way through a
+	// translated one did not: a branch that cannot be taken deliberately must
+	// not have its statements run unconditionally instead.
+	skipping   bool
+	skipLine   line
+	skipReason string
+	skipped    int
+	// The cursor as the block was entered. An Else branch starts from where
+	// its If did, not from wherever the other branch left the cursor.
+	enterRow, enterCol int
+	enterKnown         bool
 }
 
 type line struct {
@@ -165,6 +227,18 @@ func (t *translator) result() Result {
 	if t.sawConnect {
 		res.Advisories = append(res.Advisories, "The recording connects to the host this session is pointed at. Whatever the macro named as its session is not carried over — it belongs to the machine the macro ran on.")
 	}
+	if t.sawScreenCondition {
+		res.Advisories = append(res.Advisories, "A condition or a variable that reads the screen takes the text with the padding spaces of the field removed, so what it compares does not depend on how wide the field happens to be. The macro read the padded value.")
+	}
+	if t.sawTranslatedLoop {
+		res.Advisories = append(res.Advisories, "A loop became a While step, and playback bounds every loop: one still true after 100 passes ends the run rather than repeating for ever. Set MaxIterations on that step if the flow needs more than that.")
+	}
+	if t.plan != nil && t.plan.jumps {
+		res.Advisories = append(res.Advisories, "This file transfers control with GoTo, GoSub, Resume or On Error. No branch or loop in it was translated, because where a jump lands cannot be expressed as a list of steps; what did translate is in the order the file writes it.")
+	}
+	if t.plan != nil && t.plan.routines > 1 {
+		res.Advisories = append(res.Advisories, fmt.Sprintf("This file declares %d routines, and a recording is one flow — their steps follow one another in the order the file writes them, rather than in the order something called them.", t.plan.routines))
+	}
 	return res
 }
 
@@ -190,27 +264,54 @@ func (t *translator) emit(step session.WorkflowStep) {
 	t.steps = append(t.steps, step)
 }
 
+// emitControl appends a decision step. A decision never reaches the host, so
+// it leaves a pending wait where it found it: the delay belongs to the step
+// that acts. The exception is a decision that reads the screen, which is
+// exactly what the macro was waiting for the host to finish drawing.
+func (t *translator) emitControl(step session.WorkflowStep) {
+	if step.Coordinates != nil && t.pendingDelay > 0 {
+		step.StepDelay = &session.WorkflowDelayRange{Min: t.pendingDelay, Max: t.pendingDelay}
+		t.pendingDelay = 0
+	}
+	t.steps = append(t.steps, step)
+}
+
 // statement translates one logical line.
 func (t *translator) statement(l line) {
 	if l.Text == "" || isScaffolding(l.Text) {
 		return
 	}
 	t.statements++
+	if form := classify(l.Text); form.role != roleStatement {
+		t.structural(l, form)
+		return
+	}
+	if t.skipping() {
+		// Inside a block that did not translate. The line is counted, and the
+		// block's own note says how many went with it — a note per line would
+		// bury the one that has to be read.
+		t.countSkipped()
+		return
+	}
 	noted := len(t.notes)
-	t.dispatch(l)
+	t.dispatch(l, l.Text)
 	if len(t.notes) == noted {
 		t.translated++
 	}
 }
 
-func (t *translator) dispatch(l line) {
-	if reason, ok := languageConstruct(l.Text); ok {
+func (t *translator) dispatch(l line, text string) {
+	if reason, ok := languageConstruct(text); ok {
 		t.note(l, reason)
 		return
 	}
-	head, rawArgs, ok := splitCall(l.Text)
+	if idx := assignmentIndex(text); idx >= 0 {
+		t.assignment(l, text, idx)
+		return
+	}
+	head, rawArgs, ok := splitCall(text)
 	if !ok {
-		t.note(l, fmt.Sprintf("%q is not a statement this importer understands", firstWord(l.Text)))
+		t.note(l, fmt.Sprintf("%q is not a statement this importer understands", firstWord(text)))
 		return
 	}
 	method := strings.ToLower(lastSegment(head))
@@ -219,6 +320,9 @@ func (t *translator) dispatch(l line) {
 	switch method {
 	case "putstring", "puttext", "setstring":
 		if !literal {
+			if t.putVariable(l, args) {
+				return
+			}
 			t.note(l, reasonExpression)
 			return
 		}
@@ -303,6 +407,38 @@ func (t *translator) putString(l line, args []arg) {
 	default:
 		t.note(l, "expected text, or text with a row and a column")
 	}
+}
+
+// putVariable handles a write whose text is a variable rather than a literal:
+// the account number read off one screen, typed into the next. The value goes
+// in as ${name}, which is what playback resolves when it runs — and a name
+// nothing set is reported rather than typed, because "${balance}" arriving in
+// a field on a live host is a wrong value entered confidently.
+func (t *translator) putVariable(l line, args []arg) bool {
+	if len(args) == 0 || !args[0].isIdent {
+		return false
+	}
+	name, known := t.knownVariable(args[0].ident)
+	if !known {
+		t.note(l, reasonUnknownVariable)
+		return true
+	}
+	switch len(args) {
+	case 1:
+		t.typeText(l, "${"+name+"}")
+		return true
+	case 3:
+		if !args[1].isNum || !args[2].isNum {
+			return false
+		}
+		if !t.setCursor(args[1].num, args[2].num) {
+			t.note(l, reasonCoordinates)
+			return true
+		}
+		t.typeText(l, "${"+name+"}")
+		return true
+	}
+	return false
 }
 
 func (t *translator) waitForString(l line, args []arg) {
@@ -406,6 +542,13 @@ func (t *translator) typeText(l line, text string) {
 		Coordinates: &session.WorkflowCoordinates{Row: t.row, Column: t.col},
 		Text:        text,
 	})
+	if strings.Contains(text, "${") {
+		// How far a ${name} moves the cursor depends on what it holds when the
+		// recording runs, so anything typed after it needs a position of its
+		// own rather than one counted from here.
+		t.cursorKnown = false
+		return
+	}
 	t.col += utf8.RuneCountInString(text)
 }
 
@@ -517,36 +660,11 @@ func languageConstruct(text string) (string, bool) {
 		return reasonControlFlow, true
 	case "end":
 		// `End Sub` is scaffolding and never reaches here; `End If` and the
-		// rest close a construct that could not be translated either.
+		// rest are read as block structure before this point, so what is left
+		// closes a construct that could not be translated either.
 		return reasonControlFlow, true
 	}
-	if isAssignment(text) {
-		return reasonVariable, true
-	}
 	return "", false
-}
-
-// isAssignment reports whether the statement assigns to something. A call
-// with an equals sign inside a string argument is not one, so quotes are
-// respected; an equals sign after an opening parenthesis belongs to the
-// arguments.
-func isAssignment(text string) bool {
-	inQuote := false
-	for i, r := range text {
-		switch r {
-		case '"':
-			inQuote = !inQuote
-		case '(':
-			if !inQuote {
-				return false
-			}
-		case '=':
-			if !inQuote {
-				return i > 0
-			}
-		}
-	}
-	return false
 }
 
 func firstWord(text string) string {
@@ -606,8 +724,14 @@ func splitCall(text string) (head, args string, ok bool) {
 type arg struct {
 	str   string
 	num   int
+	ident string
 	isStr bool
 	isNum bool
+	// isIdent marks a bare name. It is not a literal, so it never satisfies a
+	// caller asking for one — but a name this file has set to something a
+	// recording can read is a value after all, and the step types that can
+	// carry a ${name} say so themselves.
+	isIdent bool
 }
 
 // parseArgs splits an argument list into literals. It reports false the
@@ -639,6 +763,10 @@ func parseArgs(raw string) ([]arg, bool) {
 			n, err := strconv.Atoi(part)
 			if err != nil {
 				literal = false
+				if isVariableName(part) {
+					out = append(out, arg{ident: part, isIdent: true})
+					continue
+				}
 				out = append(out, arg{})
 				continue
 			}

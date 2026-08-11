@@ -808,14 +808,14 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 ```json
 {
   "name": "account-inquiry.json",
-  "stepTotal": 6,
-  "statements": 9,
-  "translated": 7,
+  "stepTotal": 9,
+  "statements": 11,
+  "translated": 9,
   "notes": [
     {
       "line": 8,
-      "source": "If Session.Screen.GetString(1, 1, 5) = \"READY\" Then",
-      "reason": "a recording has decisions of its own now, but which lines belong inside this branch, and what its condition compares on which part of the screen, is not something this importer will guess at — see the If, While and Stop steps in the recording documentation"
+      "source": "If Session.Screen.Search(\"READY\") Then",
+      "reason": "its condition is not something a recording can test: an If or a While compares one place on the screen, named by row, column and length, or one variable this file has already set, against a literal value — and the 2 statements inside it were left out with it, because a step inside a branch that did not translate would otherwise run every time"
     }
   ],
   "advisories": ["Wait times were read as milliseconds. …"],
@@ -830,7 +830,9 @@ is worse than one that names none.
 
 **Read `notes` before replaying anything.** They are the lines that were left
 out, each with the reason, and a run that ignores them is a flow with holes in
-it. What produces a note, and why, is in
+it. A note against a branch is the largest hole of all: a branch whose
+condition did not translate takes the statements inside it too, and the note
+says how many. What produces a note, and why, is in
 [Recordings and Playback](workflow.md#importing-a-macro-file); the same
 translation and the same report are one click away in the browser.
 
