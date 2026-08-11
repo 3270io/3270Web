@@ -158,6 +158,7 @@ rather than merely tolerate it.
 | Screen tracing — every screen recorded as it is drawn, including the ones replaced before anyone looked | ✅ |
 | Embeddable in another application's page, with a documented postMessage channel | ✅ |
 | HLLAPI-shaped endpoint for porting existing screen-scrapers | ✅ |
+| Macro-file import — an existing macro becomes a recording, with every line it could not translate reported | ✅ |
 | Host compatibility profiler | ✅ |
 | AI Chat driving the host through a documented tool surface | ✅ |
 | Docker image and a one-line installer | ✅ |

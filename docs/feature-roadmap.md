@@ -111,9 +111,12 @@ not:
 - **DBCS and bidirectional language support.** Arabic, Hebrew, and the
   double-byte character sets. Neither is a rendering tweak; both reach the
   code page handling and the field model.
-- **Macro-file import.** The `.KMP` keyboard importer has an equivalent
-  problem one layer up: an organisation with three hundred recorded macros
-  has three hundred reasons not to move.
+- **A macro language with decisions in it.** Macro files now import — see
+  [Recordings and Playback](workflow.md#importing-a-macro-file) — but what
+  imports is the straight-line part of one. A recording has no branch, no loop
+  and no variable, so a macro that reads a balance and decides what to do
+  about it still needs a person, and the established emulators ship full
+  scripting languages with editors and debuggers around them.
 
 ## Category parity
 
@@ -147,15 +150,28 @@ is already good at — they remove reasons an evaluation stops early.
       entry points and forwards them to the HLLAPI-shaped endpoint, for the
       binaries that cannot be rebuilt. The semantics are already
       implemented; what is missing is a library for them to load
-- [ ] **Macro-file import** — read an existing macro file and report what it
-      could not translate, the way the `.KMP` keyboard importer already
-      does. A report of the twelve lines that need a human is worth more
-      than a silent partial conversion
+- [x] **Macro-file import** — *shipped: a macro file written against the
+      session automation object model becomes a recording, and every line that
+      would not translate is reported with its number, its text and the reason
+      — branching, a variable, text typed at a position the file cannot know.
+      One click in the Automation menu, and on the API without a session so a
+      directory of them converts in one pass. See
+      [Recordings and Playback](workflow.md#importing-a-macro-file)*
 
 ## Recently shipped
 
 Newest first. Every item here is live and documented.
 
+- **The shelf of macros that was keeping a shop where it is** — a macro file
+  written for an installed emulator is read here and becomes a recording, and
+  the lines it will not take are named rather than dropped: this branch, that
+  variable, this text typed at a position the file cannot know. The refusals
+  are the feature. Guessing a coordinate would produce a flow that types an
+  account number into whatever field the host happened to leave the cursor in,
+  and that is discovered in production rather than in the report. The
+  translation and the report are on the API as well, needing no session,
+  because a shop with one macro has three hundred. See
+  [Recordings and Playback](workflow.md#importing-a-macro-file).
 - **A question about the screen in front of you** — "explain this screen" was
   a starter chip on an empty chat, which is the one moment an operator is
   least likely to need it; the screen worth explaining is the one that arrived

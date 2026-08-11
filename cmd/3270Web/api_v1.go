@@ -50,6 +50,12 @@ func (app *App) registerAPIv1(r *gin.Engine) {
 	g.GET("/library", app.LibraryExportHandler)
 	g.POST("/library", app.LibraryImportHandler)
 
+	// Translating a macro file needs no session and no host: it reads text
+	// and returns a recording. That is what lets a shop convert a directory
+	// of them in one pass instead of one browser upload at a time. See
+	// macroimport.go.
+	g.POST("/macros/translate", app.APITranslateMacro)
+
 	// Skills and instructions are not session-scoped either — the catalogue
 	// is the same whichever host you are connected to, and a client will
 	// usually want to read it before opening a session at all.

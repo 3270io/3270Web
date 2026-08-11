@@ -3654,3 +3654,92 @@ body.copilot-resizing {
     padding: 8px;
   }
 }
+
+/* Macro import — see macro-import.js. The dialog is a report, and it is 420px
+   like every other one, so the report is written to fit that: each line the
+   translator would not take gets its own block, with the macro's own text in
+   the terminal face above the reason in prose. A file with sixty untranslated
+   lines makes a long dialog, and the dialog itself scrolls — no inner scroll
+   region, for the reason .modal gives in style.css. */
+.macro-import-status {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.macro-import-status[data-error] {
+  color: var(--danger, #d9534f);
+}
+
+.macro-import-status[hidden] {
+  display: none;
+}
+
+.macro-import-summary {
+  margin: 12px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.macro-import-summary:empty {
+  display: none;
+}
+
+.macro-import-advisories {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.macro-import-notes-heading {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.macro-import-notes-wrap {
+  margin-top: 14px;
+}
+
+.macro-import-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.macro-import-notes li {
+  padding: 8px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.macro-import-note-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.macro-import-note-head code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.macro-import-line {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.macro-import-note-reason {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}

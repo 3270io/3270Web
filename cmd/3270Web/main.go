@@ -456,6 +456,9 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET("/record/download", app.RecordDownloadHandler)
 	r.POST("/workflow/load", app.LoadWorkflowHandler)
 	r.POST("/workflow/load-json", app.LoadWorkflowJSONHandler)
+	// A macro file written for an installed emulator, translated into a
+	// recording and loaded as one. See macroimport.go.
+	r.POST("/workflow/import-macro", app.ImportMacroHandler)
 	r.POST("/workflow/play", app.PlayWorkflowHandler)
 	r.POST("/workflow/debug", app.DebugWorkflowHandler)
 	r.POST("/workflow/pause", app.PauseWorkflowHandler)

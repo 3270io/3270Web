@@ -106,6 +106,7 @@ cookie is never involved.
 | `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
 | `GET` | `/api/v1/library` | Download the tasks and host presets as one portable document |
 | `POST` | `/api/v1/library` | Import one, or ask what importing it would do |
+| `POST` | `/api/v1/macros/translate` | Turn a macro file into a recording, with a report of what did not translate |
 
 ### `POST /api/v1/sessions`
 
@@ -788,6 +789,64 @@ An administrator who would rather not use curl has the same thing on
 **Session screen → Library**: download, choose a file, read what it would
 change, import.
 
+### `POST /api/v1/macros/translate`
+
+Reads a macro file written for an installed terminal emulator and returns the
+[recording](workflow.md) it becomes, together with a line-by-line account of
+what it would not translate. It needs no session and touches none: it reads
+text and returns JSON, which is what converting a directory of macros in one
+pass needs.
+
+Send the file as an upload in a `macro` field, or as JSON:
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  -F macro=@account-inquiry.mac \
+  http://3270web.internal:3270/api/v1/macros/translate
+```
+
+```json
+{
+  "name": "account-inquiry.json",
+  "stepTotal": 6,
+  "statements": 9,
+  "translated": 7,
+  "notes": [
+    {
+      "line": 8,
+      "source": "If Session.Screen.GetString(1, 1, 5) = \"READY\" Then",
+      "reason": "a recording is a straight line of steps, with no branching, loops or subroutine calls"
+    }
+  ],
+  "advisories": ["Wait times were read as milliseconds. …"],
+  "workflow": { "Host": "", "Port": 0, "Name": "account-inquiry.json", "Steps": [ … ] }
+}
+```
+
+`workflow` is a recording in the schema on this page — write it to a file and
+it plays like any other. `Host` and `Port` are left empty: nothing here knows
+where you intend to replay it, and a recording that names a host it invented
+is worse than one that names none.
+
+**Read `notes` before replaying anything.** They are the lines that were left
+out, each with the reason, and a run that ignores them is a flow with holes in
+it. What produces a note, and why, is in
+[Recordings and Playback](workflow.md#importing-a-macro-file); the same
+translation and the same report are one click away in the browser.
+
+Converting a directory, keeping the report beside each file:
+
+```sh
+for f in macros/*.mac; do
+  curl -sS -H "Authorization: Bearer $API_TOKEN" -F "macro=@$f" \
+    http://3270web.internal:3270/api/v1/macros/translate > "out/$(basename "$f").json"
+done
+jq -r 'select(.notes | length > 0) | "\(.name): \(.notes | length) line(s) need a person"' out/*.json
+```
+
+A file no larger than 512 KB, and a body that is neither an upload nor
+`{"name", "content"}` JSON, is a `400`.
+
 ## Browser-session endpoints
 
 These endpoints reuse the session cookie set by the connect flow rather
@@ -804,6 +863,7 @@ that already drive 3270Web through the cookie.
 | `GET` | `/printer/jobs` | List the print jobs. |
 | `GET` | `/printer/jobs/download?name=` | Download one job as an attachment. |
 | `POST` | `/printer/jobs/delete?name=` | Drop one job. |
+| `POST` | `/workflow/import-macro` | Translate an uploaded macro file and load the result as this session's recording. Returns the same report as the API route, without the recording itself. See [Recordings and Playback](workflow.md#importing-a-macro-file). |
 | `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
 | `GET` | `/chaos/screens` | Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. `?include_previews=false` omits previews. |
