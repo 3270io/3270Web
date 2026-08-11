@@ -577,6 +577,29 @@ docker compose up -d
     First: `mkdir -p ./data && sudo chown -R 10001:10001 ./data`. See
     [Keeping the state](multi-user.md#keeping-the-state).
 
+### The lab: a terminal, a host and an automation console
+
+`docker-compose.lab.yml` beside it runs three containers on one network — the
+[bundled sample applications](sample-apps.md#as-a-host-for-something-else) as
+an ordinary TN3270 host, this terminal, and
+[3270Connect](https://3270connect.3270.io)'s operations console. It is the
+whole loop in one command: drive an application by hand here, then replay it a
+hundred times over from there, against the same screens.
+
+```bash
+docker compose -f docker-compose.lab.yml up -d
+```
+
+```
+http://localhost:3270    the terminal. Connect to host "sampleapps", port 3271
+http://localhost:9200    the console
+```
+
+Everything in it is published on `127.0.0.1` and it runs without a sign-in, on
+purpose: a lab you have to create an administrator for before you can look at
+it is a lab nobody looks at. Reset it with `docker compose -f
+docker-compose.lab.yml down -v`.
+
 ---
 
 ## Verify it's running

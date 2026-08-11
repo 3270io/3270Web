@@ -606,6 +606,12 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == printer.SpoolSubcommand {
 		os.Exit(runPrintSpool(os.Args[2:], os.Stdin, os.Stderr))
 	}
+	// The bundled sample applications, served as an ordinary TN3270 host for
+	// anything that is not this process. It opens no web UI and keeps no
+	// state, so it is dispatched here too. See sampleapphost.go.
+	if len(os.Args) > 1 && os.Args[1] == "sampleapp" {
+		os.Exit(runSampleAppHost(os.Args[2:], os.Stdout, os.Stderr))
+	}
 
 	installDir := resolveBaseDir()
 	baseDir, dataErr := resolveDataDir(installDir)
