@@ -380,15 +380,21 @@
       .filter(Boolean);
   }
 
-  // The connect page has no session, so /api/themes would 401 there. The
-  // server inlines the list instead; prefer it when present.
-  function inlinedFileThemes() {
+  // The connect page inlines its theme list so the picker is right on first
+  // paint, with no round trip and no flash of the built-in themes alone. That
+  // list is a snapshot of the moment the page was rendered, though, so it is
+  // good for exactly one read — hence the removal. A refresh after saving a
+  // theme has to ask the server, or the list that offered to save it is the
+  // one place the new theme never appears.
+  function consumeInlinedFileThemes() {
     var el = document.querySelector("[data-file-themes]");
     if (!el) {
       return null;
     }
+    var raw = el.getAttribute("data-file-themes") || "[]";
+    el.remove();
     try {
-      return normalizeFileThemeList(JSON.parse(el.getAttribute("data-file-themes") || "[]"));
+      return normalizeFileThemeList(JSON.parse(raw));
     } catch (err) {
       console.error("Failed to parse inlined custom themes:", err);
       return [];
@@ -396,16 +402,17 @@
   }
 
   function loadFileThemes() {
-    var inlined = inlinedFileThemes();
+    var inlined = consumeInlinedFileThemes();
     if (inlined) {
       fileThemes = inlined;
       return Promise.resolve();
     }
-    // /api/themes is gated on a terminal session, so the terminal screen is
-    // the only page where it can answer. Asking anywhere else — sign in, first
-    // run, change password, the account pages — spent a round trip on a
-    // guaranteed 401 and left a red line in the console on every one of them.
-    if (!document.querySelector(".terminal-shell")) {
+    // Only the pages with a theme picker in them have anything to fill: the
+    // connect page and the terminal screen. Asking anywhere else — sign in,
+    // first run, change password, the account pages — spends a round trip on a
+    // list nothing will read, and where the caller has not signed in yet it is
+    // a guaranteed 401 with a red line in the console to match.
+    if (!document.querySelector("[data-settings-theme-slot], #theme-select")) {
       fileThemes = [];
       return Promise.resolve();
     }
