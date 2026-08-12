@@ -18,10 +18,11 @@ import (
 // It is the first thing the product shows on Windows, and for a while it was
 // the only part of it that did not look like the rest: system-grey buttons on
 // a near-black panel, next to a browser UI that had been given a mark, a
-// palette and a card layout. So it is dressed the same way now — the same
-// background, border and accent tokens the stylesheet defines, the same mark
-// the title bar and the taskbar show, and a primary button drawn the way the
-// sign-in page's is.
+// palette and a card layout. So it is dressed the same way now — the card, the
+// rule along the top edge and the button treatment the sign-in page has, the
+// mark the title bar and the taskbar show, and the brand's own greens rather
+// than the terminal's phosphor, which is the wrong green to sit beside the
+// mark. splashart.go says where each colour comes from.
 //
 // Windows has no theming hook for any of that: a push button is drawn by the
 // system, and GDI has no anti-aliasing, so a rounded corner drawn with
@@ -142,7 +143,7 @@ func runAppWindow(rawURL string, onExit func()) {
 			if height < side {
 				side = height
 			}
-			return splashStatusDot(side, splashFG, splashPanel)
+			return splashStatusDot(side, splashMark, splashPanel)
 		},
 	}
 
@@ -180,8 +181,8 @@ func runAppWindow(rawURL string, onExit func()) {
 			ui.clearHover(nil)
 		},
 		Children: []Widget{
-			// The accent rule along the top edge, the same gradient
-			// `.auth-card::before` draws across every card in the browser UI.
+			// The rule along the top edge, drawn the way every card in the
+			// browser UI is topped — see splashHairline.
 			CustomWidget{
 				AssignTo:            &rule.widget,
 				MinSize:             Size{Height: splashRuleHeight},
@@ -225,10 +226,25 @@ func runAppWindow(rawURL string, onExit func()) {
 								Layout:     VBox{MarginsZero: true, Spacing: 2},
 								Children: []Widget{
 									VSpacer{},
-									Label{
-										Text:      "3270Web",
-										TextColor: chrome.fg,
-										Font:      Font{Family: splashSans, PointSize: 18, Bold: true},
+									// The wordmark is split the way the brand
+									// lockup splits it: the number in text, the
+									// word in the mark's own green.
+									Composite{
+										Background: chrome.background,
+										Layout:     HBox{MarginsZero: true, Spacing: 0},
+										Children: []Widget{
+											Label{
+												Text:      "3270",
+												TextColor: chrome.ink,
+												Font:      Font{Family: splashSans, PointSize: 18, Bold: true},
+											},
+											Label{
+												Text:      "Web",
+												TextColor: chrome.brand,
+												Font:      Font{Family: splashSans, PointSize: 18, Bold: true},
+											},
+											HSpacer{},
+										},
 									},
 									Label{
 										Text:      splashTagline,
@@ -258,7 +274,7 @@ func runAppWindow(rawURL string, onExit func()) {
 							HSpacer{},
 							Label{
 								Text:      splashVersion(appVersion),
-								TextColor: chrome.muted,
+								TextColor: chrome.dim,
 								Font:      Font{Family: splashMono, PointSize: 9},
 								Alignment: AlignHFarVCenter,
 							},
@@ -339,7 +355,7 @@ func splashCard(chrome *splashChrome, dot *splashPicture, address string) Widget
 							},
 							Label{
 								Text:      splashStatusLabel,
-								TextColor: chrome.fg,
+								TextColor: chrome.brand,
 								Font:      Font{Family: splashSans, PointSize: 8, Bold: true},
 								Alignment: AlignHNearVCenter,
 								Accessibility: Accessibility{
@@ -351,7 +367,7 @@ func splashCard(chrome *splashChrome, dot *splashPicture, address string) Widget
 					},
 					Label{
 						Text:      address,
-						TextColor: chrome.accent2,
+						TextColor: chrome.ink,
 						Font:      Font{Family: splashMono, PointSize: 12},
 					},
 					Label{
@@ -410,9 +426,10 @@ type splashChrome struct {
 	panel      SolidColorBrush
 	border     SolidColorBrush
 
-	fg      walk.Color
-	muted   walk.Color
-	accent2 walk.Color
+	ink   walk.Color
+	muted walk.Color
+	dim   walk.Color
+	brand walk.Color
 
 	button *walk.Font
 
@@ -438,7 +455,7 @@ func newSplashChrome() (*splashChrome, error) {
 	if err != nil {
 		return nil, err
 	}
-	primaryFill, err := walk.NewSolidColorBrush(walkColor(splashFG))
+	primaryFill, err := walk.NewSolidColorBrush(walkColor(splashMark))
 	if err != nil {
 		return nil, err
 	}
@@ -451,9 +468,10 @@ func newSplashChrome() (*splashChrome, error) {
 		background:    SolidColorBrush{Color: walkColor(splashBG)},
 		panel:         SolidColorBrush{Color: walkColor(splashPanel)},
 		border:        SolidColorBrush{Color: walkColor(splashBorder)},
-		fg:            walkColor(splashFG),
-		muted:         walkColor(splashFGMuted),
-		accent2:       walkColor(splashAccent2),
+		ink:           walkColor(splashInk),
+		muted:         walkColor(splashMuted),
+		dim:           walkColor(splashDim),
+		brand:         walkColor(splashMark),
 		button:        buttonFont,
 		bgFill:        bgFill,
 		panelFill:     panelFill,
@@ -701,7 +719,9 @@ func (b *splashButton) plate(face splashFace) splashPlate {
 	}
 
 	if b.primary {
-		plate.FillFrom, plate.FillTo = splashFG, splashAccent2
+		// The mark's own face gradient, top-left to bottom-right, which is
+		// the same run and the same two greens the icon is drawn with.
+		plate.FillFrom, plate.FillTo = splashMark, splashMarkDeep
 	} else {
 		plate.FillFrom, plate.FillTo = splashPanel, splashPanel2
 		plate.Border = splashBorder
@@ -719,17 +739,15 @@ func (b *splashButton) plate(face splashFace) splashPlate {
 		plate.FillFrom = plate.FillFrom.brighten(1.12)
 		plate.FillTo = plate.FillTo.brighten(1.12)
 		if !b.primary {
-			plate.Border = splashFG
+			plate.Border = splashMark
 		}
 	}
 
 	if face.focused {
-		// Where the keyboard is has to be visible against the button's own
-		// fill, so the ring is the colour the fill is not.
-		plate.Ring = splashBG
-		if !b.primary {
-			plate.Ring = splashFG
-		}
+		// Where the keyboard is has to carry against both fills, and the
+		// brand's lighter mint is the one colour that reads on the emerald
+		// and on the panel alike.
+		plate.Ring = splashGlow
 		plate.RingWidth = float64(splashScale(2, dpi))
 		plate.RingInset = float64(splashScale(3, dpi))
 	}
@@ -739,9 +757,9 @@ func (b *splashButton) plate(face splashFace) splashPlate {
 
 func (b *splashButton) labelColor() walk.Color {
 	if b.primary {
-		return walkColor(splashOnAccent)
+		return walkColor(splashOnMark)
 	}
-	return b.chrome.fg
+	return b.chrome.ink
 }
 
 func (b *splashButton) fallbackBrush() walk.Brush {

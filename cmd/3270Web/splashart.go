@@ -27,20 +27,37 @@ import (
 // The second is that it can be tested and looked at on any machine. The
 // window needs Windows; these pictures do not.
 
-// splashColor is one 8-bit sRGB colour. The palette below is the default
-// theme's tokens from web/static/style.css, so the window and the terminal
-// in the browser are the same green.
+// splashColor is one 8-bit sRGB colour.
+//
+// The palette is the brand's, not the terminal's. Those are two different
+// greens and the difference is the point: a 3270 screen is drawn in phosphor
+// green because that is what a 3270 screen looks like, while everything
+// around the screen — the mark, the site, the documentation — is the brand's
+// emerald. This window is chrome rather than a screen, and it is looking at
+// the mark, so phosphor next to the mark reads as two greens that missed each
+// other.
+//
+// Every value below is a published token: the two emeralds are the stops of
+// the mark's own face gradient in brand/3270web-icon.svg, and the rest are
+// the dark palette from docs/stylesheets/3270-theme.css, which is the same
+// brand on the same near-black.
 type splashColor struct{ R, G, B uint8 }
 
 var (
-	splashBG       = splashColor{0x0b, 0x1a, 0x0b} // --bg
-	splashPanel    = splashColor{0x0f, 0x26, 0x0f} // --panel
-	splashPanel2   = splashColor{0x12, 0x30, 0x12} // --panel-2
-	splashBorder   = splashColor{0x1f, 0x3b, 0x1f} // --border
-	splashFG       = splashColor{0x39, 0xff, 0x14} // --fg / --accent
-	splashFGMuted  = splashColor{0x8b, 0xdc, 0x79} // --fg-muted
-	splashAccent2  = splashColor{0x7c, 0xff, 0x3b} // --accent-2
-	splashOnAccent = splashBG                      // .auth-submit { color: var(--bg) }
+	splashBG     = splashColor{0x03, 0x11, 0x0d} // 3270-theme --bg
+	splashPanel  = splashColor{0x06, 0x20, 0x1a} // --surface-solid
+	splashPanel2 = splashColor{0x0c, 0x32, 0x26} // --surface-solid lifted towards --accent
+	splashBorder = splashColor{0x11, 0x44, 0x32} // --line, flattened onto the panel
+
+	splashInk   = splashColor{0xe6, 0xff, 0xf5} // --text
+	splashMuted = splashColor{0x9f, 0xe6, 0xc8} // --text-2
+	splashDim   = splashColor{0x5f, 0x9e, 0x86} // --text-3
+
+	// The mark's own two greens, and the ink dark enough to sit on them.
+	splashMark     = splashColor{0x00, 0xa7, 0x6f} // icon face gradient, light stop
+	splashMarkDeep = splashColor{0x00, 0x87, 0x5a} // icon face gradient, dark stop
+	splashOnMark   = splashColor{0x02, 0x13, 0x0a} // --accent-ink
+	splashGlow     = splashColor{0x7c, 0xf9, 0xd0} // --accent-2
 )
 
 // mix returns c blended towards other, t running 0 (all c) to 1 (all other).
@@ -96,8 +113,9 @@ type splashPlate struct {
 	Radius        float64
 	Inset         float64 // keeps the shape off the edge, leaving room for the shadow and the press
 
-	// Fill runs along the 135° axis — top-left to bottom-right — matching
-	// `linear-gradient(135deg, var(--accent), var(--accent-2))`.
+	// Fill runs along the 135° axis — top-left to bottom-right — which is
+	// both the run the stylesheet's buttons use and the run the mark's own
+	// face gradient is drawn along.
 	FillFrom, FillTo splashColor
 
 	Border      splashColor
@@ -188,9 +206,10 @@ func setRGB(img *image.RGBA, x, y int, c splashColor) {
 	img.Pix[i+3] = 0xff
 }
 
-// splashHairline draws the accent rule that runs along the top of the window,
-// the same gradient `.auth-card::before` puts along the top of every signed-in
-// page: nothing at the edges, accent through the middle.
+// splashHairline draws the rule along the top of the window: the shape of
+// gradient `.auth-card::before` puts along the top of every card in the
+// browser UI — nothing at the edges, colour through the middle — swept
+// through the brand's two greens.
 func splashHairline(width, height int, over splashColor) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	if width <= 0 || height <= 0 {
@@ -207,17 +226,17 @@ func splashHairline(width, height int, over splashColor) *image.RGBA {
 		t := (float64(x) + 0.5) / float64(width)
 
 		var (
-			colour = splashFG
+			colour = splashMark
 			alpha  float64
 		)
 		switch {
 		case t < accentStart:
 			alpha = t / accentStart
 		case t < accentEnd:
-			colour = splashFG.mix(splashAccent2, (t-accentStart)/(accentEnd-accentStart))
+			colour = splashMark.mix(splashGlow, (t-accentStart)/(accentEnd-accentStart))
 			alpha = 1
 		default:
-			colour = splashAccent2
+			colour = splashGlow
 			alpha = (1 - t) / (1 - accentEnd)
 		}
 

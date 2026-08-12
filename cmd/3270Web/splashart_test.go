@@ -50,19 +50,19 @@ func TestSplashColorMix(t *testing.T) {
 }
 
 func TestSplashColorBrightenClamps(t *testing.T) {
-	// --accent is already at full green, so brightening it can only take the
-	// other two channels up. Nothing may wrap.
-	got := splashFG.brighten(1.5)
+	// The brand's lighter mint is almost at full green already, so brightening
+	// it can only take the channels up to the ceiling. Nothing may wrap.
+	got := splashGlow.brighten(1.5)
 	if got.G != 0xff {
 		t.Errorf("brightened green = %d, want it pinned at 255", got.G)
 	}
-	if got.R < splashFG.R || got.B < splashFG.B {
-		t.Errorf("brighten(%v) = %v, want no channel to fall", splashFG, got)
+	if got.R < splashGlow.R || got.B < splashGlow.B {
+		t.Errorf("brighten(%v) = %v, want no channel to fall", splashGlow, got)
 	}
 
-	dark := splashFG.brighten(0.5)
-	if dark.G >= splashFG.G {
-		t.Errorf("brighten(0.5) = %v, want a darker colour than %v", dark, splashFG)
+	dark := splashMark.brighten(0.5)
+	if dark.G >= splashMark.G {
+		t.Errorf("brighten(0.5) = %v, want a darker colour than %v", dark, splashMark)
 	}
 }
 
@@ -70,7 +70,7 @@ func TestSplashRenderPlateFillsAndAntialiases(t *testing.T) {
 	const size = 64
 	img := splashRenderPlate(splashPlate{
 		Width: size, Height: size, Radius: 12, Inset: 1,
-		FillFrom: splashFG, FillTo: splashFG,
+		FillFrom: splashMark, FillTo: splashMark,
 		Over: splashBG,
 	})
 
@@ -78,8 +78,8 @@ func TestSplashRenderPlateFillsAndAntialiases(t *testing.T) {
 		t.Fatalf("bounds = %v, want a %dx%d picture", got, size, size)
 	}
 
-	if centre := pixelAt(t, img, size/2, size/2); !near(centre, splashFG, 2) {
-		t.Errorf("centre = %v, want the fill %v", centre, splashFG)
+	if centre := pixelAt(t, img, size/2, size/2); !near(centre, splashMark, 2) {
+		t.Errorf("centre = %v, want the fill %v", centre, splashMark)
 	}
 	if corner := pixelAt(t, img, 0, 0); corner != splashBG {
 		t.Errorf("corner = %v, want the background %v — the radius should cut it away", corner, splashBG)
@@ -91,7 +91,7 @@ func TestSplashRenderPlateFillsAndAntialiases(t *testing.T) {
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			p := pixelAt(t, img, x, y)
-			if p != splashBG && !near(p, splashFG, 2) {
+			if p != splashBG && !near(p, splashMark, 2) {
 				blended++
 			}
 		}
@@ -105,7 +105,7 @@ func TestSplashRenderPlateGradientRunsDiagonally(t *testing.T) {
 	const size = 64
 	img := splashRenderPlate(splashPlate{
 		Width: size, Height: size, Radius: 8, Inset: 1,
-		FillFrom: splashFG, FillTo: splashAccent2,
+		FillFrom: splashMark, FillTo: splashMarkDeep,
 		Over: splashBG,
 	})
 
@@ -114,11 +114,11 @@ func TestSplashRenderPlateGradientRunsDiagonally(t *testing.T) {
 	if topLeft == bottomRight {
 		t.Fatalf("both ends of the gradient are %v, want the 135° run the stylesheet has", topLeft)
 	}
-	if !near(topLeft, splashFG, 40) {
-		t.Errorf("top left = %v, want it near %v", topLeft, splashFG)
+	if !near(topLeft, splashMark, 16) {
+		t.Errorf("top left = %v, want it near the mark's light stop %v", topLeft, splashMark)
 	}
-	if !near(bottomRight, splashAccent2, 40) {
-		t.Errorf("bottom right = %v, want it near %v", bottomRight, splashAccent2)
+	if !near(bottomRight, splashMarkDeep, 16) {
+		t.Errorf("bottom right = %v, want it near the mark's dark stop %v", bottomRight, splashMarkDeep)
 	}
 }
 
@@ -128,7 +128,7 @@ func TestSplashRenderPlateDrawsBorderAndRing(t *testing.T) {
 		Width: size, Height: size, Radius: 8, Inset: 1,
 		FillFrom: splashPanel, FillTo: splashPanel,
 		Border: splashBorder, BorderWidth: 2,
-		Ring: splashFG, RingWidth: 2, RingInset: 4,
+		Ring: splashMark, RingWidth: 2, RingInset: 4,
 		Over: splashBG,
 	})
 
@@ -142,7 +142,7 @@ func TestSplashRenderPlateDrawsBorderAndRing(t *testing.T) {
 	// The focus ring has to be findable, or the keyboard has nowhere to show.
 	var ringed bool
 	for y := 0; y < size; y++ {
-		if near(pixelAt(t, img, size/2, y), splashFG, 24) {
+		if near(pixelAt(t, img, size/2, y), splashMark, 24) {
 			ringed = true
 			break
 		}
@@ -156,7 +156,7 @@ func TestSplashRenderPlatePressShiftsDown(t *testing.T) {
 	const size = 48
 	plate := splashPlate{
 		Width: size, Height: size, Radius: 8, Inset: 2,
-		FillFrom: splashFG, FillTo: splashFG,
+		FillFrom: splashMark, FillTo: splashMark,
 		Over: splashBG,
 	}
 	resting := splashRenderPlate(plate)
@@ -165,10 +165,10 @@ func TestSplashRenderPlatePressShiftsDown(t *testing.T) {
 
 	// A row that the resting face covers and the shifted one has moved off.
 	top := 2
-	if !near(pixelAt(t, resting, size/2, top), splashFG, 2) {
+	if !near(pixelAt(t, resting, size/2, top), splashMark, 2) {
 		t.Fatalf("resting face does not reach row %d", top)
 	}
-	if near(pixelAt(t, pressed, size/2, top), splashFG, 2) {
+	if near(pixelAt(t, pressed, size/2, top), splashMark, 2) {
 		t.Error("pressed face did not move down")
 	}
 }
@@ -208,10 +208,10 @@ func TestSplashHairlineFadesAtBothEnds(t *testing.T) {
 
 func TestSplashStatusDotIsARoundLamp(t *testing.T) {
 	const size = 24
-	img := splashStatusDot(size, splashFG, splashPanel)
+	img := splashStatusDot(size, splashMark, splashPanel)
 
-	if centre := pixelAt(t, img, size/2, size/2); !near(centre, splashFG, 2) {
-		t.Errorf("centre = %v, want the lamp lit %v", centre, splashFG)
+	if centre := pixelAt(t, img, size/2, size/2); !near(centre, splashMark, 2) {
+		t.Errorf("centre = %v, want the lamp lit %v", centre, splashMark)
 	}
 	if corner := pixelAt(t, img, 0, 0); !near(corner, splashPanel, 8) {
 		t.Errorf("corner = %v, want the panel %v behind a round lamp", corner, splashPanel)
