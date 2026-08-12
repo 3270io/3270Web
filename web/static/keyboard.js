@@ -553,6 +553,29 @@
     }
   }
 
+  // focusQuietly puts the caret somewhere without moving the page to it.
+  //
+  // focus() scrolls its target into view, which is right when the operator
+  // asked to go there and wrong when the browser is only being put back the
+  // way it was. The on-screen keyboard is where that difference is felt: it
+  // sits below the terminal, so an operator using it has usually scrolled
+  // down to reach it, and any focus() aimed at a field in the terminal above
+  // takes the keyboard off the screen mid-sentence. Pressing Shift is the
+  // worst of it — the one key that changes nothing on the screen, so the
+  // scroll is pure loss, and the letter it was armed for is now somewhere the
+  // operator has to scroll back to.
+  //
+  // preventScroll is honoured everywhere this runs; the plain call is kept as
+  // a fallback for anything that throws on the options argument rather than
+  // ignoring it.
+  function focusQuietly(el) {
+    try {
+      el.focus({ preventScroll: true });
+    } catch (err) {
+      el.focus();
+    }
+  }
+
   function focusTerminalInput() {
     var form = findForm();
     if (!form) {
@@ -589,7 +612,7 @@
       return false;
     }
 
-    target.focus();
+    focusQuietly(target);
     if (
       caret !== null &&
       typeof target.setSelectionRange === "function" &&
@@ -615,7 +638,7 @@
     if (!shell.hasAttribute("tabindex")) {
       shell.setAttribute("tabindex", "-1");
     }
-    shell.focus();
+    focusQuietly(shell);
     return document.activeElement === shell;
   }
 
@@ -799,6 +822,24 @@
       "pointerdown",
       function (event) {
         lastPointerDownAt = Date.now();
+        if (!shouldPreventPointerDefaultForFocusLock(event.target)) {
+          return;
+        }
+        event.preventDefault();
+      },
+      true
+    );
+
+    // The same refusal again on mousedown, because preventing a pointerdown
+    // is not, on its own, a promise that focus stays put. A browser that
+    // suppresses the compatibility mouse events honours it; one that fires
+    // mousedown anyway moves focus to the button, and the click handler below
+    // then has to pull focus back — which is the scroll this whole path
+    // exists to avoid. mousedown is the older guard and the one every browser
+    // agrees on, so both are held rather than one trusted.
+    document.addEventListener(
+      "mousedown",
+      function (event) {
         if (!shouldPreventPointerDefaultForFocusLock(event.target)) {
           return;
         }
