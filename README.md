@@ -147,7 +147,9 @@ Then open http://localhost:3270
 ```powershell
 .\scripts\build-windows.ps1
 ```
-This produces `3270Web.exe` in the repo root.
+This produces `3270Web.exe` in the repo root. Double-clicking it starts the server
+and opens a window showing the address it is serving on, with a button to open that
+address in a browser. Closing the window stops the server.
 
 ## Build Linux binary
 ```bash
