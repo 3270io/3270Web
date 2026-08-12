@@ -449,6 +449,16 @@ async function main() {
   await page.evaluate(() => {
     const keypad = document.getElementById('keypad');
     if (keypad) keypad.hidden = false;
+    // "Full" shows the PF/PA/action groups the callouts describe. The stored
+    // preference may be "max", whose whole-keyboard layout is far too wide to
+    // read once scaled into the docs page. Set before rendering rather than
+    // clicked afterwards: the size control steps in one direction, and the
+    // step after "max" puts the keypad away.
+    try {
+      window.localStorage.setItem('h3270KeypadMode', 'full');
+    } catch (err) {
+      /* private mode; the keypad renders at its default size */
+    }
     if (typeof window.renderKeypad === 'function') window.renderKeypad('keypad');
   });
   await page.waitForSelector('.h3270-keypad:not([hidden])');
@@ -456,25 +466,16 @@ async function main() {
   // control (and its callouts) fits in one clip.
   await page.setViewportSize({ width: VIEWPORT.width, height: 1250 });
   await settle(page, 500);
-  // "Full" shows the PF/PA/action groups the callouts describe. The stored
-  // preference may be "max", whose full QWERTY layout is far too wide and
-  // tall to read once scaled into the docs page.
-  const fullMode = page.locator('.h3270-keypad-mode-btn[data-mode="full"]').first();
-  if (await fullMode.count()) {
-    await fullMode.click();
-    await settle(page, 500);
-  }
   await page.locator('.h3270-keypad').first().scrollIntoViewIfNeeded();
   await dismissTooltips(page);
   await setDistractionsHidden(page, true);
   await settle(page, 400);
   await annotate(page, [
     { selector: '.h3270-keypad-title', label: 1, place: 'right', gap: 14 },
-    { selector: '.h3270-keypad-mode-btn[data-mode="compact"]', label: 2, place: 'above', gap: 12 },
-    { selector: '.h3270-keypad-hide-btn', label: 3, place: 'above', gap: 12 },
-    { selector: '.h3270-key[data-key="PF1"]', label: 4, place: 'left', gap: 12 },
-    { selector: '.h3270-key[data-key="PA1"]', label: 5, place: 'above', gap: 12 },
-    { selector: '.h3270-key[data-key="Enter"]', label: 6, place: 'below', gap: 12 },
+    { selector: '.h3270-keypad-mode-btn', label: 2, place: 'above', gap: 12 },
+    { selector: '.h3270-key[data-key="PF1"]', label: 3, place: 'left', gap: 12 },
+    { selector: '.h3270-key[data-key="PA1"]', label: 4, place: 'above', gap: 12 },
+    { selector: '.h3270-key[data-key="Enter"]', label: 5, place: 'below', gap: 12 },
   ]);
   await shotRegion(page, 'keypad-real.png', '.h3270-keypad', 24);
   await clearAnnotations(page);

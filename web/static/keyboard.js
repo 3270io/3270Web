@@ -6,6 +6,7 @@
   var keySubmitDelayMs = 65;
   var keypadCompactStorageKey = "h3270KeypadCompact";
   var keypadModeStorageKey = "h3270KeypadMode";
+  var keypadLayoutStorageKey = "h3270KeypadLayout";
   var keypadScaleRafId = 0;
   var keypadResizeObserver = null;
   var keypadNaturalHeight = 0;
@@ -2339,112 +2340,565 @@
     };
   }
 
+  // The sizes the header's one control steps through, in order. "hidden" is
+  // the last stop rather than a separate button: putting the keyboard away is
+  // the smallest size it has.
+  var keypadModeCycle = [
+    { id: "compact", label: "Compact", detail: "the keys a screen ends with" },
+    { id: "full", label: "Full", detail: "every 3270 command key" },
+    { id: "max", label: "MAX", detail: "the whole keyboard" },
+    { id: "hidden", label: "Hide", detail: "no keyboard" }
+  ];
+
+  function keypadModeIndex(mode) {
+    for (var i = 0; i < keypadModeCycle.length; i++) {
+      if (keypadModeCycle[i].id === mode) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  function nextKeypadMode(mode) {
+    return keypadModeCycle[(keypadModeIndex(mode) + 1) % keypadModeCycle.length].id;
+  }
+
   function applyKeypadMode(container, mode, buttons) {
     container.classList.toggle("is-compact", mode === "compact");
     container.classList.toggle("is-max", mode === "max");
     if (buttons) {
+      var current = keypadModeCycle[keypadModeIndex(mode)];
+      var next = keypadModeCycle[keypadModeIndex(nextKeypadMode(mode))];
       for (var i = 0; i < buttons.length; i++) {
         var btn = buttons[i];
-        var active = btn.dataset.mode === mode;
-        btn.classList.toggle("is-active", active);
-        btn.setAttribute("aria-pressed", active ? "true" : "false");
+        btn.dataset.mode = mode;
+        btn.textContent = current.label;
+        // The label says where the keyboard is; the accessible name and the
+        // tooltip say where pressing takes it, because a control that only
+        // names its own state gives no clue what it does.
+        var hint = "Keyboard size: " + current.label + " — " + current.detail + ". Switch to " + next.label + ".";
+        btn.setAttribute("aria-label", hint);
+        btn.title = hint;
+        if (btn._tippy && typeof btn._tippy.setContent === "function") {
+          btn._tippy.setContent(hint);
+        }
       }
     }
     scheduleKeypadAutoScale();
     notifyTerminalLayoutChange();
   }
 
-  function createTextKey(label, text, options) {
-    var normalized = "CHAR_" + (text === " " ? "SPACE" : String(text).toUpperCase());
-    var opts = options || {};
-    opts.inputText = text;
-    opts.normalizedKey = normalized;
-    return createButton("", label, opts);
+  // The MAX keyboard is laid out as one physical keyboard rather than as rows
+  // of buttons: staggered letter block, wide modifiers where the hands expect
+  // them, and the cursor cluster and number pad in their own columns to the
+  // right. Everything a 3270 keyboard has is on it once — the function row,
+  // the PA keys, and the command keys in the positions a terminal keyboard
+  // gives them — so MAX has no need of the button groups the smaller modes
+  // show, and hides them. Widths are in key units (u), the same currency a
+  // real keyboard is cut from: a row is 15u wide and always adds up.
+
+  // A character cap: what it types unshifted, what it types shifted, and how
+  // wide it is.
+  function charKey(lower, upper, units, label) {
+    return { char: [lower, upper], units: units || 1, label: label };
   }
 
-  function appendMaxKeyboardLayout(container) {
+  // An action cap. shiftAction, where given, is what the cap becomes while
+  // shift is held — the physical keyboard's answer to having more actions
+  // than caps.
+  function actionKey(action, label, units, extra) {
+    var key = { action: action, label: label, units: units || 1 };
+    if (extra) {
+      for (var name in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, name)) {
+          key[name] = extra[name];
+        }
+      }
+    }
+    return key;
+  }
+
+  // Regional layouts. Only the parts that actually differ between regions are
+  // described here — the rest of the keyboard is the same everywhere and is
+  // built around them. A new region is a new entry in this list and nothing
+  // else.
+  //
+  // The ISO layouts (UK and the like) have one more key than ANSI on both the
+  // home row and the bottom row, and pay for it with a narrower left shift and
+  // an Enter that steps across two rows. That is why the rows are described as
+  // data rather than drawn once: the geometry is part of the region, not just
+  // the legends.
+  var keypadLayouts = [
+    {
+      id: "us",
+      label: "US",
+      title: "United States (ANSI)",
+      locales: ["en-us", "en-ca", "en-ph", "en"],
+      number: [
+        charKey("`", "~"), charKey("1", "!"), charKey("2", "@"), charKey("3", "#"),
+        charKey("4", "$"), charKey("5", "%"), charKey("6", "^"), charKey("7", "&"),
+        charKey("8", "*"), charKey("9", "("), charKey("0", ")"), charKey("-", "_"),
+        charKey("=", "+")
+      ],
+      top: [
+        charKey("q", "Q"), charKey("w", "W"), charKey("e", "E"), charKey("r", "R"),
+        charKey("t", "T"), charKey("y", "Y"), charKey("u", "U"), charKey("i", "I"),
+        charKey("o", "O"), charKey("p", "P"), charKey("[", "{"), charKey("]", "}")
+      ],
+      topEnd: charKey("\\", "|", 1.5),
+      home: [
+        charKey("a", "A"), charKey("s", "S"), charKey("d", "D"), charKey("f", "F"),
+        charKey("g", "G"), charKey("h", "H"), charKey("j", "J"), charKey("k", "K"),
+        charKey("l", "L"), charKey(";", ":"), charKey("'", "\"")
+      ],
+      homeEnd: actionKey("Enter", "Enter", 2.25),
+      shiftLeftUnits: 2.25,
+      bottomStart: null,
+      bottom: [
+        charKey("z", "Z"), charKey("x", "X"), charKey("c", "C"), charKey("v", "V"),
+        charKey("b", "B"), charKey("n", "N"), charKey("m", "M"), charKey(",", "<"),
+        charKey(".", ">"), charKey("/", "?")
+      ]
+    },
+    {
+      id: "uk",
+      label: "UK",
+      title: "United Kingdom (ISO)",
+      locales: ["en-gb", "en-ie", "cy-gb", "gd-gb"],
+      number: [
+        charKey("`", "¬"), charKey("1", "!"), charKey("2", "\""), charKey("3", "£"),
+        charKey("4", "$"), charKey("5", "%"), charKey("6", "^"), charKey("7", "&"),
+        charKey("8", "*"), charKey("9", "("), charKey("0", ")"), charKey("-", "_"),
+        charKey("=", "+")
+      ],
+      top: [
+        charKey("q", "Q"), charKey("w", "W"), charKey("e", "E"), charKey("r", "R"),
+        charKey("t", "T"), charKey("y", "Y"), charKey("u", "U"), charKey("i", "I"),
+        charKey("o", "O"), charKey("p", "P"), charKey("[", "{"), charKey("]", "}")
+      ],
+      // The upper arm of the tall ISO Enter. Both arms send Enter, and sitting
+      // flush right one above the other they read as the one stepped key they
+      // are on the desk.
+      topEnd: actionKey("Enter", "Enter", 1.5),
+      home: [
+        charKey("a", "A"), charKey("s", "S"), charKey("d", "D"), charKey("f", "F"),
+        charKey("g", "G"), charKey("h", "H"), charKey("j", "J"), charKey("k", "K"),
+        charKey("l", "L"), charKey(";", ":"), charKey("'", "@"), charKey("#", "~")
+      ],
+      homeEnd: actionKey("Enter", "⏎", 1.25),
+      shiftLeftUnits: 1.25,
+      bottomStart: charKey("\\", "|"),
+      bottom: [
+        charKey("z", "Z"), charKey("x", "X"), charKey("c", "C"), charKey("v", "V"),
+        charKey("b", "B"), charKey("n", "N"), charKey("m", "M"), charKey(",", "<"),
+        charKey(".", ">"), charKey("/", "?")
+      ]
+    }
+  ];
+
+  function keypadLayoutById(id) {
+    for (var i = 0; i < keypadLayouts.length; i++) {
+      if (keypadLayouts[i].id === id) {
+        return keypadLayouts[i];
+      }
+    }
+    return null;
+  }
+
+  // The first layout is the fallback rather than a hardcoded "us", so the list
+  // above stays the only place a region is named.
+  function defaultKeypadLayout() {
+    var languages = [];
+    if (window.navigator) {
+      if (window.navigator.languages && window.navigator.languages.length) {
+        languages = Array.prototype.slice.call(window.navigator.languages);
+      } else if (window.navigator.language) {
+        languages = [window.navigator.language];
+      }
+    }
+    for (var l = 0; l < languages.length; l++) {
+      var tag = String(languages[l] || "").toLowerCase();
+      for (var i = 0; i < keypadLayouts.length; i++) {
+        var locales = keypadLayouts[i].locales || [];
+        for (var m = 0; m < locales.length; m++) {
+          if (tag === locales[m]) {
+            return keypadLayouts[i].id;
+          }
+        }
+      }
+    }
+    return keypadLayouts[0].id;
+  }
+
+  // Remembered rather than re-detected, because the browser's locale is a
+  // guess at which keyboard is on the desk and the operator's correction is
+  // not.
+  function getStoredKeypadLayout() {
+    try {
+      var stored = window.localStorage.getItem(keypadLayoutStorageKey);
+      if (stored && keypadLayoutById(stored)) {
+        return stored;
+      }
+    } catch (err) {
+      /* storage unavailable */
+    }
+    return defaultKeypadLayout();
+  }
+
+  function setStoredKeypadLayout(id) {
+    try {
+      window.localStorage.setItem(keypadLayoutStorageKey, id);
+    } catch (err) {
+      /* storage unavailable */
+    }
+  }
+
+  function createMaxKey(button, units) {
+    button.classList.add("h3270-max-key");
+    if (units && units !== 1) {
+      button.style.setProperty("--u", String(units));
+    }
+    // A cap that reads "Enter" over a caption reading "Enter" says nothing
+    // twice. The caption earns its place only where the physical key differs
+    // from the 3270 action printed above it.
+    var label = button.querySelector(".h3270-key-label");
+    var mapping = button.querySelector(".h3270-key-mapping");
+    if (label && mapping && label.textContent.toLowerCase() === mapping.textContent.toLowerCase()) {
+      mapping.remove();
+    }
+    return button;
+  }
+
+  // The cap prints the physical key it answers to, and on a 1u cap there is no
+  // room for "Shift+F12". The shift glyph says the same thing in one
+  // character.
+  function pfCapMapping(pfNum) {
+    return pfNum > 12 ? "⇧F" + (pfNum - 12) : "F" + pfNum;
+  }
+
+  function createMaxSpacer(units) {
+    var spacer = document.createElement("span");
+    spacer.className = "h3270-max-key h3270-max-spacer";
+    spacer.setAttribute("aria-hidden", "true");
+    if (units && units !== 1) {
+      spacer.style.setProperty("--u", String(units));
+    }
+    return spacer;
+  }
+
+  function makeMaxRow(parent) {
+    var row = document.createElement("div");
+    row.className = "h3270-max-row";
+    parent.appendChild(row);
+    return row;
+  }
+
+  // The shift state of the on-screen keyboard. One press arms it for the next
+  // key and it releases itself, the way a keyboard behaves when the finger
+  // comes off the shift; a second press locks it, for anyone paging through
+  // PF19 and PF20 or typing a run of capitals. Nothing here touches the
+  // physical keyboard's own shift, which the browser handles.
+  function createShiftState() {
+    var state = "off";
+    var listeners = [];
+    return {
+      active: function () {
+        return state !== "off";
+      },
+      locked: function () {
+        return state === "locked";
+      },
+      // off -> armed -> locked -> off, so one control covers "this key only"
+      // and "until I say otherwise" without a second control to explain.
+      advance: function () {
+        state = state === "off" ? "armed" : (state === "armed" ? "locked" : "off");
+        this.notify();
+      },
+      // Called after a key has used the shift. A lock survives; an arm does
+      // not.
+      consume: function () {
+        if (state === "armed") {
+          state = "off";
+          this.notify();
+        }
+      },
+      onChange: function (fn) {
+        listeners.push(fn);
+      },
+      notify: function () {
+        for (var i = 0; i < listeners.length; i++) {
+          listeners[i](state);
+        }
+      },
+      state: function () {
+        return state;
+      }
+    };
+  }
+
+  function appendCharCap(row, spec, shift) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "h3270-key";
+    var lower = spec.char[0];
+    var upper = spec.char[1];
+    // The cap is keyed on what it types unshifted, so a physical keypress
+    // lights the cap it came from.
+    var normalized = "CHAR_" + (lower === " " ? "SPACE" : String(lower).toUpperCase());
+    btn.dataset.key = "";
+    btn.dataset.keyNormalized = normalized;
+
+    // A letter cap carries one legend, in the case a keyboard prints it in. A
+    // symbol cap carries both, shifted legend above, as on the key itself. A
+    // cap that types the same either way — the space bar, the number pad —
+    // carries its name.
+    var isLetterPair = upper === lower.toUpperCase() && lower !== upper && /^[a-z]$/.test(lower);
+    if (!isLetterPair && upper !== lower) {
+      var shifted = document.createElement("span");
+      shifted.className = "h3270-key-mapping h3270-key-shifted";
+      shifted.textContent = upper;
+      btn.appendChild(shifted);
+    }
+    var label = document.createElement("span");
+    label.className = "h3270-key-label";
+    label.textContent = spec.label || (isLetterPair ? upper : lower);
+    btn.appendChild(label);
+
+    btn.addEventListener("click", function () {
+      var text = shift.active() ? upper : lower;
+      animateVirtualKey(normalized);
+      insertTextIntoFocusedInput(text);
+      shift.consume();
+    });
+    row.appendChild(createMaxKey(btn, spec.units));
+    return btn;
+  }
+
+  // An action cap that has a second identity under shift: Tab becomes
+  // back-tab, PF1 becomes PF13. The cap re-labels itself so the row always
+  // says what it will actually send.
+  function appendActionCap(row, spec, shift) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "h3270-key";
+    var label = document.createElement("span");
+    label.className = "h3270-key-label";
+    btn.appendChild(label);
+    var mapping = document.createElement("span");
+    mapping.className = "h3270-key-mapping";
+    btn.appendChild(mapping);
+
+    var current = spec.action;
+    function sync() {
+      var shifted = shift.active() && spec.shiftAction;
+      current = shifted ? spec.shiftAction : spec.action;
+      label.textContent = shifted ? (spec.shiftLabel || spec.shiftAction) : spec.label;
+      var caption = shifted
+        ? (spec.shiftMapping !== undefined ? spec.shiftMapping : defaultKeyFor(spec.shiftAction))
+        : (spec.mapping !== undefined ? spec.mapping : defaultKeyFor(spec.action));
+      mapping.textContent = caption || "";
+      mapping.hidden = !caption || caption.toLowerCase() === label.textContent.toLowerCase();
+      btn.dataset.key = current;
+      // Kept in step so that pressing the physical key still lights the cap
+      // that is currently showing that action.
+      btn.dataset.keyNormalized = normalizeVirtualKey(current);
+      if (spec.title) {
+        btn.title = spec.title(current);
+      }
+    }
+
+    btn.addEventListener("click", function () {
+      sendFormWithKey(current);
+      shift.consume();
+    });
+
+    if (spec.shiftAction) {
+      shift.onChange(sync);
+    }
+    sync();
+    row.appendChild(createMaxKey(btn, spec.units));
+    return btn;
+  }
+
+  function appendShiftCap(row, units, shift) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "h3270-key h3270-max-shift";
+    var label = document.createElement("span");
+    label.className = "h3270-key-label";
+    label.textContent = "⇧ Shift";
+    btn.appendChild(label);
+    var caption = document.createElement("span");
+    caption.className = "h3270-key-mapping";
+    caption.textContent = "PF13-24";
+    btn.appendChild(caption);
+    btn.addEventListener("click", function () {
+      shift.advance();
+    });
+    shift.onChange(function (state) {
+      btn.classList.toggle("is-armed", state === "armed");
+      btn.classList.toggle("is-locked", state === "locked");
+      btn.setAttribute("aria-pressed", state === "off" ? "false" : "true");
+      caption.textContent = state === "locked" ? "Locked" : "PF13-24";
+    });
+    btn.setAttribute("aria-pressed", "false");
+    row.appendChild(createMaxKey(btn, units));
+    return btn;
+  }
+
+  function appendMaxKeyboardLayout(container, layoutId) {
+    var layout = keypadLayoutById(layoutId) || keypadLayouts[0];
+    var shift = createShiftState();
+
     var maxGroup = document.createElement("div");
     maxGroup.className = "h3270-keypad-group h3270-keypad-max";
 
-    var layout = document.createElement("div");
-    layout.className = "h3270-max-layout";
+    var wrapper = document.createElement("div");
+    wrapper.className = "h3270-max-layout";
 
     var main = document.createElement("div");
     main.className = "h3270-max-main";
+    // Shows which legend on each cap is live without having to re-write every
+    // label the moment shift is pressed.
+    shift.onChange(function (state) {
+      main.classList.toggle("is-shifted", state !== "off");
+    });
 
-    var rows = [
-      [{ l: "`", t: "`" }, { l: "1", t: "1" }, { l: "2", t: "2" }, { l: "3", t: "3" }, { l: "4", t: "4" }, { l: "5", t: "5" }, { l: "6", t: "6" }, { l: "7", t: "7" }, { l: "8", t: "8" }, { l: "9", t: "9" }, { l: "0", t: "0" }, { l: "-", t: "-" }, { l: "=", t: "=" }],
-      [{ l: "Q", t: "q" }, { l: "W", t: "w" }, { l: "E", t: "e" }, { l: "R", t: "r" }, { l: "T", t: "t" }, { l: "Y", t: "y" }, { l: "U", t: "u" }, { l: "I", t: "i" }, { l: "O", t: "o" }, { l: "P", t: "p" }, { l: "[", t: "[" }, { l: "]", t: "]" }, { l: "\\", t: "\\" }],
-      [{ l: "A", t: "a" }, { l: "S", t: "s" }, { l: "D", t: "d" }, { l: "F", t: "f" }, { l: "G", t: "g" }, { l: "H", t: "h" }, { l: "J", t: "j" }, { l: "K", t: "k" }, { l: "L", t: "l" }, { l: ";", t: ";" }, { l: "'", t: "'" }],
-      [{ l: "Z", t: "z" }, { l: "X", t: "x" }, { l: "C", t: "c" }, { l: "V", t: "v" }, { l: "B", t: "b" }, { l: "N", t: "n" }, { l: "M", t: "m" }, { l: ",", t: "," }, { l: ".", t: "." }, { l: "/", t: "/" }]
-    ];
-
-    for (var r = 0; r < rows.length; r++) {
-      var row = document.createElement("div");
-      row.className = "h3270-max-row";
-      for (var c = 0; c < rows[r].length; c++) {
-        row.appendChild(createTextKey(rows[r][c].l, rows[r][c].t));
-      }
-      main.appendChild(row);
+    // The function row. Clear takes the Esc position — it is the key Esc is
+    // bound to — and the PF caps carry PF13-PF24 under shift, the same trick a
+    // physical keyboard plays to get 24 function keys out of 12.
+    var fnRow = makeMaxRow(main);
+    appendActionCap(fnRow, actionKey("Clear", "Clear", 1.5), shift);
+    for (var n = 1; n <= 12; n++) {
+      appendActionCap(fnRow, actionKey("PF" + n, "PF" + n, 1, {
+        shiftAction: "PF" + (n + 12),
+        mapping: pfCapMapping(n),
+        shiftMapping: pfCapMapping(n + 12),
+        title: function (action) {
+          return pfLabelFor(parseInt(action.slice(2), 10));
+        }
+      }), shift);
     }
+    appendActionCap(fnRow, actionKey("Attn", "Attn", 1.5, { mapping: "" }), shift);
 
-    var bottom = document.createElement("div");
-    bottom.className = "h3270-max-row";
-    var backspace = createButton("BackSpace", "Backspace", { mapping: "Backspace" });
-    backspace.classList.add("h3270-max-wide");
-    bottom.appendChild(backspace);
-    var tab = createButton("Tab", "Tab", { mapping: "Tab" });
-    tab.classList.add("h3270-max-medium");
-    bottom.appendChild(tab);
-    var space = createTextKey("Space", " ", { mapping: "Space" });
-    space.classList.add("h3270-max-space");
-    bottom.appendChild(space);
-    var enter = createButton("Enter", "Enter", { mapping: "Enter" });
-    enter.classList.add("h3270-max-medium");
-    bottom.appendChild(enter);
-    main.appendChild(bottom);
+    var numberRow = makeMaxRow(main);
+    for (var i = 0; i < layout.number.length; i++) {
+      appendCharCap(numberRow, layout.number[i], shift);
+    }
+    appendActionCap(numberRow, actionKey("BackSpace", "Backspace", 2), shift);
 
+    // Tab under shift is back-tab, which is what Shift+Tab does on the
+    // physical keyboard and what saves the row a cap of its own.
+    var topRow = makeMaxRow(main);
+    appendActionCap(topRow, actionKey("Tab", "Tab", 1.5, {
+      shiftAction: "BackTab",
+      shiftLabel: "BackTab",
+      // Printed like the shifted legend on a symbol cap, because that is what
+      // it is: the row has no back-tab key of its own, and this is where it
+      // went.
+      mapping: "⇧BackTab",
+      shiftMapping: "Shift+Tab"
+    }), shift);
+    for (var t = 0; t < layout.top.length; t++) {
+      appendCharCap(topRow, layout.top[t], shift);
+    }
+    appendMaxSpecKey(topRow, layout.topEnd, shift);
+
+    // Reset sits where Caps Lock does. It is the key an operator reaches for
+    // without looking, and on a locked keyboard it is the only one that does
+    // anything.
+    var homeRow = makeMaxRow(main);
+    appendActionCap(homeRow, actionKey("Reset", "Reset", 1.75, { mapping: "" }), shift);
+    for (var h = 0; h < layout.home.length; h++) {
+      appendCharCap(homeRow, layout.home[h], shift);
+    }
+    appendMaxSpecKey(homeRow, layout.homeEnd, shift);
+
+    var bottomRow = makeMaxRow(main);
+    appendShiftCap(bottomRow, layout.shiftLeftUnits, shift);
+    if (layout.bottomStart) {
+      appendCharCap(bottomRow, layout.bottomStart, shift);
+    }
+    for (var b = 0; b < layout.bottom.length; b++) {
+      appendCharCap(bottomRow, layout.bottom[b], shift);
+    }
+    appendShiftCap(bottomRow, 2.75, shift);
+
+    // The command keys take the modifier row, where a keyboard puts the keys
+    // pressed with a thumb or a little finger rather than aimed at.
+    var spaceRow = makeMaxRow(main);
+    appendActionCap(spaceRow, actionKey("SysReq", "SysReq", 1.5, { mapping: "" }), shift);
+    appendActionCap(spaceRow, actionKey("EraseEOF", "EraseEOF", 1.75, { mapping: "" }), shift);
+    appendActionCap(spaceRow, actionKey("EraseInput", "EraseInput", 1.75, { mapping: "" }), shift);
+    appendActionCap(spaceRow, actionKey("Dup", "Dup", 1.25, { mapping: "" }), shift);
+    appendCharCap(spaceRow, charKey(" ", " ", 5.5, "Space"), shift);
+    appendActionCap(spaceRow, actionKey("FieldMark", "FieldMark", 1.5, { mapping: "" }), shift);
+    appendActionCap(spaceRow, actionKey("NewLine", "NewLine", 1.75, { mapping: "" }), shift);
+
+    // The cursor cluster: PA keys above the editing keys above the arrow tee,
+    // in the block a terminal keyboard keeps between the letters and the
+    // number pad.
     var nav = document.createElement("div");
     nav.className = "h3270-max-nav";
-    var navTop = document.createElement("div");
-    navTop.className = "h3270-max-row";
-    navTop.appendChild(createButton("Insert", "Ins", { mapping: "Insert" }));
-    navTop.appendChild(createButton("Delete", "Del", { mapping: "Delete" }));
-    navTop.appendChild(createButton("Home", "Home", { mapping: "Home" }));
-    nav.appendChild(navTop);
-    var arrows = document.createElement("div");
-    arrows.className = "h3270-max-arrows";
-    arrows.appendChild(createButton("Up", "↑", { mapping: "ArrowUp" }));
-    var middle = document.createElement("div");
-    middle.className = "h3270-max-row";
-    middle.appendChild(createButton("Left", "←", { mapping: "ArrowLeft" }));
-    middle.appendChild(createButton("Down", "↓", { mapping: "ArrowDown" }));
-    middle.appendChild(createButton("Right", "→", { mapping: "ArrowRight" }));
-    arrows.appendChild(middle);
-    nav.appendChild(arrows);
+    var paRow = makeMaxRow(nav);
+    appendActionCap(paRow, actionKey("PA1", "PA1", 1), shift);
+    appendActionCap(paRow, actionKey("PA2", "PA2", 1), shift);
+    appendActionCap(paRow, actionKey("PA3", "PA3", 1), shift);
+    var editRow = makeMaxRow(nav);
+    appendActionCap(editRow, actionKey("Insert", "Ins", 1), shift);
+    appendActionCap(editRow, actionKey("Delete", "Del", 1), shift);
+    appendActionCap(editRow, actionKey("Home", "Home", 1), shift);
+    var upRow = makeMaxRow(nav);
+    upRow.appendChild(createMaxSpacer(1));
+    appendActionCap(upRow, actionKey("Up", "↑", 1), shift);
+    upRow.appendChild(createMaxSpacer(1));
+    var arrowRow = makeMaxRow(nav);
+    appendActionCap(arrowRow, actionKey("Left", "←", 1), shift);
+    appendActionCap(arrowRow, actionKey("Down", "↓", 1), shift);
+    appendActionCap(arrowRow, actionKey("Right", "→", 1), shift);
 
     var numpad = document.createElement("div");
     numpad.className = "h3270-max-numpad";
+    // The blank row keeps the number pad's 7-8-9 level with the editing keys,
+    // the way it sits on a keyboard with a function row above it.
+    var padSpacerRow = makeMaxRow(numpad);
+    padSpacerRow.appendChild(createMaxSpacer(3));
     var numRows = [
       ["7", "8", "9"],
       ["4", "5", "6"],
       ["1", "2", "3"],
       ["0", ".", "+"]
     ];
-    for (var n = 0; n < numRows.length; n++) {
-      var nr = document.createElement("div");
-      nr.className = "h3270-max-row";
-      for (var m = 0; m < numRows[n].length; m++) {
-        nr.appendChild(createTextKey(numRows[n][m], numRows[n][m], { mapping: "Numpad" }));
+    for (var r = 0; r < numRows.length; r++) {
+      var nr = makeMaxRow(numpad);
+      for (var m = 0; m < numRows[r].length; m++) {
+        appendCharCap(nr, charKey(numRows[r][m], numRows[r][m]), shift);
       }
-      numpad.appendChild(nr);
     }
 
-    layout.appendChild(main);
-    layout.appendChild(nav);
-    layout.appendChild(numpad);
-    maxGroup.appendChild(layout);
+    // The cursor cluster and the number pad ride together in one side block to
+    // the right of the letters, where a physical keyboard puts them. Stacking
+    // them underneath instead costs seven more rows of height, and height below
+    // the terminal is the scarce resource: every row the keyboard takes is a
+    // row the 3270 screen does not get.
+    var side = document.createElement("div");
+    side.className = "h3270-max-side";
+    side.appendChild(nav);
+    side.appendChild(numpad);
+
+    wrapper.appendChild(main);
+    wrapper.appendChild(side);
+    maxGroup.appendChild(wrapper);
     container.appendChild(maxGroup);
+  }
+
+  // The one cap in each row whose kind depends on the region: a character on
+  // ANSI, the upper arm of the stepped Enter on ISO.
+  function appendMaxSpecKey(row, spec, shift) {
+    if (!spec) {
+      return null;
+    }
+    return spec.char ? appendCharCap(row, spec, shift) : appendActionCap(row, spec, shift);
   }
 
   // The physical key each 3270 action answers to by default. This is the one
@@ -2476,6 +2930,23 @@
       return "F" + pfNum;
     }
     return "Shift+F" + (pfNum - 12);
+  }
+
+  // What each function key is conventionally for. Only the ones an operator
+  // can rely on across applications are named; the rest carry their default
+  // physical key instead of a guess at their meaning.
+  var pfLabels = {
+    PF1: "PF1 Help",
+    PF3: "PF3 Exit / Return",
+    PF4: "PF4 Return / Exit",
+    PF5: "PF5 Refresh / Confirm",
+    PF7: "PF7 Page Back / Up",
+    PF8: "PF8 Page Forward / Down",
+    PF12: "PF12 Cancel / Confirm"
+  };
+
+  function pfLabelFor(pfNum) {
+    return pfLabels["PF" + pfNum] || pfMapping(pfNum);
   }
 
   // defaultKeyFor returns the built-in key for an action, or "" when the
@@ -2512,56 +2983,68 @@
     title.textContent = "3270 Virtual Keyboard";
     header.appendChild(title);
 
+    // One control for four states instead of four buttons for four states.
+    // The keypad's own header is the last place that can afford a row of
+    // chrome, and the sizes are a progression — compact, full, whole
+    // keyboard, gone — which is what a single stepping control is for.
     var modeSwitch = document.createElement("div");
     modeSwitch.className = "h3270-keypad-mode-switch";
-    var modes = [
-      { id: "compact", label: "Compact" },
-      { id: "full", label: "Full" },
-      { id: "max", label: "MAX" }
-    ];
-    var modeButtons = [];
-    for (var mb = 0; mb < modes.length; mb++) {
-      var modeButton = document.createElement("button");
-      modeButton.type = "button";
-      modeButton.className = "h3270-keypad-toggle h3270-keypad-mode-btn";
-      modeButton.dataset.mode = modes[mb].id;
-      modeButton.textContent = modes[mb].label;
-      modeButton.addEventListener("click", function () {
-        var nextMode = this.dataset.mode || "full";
-        applyKeypadMode(container, nextMode, modeButtons);
-        setStoredKeypadMode(nextMode);
-      });
-      modeButtons.push(modeButton);
-      modeSwitch.appendChild(modeButton);
-    }
-
-    var hideButton = document.createElement("button");
-    hideButton.type = "button";
-    hideButton.className = "h3270-keypad-toggle h3270-keypad-mode-btn h3270-keypad-hide-btn";
-    hideButton.textContent = "Hide";
-    hideButton.setAttribute("aria-label", "Hide virtual keyboard");
-    hideButton.addEventListener("click", function () {
-      setKeypadVisibility(false);
+    var modeToggle = document.createElement("button");
+    modeToggle.type = "button";
+    modeToggle.className = "h3270-keypad-toggle h3270-keypad-mode-btn";
+    modeToggle.addEventListener("click", function () {
+      var next = nextKeypadMode(this.dataset.mode || "full");
+      if (next === "hidden") {
+        // Hiding also winds the size on to the start of the cycle, so the
+        // keyboard comes back compact and the next press continues round.
+        // Restoring MAX instead would strand compact and full: from MAX the
+        // only step is hidden, and hidden would step straight back to MAX.
+        var afterHidden = nextKeypadMode("hidden");
+        applyKeypadMode(container, afterHidden, [this]);
+        setStoredKeypadMode(afterHidden);
+        setKeypadVisibility(false);
+        return;
+      }
+      applyKeypadMode(container, next, [this]);
+      setStoredKeypadMode(next);
     });
-    modeSwitch.appendChild(hideButton);
+    modeSwitch.appendChild(modeToggle);
+
+    // Which keyboard is on the desk. Guessed once from the browser's locale
+    // and remembered after that, because the guess is a guess and the
+    // operator's answer is not. Only MAX has letters to arrange, so the
+    // picker shows only there.
+    var layoutId = getStoredKeypadLayout();
+    var layoutPicker = document.createElement("select");
+    layoutPicker.className = "h3270-keypad-layout-select";
+    layoutPicker.setAttribute("aria-label", "Keyboard layout");
+    for (var kl = 0; kl < keypadLayouts.length; kl++) {
+      var option = document.createElement("option");
+      option.value = keypadLayouts[kl].id;
+      option.textContent = keypadLayouts[kl].label;
+      option.title = keypadLayouts[kl].title;
+      layoutPicker.appendChild(option);
+    }
+    layoutPicker.value = layoutId;
+    layoutPicker.title = "Keyboard layout — " + (keypadLayoutById(layoutId) || keypadLayouts[0]).title;
+    layoutPicker.addEventListener("change", function () {
+      setStoredKeypadLayout(this.value);
+      // The rows differ in shape between regions, not just in legends, so the
+      // keyboard is rebuilt rather than relabelled.
+      renderKeypad(containerId);
+    });
+    modeSwitch.insertBefore(layoutPicker, modeToggle);
 
     header.appendChild(modeSwitch);
     container.appendChild(header);
 
-    var pfLabels = {
-      PF1: "PF1 Help",
-      PF3: "PF3 Exit / Return",
-      PF4: "PF4 Return / Exit",
-      PF5: "PF5 Refresh / Confirm",
-      PF7: "PF7 Page Back / Up",
-      PF8: "PF8 Page Forward / Down",
-      PF12: "PF12 Cancel / Confirm"
-    };
-
     var keyMappings = defaultKeyMappings;
 
+    // The button groups below are what compact and full modes show. MAX has
+    // the same keys arranged as a keyboard, so it hides these rather than
+    // printing every key twice.
     var pfGroup = document.createElement("div");
-    pfGroup.className = "h3270-keypad-group";
+    pfGroup.className = "h3270-keypad-group h3270-keypad-grouped";
 
     var pfRowTop = document.createElement("div");
     pfRowTop.className = "h3270-keypad-row h3270-keypad-row--pf";
@@ -2591,7 +3074,7 @@
     container.appendChild(pfGroup);
 
     var paGroup = document.createElement("div");
-    paGroup.className = "h3270-keypad-group h3270-keypad-extra";
+    paGroup.className = "h3270-keypad-group h3270-keypad-grouped h3270-keypad-extra";
     var paBlock = document.createElement("div");
     paBlock.className = "h3270-keypad-row";
     paBlock.appendChild(createButton("PA1", "PA1", { mapping: keyMappings.PA1 }));
@@ -2623,7 +3106,7 @@
       "Right"
     ];
     var commonGroup = document.createElement("div");
-    commonGroup.className = "h3270-keypad-group";
+    commonGroup.className = "h3270-keypad-group h3270-keypad-grouped";
     var commonBlock = document.createElement("div");
     commonBlock.className = "h3270-keypad-row";
     common.forEach(function (key) {
@@ -2652,8 +3135,8 @@
     commonGroup.appendChild(commonBlock);
     container.appendChild(commonGroup);
 
-    appendMaxKeyboardLayout(container);
-    applyKeypadMode(container, mode, modeButtons);
+    appendMaxKeyboardLayout(container, layoutId);
+    applyKeypadMode(container, mode, [modeToggle]);
     scheduleKeypadAutoScale();
   }
 
