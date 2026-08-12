@@ -266,8 +266,9 @@ func TestRestartHandler_RequiresSession(t *testing.T) {
 }
 
 // TestThemeListHandler_RequiresSession guards GET /api/themes, which has no
-// CSRF-style defense at all (safe method) — the session check is the only
-// gate.
+// CSRF-style defense at all (safe method). A caller who is nobody — no
+// principal resolved and no session either, which in production means the
+// route was mounted without Authenticate — gets nothing.
 func TestThemeListHandler_RequiresSession(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	app := &App{SessionManager: session.NewManager()}
@@ -290,10 +291,6 @@ func TestThemeListHandler_RequiresSession(t *testing.T) {
 // belongs to one connection, and requiring both meant Settings answered "no
 // session" on the connect page — before there is anything to connect to, which
 // is exactly when somebody opens it.
-//
-// The relaxation is bounded by accounts being on. Under AUTH_MODE=none every
-// request is authz.Local(), an administrator by construction, so admitting
-// admins there would admit everyone; the paired test below pins that.
 func TestSettingsHandler_AdminNeedsNoTerminalSession(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -357,16 +354,23 @@ func TestSettingsHandler_NonAdminStillNeedsASession(t *testing.T) {
 	}
 }
 
-// With accounts off there is no signed-in administrator to relax the rule for:
-// authz.Local() is an administrator for every request that arrives, so the
-// terminal session cookie is the only thing standing between an unauthenticated
-// visitor and the instance's settings. It must keep standing there.
-func TestSettingsHandler_AuthModeNoneStillNeedsASession(t *testing.T) {
+// The default deployment has no accounts, so the single operator is
+// authz.Local() and the connect page is where they open Settings. This used to
+// demand a terminal session there as well, on the grounds that the cookie was
+// the only signal AUTH_MODE=none had — which made Settings unusable in the one
+// deployment shape most instances run, and protected nothing: the same caller
+// mints a session by posting to /connect, and already reaches /admin and the
+// account pages without one.
+func TestSettingsHandler_AuthModeNoneAnswersTheConnectPage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(envPath, []byte("S3270_MODEL=3279-2-E\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	app := &App{
 		SessionManager: session.NewManager(),
-		envPath:        filepath.Join(t.TempDir(), ".env"),
+		envPath:        envPath,
 		authMode:       authz.ModeNone,
 	}
 
@@ -382,9 +386,42 @@ func TestSettingsHandler_AuthModeNoneStillNeedsASession(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("AUTH_MODE=none without a session: status = %d, want %d",
-			w.Code, http.StatusUnauthorized)
+	if w.Code != http.StatusOK {
+		t.Fatalf("AUTH_MODE=none from the connect page: status = %d, want %d, body=%s",
+			w.Code, http.StatusOK, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "S3270_MODEL") {
+		t.Fatalf("expected the settings snapshot, got: %s", w.Body.String())
+	}
+}
+
+// The theme picker sits in the same dialog, on the same page, with no terminal
+// session either. Gating its list on one left the connect page's copy of the
+// picker offering the built-in themes only, with the operator's own saved
+// themes missing from a list that offers to save more.
+func TestThemeListHandler_AnswersTheConnectPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	app := &App{
+		SessionManager: session.NewManager(),
+		baseDir:        t.TempDir(),
+		authMode:       authz.ModeNone,
+	}
+
+	r := gin.New()
+	r.GET("/api/themes", func(c *gin.Context) {
+		c.Set(principalContextKey, authz.Local())
+		app.ThemeListHandler(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/themes", nil)
+	req.RemoteAddr = "127.0.0.1:54321"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("themes without a terminal session: status = %d, want %d, body=%s",
+			w.Code, http.StatusOK, w.Body.String())
 	}
 }
 

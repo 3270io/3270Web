@@ -1264,10 +1264,11 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		defaultHost = "localhost:3270"
 	}
 	samplePorts := allowedSampleAppPorts()
-	// The connect page carries the same theme picker as the terminal, but no
-	// session exists yet, so it cannot use the session-gated /api/themes.
-	// Embedding the list is what makes custom themes actually appear here;
-	// fetching it was silently 401ing and falling back to an empty list.
+	// The connect page carries the same theme picker as the terminal, and
+	// embedding its list is what makes the picker right on first paint rather
+	// than a round trip later. The page reads it once and then drops it, so a
+	// refresh after saving a theme goes to /api/themes for a list that
+	// includes what was just written.
 	themesJSON := "[]"
 	if items, err := app.listFileThemes(c); err != nil {
 		log.Printf("Connect page: failed to read themes folder: %v", err)
@@ -2570,21 +2571,12 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	// every remote client or fail for every one, depending on the network
 	// mode.
 	//
-	// What authorizes the call is instead one of two things. With accounts on,
-	// it is the signed-in administrator: RequireAdmin has already run on this
-	// route, and an administrator is entitled to instance settings whether or
-	// not they happen to have a terminal open. Demanding a terminal session on
-	// top of that is what made Settings fail with "no session" on the connect
-	// page — before there is anything to connect to, which is exactly when
-	// somebody opens Settings.
-	//
-	// With accounts off every request is authz.Local(), an administrator by
-	// construction, so IsAdmin says nothing there. The terminal session cookie
-	// — a 128-bit crypto/rand value, see session.generateID — is the only
-	// signal that deployment has, and it stays required. Hence the
-	// separatesUsers() guard: the relaxation applies only where somebody
-	// actually signed in.
-	if !(app.separatesUsers() && principalFrom(c).IsAdmin()) && !app.hasSession(c) {
+	// What authorizes the call is the administrator RequireAdmin has already
+	// resolved on this route. An administrator is entitled to instance settings
+	// whether or not they happen to have a terminal open: settings belong to
+	// the deployment, a session belongs to one connection, and the two are
+	// unrelated. See administersInstance.
+	if !app.administersInstance(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
@@ -2606,6 +2598,48 @@ func (app *App) SettingsHandler(c *gin.Context) {
 // that WEBUI_BIND can put the listener on another interface.
 func (app *App) hasSession(c *gin.Context) bool {
 	return app.getSession(c) != nil
+}
+
+// administersInstance reports whether this request may read or change state
+// that belongs to the whole deployment.
+//
+// The answer is the principal, not a terminal session. Every other route in
+// the administration group — the overview, the account pages, the live session
+// list — already answers an administrator who has no terminal open, because a
+// terminal is not what makes somebody an administrator. Settings and the
+// restart control asked for both, and a terminal session is precisely what the
+// connect page does not have: it is the page you are on *before* there is
+// anything to connect to, and it carries the Settings button. So Settings
+// answered "no session" in the one place it was most likely to be opened.
+//
+// Requiring the session did not buy protection to weigh against that. Where
+// accounts are on, the session adds nothing an administrator did not already
+// have. Where they are off every request is authz.Local(), an administrator by
+// construction — but such a caller can mint a terminal session at will by
+// posting to /connect, which is neither login- nor admin-gated in that mode,
+// and the rest of the administration group already answers them without one.
+// What actually defends this endpoint is the mode's own gate: RequireAdmin on
+// the route, the Origin/Referer check on every write, and secrets that are
+// masked on the way out and never readable back.
+//
+// The terminal session stays as an alternative, not a requirement, so a
+// request that never passed through Authenticate — a handler mounted without
+// the middleware, which is a routing mistake rather than a caller — still has
+// to present one. An anonymous principal with no session is refused either
+// way: the failure mode of a wiring error should not be open access.
+func (app *App) administersInstance(c *gin.Context) bool {
+	return principalFrom(c).IsAdmin() || app.hasSession(c)
+}
+
+// hasKnownCaller reports whether this request resolved to somebody, so a
+// per-user store has an owner to read or write on their behalf.
+//
+// Weaker than administersInstance on purpose: a saved theme is one person's
+// preference, not instance state, and an ordinary account is entitled to its
+// own. Sibling per-user endpoints — chaos hints, tasks — are already scoped
+// this way by principal alone, with no terminal session in sight.
+func (app *App) hasKnownCaller(c *gin.Context) bool {
+	return !principalFrom(c).IsAnonymous() || app.hasSession(c)
 }
 
 func (app *App) writeSettingsResponse(c *gin.Context) {
@@ -2802,7 +2836,11 @@ func (app *App) updateSettings(c *gin.Context) {
 }
 
 func (app *App) RestartHandler(c *gin.Context) {
-	if !app.hasSession(c) {
+	// Saving settings from the connect page offers to restart, so this is the
+	// second half of that flow and has to admit the same caller — otherwise the
+	// save succeeds and the restart it just offered fails. See
+	// administersInstance.
+	if !app.administersInstance(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
@@ -2826,7 +2864,7 @@ func (app *App) RestartHandler(c *gin.Context) {
 }
 
 func (app *App) ThemeSaveHandler(c *gin.Context) {
-	if !app.hasSession(c) {
+	if !app.hasKnownCaller(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
@@ -2993,7 +3031,11 @@ func (app *App) readThemeDir(dir string) ([]themeListItem, error) {
 }
 
 func (app *App) ThemeListHandler(c *gin.Context) {
-	if !app.hasSession(c) {
+	// The theme picker lives in the Settings dialog, which the connect page
+	// carries too. Gating the list on a terminal session left that copy of the
+	// picker showing the built-in themes only, with the operator's own saved
+	// themes silently missing from a list that offers to save more.
+	if !app.hasKnownCaller(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}

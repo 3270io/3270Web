@@ -3895,6 +3895,24 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-wrap: wrap;
 }
 
+/* Stacked rows need the gap their own flex layout gives them side to side.
+   Theme and Terminal Font are built as two of these, and the fieldset holding
+   them is an ordinary block box that adds nothing between: the two selects
+   were touching, reading as one control with a stray label. */
+.settings-theme-row + .settings-theme-row {
+  margin-top: 12px;
+}
+
+/* One column for the captions, so the selects below each other line up rather
+   than starting wherever the word above them happened to end. Wide enough for
+   the longest of them with room to spare; a caption that outgrows it pushes
+   its own select right rather than clipping, and the row still wraps whole
+   when the modal is narrow. */
+.settings-theme-row > label {
+  flex: 0 0 auto;
+  min-width: 8.5rem;
+}
+
 .settings-theme-slot {
   display: flex;
   flex-direction: column;
@@ -4109,8 +4127,17 @@ html.workflow-status-minimized .workflow-status-widget-header {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  overflow-x: hidden;
-  padding-bottom: 4px;
+  /* Room above and below for what a hover does to a tab: buttons lift by a
+     pixel and gain a glow, and the selected tab casts a shadow.
+
+     There is deliberately no overflow clamp on this row. The tabs wrap, so
+     they never overflow sideways to begin with, and the form around them
+     clips anyway — but naming any overflow value here made the strip a
+     clipping box in *both* axes, because a box that hides one axis may not
+     leave the other visible. The tabs sat flush against the top of that box,
+     so the pixel a hover lifted them by was a pixel outside it: the top
+     border of whichever tab the pointer was over vanished. */
+  padding: 4px 0 6px;
   /* The form is a flex column with overflow:hidden, so a row left to shrink
      is a row that gets cut in half when the modal is short — which is every
      modal on a tablet held upright. The scrolling panel of fields is the one
