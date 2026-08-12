@@ -1647,7 +1647,11 @@ pre, pre input, textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: center;
+  /* Centred while everything fits, start-aligned once it does not: a row wider
+     than its box would otherwise be centred over the overflow and lose its
+     first keys off the left edge, where nothing can scroll them back. */
+  justify-content: flex-start;
+  justify-content: safe center;
 }
 
 .controls.h3270-keypad {
@@ -1763,12 +1767,37 @@ pre, pre input, textarea {
   display: flex;
 }
 
+/* Letters, cursor keys and number pad stay on one line at any width. What does
+   not fit is not wrapped but scaled: the keypad reports its true width, and the
+   auto-scale in keyboard.js shrinks the whole keyboard to the room below the
+   terminal. Wrapping would trade width the display has for height it does
+   not. */
 .h3270-max-layout {
+  /* Every key in MAX mode is cut from these two numbers: --ku is one key unit
+     and --kg the gap between caps, so a 2.25u Enter is as wide as two caps and
+     the gap between them. That is what keeps the rows adding up to the same
+     15u and the block looking like a keyboard rather than a table of
+     buttons. */
+  --ku: 44px;
+  --kg: 5px;
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(420px, 1fr) auto auto;
-  gap: 10px;
-  align-items: start;
+  display: flex;
+  flex-wrap: nowrap;
+  /* "safe" so that a keyboard wider than its box spills off the right edge
+     only. Plain centring spills equally off both, and the half that goes off
+     the left is unreachable — no scroll position brings it back, and the
+     auto-scale cannot see it to correct for it. */
+  justify-content: flex-start;
+  justify-content: safe center;
+  align-items: flex-start;
+  gap: calc(var(--kg) * 3);
+}
+
+.h3270-max-side {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: calc(var(--kg) * 3);
 }
 
 .h3270-max-main,
@@ -1776,49 +1805,122 @@ pre, pre input, textarea {
 .h3270-max-numpad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--kg);
+}
+
+.h3270-max-main {
+  flex: 0 0 auto;
 }
 
 .h3270-max-row {
   display: flex;
-  gap: 6px;
+  gap: var(--kg);
   flex-wrap: nowrap;
 }
 
-.h3270-max-main .h3270-key,
-.h3270-max-nav .h3270-key,
-.h3270-max-numpad .h3270-key {
-  min-width: 46px;
-  min-height: 42px;
+.h3270-max-key {
+  --u: 1;
+  width: calc(var(--u) * var(--ku) + (var(--u) - 1) * var(--kg));
+  flex: 0 0 auto;
 }
 
-.h3270-max-space {
-  min-width: 220px !important;
-}
-
-.h3270-max-medium {
-  min-width: 96px !important;
-}
-
-.h3270-max-wide {
-  min-width: 126px !important;
-}
-
-.h3270-max-arrows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* The generic key is sized for a row of labelled buttons. On the keyboard the
+   width comes from the unit above instead, and the height is a key's height. */
+.h3270-keypad.is-max .h3270-max-key {
+  min-width: 0;
+  min-height: 0;
+  height: calc(var(--ku) - 2px);
+  margin: 0;
+  padding: 4px 6px;
+  overflow: hidden;
   align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
 }
 
-@media (max-width: 1180px) {
-  .h3270-max-layout {
-    grid-template-columns: 1fr;
-  }
+.h3270-max-key .h3270-key-label {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
 
-  .h3270-max-space {
-    min-width: 160px !important;
-  }
+.h3270-max-key .h3270-key-mapping {
+  font-size: 0.6rem;
+  white-space: nowrap;
+}
+
+/* The cursor cluster and the number pad are single-unit caps whose labels
+   already say what they are; "ArrowRight" printed under → does not fit and
+   does not help. The letter block keeps its captions, where they are the only
+   place the PF-to-function-key mapping is written. */
+.h3270-max-nav .h3270-key-mapping,
+.h3270-max-numpad .h3270-key-mapping {
+  display: none;
+}
+
+.h3270-max-spacer {
+  visibility: hidden;
+}
+
+/* Shift, armed for one key or locked until pressed again. A modifier that is
+   holding has to look different from one that is merely hovered, or the row
+   silently sends PF19 when PF7 was meant — and locked has to look different
+   from armed, or a run of capitals comes out as one. */
+.h3270-max-shift.is-armed {
+  border-color: var(--accent);
+  background-color: rgba(57, 255, 20, 0.14);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.h3270-max-shift.is-locked {
+  border-color: var(--accent);
+  background-color: rgba(57, 255, 20, 0.26);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(57, 255, 20, 0.32);
+}
+
+/* A symbol cap prints both its legends, shifted above, as the key itself
+   does. Which one is live swaps with shift, so the row always reads as what
+   it will type. */
+.h3270-max-key .h3270-key-shifted {
+  color: var(--fg-muted);
+}
+
+.h3270-max-main.is-shifted .h3270-max-key .h3270-key-shifted {
+  color: var(--fg);
+  font-size: 0.78rem;
+}
+
+.h3270-max-main.is-shifted .h3270-max-key .h3270-key-shifted + .h3270-key-label {
+  color: var(--fg-muted);
+  font-size: 0.6rem;
+}
+
+/* Which keyboard is on the desk. Sized down to the header rather than to a
+   form, where it sits beside the size control rather than competing with
+   it. */
+.h3270-keypad-layout-select {
+  background-color: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-family: inherit;
+}
+
+.h3270-keypad-layout-select:hover {
+  border-color: var(--accent);
+}
+
+/* Only MAX lays out letters, so only MAX has a region to choose. */
+.h3270-keypad:not(.is-max) .h3270-keypad-layout-select {
+  display: none;
+}
+
+/* MAX carries every key the grouped modes carry, so it shows the keyboard
+   alone. */
+.h3270-keypad.is-max .h3270-keypad-grouped {
+  display: none;
 }
 
 @media (max-width: 900px) {

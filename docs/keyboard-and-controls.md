@@ -339,23 +339,107 @@ Use the keyboard icon to show or hide the virtual keypad.
 
 Keypad features:
 
-- Compact and full modes
+- Three sizes and a hidden state, stepped through by one control
 - PF keys (`PF1` to `PF24`)
 - PA keys (`PA1` to `PA3`)
 - Common editing/navigation keys
-- Dedicated Hide button
+- A whole keyboard, letters and number pad included, in MAX
 
 The keypad visibility preference can be saved in Settings (`Use keypad`).
+
+### Sizes
+
+The control at the top right of the keypad steps through the sizes in
+order, smallest last:
+
+| Size | What it shows |
+| --- | --- |
+| **Compact** | The keys a screen actually ends with — Enter, Tab, back-tab, Clear, the PF keys |
+| **Full** | Every 3270 command key, laid out in groups |
+| **MAX** | The whole keyboard: function row, letters, number pad, cursor cluster |
+| **Hide** | Nothing. The next press of the control is on the way back — it reopens compact |
+
+It is one control rather than four buttons because the keypad's header is
+the last place on the display that can afford a row of chrome, and because
+the sizes are a progression rather than four unrelated choices. The label
+says which size is showing; the tooltip says which one pressing it brings.
+
+### The MAX keyboard
+
+MAX is a keyboard, not a list of buttons: staggered rows, wide modifiers
+where the hands expect them, and the cursor cluster and number pad in their
+own columns to the right. Every key is in the place years of muscle memory
+put it, and the block is as short as a keyboard is — which is the whole
+point, because every row it takes below the terminal is a row the 3270
+screen does not get.
+
+The 3270 command keys take the modifier positions. `Clear` sits at the Esc
+end of the function row — Esc is the key it answers to — with `Attn` at the
+other end. `Reset` takes the Caps Lock position, the key an operator
+reaches for without looking and, on an inhibited keyboard, the only one
+that does anything. `SysReq`, `EraseEOF`, `EraseInput`, `Dup`, `FieldMark`
+and `NewLine` sit on the bottom row either side of the space bar.
+
+#### Shift
+
+The keyboard has a shift key at each end of the letter block, and it does
+what shift does everywhere:
+
+- **Capitals and the upper legends.** Press shift, then a key: `A` rather
+  than `a`, `£` rather than `3`. Each symbol cap prints both legends, the
+  shifted one above, and the pair swap emphasis while shift is on so the
+  row always reads as what it will type.
+- **24 function keys on 12 caps.** Under shift the function row becomes
+  `PF13`-`PF24`, the same trick a physical keyboard plays to get 24
+  function keys out of 12. The caps re-label, so `PF19` reads `⇧F7`
+  underneath.
+- **Back-tab.** Shift turns `Tab` into `BackTab`, which is what ++shift+tab++
+  does on the physical keyboard and what saves the row a cap of its own.
+
+One press arms shift for the next key and it releases itself, the way a
+keyboard behaves when the finger comes off. A second press locks it, for a
+run of capitals or a session paging through `PF19` and `PF20`; a third
+releases it. Armed and locked look different from each other, because a
+modifier that is silently holding is how `PF7` goes out as `PF19`.
+
+Full mode still shows all 24 PF keys at once, for anyone who would rather
+not shift.
+
+#### Regional layouts
+
+Keyboards are not the same shape everywhere, so the region is a choice, in
+the picker beside the size control:
+
+| Layout | What it changes |
+| --- | --- |
+| **US (ANSI)** | `@` over `2`, `#` over `3`, `"` on the apostrophe key, `\` above a wide Enter, a wide left shift |
+| **UK (ISO)** | `"` over `2`, `£` over `3`, `@` on the apostrophe key, a `#`/`~` key on the home row, `\` beside a narrow left shift, and the stepped Enter that goes with them |
+
+The difference is geometry as much as legends — the ISO layouts carry one
+more key on the home row and one more on the bottom row — so choosing a
+region rebuilds the keyboard rather than relabelling it.
+
+The starting choice comes from the browser's locale, and after that from
+whatever you last picked, because the locale is a guess at which keyboard
+is on the desk and your answer is not. The picker appears only in MAX,
+which is the only size with letters to arrange.
+
+#### When it will not fit
+
+The keyboard keeps its shape at every width — the number pad never unstacks
+into more rows — and what does not fit is scaled rather than wrapped. On a
+narrow display that means smaller keys, not a taller keyboard. The terminal
+is served first: the keyboard takes the room left beneath it and scales
+into that.
 
 ![Virtual keyboard screenshot](images/keypad-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
 1. Keypad title area
-2. Compact/full mode toggle
-3. Hide keypad
-4. PF key groups
-5. PA key group
-6. Common 3270 action keys
+2. Size control — steps compact, full, MAX, hidden
+3. PF key groups
+4. PA key group
+5. Common 3270 action keys
 
 ## Touch devices
 
