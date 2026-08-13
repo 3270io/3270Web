@@ -35,7 +35,7 @@ func TestPlayWorkflowDecidesAgainstThePetStore(t *testing.T) {
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		if err := h.UpdateScreen(); err == nil {
-			if screen := h.GetScreen(); screen != nil && strings.Contains(screen.Text(), "PET010") {
+			if screen := h.GetScreenSnapshot(); screen != nil && strings.Contains(screen.Text(), "PET010") {
 				break
 			}
 		}
@@ -80,7 +80,7 @@ func TestPlayWorkflowDecidesAgainstThePetStore(t *testing.T) {
 		t.Fatalf("the literal variable did not survive the run: %#v", vars)
 	}
 	if vars["panel"] == "" || vars["panel"] == "PET010" {
-		screen := h.GetScreen()
+		screen := h.GetScreenSnapshot()
 		text := ""
 		if screen != nil {
 			text = screen.Text()

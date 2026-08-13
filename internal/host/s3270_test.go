@@ -3,11 +3,26 @@ package host
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestWaitUnlockCommandUsesTimeout(t *testing.T) {
-	if got := WaitUnlockCommandForTest(nil); got != "Wait(Unlock,10)" {
+	if got := WaitUnlockCommandForTest(nil); got != "Wait(Unlock,5)" {
 		t.Fatalf("expected wait unlock command with timeout, got %q", got)
+	}
+}
+
+// The wait for the host is taken in steps, and each step has to finish well
+// inside the budget that kills the subprocess when it expires. A step longer
+// than that budget is the bug this arrangement exists to prevent, dressed up as
+// a constant.
+func TestOneWaitStepFitsInsideTheCommandBudget(t *testing.T) {
+	step := time.Duration(waitUnlockTimeoutSeconds) * time.Second
+	if step >= commandTimeout {
+		t.Fatalf("one wait step is %v and the command budget is %v; the budget expires by killing the subprocess", step, commandTimeout)
+	}
+	if aidUnlockBudget <= step {
+		t.Fatalf("the total AID budget %v is not longer than one step %v", aidUnlockBudget, step)
 	}
 }
 

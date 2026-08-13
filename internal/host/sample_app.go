@@ -111,13 +111,6 @@ func (h *GoSampleAppHost) UpdateScreen() error {
 	return h.client.UpdateScreen()
 }
 
-func (h *GoSampleAppHost) GetScreen() *Screen {
-	if h.client == nil {
-		return &Screen{}
-	}
-	return h.client.GetScreen()
-}
-
 func (h *GoSampleAppHost) SendKey(key string) error {
 	if h.client == nil {
 		return fmt.Errorf(sampleAppClientNotStarted)
@@ -151,6 +144,13 @@ func (h *GoSampleAppHost) SubmitUnformatted(data string) error {
 		return fmt.Errorf(sampleAppClientNotStarted)
 	}
 	return h.client.SubmitUnformatted(data)
+}
+
+func (h *GoSampleAppHost) SubmitOperatorInput(edit func(*Screen) string) error {
+	if h.client == nil {
+		return fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.SubmitOperatorInput(edit)
 }
 
 func (h *GoSampleAppHost) PrintText(format string) (string, error) {

@@ -342,7 +342,7 @@ func (app *App) TasksDraftHandler(c *gin.Context) {
 	// it. This is the screen the wizard offers for picking outputs.
 	finalScreen := ""
 	if h := app.sessionHost(s); h != nil {
-		if screen := h.GetScreen(); screen != nil {
+		if screen := h.GetScreenSnapshot(); screen != nil {
 			finalScreen = screen.Text()
 		}
 	}

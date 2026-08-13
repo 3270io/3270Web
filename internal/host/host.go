@@ -11,12 +11,21 @@ type Host interface {
 	Stop() error
 	IsConnected() bool
 	UpdateScreen() error
-	GetScreen() *Screen
+	// GetScreenSnapshot returns a copy of the screen taken under the session's
+	// own lock. There is no accessor for the live screen on purpose: it is
+	// rebuilt in place on every read from the host, so anything reading it from
+	// outside can see half of one screen and half of the next.
+	GetScreenSnapshot() *Screen
 	SendKey(key string) error
 	MoveCursor(row, col int) error
 	WriteStringAt(row, col int, text string) error
 	SubmitScreen() error
 	SubmitUnformatted(data string) error
+	// SubmitOperatorInput applies the operator's input to the screen and writes
+	// it, both under one hold of the session's lock. Anything that marks fields
+	// and then submits them has to go through here — see the implementation on
+	// S3270 for what happens when those are two separate holds.
+	SubmitOperatorInput(edit func(*Screen) string) error
 	// PrintText returns the current screen rendered by s3270's PrintText
 	// action. Supported formats are "html", "rtf", and "string"; the
 	// implementation rejects anything else.
@@ -106,6 +115,9 @@ func (m *MockHost) UpdateScreen() error {
 	return nil
 }
 
+// GetScreen hands back the double's own screen so a test can arrange it and
+// then assert on it. The real thing has no such accessor, deliberately; a mock
+// driven from one goroutine has nothing to race with.
 func (m *MockHost) GetScreen() *Screen {
 	return m.Screen
 }
@@ -181,6 +193,20 @@ func (m *MockHost) SubmitScreen() error {
 		}
 	}
 	return nil
+}
+
+// SubmitOperatorInput runs the edit against the mock's screen and then submits
+// it the way the real thing decides: marked fields when the screen is
+// formatted, the returned text when it is not.
+func (m *MockHost) SubmitOperatorInput(edit func(*Screen) string) error {
+	text := ""
+	if edit != nil && m.Screen != nil {
+		text = edit(m.Screen)
+	}
+	if m.Screen != nil && !m.Screen.IsFormatted {
+		return m.SubmitUnformatted(text)
+	}
+	return m.SubmitScreen()
 }
 
 func (m *MockHost) SubmitUnformatted(data string) error {

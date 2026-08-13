@@ -64,6 +64,15 @@ func TestFakeS3270Helper(t *testing.T) {
 			fmt.Println("error")
 			continue
 		}
+		// "lockedkeyboard" answers a screen read the way the terminal does while
+		// the host still has the keyboard: a refusal, meaning "not yet, ask
+		// again".
+		if mode == "lockedkeyboard" && strings.HasPrefix(strings.ToLower(cmd), "readbuffer") {
+			fmt.Println("data: Keyboard locked")
+			fmt.Println(fakeStatus)
+			fmt.Println("error")
+			continue
+		}
 		// "unformatted" never reports a formatted screen, which is what a
 		// connection that does not come up looks like from here.
 		if mode == "unformatted" {

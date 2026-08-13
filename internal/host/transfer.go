@@ -219,6 +219,12 @@ func (h *S3270) Transfer(opts TransferOptions) (string, error) {
 		return "", err
 	}
 
+	// Marked before the lock is taken, so a screen read arriving between the two
+	// is told the session is busy rather than joining a queue that will not move
+	// for half an hour. See lockForInteraction.
+	h.transferring.Store(true)
+	defer h.transferring.Store(false)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
