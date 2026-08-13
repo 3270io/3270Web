@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -33,7 +34,7 @@ func extractTokens(line string) []string {
 			if start != -1 {
 				token := line[start:i]
 				if !strings.HasPrefix(token, "SA(") {
-					if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || (len(token) == 2 && isHex(token)) {
+					if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || isCharacterToken(token) {
 						tokens = append(tokens, token)
 					} else {
 						// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
@@ -60,6 +61,25 @@ func extractTokens(line string) []string {
 		}
 	}
 	return tokens
+}
+
+// isCharacterToken reports whether a token from the screen read is one screen
+// position's character.
+//
+// One position is not one byte. The terminal writes the screen in the local
+// codeset, and in UTF-8 — which is what the subprocess is given, see locale.go
+// — a character outside ASCII is several bytes, written as one unbroken run of
+// hex: "c3a9" for é, "e282ac" for €. Every such run has an even number of
+// digits, so the rule is a whole number of bytes rather than exactly one.
+//
+// Accepting only two digits, which is what this used to do, meant every one of
+// those characters failed the test and was replaced with a null to keep the
+// columns lined up. The alignment was right and the screen was wrong: a UK
+// screen lost its pound signs, a German one its umlauts, and a Cyrillic or
+// Greek one very nearly everything, all of them silently and none of them
+// recoverable further down.
+func isCharacterToken(token string) bool {
+	return len(token) >= 2 && len(token)%2 == 0 && isHex(token)
 }
 
 func isHex(s string) bool {
@@ -452,11 +472,11 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 			index++
 			continue
 		}
-		b, err := parseHexByte(token)
+		r, err := parseScreenRune(token)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, rune(b))
+		result = append(result, r)
 		index++
 	}
 
@@ -529,6 +549,42 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	state.fieldStartCode = startCode
 	state.color = color
 	state.extHighlight = extHighlight
+}
+
+// parseScreenRune turns one screen position's token into the character it
+// stands for.
+//
+// A single byte is that byte's code point, which is what it has always been and
+// what covers every ASCII screen. A longer run is the character's bytes in the
+// local codeset — UTF-8 — and is decoded as such. A run that is not valid UTF-8
+// is read as a bare code point instead, so a build that spells the character
+// out that way still lands on the right character rather than on a hole.
+func parseScreenRune(token string) (rune, error) {
+	if len(token) <= 2 {
+		b, err := parseHexByte(token)
+		if err != nil {
+			return 0, err
+		}
+		return rune(b), nil
+	}
+
+	raw := make([]byte, 0, len(token)/2)
+	for i := 0; i+1 < len(token); i += 2 {
+		b, err := parseHexByte(token[i : i+2])
+		if err != nil {
+			return 0, err
+		}
+		raw = append(raw, b)
+	}
+	if r, size := utf8.DecodeRune(raw); r != utf8.RuneError && size == len(raw) {
+		return r, nil
+	}
+
+	v, err := strconv.ParseUint(token, 16, 32)
+	if err != nil || v > utf8.MaxRune {
+		return 0, strconv.ErrRange
+	}
+	return rune(v), nil
 }
 
 func parseHexByte(s string) (byte, error) {

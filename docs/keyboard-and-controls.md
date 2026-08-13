@@ -108,7 +108,10 @@ the host or receives one, using IND$FILE.
 
 Uploads are capped at 16 MiB and downloads at 64 MiB. IND$FILE moves data
 over the 3270 data stream, which is slow — a large transfer takes minutes,
-and the dialog says so while it runs.
+and the dialog says so while it runs. A transfer is given half an hour to
+finish, rather than the seconds every other terminal action is held to: how
+long it takes is a property of the dataset, and nothing at this end can hurry
+it along.
 
 ### Connection profiles
 

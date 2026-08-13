@@ -51,6 +51,19 @@ func TestFakeS3270Helper(t *testing.T) {
 			}
 			os.Exit(0)
 		}
+		// Any action whose name begins with "Refuse" is answered the way the
+		// real terminal answers one it will not carry out: reasons, status, and
+		// "error" where "ok" would have been. It is spelled into the command
+		// rather than into the mode so one fake can be asked for a refusal and a
+		// success in the same session, which is the whole point of the test that
+		// uses it.
+		if strings.HasPrefix(strings.ToLower(cmd), "refuse") {
+			fmt.Println("data: Keyboard locked")
+			fmt.Println("data: Operator error")
+			fmt.Println(fakeStatus)
+			fmt.Println("error")
+			continue
+		}
 		// "unformatted" never reports a formatted screen, which is what a
 		// connection that does not come up looks like from here.
 		if mode == "unformatted" {
@@ -222,7 +235,7 @@ func TestStartReapsItsChildWhenTheConnectionFails(t *testing.T) {
 	if h.cmd != nil {
 		t.Error("Start left the subprocess attached after failing; nothing will ever call Stop on it")
 	}
-	if h.stdin != nil || h.stdout != nil || h.stderr != nil {
+	if h.stdin != nil || h.stdout != nil || h.stderrRead != nil {
 		t.Error("Start left its pipes open after failing")
 	}
 }

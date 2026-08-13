@@ -2,7 +2,6 @@ package host
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -223,8 +222,16 @@ func (h *S3270) Transfer(opts TransferOptions) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	data, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	// Its own budget, not the general one — see transferTimeout.
+	data, status, err := h.executeCommandLockedTimeout(cmd, cmd, transferTimeout)
+	h.logAction(cmd, status)
+	if actionErr, refused := AsActionError(err); refused {
+		message := strings.TrimSpace(actionErr.Detail)
+		if message == "" {
+			message = strings.TrimSpace(actionErr.Status)
+		}
+		return "", fmt.Errorf("file transfer failed: %s", message)
+	}
 	if err != nil {
 		return "", err
 	}
