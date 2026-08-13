@@ -447,7 +447,7 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 		endX := s.Width - 1
 		endY := s.Height - 1
 		if endX >= 0 && endY >= 0 {
-			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+			appendDecodedField(s, state, endX, endY)
 		}
 	}
 
@@ -504,7 +504,7 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 			}
 		}
 		if endY >= 0 {
-			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+			appendDecodedField(s, state, endX, endY)
 		}
 	}
 
@@ -587,6 +587,16 @@ func parseScreenRune(token string) (rune, error) {
 		return 0, strconv.ErrRange
 	}
 	return rune(v), nil
+}
+
+func appendDecodedField(s *Screen, state *decodeState, endX, endY int) {
+	// Adjacent field attributes delimit an empty field. Keeping that field
+	// would make Substring walk the rest of the screen looking for an end
+	// position that precedes its start.
+	if endY < state.fieldStartY || (endY == state.fieldStartY && endX < state.fieldStartX) {
+		return
+	}
+	s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
 }
 
 func parseHexByte(s string) (byte, error) {

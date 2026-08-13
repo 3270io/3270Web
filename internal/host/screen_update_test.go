@@ -309,3 +309,20 @@ func TestUpdateFromTextNormalizesCRLF(t *testing.T) {
 		t.Fatalf("trailing row contains raw carriage return")
 	}
 }
+
+func TestUpdateSkipsZeroLengthFields(t *testing.T) {
+	dump := `data: SF(c0=20) SF(c0=28) 41 42 SF(c0=20) 43
+ok`
+
+	s, err := NewScreenFromDump(strings.NewReader(dump))
+	if err != nil {
+		t.Fatalf("NewScreenFromDump failed: %v", err)
+	}
+
+	if len(s.Fields) != 2 {
+		t.Fatalf("got %d fields, want 2 non-empty fields", len(s.Fields))
+	}
+	if got := s.Fields[0].GetValue(); got != "AB" {
+		t.Fatalf("first field value = %q, want %q", got, "AB")
+	}
+}
