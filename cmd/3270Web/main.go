@@ -4665,6 +4665,12 @@ func (app *App) buildThemeCSS(p session.Preferences) string {
 		writeRule(&sb, ".color-input", cs.UNBg, cs.UNFg)
 		writeRule(&sb, ".color-input-intensified", cs.UIBg, cs.UIFg)
 		writeRule(&sb, ".color-input-hidden", cs.UHBg, cs.UHFg)
+		// Scheme colors describe fields whose host color is default. Repeat the
+		// explicit host-color rules after them so source order cannot replace an
+		// explicit foreground with a protected/unprotected scheme default.
+		for _, color := range []string{"blue", "red", "pink", "green", "turquoise", "yellow", "white"} {
+			writeRule(&sb, ".color-"+color, "", "var(--term-color-"+color+")")
+		}
 	}
 
 	css := sb.String()
