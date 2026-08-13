@@ -2,6 +2,7 @@ package host
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,14 +33,32 @@ type S3270 struct {
 	screen         *Screen
 	mu             sync.Mutex // Protects command execution
 	verboseLogging bool
+	// transferring marks the one operation that holds mu for minutes rather
+	// than milliseconds, so callers a person is waiting on can decline to queue
+	// behind it. See lockForInteraction.
+	transferring atomic.Bool
 
 	connectStart    time.Time
 	connectDuration time.Duration
 }
 
 const (
-	waitUnlockTimeoutSeconds = 10
-	commandTimeout           = 15 * time.Second
+	// One step of waiting for the host to give the keyboard back. Short on
+	// purpose: it is how often the session's one control pipe comes free while
+	// a transaction is running, and therefore how quickly the operator can be
+	// shown that the host is thinking. It must also stay comfortably inside
+	// commandTimeout, whose expiry kills the subprocess.
+	waitUnlockTimeoutSeconds = 5
+	// How long an AID key waits in total for the host, across as many steps as
+	// that takes. Sized for a mainframe transaction rather than for a
+	// keystroke; running out of it is reported by the OIA, not by an error.
+	aidUnlockBudget = 2 * time.Minute
+	commandTimeout  = 15 * time.Second
+	// How many times a screen read asks again while the terminal says the
+	// buffer is not ready, and how long it waits between asking. The session is
+	// let go across the wait.
+	screenReadAttempts   = 50
+	screenReadRetryDelay = 100 * time.Millisecond
 	// Disconnect and quit are both on the teardown path, where an unresponsive
 	// subprocess must not be allowed to hold up session cleanup. They get their
 	// own short budgets rather than commandTimeout's fifteen seconds: the point
@@ -81,11 +101,16 @@ func (h *S3270) Start() error {
 	h.stopLocked()
 	h.connectStart = time.Now()
 	h.connectDuration = 0
+	// The last thing the previous subprocess said is not evidence about this
+	// one, and it is quoted in the errors this one produces.
+	h.lastErrMu.Lock()
+	h.lastErr = ""
+	h.lastErrMu.Unlock()
 
-	h.cmd = exec.Command(h.ExecPath, h.Args...)
-	// The subprocess inherits this program's environment with the codeset
-	// pinned; see locale.go for why a server that inherits no locale at all
-	// costs every screen its non-ASCII characters.
+	// Both halves of pinning the codeset — the option where the build takes one,
+	// the environment everywhere else. See locale.go for why a server that
+	// inherits no locale at all costs every screen its non-ASCII characters.
+	h.cmd = exec.Command(h.ExecPath, withUTF8Flag(h.ExecPath, h.Args)...)
 	h.cmd.Env = s3270Environment(os.Environ())
 	configureCmd(h.cmd)
 
@@ -150,6 +175,8 @@ func (h *S3270) Start() error {
 		}
 	}()
 
+	h.configureSessionLocked()
+
 	if h.TargetHost == "" {
 		handedOver = true
 		return nil
@@ -173,6 +200,31 @@ func (h *S3270) Start() error {
 	}
 	handedOver = true
 	return nil
+}
+
+// configureSessionLocked sets the terminal options this program's own handling
+// depends on. Best effort throughout: a build that does not have one of them
+// refuses the action, and a refusal here is not a reason to fail a connection.
+//
+// aidWait is the one that matters. With it on — which is the default — the
+// action that sends an AID key does not return until the host gives the
+// keyboard back, and it does that waiting on the session's one control pipe.
+// Nothing else about the session can happen meanwhile, including reading the
+// screen to show the operator that the host is thinking. Worse, the wait is
+// bounded by the command budget, and that budget expires by killing the
+// subprocess: a transaction taking longer than fifteen seconds ended the
+// session rather than the transaction. Measured against a host held at a
+// breakpoint, an Enter took thirty seconds and came back disconnected.
+//
+// With it off, the AID key returns as soon as it has been sent, and the waiting
+// is done here instead — in short steps, letting the pipe go between them. See
+// SendKey.
+func (h *S3270) configureSessionLocked() {
+	for _, cmd := range []string{"Set(aidWait,false)"} {
+		if _, _, err := h.executeCommandLocked(cmd, cmd); err != nil && h.verboseLogging {
+			log.Printf("[VERBOSE] s3270 %s: %v", cmd, err)
+		}
+	}
 }
 
 func (h *S3270) Stop() error {
@@ -248,8 +300,17 @@ func (h *S3270) reapLocked(cmd *exec.Cmd) {
 	}
 }
 
+// IsConnected reports whether there is a live subprocess with a pipe to it.
+//
+// A session too busy to answer counts as connected, and that is not a guess: a
+// file transfer is what holds it that long, and a transfer in flight is the
+// strongest evidence available that the session is up. Waiting for the real
+// answer would mean this — which every handler calls before doing anything —
+// blocking for the length of the transfer.
 func (h *S3270) IsConnected() bool {
-	h.mu.Lock()
+	if err := h.lockForInteraction(); err != nil {
+		return true
+	}
 	defer h.mu.Unlock()
 	return h.cmd != nil && h.cmd.ProcessState == nil && h.stdin != nil
 }
@@ -260,52 +321,179 @@ func (h *S3270) UpdateScreen() error {
 	})
 }
 
+// updateScreenOnce reads the screen, retrying while the terminal says the
+// buffer is not readable yet.
+//
+// The waiting between attempts happens with the session let go. Holding it
+// across the sleeps meant a screen read could sit on the session's one control
+// pipe for five seconds while doing nothing at all, and everything else on that
+// session — the operator's next keystroke included — queued behind a lock whose
+// holder was asleep.
 func (h *S3270) updateScreenOnce() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	for i := 0; i < 50; i++ {
-		lines, status, err := h.doCommandLocked("readbuffer ascii")
+	for i := 0; i < screenReadAttempts; i++ {
+		done, err := h.updateScreenAttempt()
 		if err != nil {
-			// A locked keyboard is a wait, not a failure: the host is mid-thought
-			// and the buffer will be readable when it finishes. The terminal says
-			// so either in a data line or, when it refuses the read outright, in
-			// the refusal — both spellings mean the same thing here.
-			if refusalMentions(err, "keyboard locked") {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
 			return err
 		}
-		if isDisconnectedStatus(status) {
-			if err := h.reconnectLocked(); err != nil {
-				return err
-			}
-			continue
+		if done {
+			return nil
 		}
-		if len(lines) > 0 && strings.HasPrefix(lines[0], "data: Keyboard locked") {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		return h.screen.Update(status, lines)
+		time.Sleep(screenReadRetryDelay)
 	}
 	return fmt.Errorf("keyboard locked timeout")
 }
 
-func (h *S3270) GetScreen() *Screen {
-	return h.screen
+// updateScreenAttempt makes one attempt at reading the screen. It reports
+// whether the screen was read; a false with no error means "not yet, ask
+// again".
+func (h *S3270) updateScreenAttempt() (bool, error) {
+	if err := h.lockForInteraction(); err != nil {
+		return false, err
+	}
+	defer h.mu.Unlock()
+
+	lines, status, err := h.doCommandLocked("readbuffer ascii")
+	if err != nil {
+		// A locked keyboard is a wait, not a failure: the host is mid-thought
+		// and the buffer will be readable when it finishes. The terminal says
+		// so either in a data line or, when it refuses the read outright, in
+		// the refusal — both spellings mean the same thing here.
+		if refusalMentions(err, "keyboard locked") {
+			return false, nil
+		}
+		return false, err
+	}
+	if isDisconnectedStatus(status) {
+		if err := h.reconnectLocked(); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "data: Keyboard locked") {
+		return false, nil
+	}
+	return true, h.screen.Update(status, lines)
 }
 
+// GetScreenSnapshot returns a copy of the screen taken with the session held,
+// or nil if the session is occupied by something long enough that waiting for
+// it would be worse than saying so.
+//
+// There is deliberately no accessor for the live screen. UpdateScreen rebuilds
+// it in place — new buffer, new field list — and a reader outside the lock can
+// therefore see half of one screen and half of the next. Every reader here
+// wants a screen it can finish reading, and this is that screen. Callers that
+// need to *change* the screen and act on the change go through
+// SubmitOperatorInput, which does both under one hold of the lock.
 func (h *S3270) GetScreenSnapshot() *Screen {
-	h.mu.Lock()
+	if err := h.lockForInteraction(); err != nil {
+		return nil
+	}
 	defer h.mu.Unlock()
 	return h.screen.Clone()
 }
 
+// lockForInteraction takes the session for something a person is waiting on,
+// refusing outright rather than queueing behind the one thing that holds it for
+// minutes.
+//
+// That one thing is a file transfer: it moves a dataset over the same
+// connection the screen uses and is allowed half an hour to do it, because that
+// is how long a dataset takes. A browser polling the screen on a timer would
+// otherwise queue one blocked request per poll behind it, and a page whose
+// requests are all stalled looks exactly like a page that has crashed — for
+// half an hour, over an operation the operator started and can see running.
+//
+// The test is a flag rather than a bounded wait on the lock, and that is not a
+// shortcut. A bounded wait means polling TryLock, and polling loses to any
+// caller that takes the lock in a loop: Go hands a contended mutex to a waiter
+// that has been queued on it, and a poller is never queued. Waiting for the
+// host to release the keyboard is exactly such a loop, so a "safer" bounded
+// wait starved the screen reads that put "X SYSTEM" in front of the operator —
+// it cost twenty-eight of every twenty-nine of them. Ordinary callers queue on
+// the lock and are dealt with in turn; only the long hold is special-cased.
+func (h *S3270) lockForInteraction() error {
+	if h.transferring.Load() {
+		return errSessionBusy
+	}
+	h.mu.Lock()
+	return nil
+}
+
+// errSessionBusy is what an interactive caller gets when the session is
+// occupied by something that runs for minutes. It is deliberately not one of
+// the phrases isConnectionError looks for: the session is fine, and restarting
+// the subprocess over it would abandon the very transfer being waited on.
+var errSessionBusy = errors.New("the session is busy with a file transfer")
+
+// SendKey sends one key. For an AID key — the ones that hand the screen to the
+// host — it then waits for the host to give the keyboard back, so a caller that
+// reads the screen next reads the screen the key produced.
+//
+// The waiting is done in short steps with the session let go between them,
+// rather than in one long hold, and that shape is the whole point. The terminal
+// has one control pipe, so anything holding it holds everything else on that
+// session: the live screen stream cannot read, which means the operator cannot
+// even be shown the "X SYSTEM" that says the host is thinking. Waiting in steps
+// gives the stream a turn between each one, so the wait is visible while it is
+// happening rather than being a page that has stopped responding.
 func (h *S3270) SendKey(key string) error {
-	return h.withRetry(func() error {
+	if err := h.withRetry(func() error {
 		return h.sendKeyOnce(key)
-	})
+	}); err != nil {
+		return err
+	}
+	h.awaitKeyboardUnlock(key)
+	return nil
+}
+
+// awaitKeyboardUnlock waits for the host to release the keyboard after an AID
+// key, up to aidUnlockBudget in bounded steps.
+//
+// Running out of the budget is not an error. The key was sent and the host has
+// it; a host still thinking after two minutes is a host still thinking, and the
+// OIA says so. What must not happen — and used to, every time — is the wait
+// outliving the command budget, because that budget expires by killing the
+// subprocess. A transaction that took longer than fifteen seconds did not just
+// fail: it took the session with it.
+func (h *S3270) awaitKeyboardUnlock(key string) {
+	if !isAidKey(key) {
+		return
+	}
+	deadline := time.Now().Add(aidUnlockBudget)
+	for time.Now().Before(deadline) {
+		unlocked, again := h.waitUnlockStep()
+		if unlocked || !again {
+			return
+		}
+	}
+}
+
+// waitUnlockStep waits one bounded interval for the keyboard. It reports
+// whether the keyboard is now free, and whether asking again is worthwhile —
+// which it is not once the pipe rather than the host is the thing not
+// answering.
+func (h *S3270) waitUnlockStep() (unlocked, again bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.stdin == nil {
+		return false, false
+	}
+	cmd := h.waitUnlockCommand()
+	_, status, err := h.doCommandLocked(cmd)
+	h.logAction(cmd, status)
+	if err != nil {
+		// A refusal is this step running out with the host still holding the
+		// keyboard, and the status line that came with it says where things
+		// stand. Anything else is the subprocess, and there is nothing left to
+		// wait for.
+		if IsActionError(err) {
+			return isKeyboardUnlocked(status), true
+		}
+		return false, false
+	}
+	return true, false
 }
 
 func (h *S3270) WriteStringAt(row, col int, text string) error {
@@ -316,6 +504,12 @@ func (h *S3270) WriteStringAt(row, col int, text string) error {
 
 func (h *S3270) withRetry(op func() error) error {
 	if err := op(); err != nil {
+		// A busy session is the one failure that must not be retried. Retrying
+		// means restarting the subprocess, and what is holding the session is a
+		// file transfer that restarting would throw away.
+		if errors.Is(err, errSessionBusy) {
+			return err
+		}
 		if !h.IsConnected() || isConnectionError(err) {
 			_ = h.Stop()
 			if restartErr := h.Start(); restartErr == nil {
@@ -467,7 +661,46 @@ func (h *S3270) waitUnlockCommand() string {
 func (h *S3270) SubmitScreen() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.submitScreenLocked()
+}
 
+// SubmitOperatorInput writes what the operator typed at the terminal, and does
+// the whole read-modify-write with the session held.
+//
+// The lock is the point of this method. Marking a field changed and writing the
+// changed fields used to be two separate holds with the caller's own work in
+// between, and the screen those marks live on is rebuilt in place by
+// UpdateScreen — new field list, every mark gone. The live screen stream reads
+// the host every 700 ms, so the window between marking and writing had a poll
+// in it often enough to matter, and what happened when it landed there was not
+// an error: the fields came back unmarked, nothing was written, and the AID key
+// went to the host anyway. The operator watched their typing disappear and the
+// transaction go through without it.
+//
+// edit is handed the live screen and returns the text to write when the screen
+// is unformatted; on a formatted screen it marks fields instead and its return
+// is ignored. Which of the two applies is also decided in here, because that too
+// is a property of the screen and a host redraw can change it.
+func (h *S3270) SubmitOperatorInput(edit func(*Screen) string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.screen == nil {
+		return fmt.Errorf("screen not initialized")
+	}
+	text := ""
+	if edit != nil {
+		text = edit(h.screen)
+	}
+	if h.screen.IsFormatted {
+		return h.submitScreenLocked()
+	}
+	return h.submitUnformattedLocked(text)
+}
+
+// submitScreenLocked writes every unprotected field marked changed. The caller
+// must hold h.mu.
+func (h *S3270) submitScreenLocked() error {
 	for _, f := range h.screen.Fields {
 		if !f.IsProtected() && f.Changed {
 			if err := h.writeFieldValueLocked(f); err != nil {
@@ -573,15 +806,15 @@ func escapeForS3270String(s string) string {
 	return b.String()
 }
 
-func (h *S3270) SubmitFieldUpdates(updates map[string]string) error {
-	// Not implemented yet
-	return nil
-}
-
 func (h *S3270) SubmitUnformatted(data string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.submitUnformattedLocked(data)
+}
 
+// submitUnformattedLocked writes data over the display, one positioned write
+// per run of changed cells. The caller must hold h.mu.
+func (h *S3270) submitUnformattedLocked(data string) error {
 	if h.screen == nil {
 		return fmt.Errorf("screen not initialized")
 	}
@@ -678,7 +911,13 @@ func (h *S3270) executeCommandLockedTimeout(cmd string, logCmd string, timeout t
 	_, err := fmt.Fprintln(h.stdin, cmd)
 	if err != nil {
 		h.stdin = nil
-		return nil, "", err
+		// A write that cannot land means the subprocess has gone, and it will
+		// have said why on the way out — "Connection refused", a name that does
+		// not resolve, a certificate that did not verify. Reporting the pipe
+		// error instead threw that away and left the operator with "broken
+		// pipe", which names the symptom and not one useful thing about the
+		// cause.
+		return nil, "", h.terminalError("s3270 terminated")
 	}
 
 	type commandResult struct {

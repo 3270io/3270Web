@@ -197,17 +197,23 @@ func (h *loopingChaosHost) UpdateScreen() error                 { return nil }
 func (h *loopingChaosHost) MoveCursor(row, col int) error       { return nil }
 func (h *loopingChaosHost) SubmitScreen() error                 { return nil }
 func (h *loopingChaosHost) SubmitUnformatted(data string) error { return nil }
+func (h *loopingChaosHost) SubmitOperatorInput(edit func(*host.Screen) string) error {
+	if edit != nil {
+		edit(h.GetScreenSnapshot())
+	}
+	return nil
+}
 func (h *loopingChaosHost) WriteStringAt(int, int, string) error {
 	return nil
 }
 func (h *loopingChaosHost) PrintText(string) (string, error) {
-	if s := h.GetScreen(); s != nil {
+	if s := h.GetScreenSnapshot(); s != nil {
 		return s.Text(), nil
 	}
 	return "", nil
 }
 func (h *loopingChaosHost) Query(string) (string, error) { return "", nil }
-func (h *loopingChaosHost) GetScreen() *host.Screen {
+func (h *loopingChaosHost) GetScreenSnapshot() *host.Screen {
 	if len(h.screens) == 0 {
 		return nil
 	}

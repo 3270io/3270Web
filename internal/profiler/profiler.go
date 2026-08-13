@@ -19,7 +19,7 @@ import (
 type ProberHost interface {
 	IsConnected() bool
 	UpdateScreen() error
-	GetScreen() *host.Screen
+	GetScreenSnapshot() *host.Screen
 	Query(arg string) (string, error)
 }
 
@@ -128,7 +128,7 @@ func Probe(ctx context.Context, h ProberHost, opts ProbeOptions) (*Compatibility
 	// First-screen capture + timing. Always best-effort.
 	firstScreenStart := now()
 	if err := h.UpdateScreen(); err == nil {
-		screen := h.GetScreen()
+		screen := h.GetScreenSnapshot()
 		if screen != nil {
 			profile.Timing.FirstScreenMS = now().Sub(firstScreenStart).Milliseconds()
 			applyScreenFingerprint(profile, screen)

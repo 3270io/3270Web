@@ -113,6 +113,11 @@ finish, rather than the seconds every other terminal action is held to: how
 long it takes is a property of the dataset, and nothing at this end can hurry
 it along.
 
+A transfer uses the same connection the screen does, so the session is busy
+for the duration. The terminal says so rather than appearing to hang: a screen
+refresh that arrives while a transfer is running reports a busy session after a
+few seconds instead of queueing behind it.
+
 ### Connection profiles
 
 TLS, the LU name, the terminal model and the code page used to be
@@ -322,7 +327,10 @@ The two indicators on the left are the ones that matter:
 - **`X SYSTEM`** means the host has the keyboard and is thinking. Wait.
   Pressing Enter again will not help. It appears the moment an AID key
   goes out, so there is no window in which the terminal looks idle while
-  the host is busy.
+  the host is busy — and it keeps being drawn for as long as the host takes,
+  because the terminal stops occupying its own connection while it waits. A
+  transaction that runs for two minutes is two minutes of `X SYSTEM`, not two
+  minutes of a page that appears to have stopped.
 - **`X -f`** means input is inhibited by an operator error — most often a
   letter typed into a numeric field, or a full field in insert mode. It
   will not clear on its own: press ++esc++ or `Reset`.

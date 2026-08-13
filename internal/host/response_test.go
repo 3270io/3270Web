@@ -142,3 +142,40 @@ var errTestPlain = &plainError{"broken pipe"}
 type plainError struct{ msg string }
 
 func (e *plainError) Error() string { return e.msg }
+
+// A busy session is not a broken one. If this error were mistaken for a lost
+// connection, the retry path would stop and restart the subprocess — abandoning
+// the very file transfer the caller was waiting behind.
+func TestSessionBusyIsNotAConnectionError(t *testing.T) {
+	if isConnectionError(errSessionBusy) {
+		t.Fatalf("%q reads as a lost connection; the retry path would kill the transfer holding the session", errSessionBusy)
+	}
+}
+
+// When the subprocess has gone, the error the operator sees should be the
+// reason it went — which the subprocess wrote to standard error on its way out
+// — and not the pipe error that is merely how this end found out. "broken pipe"
+// names the symptom; "Connection refused" names the cause.
+func TestAWriteThatCannotLandReportsWhyTheSubprocessWent(t *testing.T) {
+	h, _ := startFakeS3270(t, "polite")
+	h.lastErrMu.Lock()
+	h.lastErr = "mainframe.example: Connection refused"
+	h.lastErrMu.Unlock()
+
+	// Closing the pipe under it is what a subprocess exiting looks like here.
+	h.mu.Lock()
+	_ = h.stdin.Close()
+	_, _, err := h.doCommandLocked("Query()")
+	h.mu.Unlock()
+	_ = h.Stop()
+
+	if err == nil {
+		t.Fatal("writing to a closed pipe reported success")
+	}
+	if !strings.Contains(err.Error(), "Connection refused") {
+		t.Errorf("error is %q; it should carry what the subprocess said on its way out", err)
+	}
+	if !isConnectionError(err) {
+		t.Errorf("error %q does not read as a lost connection, so nothing will reconnect", err)
+	}
+}

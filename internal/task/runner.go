@@ -16,7 +16,7 @@ import (
 // against a fake without standing up s3270.
 type Terminal interface {
 	UpdateScreen() error
-	GetScreen() *host.Screen
+	GetScreenSnapshot() *host.Screen
 	MoveCursor(row, col int) error
 	WriteStringAt(row, col int, text string) error
 	SendKey(key string) error
@@ -232,7 +232,7 @@ func (r *Runner) readScreen() (*host.Screen, error) {
 	if err := r.Terminal.UpdateScreen(); err != nil {
 		return nil, err
 	}
-	screen := r.Terminal.GetScreen()
+	screen := r.Terminal.GetScreenSnapshot()
 	if screen == nil {
 		return nil, fmt.Errorf("the terminal has no screen")
 	}

@@ -183,6 +183,39 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **A host allowed to think for longer than fifteen seconds** — the terminal's
+  own setting was to hold an AID key until the host gave the keyboard back, and
+  it held the session's one control pipe while it waited. Nothing else about
+  that session could happen meanwhile — including reading the screen to show
+  the operator that the host was busy — and the wait was bounded by a budget
+  whose expiry kills the terminal process. Measured against a host stopped at a
+  breakpoint, an Enter took thirty seconds and came back disconnected: a long
+  transaction did not fail, it ended the session. The key now returns as soon
+  as it is sent and the waiting is done in short steps with the pipe let go
+  between them, so the same measurement is twenty seconds, no error, session
+  intact — and twenty-nine screen reads got through while it waited, which is
+  what puts `X SYSTEM` in front of the operator instead of a page that has
+  stopped responding.
+- **What the operator typed, on the screen it was typed into** — marking a
+  field changed and writing the changed fields to the host were two separate
+  holds of the session, with the browser's own work in between, and the screen
+  those marks live on is rebuilt from the host on every read. The live screen
+  stream reads every 700 ms, so a refresh landing in that gap handed back a
+  screen with nothing marked on it. It did not fail: the fields were simply not
+  written, and the AID key went to the host anyway. The operator watched their
+  typing disappear and the transaction go through without it. Reading the
+  screen, writing the input onto it and submitting it are now one step, taken
+  with the session held, and the only way to reach it is one that cannot be
+  split.
+- **The characters the code page was chosen for, on every platform** — pinning
+  the terminal's character set through the environment works wherever the
+  platform has the one being asked for, and does nothing where it does not.
+  The terminal has its own switch for the same thing, needing no locale data at
+  all — but only on builds that have it, and naming an option an older build
+  does not know makes it refuse to start, which turns a cosmetic fix into no
+  terminal whatsoever. So the build is now asked what it takes, once, from its
+  own help output. Belt and braces, and the braces are the ones that work on a
+  Mac.
 - **The characters the code page was chosen for** — a connection can name
   cp285 or cp273 or cp880, and the pound signs, umlauts and Cyrillic letters
   those code pages exist for did not arrive. Two separate reasons, both of them

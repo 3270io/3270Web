@@ -26,14 +26,20 @@ func (h *scriptedChaosHost) UpdateScreen() error                 { return nil }
 func (h *scriptedChaosHost) MoveCursor(row, col int) error       { return nil }
 func (h *scriptedChaosHost) SubmitScreen() error                 { return nil }
 func (h *scriptedChaosHost) SubmitUnformatted(data string) error { return nil }
+func (h *scriptedChaosHost) SubmitOperatorInput(edit func(*host.Screen) string) error {
+	if edit != nil {
+		edit(h.GetScreenSnapshot())
+	}
+	return nil
+}
 func (h *scriptedChaosHost) PrintText(format string) (string, error) {
-	if s := h.GetScreen(); s != nil {
+	if s := h.GetScreenSnapshot(); s != nil {
 		return s.Text(), nil
 	}
 	return "", nil
 }
 func (h *scriptedChaosHost) Query(string) (string, error) { return "", nil }
-func (h *scriptedChaosHost) GetScreen() *host.Screen {
+func (h *scriptedChaosHost) GetScreenSnapshot() *host.Screen {
 	if len(h.screens) == 0 {
 		return nil
 	}
@@ -54,7 +60,7 @@ func (h *scriptedChaosHost) SendKey(key string) error {
 }
 func (h *scriptedChaosHost) WriteStringAt(row, col int, text string) error {
 	h.writeCalls = append(h.writeCalls, text)
-	s := h.GetScreen()
+	s := h.GetScreenSnapshot()
 	if s == nil {
 		return nil
 	}

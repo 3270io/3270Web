@@ -69,7 +69,7 @@ func TestDefaultSampleAppServesItsFirstScreen(t *testing.T) {
 	var text string
 	for time.Now().Before(deadline) {
 		if err := h.UpdateScreen(); err == nil {
-			if screen := h.GetScreen(); screen != nil {
+			if screen := h.GetScreenSnapshot(); screen != nil {
 				text = screen.Text()
 				if strings.Contains(text, "PET010") {
 					break
@@ -92,7 +92,7 @@ func TestDefaultSampleAppServesItsFirstScreen(t *testing.T) {
 	if !strings.Contains(text, "MODEL 3 (32x80)") {
 		t.Errorf("the sample app did not report the configured model:\n%s", text)
 	}
-	if screen := h.GetScreen(); screen != nil && screen.Height != 32 {
+	if screen := h.GetScreenSnapshot(); screen != nil && screen.Height != 32 {
 		t.Errorf("screen height = %d, want 32 rows for a model 3 terminal", screen.Height)
 	}
 }

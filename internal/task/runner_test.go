@@ -32,7 +32,7 @@ func newFakeTerminal(screens ...string) *fakeTerminal {
 
 func (f *fakeTerminal) UpdateScreen() error { return nil }
 
-func (f *fakeTerminal) GetScreen() *host.Screen {
+func (f *fakeTerminal) GetScreenSnapshot() *host.Screen {
 	idx := f.at
 	if idx >= len(f.screens) {
 		idx = len(f.screens) - 1

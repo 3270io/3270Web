@@ -1738,14 +1738,7 @@ func hostScreenSnapshot(h host.Host) *host.Screen {
 	if h == nil {
 		return nil
 	}
-	if provider, ok := h.(interface{ GetScreenSnapshot() *host.Screen }); ok {
-		return provider.GetScreenSnapshot()
-	}
-	screen := h.GetScreen()
-	if screen == nil {
-		return nil
-	}
-	return screen.Clone()
+	return h.GetScreenSnapshot()
 }
 
 func (app *App) modelDimensions() (int, int, bool) {
@@ -1854,25 +1847,33 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	cursorCol := strings.TrimSpace(c.PostForm("cursor_col"))
 
 	h := app.sessionHost(s)
-	// Capture the screen for the recording BEFORE updateFields writes the
-	// operator's input into the buffer. A guard derived from this has to
-	// match the screen as the host paints it, not as it looks once someone
-	// has typed into it.
-	recordScreenForStep(s, h)
-	if h.GetScreen().IsFormatted {
-		// 1. Update fields from form data
-		app.updateFields(c, h)
-		recordFieldUpdates(s, h)
 
-		// 2. Submit changes to host
-		if err := h.SubmitScreen(); err != nil {
-			return fmt.Errorf("submit failed: %w", err)
+	// Reading the screen, writing the operator's input into it and submitting
+	// that input are one step, taken with the session held. They used to be
+	// three, and the screen they all referred to is rebuilt from the host on
+	// every read — so a refresh landing in the middle handed back a screen with
+	// no changes marked on it. Nothing failed: the fields were simply not
+	// written, and the AID key went out regardless. The operator watched their
+	// typing vanish and the transaction go through without it.
+	//
+	// The two clones are for the recording, which has to see the screen twice:
+	// as the host painted it, because a guard derived from it must match what
+	// the host draws rather than what someone typed over it, and again once the
+	// input is on it, because that is where the steps come from.
+	var painted, filled *host.Screen
+	err := h.SubmitOperatorInput(func(screen *host.Screen) string {
+		painted = screen.Clone()
+		if !screen.IsFormatted {
+			return c.PostForm("field")
 		}
-	} else {
-		data := c.PostForm("field")
-		if err := h.SubmitUnformatted(data); err != nil {
-			return fmt.Errorf("submit failed: %w", err)
-		}
+		app.updateFields(c, screen)
+		filled = screen.Clone()
+		return ""
+	})
+	recordScreenForStep(s, painted)
+	recordFieldUpdates(s, filled)
+	if err != nil {
+		return fmt.Errorf("submit failed: %w", err)
 	}
 
 	if cursorRow != "" && cursorCol != "" {
@@ -3577,8 +3578,14 @@ func (app *App) LogsDownloadHandler(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain", content)
 }
 
-func (app *App) updateFields(c *gin.Context, h host.Host) {
-	screen := h.GetScreen()
+// updateFields writes the operator's form input onto the fields of screen,
+// marking each one it changes. The caller holds the session, because what is
+// marked here is read by the submit that follows and nothing may rebuild the
+// screen in between.
+func (app *App) updateFields(c *gin.Context, screen *host.Screen) {
+	if screen == nil {
+		return
+	}
 	maxRows, maxCols, hasLimit := app.modelDimensions()
 	for _, f := range screen.Fields {
 		if !f.IsProtected() {
@@ -3632,12 +3639,8 @@ func fieldWithinBounds(f *host.Field, maxRows, maxCols int) bool {
 // recording session cannot grow without bound.
 const maxRecordedScreens = 200
 
-func recordScreenForStep(s *session.Session, h host.Host) {
-	if s == nil || h == nil {
-		return
-	}
-	screen := h.GetScreen()
-	if screen == nil {
+func recordScreenForStep(s *session.Session, screen *host.Screen) {
+	if s == nil || screen == nil {
 		return
 	}
 	text := screen.Text()
@@ -3660,12 +3663,8 @@ func recordScreenForStep(s *session.Session, h host.Host) {
 	})
 }
 
-func recordFieldUpdates(s *session.Session, h host.Host) {
-	if s == nil || h == nil {
-		return
-	}
-	screen := h.GetScreen()
-	if screen == nil {
+func recordFieldUpdates(s *session.Session, screen *host.Screen) {
+	if s == nil || screen == nil {
 		return
 	}
 	withSessionLock(s, func() {

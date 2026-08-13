@@ -1,6 +1,8 @@
 package host
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -76,5 +78,45 @@ func TestEffectiveCodesetPrecedence(t *testing.T) {
 				t.Errorf("effectiveCodesetIsUTF8(%v) = %v, want %v", tt.env, got, tt.want)
 			}
 		})
+	}
+}
+
+// The environment cannot help on a platform with no C.UTF-8 to be given. The
+// terminal's own option can, but naming one an older build does not know makes
+// it refuse to start — so the build is asked rather than assumed.
+func TestSupportsUTF8FlagAsksTheBinary(t *testing.T) {
+	// A program that runs but says nothing about the option answers no, which
+	// is the safe half of the answer.
+	if SupportsUTF8Flag(os.Args[0]) {
+		t.Error("the test binary does not document a codeset option; it should not be given one")
+	}
+	if SupportsUTF8Flag("") {
+		t.Error("an empty path cannot be asked anything")
+	}
+	if SupportsUTF8Flag(filepath.Join(t.TempDir(), "not-a-binary")) {
+		t.Error("a path with nothing at it cannot be asked anything")
+	}
+}
+
+func TestContainsFlagMatchesWholeOptions(t *testing.T) {
+	help := "Usage: s3270 [options] [host]\n  -trace\n  -utf8\n     Force local codeset to be UTF-8\n"
+	if !containsFlag(help, "-utf8") {
+		t.Error("the option is in the help and was not found")
+	}
+	if containsFlag(help, "-utf") {
+		t.Error("a prefix of an option matched it")
+	}
+	if containsFlag("  -utf8bogus\n", "-utf8") {
+		t.Error("a longer option starting the same way matched")
+	}
+}
+
+// The host name is expected last, so the option goes first — and asking twice
+// for the same thing is not asking twice.
+func TestWithUTF8FlagLeavesTheHostLast(t *testing.T) {
+	args := []string{"-model", "2", "mainframe:992"}
+	got := withUTF8Flag(os.Args[0], args)
+	if got[len(got)-1] != "mainframe:992" {
+		t.Errorf("args end with %q, want the host name", got[len(got)-1])
 	}
 }
