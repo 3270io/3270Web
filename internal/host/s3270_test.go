@@ -146,10 +146,18 @@ func TestEscapeForS3270String(t *testing.T) {
 		{"tab is non-printable", "a\tb", `a\x09b`},
 		{"cr is non-printable", "a\rb", `a\x0db`},
 		{"del is non-printable", "a\x7fb", `a\x7fb`},
-		{"high ascii latin1 rune", "é", `\xc3\xa9`},
-		{"multibyte cjk rune", "中", `\xe4\xb8\xad`},
-		{"emoji 4-byte", "\U0001f600", `\xf0\x9f\x98\x80`},
-		{"mixed", `A\"B` + "é", `A\\\"B\xc3\xa9`},
+		// Above ASCII goes out as \u — one escape naming one character. Spelling
+		// the character out as its UTF-8 bytes types each byte as a character of
+		// its own, so "é" arrived as "Ã©" and everything after it in the field
+		// moved a cell to the right.
+		{"high ascii latin1 rune", "é", `\u00e9`},
+		{"multibyte cjk rune", "中", `\u4e2d`},
+		{"pound sign", "£", `\u00a3`},
+		// Four hex digits is the whole of the escape, and a surrogate pair is
+		// dropped rather than composed, so anything above the BMP is replaced
+		// with a character that keeps the field's shape and can be seen.
+		{"emoji beyond the bmp", "\U0001f600", "�"},
+		{"mixed", `A\"B` + "é", `A\\\"B\u00e9`},
 	}
 
 	for _, tt := range tests {

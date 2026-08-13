@@ -37,6 +37,7 @@ terminal.
 | Type-ahead while the host holds the keyboard | ✅ |
 | Selectable terminal models and screen sizes | ✅ |
 | Code page selection per connection | ✅ |
+| The characters those code pages are chosen for — pound signs, umlauts, accents, Cyrillic and Greek — drawn on the screen and accepted into a field | ✅ |
 
 On a 3270 the cursor belongs to the terminal, and the host learns its
 position exactly once — in the inbound data stream, when an AID key is

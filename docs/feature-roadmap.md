@@ -183,6 +183,44 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **The characters the code page was chosen for** — a connection can name
+  cp285 or cp273 or cp880, and the pound signs, umlauts and Cyrillic letters
+  those code pages exist for did not arrive. Two separate reasons, both of them
+  invisible: the terminal describes the screen in whatever character set the
+  server was started with, a container image sets none, and "none" means ASCII,
+  so everything else was turned into a question mark before this program could
+  see it — and where a server did have a character set, one screen cell came
+  back as several bytes and was replaced with a null to keep the columns lined
+  up. The geometry was right and the word was gone. Going the other way had the
+  matching fault: text typed into a field was sent as the bytes of each
+  character rather than as the character, so an "é" landed on the screen as
+  "Ã©" and pushed the rest of the field along a cell. The terminal is now
+  started with a character set rather than left to inherit one, a character is
+  one cell however many bytes it takes, and what is typed goes down as what was
+  typed. See [Terminal Capabilities](terminal-capabilities.md#terminal-fidelity).
+- **A refusal is an answer** — the terminal ends what it says about an action
+  with "ok" when it ran and "error" when it did not, and only the first was
+  ever being listened for. So a refusal was not an error here, it was a
+  silence: the reader was still waiting when the next action went down the
+  pipe, and answered *that* action's question with this one's output. When
+  nothing followed, it waited out the fifteen-second budget every action
+  shares — and running out of that budget kills the terminal process, so the
+  session went with it. None of the ways to trigger this were exotic. Typing
+  into a protected field is a refusal. So is a key the keyboard has locked out,
+  a PF number that does not exist, a reconnect to a port with nothing behind
+  it, and a transfer the host will not start. Each of those now comes back in
+  milliseconds, carrying the reason the terminal gave for it, with the session
+  still up — and a connection that is turned away says "Connection refused"
+  rather than "the screen was not ready", which was true and useless. The one
+  refusal deliberately not passed on is a host that has not released the
+  keyboard yet: the key was sent, the host has it, and that is what `X SYSTEM`
+  is for.
+- **A file transfer allowed to take as long as it takes** — IND$FILE moved the
+  file over the same fifteen-second budget as a cursor move, and running out of
+  it killed the terminal process. So a transfer longer than fifteen seconds
+  lost the transfer *and* the session, and did so more reliably the more the
+  dataset was worth moving. It has its own budget now, sized for a file rather
+  than for a keystroke.
 - **The decisions in the shelf of macros, not just the steps** — a recording
   learned to decide, and the importer could still only hand over the straight
   parts of a file, which left the branch — the reason the macro was written at
@@ -367,8 +405,19 @@ the thing behaves like a terminal. The rest of this list is shipping; see
 
 ## s3270 actions not yet surfaced
 
-s3270 already supports these — wiring them up is mostly a wrapper job.
-`String()`, `Transfer()` and `PrintText()` are already done.
+`s3270` publishes about ninety actions. 3270Web drives roughly a third of them,
+and the rest divide into three groups: a handful worth having, a larger set that
+belongs to protocols this terminal does not speak, and a scripting family held
+back on purpose. All three are below, because "not surfaced" and "not wanted"
+are different answers and a roadmap that only lists the first is a to-do list
+pretending to be a plan.
+
+Wiring one up is usually a wrapper job, but "usually" is doing work in that
+sentence: an action that occupies the control pipe while it waits, or that
+writes a file, or that changes what the terminal will accept, is a design
+decision before it is a wrapper. Each item below says which kind it is.
+`String()`, `Transfer()`, `PrintText()`, `Snap()`, `Set()`/`Toggle()`,
+`ScreenTrace()`, `Query()` and `Disconnect()` are already done.
 
 - [x] **`Query`** — *shipped: `GET /api/v1/sessions/:id/query` returns
       everything the terminal knows about the connection — negotiated telnet
@@ -387,14 +436,6 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
       input fields — read from and written to the terminal rather than
       mirrored here. A narrow allowlist, because the same action also reaches
       trace files and printer sessions*
-- [ ] **`Source()` / `Macro()` / `Script()`** — native s3270 scripting. Held
-      deliberately rather than pending: `Source()` reads a file of actions,
-      `Script()` starts a process, and a macro would run on the same control
-      pipe the session depends on. What they are wanted *for* — running a
-      recorded sequence against a host — is already
-      [Guided Business Tasks](business-tasks.md) and workflow replay, over
-      validated steps rather than raw actions. The open question is whether
-      any remaining case justifies the surface
 - [x] **`ScreenTrace`** — *shipped: every screen recorded as it is drawn,
       including the ones the host replaced before anyone asked to see them —
       the screens a poller can never find. Behind `ALLOW_SCREEN_TRACE`,
@@ -404,6 +445,74 @@ s3270 already supports these — wiring them up is mostly a wrapper job.
       terminal header reads the same endpoint the API does, so the connection's
       own account of itself is one click away rather than API-only. See
       [Keyboard and Controls](keyboard-and-controls.md#connection-details)*
+
+### Worth having
+
+- [ ] **`SaveInput()` / `RestoreInput()`** — the host redraws the panel while
+      somebody is half-way through filling it in, and everything typed is gone.
+      Every operator in this category knows that feeling and most have learned
+      to type the whole thing again rather than find out. These two hold what
+      was entered across a redraw and put it back. A wrapper job, and the
+      question that comes with it is whose decision the restore is — automatic
+      is surprising when the host redrew *because* the input was wrong
+- [ ] **`Trace()`** — the data stream, where
+      [`ScreenTrace`](rest-api.md) is the screens.
+      They answer different questions: the screens say what the operator saw,
+      the stream says what the host actually sent, and only the second one
+      settles an argument about whether a field attribute arrived. Behind a
+      switch and a server-chosen path, exactly as screen tracing is, because it
+      writes a file holding everything that crossed the wire
+- [ ] **`Wait()` beyond `Unlock`** — `Wait(Output)`, `Wait(InputField)`,
+      `Wait(Disconnect)`, `Wait(3270Mode)`. Playback, chaos exploration and the
+      live screen stream all wait by asking again on a timer; these are the
+      terminal's own way of being told. Not a wrapper job: a wait occupies the
+      one control pipe the session shares, so a keystroke arriving mid-wait has
+      to queue behind it. Worth it only where the wait is bounded and short, and
+      worth measuring before believing
+- [ ] **`Ascii()` / `AsciiField()` / `ReadBuffer(Ebcdic)`** — reading a region
+      by row, column and length, and reading the host's own code points rather
+      than the display's. The [HLLAPI-shaped endpoint](rest-api.md) and the
+      chaos engine both cut regions out of a screen this side has already
+      parsed, which is right until the question is whether the parse is the
+      thing that is wrong. `Ebcdic` is what a code-page complaint needs: the
+      byte the host sent, before anything here interpreted it
+- [ ] **`KeyboardDisable()`** — a session that can be watched and not typed
+      into. Useful over somebody's shoulder, useful in a demonstration, and
+      useful as the honest shape of a read-only share, which is currently a
+      thing this terminal cannot offer without simply not giving out the URL
+- [ ] **The host's alarm** — the write control character that rings the bell is
+      part of the 3270 data stream and part of how an application says "look at
+      this". A browser tab has somewhere to put that; today it goes nowhere
+- [ ] **`Reconnect()`** — reconnect to the host just disconnected from, on the
+      terms already negotiated. The session reconnects by re-issuing the
+      original `Connect()`, which is the same thing until a deployment's target
+      is a name resolving to more than one address
+
+### Belonging to protocols this terminal does not speak
+
+Listed so nobody has to check twice. `Interrupt()`, `AnsiText()`, `NvtText()`,
+`Expect()`, `PageUp()`/`PageDown()` and the scrollback around them are NVT-side:
+they become interesting only if [VT emulation](#category-parity) does, and are
+otherwise dead surface. `Flip()`, `CircumNot()` and `TemporaryComposeMap()`
+belong to bidirectional and composed input, which is the
+[DBCS and bidi](#category-parity) item and reaches the field model long before
+it reaches an action wrapper.
+
+### Held deliberately
+
+- [ ] **`Source()` / `Macro()` / `Script()` / `Prompt()` / `Execute()`** —
+      native s3270 scripting. Held rather than pending: `Source()` reads a file
+      of actions, `Script()` and `Execute()` start a process, and a macro would
+      run on the same control pipe the session depends on. What they are wanted
+      *for* — running a recorded sequence against a host — is already
+      [Guided Business Tasks](business-tasks.md) and workflow replay, over
+      validated steps rather than raw actions. The open question is whether any
+      remaining case justifies the surface
+- [ ] **`Cookie()`** — authentication for s3270's own script interface. It
+      matters only if that interface is ever exposed, and exposing it would mean
+      a second door into the session with its own authorisation model beside the
+      one every other surface here already shares. The reason it is on this list
+      is to record that the answer is currently no
 
 ## Enterprise deployment
 

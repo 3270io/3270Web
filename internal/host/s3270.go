@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 // S3270 implements the Host interface using the s3270 subprocess.
@@ -21,7 +21,9 @@ type S3270 struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout *bufio.Scanner
-	stderr *bufio.Scanner
+	// stderrRead is this end of the subprocess's standard error. It is a pipe
+	// this code owns rather than the one exec.Cmd hands out — see Start.
+	stderrRead *os.File
 
 	lastErrMu sync.Mutex
 	lastErr   string
@@ -44,6 +46,17 @@ const (
 	// process — is exactly what used to happen unconditionally.
 	disconnectTimeout = 3 * time.Second
 	quitGraceTimeout  = 2 * time.Second
+	// A file transfer is the one action that legitimately takes minutes. It
+	// moves a dataset a record at a time over the same 3270 data stream the
+	// screen uses, and how long that takes is a property of the dataset rather
+	// than of anything this end can hurry along.
+	//
+	// The general command budget is fifteen seconds, and running out of it kills
+	// the subprocess — which is right for an action that should have answered
+	// immediately and wrong for this one. Under the shared budget any transfer
+	// longer than fifteen seconds lost the transfer *and* the session, and did
+	// it more reliably the more the file was worth moving.
+	transferTimeout = 30 * time.Minute
 )
 
 // NewS3270 creates a new S3270 host instance.
@@ -70,6 +83,10 @@ func (h *S3270) Start() error {
 	h.connectDuration = 0
 
 	h.cmd = exec.Command(h.ExecPath, h.Args...)
+	// The subprocess inherits this program's environment with the codeset
+	// pinned; see locale.go for why a server that inherits no locale at all
+	// costs every screen its non-ASCII characters.
+	h.cmd.Env = s3270Environment(os.Environ())
 	configureCmd(h.cmd)
 
 	var err error
@@ -85,22 +102,35 @@ func (h *S3270) Start() error {
 	h.stdout = bufio.NewScanner(stdoutPipe)
 	h.stdout.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	stderrPipe, err := h.cmd.StderrPipe()
+	// Standard error goes to a pipe this code owns rather than to
+	// cmd.StderrPipe(). exec closes the pipe it hands out as soon as Wait sees
+	// the process exit, and the goroutine draining it is still reading — which
+	// is a documented misuse, and in practice loses the last line written. That
+	// line is the one that says why: "Connection refused", a certificate that
+	// did not verify, a host name that does not resolve. Owning the pipe means
+	// the reader gets to the end of it before it goes away.
+	stderrRead, stderrWrite, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
-	h.stderr = bufio.NewScanner(stderrPipe)
-	h.stderr.Buffer(make([]byte, 0, 64*1024), 256*1024)
+	h.cmd.Stderr = stderrWrite
+	h.stderrRead = stderrRead
 
 	// Start the process
 	if err := h.cmd.Start(); err != nil {
+		_ = stderrWrite.Close()
 		return fmt.Errorf("failed to start s3270: %w", err)
 	}
+	// The child holds its own descriptor now. This copy has to go, or the read
+	// end never sees end-of-file and the reader outlives the process.
+	_ = stderrWrite.Close()
 
 	// Pass the scanner explicitly: the goroutine must not read the mutable
-	// h.stderr field, which stop/cleanup paths set to nil under h.mu (a data
+	// h.stderrRead field, which stop/cleanup paths clear under h.mu (a data
 	// race and potential nil deref otherwise).
-	go h.captureStderr(h.stderr)
+	stderrScanner := bufio.NewScanner(stderrRead)
+	stderrScanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
+	go h.captureStderr(stderrScanner)
 
 	// The child exists from here on, so starting is a transaction: either it
 	// completes and the caller takes ownership of the process, or it takes the
@@ -173,7 +203,12 @@ func (h *S3270) stopLocked() error {
 		h.cmd = nil
 	}
 	h.stdout = nil
-	h.stderr = nil
+	// Closed after the process has been reaped, so the drain goroutine has had
+	// the whole of standard error to read before this unblocks it.
+	if h.stderrRead != nil {
+		_ = h.stderrRead.Close()
+		h.stderrRead = nil
+	}
 	return nil
 }
 
@@ -232,6 +267,14 @@ func (h *S3270) updateScreenOnce() error {
 	for i := 0; i < 50; i++ {
 		lines, status, err := h.doCommandLocked("readbuffer ascii")
 		if err != nil {
+			// A locked keyboard is a wait, not a failure: the host is mid-thought
+			// and the buffer will be readable when it finishes. The terminal says
+			// so either in a data line or, when it refuses the read outright, in
+			// the refusal — both spellings mean the same thing here.
+			if refusalMentions(err, "keyboard locked") {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
 			return err
 		}
 		if isDisconnectedStatus(status) {
@@ -335,7 +378,7 @@ func (h *S3270) sendKeyOnce(key string) error {
 // if the command failed and a fallback should be attempted.
 func (h *S3270) executeKeyCommand(cmd string, isAid bool) ([]string, string, error, bool) {
 	data, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	h.logAction(cmd, status)
 
 	if err == nil && isDisconnectedStatus(status) {
 		if rErr := h.reconnectLocked(); rErr != nil {
@@ -365,7 +408,7 @@ func (h *S3270) writeStringAtOnce(row, col int, text string) error {
 	}
 	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
 	_, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	h.logAction(cmd, status)
 	if err != nil {
 		return err
 	}
@@ -378,17 +421,38 @@ func (h *S3270) MoveCursor(row, col int) error {
 
 	cmd := fmt.Sprintf("movecursor(%d, %d)", row, col)
 	_, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	h.logAction(cmd, status)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+// logAction records one action and the status it came back with. It is behind
+// the verbose switch because it fires on every keystroke and cursor move: at
+// six sessions this is the loudest thing in the log, and a log nobody can read
+// is one nobody reads when it matters.
+func (h *S3270) logAction(cmd, status string) {
+	if h.verboseLogging {
+		log.Printf("[VERBOSE] s3270: cmd=%q status=%q", cmd, status)
+	}
+}
+
+// waitUnlockLocked gives the host a bounded moment to release the keyboard
+// after an AID key.
+//
+// Running out of that moment is not a failure of the key press. The key was
+// sent, the host has it, and the keyboard is still locked — which is precisely
+// what the OIA's "X SYSTEM" exists to say, and what the next screen read will
+// report on its own. Turning that into an error would fail the operator's Enter
+// on every host that thinks for longer than ten seconds.
 func (h *S3270) waitUnlockLocked() error {
 	cmd := h.waitUnlockCommand()
 	_, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	h.logAction(cmd, status)
+	if IsActionError(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -470,14 +534,26 @@ func (h *S3270) writeStringLocked(s string, redact bool) error {
 
 // escapeForS3270String escapes s for use as the quoted argument to the s3270
 // String() action. Printable ASCII (other than backslash and double-quote) is
-// emitted literally; backslash and double-quote are backslash-escaped; all
-// other runes (control characters and anything above 0x7E) are emitted as
-// \xNN for each UTF-8 byte, matching what the previous per-rune
-// key(0x..) loop sent over the wire. s must not contain newlines.
+// emitted literally; backslash and double-quote are backslash-escaped; control
+// characters go out as \xNN; everything above ASCII goes out as \uXXXX.
+//
+// The distinction between the two escapes is the whole point of this function.
+// \xNN names a *character*, not a byte, so spelling a character out as its
+// UTF-8 bytes does not reassemble it at the other end — it types each byte as a
+// character of its own. An é sent as \xc3\xa9 arrives as "Ã©": wrong text, and
+// one cell of the field eaten by a character the operator never typed, which
+// shifts everything after it. \uXXXX names the character itself and arrives as
+// one.
+//
+// Runes outside the Basic Multilingual Plane have no spelling here at all: the
+// escape takes four hex digits, and the terminal drops a surrogate pair rather
+// than composing it. They become U+FFFD, so a field keeps its shape and the
+// substitution is visible, rather than silently swallowing a character and
+// pulling the rest of the value left. Nothing in a 3270 code page lives up
+// there. s must not contain newlines.
 func escapeForS3270String(s string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 8)
-	buf := make([]byte, utf8.UTFMax)
 	for _, r := range s {
 		switch {
 		case r == '\\':
@@ -486,11 +562,12 @@ func escapeForS3270String(s string) string {
 			b.WriteString(`\"`)
 		case r >= 0x20 && r <= 0x7E:
 			b.WriteRune(r)
+		case r < 0x20 || r == 0x7F:
+			fmt.Fprintf(&b, `\x%02x`, byte(r))
+		case r > 0xFFFF:
+			b.WriteString(`�`)
 		default:
-			n := utf8.EncodeRune(buf, r)
-			for i := 0; i < n; i++ {
-				fmt.Fprintf(&b, `\x%02x`, buf[i])
-			}
+			fmt.Fprintf(&b, `\u%04x`, r)
 		}
 	}
 	return b.String()
@@ -514,22 +591,54 @@ func (h *S3270) SubmitUnformatted(data string) error {
 
 	index := 0
 	runes := []rune(data)
+	// Consecutive changed cells go out as one positioned write rather than as
+	// one per character. Every command here is a round trip down the control
+	// pipe, and a line of thirty changed characters was sixty of them; a screen
+	// of them was thousands, each one a wait on a subprocess. The result is the
+	// same because these are contiguous cells of an unformatted screen, where
+	// typing advances the cursor one cell at a time with nothing to skip over.
+	run := make([]rune, 0, 80)
+	runY, runX := 0, 0
+	flush := func() error {
+		if len(run) == 0 {
+			return nil
+		}
+		text := string(run)
+		run = run[:0]
+		cmd := fmt.Sprintf("movecursor(%d, %d)", runY, runX)
+		if _, _, err := h.doCommandLocked(cmd); err != nil {
+			return err
+		}
+		return h.writeStringLocked(text, false)
+	}
 	for y := 0; y < h.screen.Height && index < len(runes); y++ {
 		for x := 0; x < h.screen.Width && index < len(runes); x++ {
+			// A row separator ends the row wherever it falls. Reading it as a
+			// character instead — which is what happens if only a full-width row
+			// is expected to have one — types a newline into the display and
+			// pushes the rest of the text one cell along, on every line shorter
+			// than the screen is wide.
+			if runes[index] == '\n' {
+				break
+			}
 			newCh := runes[index]
-			oldCh := h.screen.CharAt(x, y)
-			if newCh != oldCh {
-				cmd := fmt.Sprintf("movecursor(%d, %d)", y, x)
-				if _, _, err := h.doCommandLocked(cmd); err != nil {
+			index++
+			// A null is not a character to type: it is the absence of one, and
+			// the old per-character path moved the cursor there and wrote
+			// nothing. It ends the run instead.
+			if newCh == 0 || newCh == h.screen.CharAt(x, y) {
+				if err := flush(); err != nil {
 					return err
 				}
-				if newCh != 0 {
-					if err := h.writeStringLocked(string(newCh), false); err != nil {
-						return err
-					}
-				}
+				continue
 			}
-			index++
+			if len(run) == 0 {
+				runY, runX = y, x
+			}
+			run = append(run, newCh)
+		}
+		if err := flush(); err != nil {
+			return err
 		}
 		// Skip the row separator only when one is actually present. An
 		// unconditional increment assumes every row is newline-terminated and
@@ -543,7 +652,8 @@ func (h *S3270) SubmitUnformatted(data string) error {
 	return nil
 }
 
-// doCommandLocked executes a command and reads response until "ok".
+// doCommandLocked executes one action and reads its response, which ends
+// either in "ok" or, when the terminal refuses it, in an ActionError.
 func (h *S3270) doCommandLocked(cmd string) ([]string, string, error) {
 	return h.executeCommandLocked(cmd, cmd)
 }
@@ -588,6 +698,14 @@ func (h *S3270) executeCommandLockedTimeout(cmd string, logCmd string, timeout t
 
 	select {
 	case result := <-resultCh:
+		// Name the action on the way out. readResponse knows the response was a
+		// refusal but not what was refused, and a refusal that cannot say which
+		// action it belongs to is most of the way to being no error at all. The
+		// redacted spelling is used deliberately: this string reaches logs and
+		// HTTP responses.
+		if actionErr, ok := AsActionError(result.err); ok {
+			actionErr.Command = logCmd
+		}
 		if h.verboseLogging {
 			log.Printf("[VERBOSE] s3270 response - status: %q, data lines: %d", result.status, len(result.data))
 			for i, line := range result.data {
@@ -614,7 +732,10 @@ func (h *S3270) executeCommandLockedTimeout(cmd string, logCmd string, timeout t
 			if h.cmd == proc {
 				h.cmd = nil
 				h.stdout = nil
-				h.stderr = nil
+				if h.stderrRead != nil {
+					_ = h.stderrRead.Close()
+					h.stderrRead = nil
+				}
 			}
 		}
 		if h.verboseLogging {
@@ -624,11 +745,20 @@ func (h *S3270) executeCommandLockedTimeout(cmd string, logCmd string, timeout t
 	}
 }
 
+// readResponse reads one action's response off the control pipe: data lines,
+// then the status line, then the word that says how it went. Both terminators
+// are honoured — see response.go for why reading only for "ok" is a session
+// killer rather than a missing feature.
+//
+// A refusal still returns its data and status, because the reason the terminal
+// gives for saying no is the useful part, and the status line that came with it
+// is the one describing the screen at that moment.
 func (h *S3270) readResponse(stdout *bufio.Scanner) ([]string, string, error) {
 	if stdout == nil {
 		return nil, "", h.terminalError("s3270 stdout not initialized")
 	}
 	var lines []string
+	refused := false
 	for {
 		if !stdout.Scan() {
 			if err := stdout.Err(); err != nil {
@@ -637,7 +767,11 @@ func (h *S3270) readResponse(stdout *bufio.Scanner) ([]string, string, error) {
 			return nil, "", h.terminalError("s3270 terminated")
 		}
 		line := stdout.Text()
-		if line == "ok" {
+		if line == responseOK {
+			break
+		}
+		if line == responseError {
+			refused = true
 			break
 		}
 		lines = append(lines, line)
@@ -649,6 +783,12 @@ func (h *S3270) readResponse(stdout *bufio.Scanner) ([]string, string, error) {
 
 	status := lines[len(lines)-1]
 	data := lines[:len(lines)-1]
+	if refused {
+		return data, status, &ActionError{
+			Status: status,
+			Detail: strings.Join(dataLines(data), "\n"),
+		}
+	}
 	return data, status, nil
 }
 
@@ -695,6 +835,11 @@ func (h *S3270) reconnectLocked() error {
 		return fmt.Errorf("target host not set")
 	}
 	connectStart := time.Now()
+	// The refusal is the whole answer here. A connect that is turned away says
+	// why — "Connection refused", a name that does not resolve, a certificate
+	// that did not verify — and dropping that on the floor left the caller
+	// waiting out the formatted-screen budget only to be told the screen was not
+	// ready, which is true and useless.
 	if _, _, err := h.doCommandLocked(fmt.Sprintf("Connect(%s)", h.TargetHost)); err != nil {
 		return err
 	}
@@ -721,7 +866,7 @@ func (h *S3270) PrintText(format string) (string, error) {
 
 	cmd := fmt.Sprintf("PrintText(%s,string)", format)
 	data, status, err := h.doCommandLocked(cmd)
-	log.Printf("s3270: cmd=%q status=%q", cmd, status)
+	h.logAction(cmd, status)
 	if err != nil {
 		return "", err
 	}
@@ -777,12 +922,16 @@ func (h *S3270) Query(arg string) (string, error) {
 	defer h.mu.Unlock()
 
 	data, status, err := h.doCommandLocked(cmd)
+	if IsActionError(err) {
+		// Treat as "unknown query" rather than fatal — newer/older s3270
+		// versions may simply not implement the requested query, and answering
+		// "the terminal does not say" is what the caller can actually use.
+		return "", nil
+	}
 	if err != nil {
 		return "", err
 	}
 	if isS3270Error(status, data) {
-		// Treat as "unknown query" rather than fatal — newer/older s3270
-		// versions may simply not implement the requested query.
 		return "", nil
 	}
 	if len(data) == 0 {

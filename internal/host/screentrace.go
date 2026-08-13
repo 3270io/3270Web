@@ -87,6 +87,12 @@ func (h *S3270) StopScreenTrace() error {
 
 	data, status, err := h.doCommandLocked("ScreenTrace(Off)")
 	if err != nil {
+		// "Screen tracing is already disabled" is the terminal agreeing with the
+		// caller in the form of a refusal. The caller asked for nothing to be
+		// captured when this returns, and nothing is.
+		if refusalMentions(err, "not", "already", "disabled") {
+			return nil
+		}
 		return err
 	}
 	if isS3270Error(status, data) {
