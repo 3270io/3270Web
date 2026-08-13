@@ -663,6 +663,27 @@ func TestBuildThemeCSS_Caching(t *testing.T) {
 	}
 }
 
+func TestBuildThemeCSSPreservesExplicitHostColors(t *testing.T) {
+	cfg := &config.Config{
+		ColorSchemes: config.ColorSchemesConfig{
+			Schemes: []config.ColorScheme{{Name: "Four color", UNFg: "#00ff00"}},
+		},
+	}
+	app := &App{Config: cfg, themeCache: make(map[string]string)}
+
+	css := app.buildThemeCSS(session.Preferences{ColorScheme: "Four color"})
+	schemeRule := strings.Index(css, ".color-input {")
+	if schemeRule < 0 {
+		t.Fatalf("generated CSS is missing the configured input color: %s", css)
+	}
+	for _, color := range []string{"blue", "red", "pink", "green", "turquoise", "yellow", "white"} {
+		explicitRule := strings.Index(css, ".color-"+color+" {")
+		if explicitRule < schemeRule {
+			t.Errorf("explicit host color %q does not override the configured default: %s", color, css)
+		}
+	}
+}
+
 func TestSecurityHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
