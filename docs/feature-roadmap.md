@@ -183,6 +183,23 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **The byte the host actually sent** — every screen this application serves has
+  been through its own parser first, which is the right arrangement for every
+  question except one: whether the parser is what went wrong. That is the
+  question a code page complaint asks, and it cannot be answered by the thing
+  being asked about — a pound sign showing as a hash looks identical whether the
+  host sent the wrong byte, the terminal read it against the wrong code page, or
+  this side mangled it afterwards, and the parsed screen is downstream of all
+  three. The terminal's buffer is now readable directly: a region by row, column
+  and length, as characters or as the host's own code points, and the field a
+  position falls in with the attribute byte that opens it. Two reads,
+  deliberately not wired into anything that serves a screen — this is a second
+  opinion, and a second opinion is only worth having when it comes from
+  somewhere other than the thing being checked. What did carry over is the
+  redaction: a password is still in the buffer whatever the display did with it,
+  and a read that went straight to the terminal would otherwise have been the
+  one way around the masking every other reader here applies. See
+  [REST API](rest-api.md#get-apiv1sessionsidbuffer).
 - **A host allowed to think for longer than fifteen seconds** — the terminal's
   own setting was to hold an AID key until the host gave the keyboard back, and
   it held the session's one control pipe while it waited. Nothing else about
@@ -450,7 +467,8 @@ sentence: an action that occupies the control pipe while it waits, or that
 writes a file, or that changes what the terminal will accept, is a design
 decision before it is a wrapper. Each item below says which kind it is.
 `String()`, `Transfer()`, `PrintText()`, `Snap()`, `Set()`/`Toggle()`,
-`ScreenTrace()`, `Query()` and `Disconnect()` are already done.
+`ScreenTrace()`, `Query()`, `Ascii()`, `Ebcdic()`, `ReadBuffer()` and
+`Disconnect()` are already done.
 
 - [x] **`Query`** — *shipped: `GET /api/v1/sessions/:id/query` returns
       everything the terminal knows about the connection — negotiated telnet
@@ -474,6 +492,15 @@ decision before it is a wrapper. Each item below says which kind it is.
       the screens a poller can never find. Behind `ALLOW_SCREEN_TRACE`,
       because it writes a file holding everything that crossed the display.
       See [REST API](rest-api.md)*
+- [x] **`Ascii()` / `Ebcdic()` / `ReadBuffer()`** — *shipped: a region read by
+      row, column and length, and the field a position falls in, both answered
+      out of the terminal's own buffer rather than out of this side's parse of
+      it. `?encoding=ebcdic` gives the host's code points, which is what a code
+      page complaint needs — the byte the host sent, before anything here
+      interpreted it. Cells inside a hidden field are masked on the way out,
+      because reading the buffer directly must not be the one way around the
+      redaction every other reader applies. See
+      [REST API](rest-api.md#get-apiv1sessionsidbuffer)*
 - [x] **A host-details panel in the browser** — *shipped: **Connection** in the
       terminal header reads the same endpoint the API does, so the connection's
       own account of itself is one click away rather than API-only. See
@@ -502,13 +529,6 @@ decision before it is a wrapper. Each item below says which kind it is.
       one control pipe the session shares, so a keystroke arriving mid-wait has
       to queue behind it. Worth it only where the wait is bounded and short, and
       worth measuring before believing
-- [ ] **`Ascii()` / `AsciiField()` / `ReadBuffer(Ebcdic)`** — reading a region
-      by row, column and length, and reading the host's own code points rather
-      than the display's. The [HLLAPI-shaped endpoint](rest-api.md) and the
-      chaos engine both cut regions out of a screen this side has already
-      parsed, which is right until the question is whether the parse is the
-      thing that is wrong. `Ebcdic` is what a code-page complaint needs: the
-      byte the host sent, before anything here interpreted it
 - [ ] **`KeyboardDisable()`** — a session that can be watched and not typed
       into. Useful over somebody's shoulder, useful in a demonstration, and
       useful as the honest shape of a read-only share, which is currently a
