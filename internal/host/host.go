@@ -3,6 +3,7 @@ package host
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Host represents a connection to a 3270 host.
@@ -62,6 +63,8 @@ type MockHost struct {
 	TraceRunning bool
 	// ScreenTraceErr, if set, is returned from both screen-trace calls.
 	ScreenTraceErr error
+	// ReadBufferErr, if set, is returned from ReadRegion() and ReadFieldAt().
+	ReadBufferErr error
 }
 
 func NewMockHost(dumpFile string) (*MockHost, error) {
@@ -253,6 +256,86 @@ func (m *MockHost) Snap() (*Snapshot, error) {
 		Cols:   m.Screen.Width,
 		Status: m.Screen.Status,
 		Text:   m.Screen.Text(),
+	}, nil
+}
+
+// ReadRegion serves a region out of the mock's own screen buffer.
+//
+// The EBCDIC encoding reports the display's code points, because the double has
+// no EBCDIC translation to report anything else with. That makes it useful for
+// the shape of the response — one code per cell, in reading order, masked where
+// the region crosses a hidden field — and useless for the values, so a test
+// asserting on a particular byte here is asserting about this function rather
+// than about a terminal.
+func (m *MockHost) ReadRegion(row, col, length int, enc RegionEncoding) (*RegionRead, error) {
+	m.Commands = append(m.Commands, fmt.Sprintf("readregion:%d,%d,%d", row, col, length))
+	if m.ReadBufferErr != nil {
+		return nil, m.ReadBufferErr
+	}
+	if _, err := regionCommand(enc, row, col, length); err != nil {
+		return nil, err
+	}
+	if m.Screen == nil || m.Screen.Width <= 0 {
+		return nil, fmt.Errorf("the terminal reported an empty screen buffer")
+	}
+	out := &RegionRead{Row: row, Col: col, Length: length, Encoding: string(enc)}
+	if out.Encoding == "" {
+		out.Encoding = string(RegionASCII)
+	}
+	size := m.Screen.Width * m.Screen.Height
+	var text strings.Builder
+	for i := 0; i < length; i++ {
+		pos := (row*m.Screen.Width + col + i) % size
+		ch := m.Screen.CharAt(pos%m.Screen.Width, pos/m.Screen.Width)
+		if ch == 0 {
+			ch = ' '
+		}
+		if enc == RegionEBCDIC {
+			out.Codes = append(out.Codes, fmt.Sprintf("%02x", ch))
+			continue
+		}
+		text.WriteRune(ch)
+	}
+	out.Text = text.String()
+	return out, nil
+}
+
+// ReadFieldAt reports the field containing a position, from the mock's own
+// field list. The real thing asks the terminal for its buffer and finds the
+// field in that; both answer the same question about the same screen, which is
+// what a handler test needs.
+func (m *MockHost) ReadFieldAt(row, col int) (*BufferField, error) {
+	m.Commands = append(m.Commands, fmt.Sprintf("readfield:%d,%d", row, col))
+	if m.ReadBufferErr != nil {
+		return nil, m.ReadBufferErr
+	}
+	if m.Screen == nil || m.Screen.Width <= 0 {
+		return nil, fmt.Errorf("the terminal reported an empty screen buffer")
+	}
+	for _, f := range m.Screen.Fields {
+		if f == nil || !m.Screen.contains(f, col, row) {
+			continue
+		}
+		return &BufferField{
+			Row:         f.StartY,
+			Col:         f.StartX,
+			Length:      len([]rune(f.GetValue())),
+			Attribute:   fmt.Sprintf("%02x", f.FieldCode),
+			Protected:   f.IsProtected(),
+			Numeric:     f.IsNumeric(),
+			Hidden:      f.IsHidden(),
+			Intensified: f.IsIntensified(),
+			Modified:    f.FieldCode&AttrModified != 0,
+			Formatted:   true,
+			Text:        f.GetValue(),
+		}, nil
+	}
+	// No field covers the position, which on a screen with no fields at all is
+	// not a miss — it is what an unformatted screen is.
+	return &BufferField{
+		Length:    m.Screen.Width * m.Screen.Height,
+		Formatted: false,
+		Text:      m.Screen.Text(),
 	}, nil
 }
 

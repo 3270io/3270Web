@@ -179,6 +179,13 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.GET("/toggles", app.APIToggles)
 	g.POST("/toggles", app.APISetToggle)
 
+	// The terminal's buffer, read without going through this side's parse of
+	// it. For the one question the parsed screen cannot answer — whether the
+	// parse is what went wrong — which is how every code page complaint
+	// arrives. See readbuffer.go.
+	g.GET("/buffer", app.APIReadBuffer)
+	g.GET("/buffer/field", app.APIReadBufferField)
+
 	// The HLLAPI-shaped door onto the same terminal: numbered functions,
 	// one-based linear positions, return codes. For porting an existing
 	// screen-scraper by changing how it calls rather than what it does. See

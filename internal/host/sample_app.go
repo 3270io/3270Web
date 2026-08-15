@@ -224,6 +224,23 @@ func (h *GoSampleAppHost) StopScreenTrace() error {
 	return h.client.StopScreenTrace()
 }
 
+// ReadRegion reads a region straight out of the terminal's own buffer.
+func (h *GoSampleAppHost) ReadRegion(row, col, length int, enc RegionEncoding) (*RegionRead, error) {
+	if h.client == nil {
+		return nil, fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.ReadRegion(row, col, length, enc)
+}
+
+// ReadFieldAt reports the field containing a position, as the terminal's own
+// buffer describes it.
+func (h *GoSampleAppHost) ReadFieldAt(row, col int) (*BufferField, error) {
+	if h.client == nil {
+		return nil, fmt.Errorf(sampleAppClientNotStarted)
+	}
+	return h.client.ReadFieldAt(row, col)
+}
+
 // GetScreenSnapshot returns a deep copy of the current screen, so a caller
 // reading it is not racing the parser that fills it in.
 func (h *GoSampleAppHost) GetScreenSnapshot() *Screen {

@@ -92,6 +92,8 @@ cookie is never involved.
 | `POST` | `/api/v1/sessions/:id/snapshots/diff` | Compare two snapshots, or one against the live screen |
 | `GET` | `/api/v1/sessions/:id/toggles` | Read the terminal's display toggles |
 | `POST` | `/api/v1/sessions/:id/toggles` | Change one display toggle |
+| `GET` | `/api/v1/sessions/:id/buffer` | Read a region out of the terminal's own buffer, as characters or as the host's code points |
+| `GET` | `/api/v1/sessions/:id/buffer/field` | Report the field a position falls in, as the terminal's buffer describes it |
 | `POST` | `/api/v1/sessions/:id/screen-trace` | Start recording every screen the terminal draws |
 | `GET` | `/api/v1/sessions/:id/screen-trace` | Report the trace, or download it with `?download=1` |
 | `DELETE` | `/api/v1/sessions/:id/screen-trace` | Stop recording |
@@ -376,6 +378,114 @@ snapshots, and they end when the session does: a snapshot is a working note
 taken during a run, not a record.
 
 `409 Conflict` if the session is not connected, or if the ceiling is reached.
+
+### `GET /api/v1/sessions/:id/buffer`
+
+Every other screen-reading endpoint here serves the *parsed* screen: the
+terminal is asked for the display, 3270Web turns it into a buffer and a list of
+fields, and the response is cut out of that. This one serves the terminal's own
+buffer instead, and it exists for the single question the parsed screen cannot
+answer — whether the parse is what went wrong.
+
+That question arrives as a code page complaint, and it always looks the same: a
+pound sign showing as a hash, an umlaut taking two cells, a field reported one
+column wider than the application drew it. What settles it is the byte the host
+actually transmitted, and only the terminal has that.
+
+`row`, `col` and `length` are required. Positions are one-based, as everywhere
+else on this API — row 1, column 1 is the top-left cell.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  "http://127.0.0.1:3270/api/v1/sessions/$ID/buffer?row=6&col=21&length=12"
+```
+
+```json
+{ "row": 6, "col": 21, "length": 12, "encoding": "ascii", "text": "SMITH       " }
+```
+
+`?encoding=ebcdic` answers with the host's own code points instead, one hex
+byte per cell, in reading order:
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  "http://127.0.0.1:3270/api/v1/sessions/$ID/buffer?row=6&col=21&length=5&encoding=ebcdic"
+```
+
+```json
+{
+  "row": 6, "col": 21, "length": 5, "encoding": "ebcdic",
+  "codes": ["e2", "d4", "c9", "e3", "c8"]
+}
+```
+
+That is the comparison worth making. If the codes are what the application
+says it sent and the characters are wrong, the code page is wrong — see
+[Terminal Capabilities](terminal-capabilities.md#terminal-fidelity) and the
+`codePage` setting on the connection profile. If the codes themselves are not
+what the host was asked to send, the problem is upstream of this terminal
+entirely.
+
+A region that runs past the end of a row continues on the next one. The 3270
+display is a single buffer that happens to be drawn as a rectangle, and a field
+is entitled to straddle the right-hand edge; a wrapped region comes back with
+the rows separated by newlines.
+
+Cells inside a hidden field are masked — `*` in the text, `**` in the code
+list — for the same reason they are masked on `/screen`: 3270 "hidden" only
+suppresses local echo on a real terminal, so the characters an operator typed
+into a password field are still in the buffer. Reading the buffer directly is
+not a way around that.
+
+`400` if the position or length is not a position or length the screen has, or
+if the terminal refuses the read — the refusal carries the terminal's own words.
+`409` if the session is not connected, or if there is no parsed screen to check
+the region against.
+
+### `GET /api/v1/sessions/:id/buffer/field`
+
+The field a position falls in, as the terminal's buffer describes it rather
+than as 3270Web reconstructed it. `row` and `col` are required and one-based.
+
+```sh
+curl -H "Authorization: Bearer $API_TOKEN" \
+  "http://127.0.0.1:3270/api/v1/sessions/$ID/buffer/field?row=6&col=25"
+```
+
+```json
+{
+  "row": 6, "col": 21, "length": 20,
+  "attribute": "c0",
+  "protected": false, "numeric": false, "hidden": false,
+  "intensified": false, "modified": true, "formatted": true,
+  "text": "SMITH               ",
+  "codes": ["e2", "d4", "c9", "e3", "c8", "40", "…"]
+}
+```
+
+`row` and `col` are the field's first *content* cell. A 3270 field attribute
+occupies a buffer position of its own, so the attribute for the field above
+sits at column 20 and the text starts at 21 — the off-by-one every 3270 field
+calculation gets wrong at least once, and the reason this endpoint reports the
+content start rather than the attribute's.
+
+`attribute` is the field attribute byte in hex, and the flags beside it are
+that byte decoded. It is the answer to "does the application think this field
+is numeric" and "is this field really protected", asked of the terminal rather
+than of anything downstream of it.
+
+`formatted` is `false` on a screen carrying no field structure at all. An
+unformatted 3270 screen has no fields, so the whole buffer is reported as one
+unprotected field, which is what an unformatted screen is.
+
+`codes` is the host's own EBCDIC code point for each content cell. It is absent
+on a terminal build that will not report them — rather than filled in from the
+display's code points, since the difference between those two is the whole
+question this endpoint exists to answer.
+
+A hidden field reports its extent and its attributes, and `*` in place of its
+contents. Where it is and how wide it is disclose nothing; what was typed into
+it does.
 
 ### `GET` and `POST /api/v1/sessions/:id/toggles`
 
