@@ -329,6 +329,19 @@ async function setWorkspaceMode(page, mode) {
 const FIELDS = '.terminal-shell input[name^="field_"]';
 
 /**
+ * Wait until the terminal shows text matching the pattern. Screen submits
+ * are asynchronous — the URL never changes — so waiting on navigation is a
+ * no-op and pacing alone is a guess. This is the deterministic wait.
+ */
+async function waitForTerminalText(page, pattern, timeout = 20000) {
+  await page.waitForFunction(
+    (src) => new RegExp(src).test(document.querySelector('.terminal-shell')?.innerText || ''),
+    pattern,
+    { timeout }
+  );
+}
+
+/**
  * Sign on to the Pet Store sample. Field order on PET010 is user id then
  * password (the password is display-suppressed, exactly as a host would).
  */
@@ -339,6 +352,7 @@ async function signOn(page, d) {
   await d.pause(400);
   await page.keyboard.press('Enter');
   await waitForScreen(page);
+  await waitForTerminalText(page, 'MAIN MENU');
 }
 
 /** Type a command on the command line (the last input on every screen). */
@@ -676,6 +690,241 @@ const scenarios = {
     await d.clearCaption();
     await d.title('', 'Years of muscle memory, kept', 'Keymaps are editable — import your existing .KMP layout too', 2800, { fadeOut: false });
   },
+
+  /* How-to: several host sessions in one browser tab. */
+  'howto-sessions': async (page, d) => {
+    await connectQuietly(page);
+    await d.title('How to', 'Run several hosts at once', 'Each session is a tab; switching is a click', 2800);
+
+    await d.caption('Setup', 'Sign on to the first host — the Pet Store sample.', 800);
+    await signOn(page, d);
+    await d.pause(600);
+
+    await d.caption('Step 1', 'Open another session with the + tab.', 1000);
+    await d.click('[data-session-new]');
+    await page.waitForSelector('[data-profiles-modal]:not([hidden])', { timeout: 8000 });
+    await d.caption('Step 2', 'Pick any bundled sample app — or type a host address.', 1800);
+    await d.click('[data-profiles-modal] button:has-text("Game - Word Guess")');
+    await waitForScreen(page);
+    await page.waitForFunction(
+      () => document.querySelectorAll('.session-tab').length >= 2,
+      { timeout: 15000 }
+    );
+    await d.pause(1500);
+
+    await d.highlight('.session-tabs, [data-session-tabs], .session-tab', 6);
+    await d.caption('Two live hosts', 'The tab strip shows every session. The word game runs beside the store.', 2800, { pos: 'bottom' });
+    await d.clearHighlight();
+
+    await d.caption('Step 3', 'Switch back with a click — each session keeps its own place.', 1000);
+    await d.click('.session-tab >> nth=0');
+    await waitForScreen(page).catch(() => {});
+    await waitForTerminalText(page, 'MAIN MENU');
+    await d.caption('No state lost', 'The Pet Store is exactly where it was left: signed on, at the menu.', 2800);
+
+    await d.clearCaption();
+    await d.title('', 'As many hosts as the job needs', 'The per-user session cap is set by the administrator', 2800, { fadeOut: false });
+  },
+
+  /* How-to: turn a recorded flow into a guided business task and run it. */
+  'howto-business-tasks': async (page, d) => {
+    await connectQuietly(page);
+    await setWorkspaceMode(page, 'engineering');
+    await d.title('How to', 'Turn a flow into a business task', 'Record once — then anyone can run it and read the answer', 2800);
+
+    await d.caption('Step 1', 'Record the flow: start recording, then work as normal.', 1000);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-recording-start] button[type="submit"]');
+    await waitForScreen(page).catch(() => {});
+    await d.pause(1400);
+    await signOn(page, d);
+    await d.caption('Recording', 'Sign on and open the stock catalogue — that is the whole flow.', 600);
+    await command(page, d, 'STOCK');
+    await waitForTerminalText(page, 'STOCK CATALOGUE');
+    await d.pause(1000);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-recording-stop] button[type="submit"]');
+    await sleep(1500);
+    if (!/\/screen/.test(page.url())) await page.goto(baseUrl + '/screen', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-appbar]', { timeout: 15000 });
+    await fontsReady(page);
+
+    await d.caption('Step 2', 'Save the recording as a task — the wizard turns typed values into named inputs.', 1000);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-wizard-open]');
+    await page.waitForSelector('.wizard-modal-content', { timeout: 8000 });
+    await d.pause(800);
+    await d.typeInto('[data-wizard-name]', 'Stock lines enquiry');
+    await d.typeInto('[data-wizard-description]', 'Signs on, opens the catalogue and reads the line count.');
+    await d.caption('Inputs', 'Everything typed became an input. The STOCK command never changes — fix it.', 1800);
+    const modeSelects = page.locator('.wizard-modal-content [data-param-mode]');
+    if ((await modeSelects.count()) > 1) {
+      await d.cursorTo('.wizard-modal-content [data-param-mode] >> nth=-1');
+      await modeSelects.last().selectOption({ label: 'Always this value' }).catch(() => {});
+      await d.pause(800);
+    }
+
+    await d.caption('The answer', 'Drag across the final screen to mark what the task should report back.', 1400);
+    // The modal is taller than the viewport, so the answer panel can sit
+    // mostly below the fold; a drag aimed at clipped text lands on the
+    // backdrop — which closes the wizard. Bring the panel into view, scroll
+    // the target line inside it, and clamp the drag to the panel's visible
+    // box before trusting the coordinates.
+    const rect = await page.evaluate(() => {
+      const screen = document.querySelector('.wizard-screen');
+      const pre = screen && screen.querySelector('pre');
+      if (!pre) return null;
+      screen.scrollIntoView({ block: 'center' });
+      const text = pre.textContent;
+      const idx = text.indexOf('Showing 1 to');
+      if (idx < 0) return null;
+      const end = text.indexOf('\n', idx);
+      const range = document.createRange();
+      range.setStart(pre.firstChild, idx);
+      range.setEnd(pre.firstChild, end > idx ? end : idx + 30);
+      screen.scrollTop += range.getBoundingClientRect().top - screen.getBoundingClientRect().top - 120;
+      const r = range.getBoundingClientRect();
+      const sr = screen.getBoundingClientRect();
+      const y = r.y + r.height / 2;
+      if (y < sr.top + 4 || y > sr.bottom - 4) return { clipped: true };
+      return { x: r.x, y, w: r.width };
+    });
+    if (!rect || rect.clipped) throw new Error('answer text not visible in wizard screen');
+    await d.cursorToPoint(rect.x + 1, rect.y);
+    await page.mouse.down();
+    await d.cursorToPoint(rect.x + rect.w - 1, rect.y);
+    await page.mouse.up();
+    await d.pause(1000);
+    if (!(await page.locator('.wizard-modal-content').isVisible().catch(() => false))) {
+      throw new Error('wizard closed during the answer drag');
+    }
+
+    await d.caption('Step 3', 'Save it. The task now lives in the Tasks menu, for anyone.', 900);
+    await d.click('.wizard-modal-content button:has-text("Save task")');
+    await sleep(1500);
+
+    // The recorded flow starts at the sign-on screen, and the task guards
+    // its first step against the screen it expects — so put the terminal
+    // back where the flow begins before running it.
+    await d.caption('Step 4', 'Sign off, back to where the flow starts — then run it from Tasks.', 1200);
+    await page.keyboard.press('F3');
+    await waitForTerminalText(page, 'MAIN MENU');
+    await d.pause(400);
+    await page.keyboard.press('F3');
+    await waitForTerminalText(page, 'Sign on to continue|Signed off');
+    await d.pause(800);
+    await d.caption('Step 4', 'Fill in the named inputs, and read the answer.', 800);
+    await d.click('[data-tasks-open]');
+    await page.waitForSelector('.tasks-modal-backdrop', { timeout: 8000 });
+    await d.pause(1200);
+    // The catalogue entry itself is the control. Its container nests oddly
+    // enough that selector-engine visibility gets it wrong, so glide the
+    // cursor over the card and activate it straight in the DOM.
+    const cardBox = await page.evaluate(() => {
+      const leaf = [...document.querySelectorAll('*')].find(
+        (e) => e.children.length === 0 && /Stock lines enquiry/.test(e.textContent || '') && e.offsetParent
+      );
+      if (!leaf) return null;
+      const r = leaf.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    if (!cardBox) throw new Error('saved task not listed in the Tasks modal');
+    await d.cursorToPoint(cardBox.x, cardBox.y);
+    await page.evaluate(() => {
+      const leaf = [...document.querySelectorAll('*')].find(
+        (e) => e.children.length === 0 && /Stock lines enquiry/.test(e.textContent || '') && e.offsetParent
+      );
+      const target = leaf.closest('button, [role="button"], [class*="task-item"], [class*="task-card"], li') || leaf;
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+    await d.pause(1500);
+    // The example values shown in the form are placeholders, not values —
+    // the inputs are empty and required. This modal's nesting defeats the
+    // selector engine's visibility logic, so measure the visible inputs in
+    // the DOM and drive them by coordinates with real clicks.
+    const inputPoints = await page.evaluate(() =>
+      [...document.querySelectorAll('input')]
+        .filter((i) => i.offsetParent && i.type !== 'hidden' && !i.closest('.terminal-shell'))
+        .filter((i) => (i.closest('[class*="task"], [class*="modal"]') || null) !== null)
+        .map((i) => {
+          const r = i.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        })
+    );
+    const runValues = ['PETOP1', 'PAWS4CLAWS'];
+    for (let i = 0; i < Math.min(inputPoints.length, runValues.length); i++) {
+      await d.cursorToPoint(inputPoints[i].x, inputPoints[i].y);
+      await page.mouse.click(inputPoints[i].x, inputPoints[i].y);
+      await page.keyboard.press('Control+a');
+      await page.keyboard.type(runValues[i], { delay: 60 });
+      await d.pause(300);
+    }
+    const runBox = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll('button')].find(
+        (b) => b.textContent.trim() === 'Run' && b.offsetParent
+      );
+      if (!btn) return null;
+      window.__taskModal = btn.closest('[class*="modal"]') || document.body;
+      const r = btn.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    if (!runBox) throw new Error('Run button not found in the task form');
+    await d.cursorToPoint(runBox.x, runBox.y);
+    await page.mouse.click(runBox.x, runBox.y);
+    await d.caption('Running', 'The task replays the recorded flow against the live host…', 2000);
+    await page.waitForFunction(
+      () => /Showing 1 to/i.test((window.__taskModal || document.body).innerText || ''),
+      { timeout: 60000 }
+    ).catch(() => {});
+    await d.pause(1200);
+    await d.caption('Done', 'It reports back just the marked answer — no terminal knowledge needed.', 4500);
+
+    await d.clearCaption();
+    await d.title('', 'A terminal flow, packaged as a question', 'Tasks run from the browser or the REST API', 2800, { fadeOut: false });
+  },
+
+  /* Showcase: the bundled sample apps, from the connect-page picker to a
+   * game, so a viewer knows they can try everything with no mainframe. */
+  'howto-sample-apps': async (page, d) => {
+    await openConnectPage(page);
+    await d.title('In the box', 'Eight TN3270 sample hosts', 'A retail system, test apps and games — no mainframe needed', 2800);
+
+    await d.caption('Pick one', '3270Web starts these itself: pick one from the connect page.', 1000);
+    await d.click('button:has-text("Start sample app")');
+    await d.pause(1500);
+    await d.caption('The line-up', 'A full retail back office, three focused test apps, and four games.', 2600);
+    await page.keyboard.press('Escape');
+    await d.pause(400);
+
+    await d.caption('The Pet Store', 'The default: a complete retail system with counter, back office and reports.', 900);
+    await d.typeInto('#hostname-input', `sampleapp:${sampleApp}:${samplePort}`);
+    await d.pause(400);
+    await d.click('#connect-btn');
+    await waitForScreen(page);
+    await signOn(page, d);
+    await command(page, d, 'STOCK');
+    await waitForTerminalText(page, 'STOCK CATALOGUE');
+    await d.caption('The Pet Store', 'Menus, lists, guarded screens — enough application for chaos and tasks to chew on.', 3000);
+
+    await d.caption('And the games', 'Open a second session and pick a game — Snake, on a 3270.', 1200);
+    await d.click('[data-session-new]');
+    await page.waitForSelector('[data-profiles-modal]:not([hidden])', { timeout: 8000 });
+    await d.pause(600);
+    await d.click('[data-profiles-modal] button:has-text("Game - Snake")');
+    await waitForScreen(page);
+    await page.waitForFunction(
+      () => document.querySelectorAll('.session-tab').length >= 2,
+      { timeout: 15000 }
+    );
+    await d.pause(2500);
+    await d.caption('Why games?', 'Because the way to learn a terminal is to want to press its keys.', 3000);
+
+    await d.clearCaption();
+    await d.title('', 'sampleapp:<name> in any connect box', 'Or run them standalone: 3270Web sampleapp --app petstore', 2800, { fadeOut: false });
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -697,18 +946,23 @@ async function recordScenario(browser, name, fn) {
   } catch (err) {
     failed = err;
   }
-  // Give the session back. The server caps concurrent sessions per user,
-  // and every scenario is a fresh browser context, so a run that leaves its
-  // sessions behind locks the next run out with "maximum sessions open".
-  // /disconnect alone is not enough — it hangs up the host but keeps the
-  // session (and its slot); /sessions/close is what actually frees it.
-  await page.evaluate(() =>
-    fetch('/sessions/close', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: '',
-    }).catch(() => {})
-  ).catch(() => {});
+  // Give the sessions back — all of them; a multi-session scenario leaves
+  // more than one open, and the survivor becomes the screen the next
+  // scenario's connect lands on. The server caps concurrent sessions per
+  // user, and every scenario is a fresh browser context, so a run that
+  // leaves sessions behind locks the next run out with "maximum sessions
+  // open". /disconnect alone is not enough — it hangs up the host but keeps
+  // the session (and its slot); /sessions/close is what actually frees one.
+  await page.evaluate(async () => {
+    for (let i = 0; i < 8; i++) {
+      const res = await fetch('/sessions/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '',
+      }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!res || !res.remaining) break;
+    }
+  }).catch(() => {});
   await sleep(400);
   const video = page.video();
   await context.close();

@@ -11,6 +11,11 @@ description: >-
 the terminal, chaos mode, workflow recording and the AI features without a
 mainframe to point at.
 
+The line-up in under a minute — the connect-page picker, the Pet Store,
+and Snake on a second tab:
+
+![type:video](videos/howto-sample-apps.webm)
+
 A sample app is a listener this process opens on your behalf, on loopback
 only. On a shared instance the headless API will not start one unless
 `ALLOW_SAMPLE_APPS` is on; see [Configuration](configuration.md).

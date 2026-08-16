@@ -13,6 +13,10 @@ form is the wrong first thing to show. The person signing in does not need to
 be asked for a hostname nobody told them, and on a shared instance they may not
 be entitled to type one.
 
+Several hosts at once, each in its own tab:
+
+![type:video](videos/howto-sessions.webm)
+
 So what an account meets depends on what it was given:
 
 | Hosts assigned | What happens |

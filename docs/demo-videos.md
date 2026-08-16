@@ -59,6 +59,30 @@ Controls](keyboard-and-controls.md).
 
 ![type:video](videos/howto-keyboard.webm)
 
+## How To: Run Several Hosts at Once
+
+Each session is a tab: open a second host from the + tab, switch with a
+click, and every session keeps its place — more in [The Session
+Manager](session-manager.md).
+
+![type:video](videos/howto-sessions.webm)
+
+## How To: Turn a Flow into a Business Task
+
+The full life of a [guided business task](business-tasks.md): record a
+flow, let the wizard name its inputs, drag out the answer, then run it
+from a form and read the result — no terminal knowledge needed.
+
+![type:video](videos/howto-business-tasks.webm)
+
+## The Bundled Sample Apps
+
+What ships in the box: the connect-page picker, the Pet Store retail
+system, and Snake on a second tab — the full list is in [Bundled Sample
+Applications](sample-apps.md).
+
+![type:video](videos/howto-sample-apps.webm)
+
 ---
 
 The videos are generated with `scripts/record-demo-videos.mjs`, which
