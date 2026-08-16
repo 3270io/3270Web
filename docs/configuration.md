@@ -12,6 +12,10 @@ This page explains connection setup and the full Settings modal from a user pers
 
 ## Connect to a Host
 
+A first connection, end to end, in half a minute:
+
+![type:video](videos/howto-connect.webm)
+
 You can connect to:
 
 - `hostname:port` (example: `mainframe.example.com:23`)
