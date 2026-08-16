@@ -72,6 +72,7 @@ nav:
   - Home: index.md
   - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md
+  - Demonstration Videos: demo-videos.md
   - Bundled Sample Applications: sample-apps.md
   - User Accounts and Sign-In: authentication.md
   - Running a Shared Instance: multi-user.md

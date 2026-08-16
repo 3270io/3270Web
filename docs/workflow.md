@@ -10,6 +10,11 @@ description: >-
 
 3270Web can capture terminal actions as JSON recordings and run them later.
 
+The whole loop in one take — record a flow, download it, load it back and
+replay it against the live host:
+
+![type:video](videos/howto-workflow.webm)
+
 ## Recording and Playback Callouts
 
 ![Recording and playback screenshot](images/workflow-controls-real.png){: .doc-medal }
