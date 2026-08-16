@@ -166,6 +166,28 @@ func TestRunCapturesTheAnswer(t *testing.T) {
 	}
 }
 
+// A PF-key step must reach the host as the s3270 action, not the
+// catalogue spelling — s3270 refuses Key(PF3), and a task that recorded a
+// PF key stopped mid-run on exactly that.
+func TestRunSendsPFKeysAsHostActions(t *testing.T) {
+	first, second := balanceScreens()
+	term := newFakeTerminal(first, second)
+	task := balanceTask()
+	task.Steps[0].AIDKey = "PF3"
+	result, err := newRunner(term).Run(context.Background(), task, map[string]string{
+		"account_number": "40218855",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Completed {
+		t.Fatalf("expected the run to complete, failure = %+v", result.Failure)
+	}
+	if len(term.keys) != 1 || term.keys[0] != "PF(3)" {
+		t.Errorf("keys = %v; want one PF(3)", term.keys)
+	}
+}
+
 // A pattern turns a labelled region into just the value.
 func TestRunExtractsWithAPattern(t *testing.T) {
 	first, second := balanceScreens()
