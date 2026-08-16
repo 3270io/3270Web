@@ -13,6 +13,11 @@ answer**. Someone who knows the business question — but not the application
 — fills in a short form and reads the result, without navigating a green
 screen.
 
+The whole life of a task, in one take — record a flow, name its inputs,
+mark the answer, run it and read the result:
+
+![type:video](videos/howto-business-tasks.webm)
+
 ```
 Account balance enquiry
 Retrieves the current cleared balance for a customer account.
