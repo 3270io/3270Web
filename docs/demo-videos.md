@@ -35,6 +35,30 @@ tasks](business-tasks.md) and the [REST API](rest-api.md).
 
 ![type:video](videos/howto-workflow.webm)
 
+## How To: Explore an Application with Chaos
+
+Start a chaos run, watch it drive the screens on its own, open the live
+map of what it has discovered, and stop it — see [Chaos
+Mode](chaos-mode.md) for everything the run can do afterwards.
+
+![type:video](videos/howto-chaos.webm)
+
+## How To: Themes and Terminal Fonts
+
+Settings → Theme: from the default green phosphor to amber and back, with
+the bundled 3270 glyph fonts — details in [Terminal
+Fonts](terminal-fonts.md).
+
+![type:video](videos/howto-themes.webm)
+
+## How To: Keyboard, PF Keys and the Virtual Keypad
+
+Function keys mapping to PF keys, the on-screen keypad for touch screens,
+and the command palette — the full reference is [Keyboard and
+Controls](keyboard-and-controls.md).
+
+![type:video](videos/howto-keyboard.webm)
+
 ---
 
 The videos are generated with `scripts/record-demo-videos.mjs`, which

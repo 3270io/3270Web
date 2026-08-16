@@ -13,6 +13,10 @@ matches the look of a real 3270 terminal regardless of the user's
 system fonts. The fonts are bundled in the binary; no install or
 network fetch is required.
 
+Switching theme and terminal font in Settings, live:
+
+![type:video](videos/howto-themes.webm)
+
 ## Available fonts
 
 | Font | When to use |
