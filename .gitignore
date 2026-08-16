@@ -64,3 +64,10 @@ chaos-output*.json
 # The bind-mounted data folder from docker-compose.yml: accounts, tokens, the
 # audit trail and everyone's saved work.
 /data/
+
+# A local convenience symlink (s3270 -> s3270-linux-amd64) so a Linux
+# checkout can run `go run ./cmd/3270Web` directly: the resolver looks for
+# s3270-bin/s3270, while the repo ships the binary under its platform name.
+# A symlink must not be committed — a Windows checkout would materialise it
+# as a plain text file and the resolver would try to execute that.
+/s3270-bin/s3270
