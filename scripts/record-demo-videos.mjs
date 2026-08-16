@@ -214,7 +214,10 @@ class Director {
     await this.cursorToPoint(box.x + box.width / 2, box.y + box.height / 2);
   }
 
-  /** Move to the element, pulse, then really click it. */
+  /** Move to the element, pulse, then really click it. The click goes
+   * through the locator (not raw mouse coordinates) so Playwright waits for
+   * the element to stop moving — a menu item mid-slide swallows a raw
+   * mousedown without a trace. */
   async click(selector) {
     await this.cursorTo(selector);
     await this.page.evaluate(() => {
@@ -224,8 +227,7 @@ class Director {
       c.classList.add('is-clicking');
     });
     await sleep(220);
-    await this.page.mouse.down();
-    await this.page.mouse.up();
+    await this.page.locator(selector).first().click({ timeout: 10000 });
     await sleep(320);
   }
 
@@ -493,6 +495,187 @@ const scenarios = {
     await d.clearCaption();
     await d.title('', 'Recorded once, replayed on demand', 'Workflows are JSON — replay them from the REST API too', 2800, { fadeOut: false });
   },
+
+  /* How-to: chaos exploration. Chaos starts the moment it is asked for, so
+   * the video is mostly footage of it driving the application, with the map
+   * opened mid-run to show what it has learned. */
+  'howto-chaos': async (page, d) => {
+    await connectQuietly(page);
+    await setWorkspaceMode(page, 'engineering');
+    await d.title('How to', 'Explore an application with chaos', 'Let 3270Web drive the screens and map what it finds', 2800);
+
+    await d.caption('Setup', 'Sign on first, so the exploration starts inside the application.', 800);
+    await signOn(page, d);
+    await d.pause(600);
+
+    await d.caption('Step 1', 'Open Automation and start the exploration.', 900);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-chaos-start]');
+    await d.pause(1500);
+
+    await d.highlight('[data-active-run-row], [data-active-run-container], [data-active-run-chip]', 6);
+    await d.caption('Running', 'Chaos presses keys and fills fields on its own — the banner counts attempts, screens and transitions.', 3200, { pos: 'bottom' });
+    await d.clearHighlight();
+    await d.caption('Running', 'Every screen it reaches is added to a live map of the application.', 4500);
+
+    await d.caption('Step 2', 'Open the chaos map to see the structure it has discovered so far.', 900);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-chaos-map-open]');
+    await page.waitForSelector('[data-chaos-map-modal]:not([hidden]) .modal-chaos-map', { timeout: 8000 });
+    await d.caption('Chaos map', 'Each discovered screen, its visit count, and hints you can add to steer the run.', 3400);
+    const viewMap = page.locator('[data-chaos-map-modal]:not([hidden]) button:has-text("View map")');
+    if (await viewMap.count()) {
+      await d.click('[data-chaos-map-modal]:not([hidden]) button:has-text("View map")');
+      // "View map" stacks a second modal (the flow graph) on top of the list.
+      await page.waitForSelector('[data-chaos-flow-modal]:not([hidden])', { timeout: 8000 });
+      await d.caption('Chaos map', 'The same discoveries as a graph — screens and the keys that join them.', 3200);
+      await d.click('[data-chaos-flow-modal]:not([hidden]) button:has-text("Close")');
+      await d.pause(400);
+    }
+    // Escape does not dismiss these modals; use their own Close buttons.
+    await d.click('[data-chaos-map-modal]:not([hidden]) button:has-text("Close")');
+    await d.pause(600);
+
+    await d.caption('Step 3', 'Stop whenever you have seen enough — the run and its map are kept.', 900);
+    await d.click('.appmenu-trigger:has-text("Automation")');
+    await d.pause(1100);
+    await d.click('[data-chaos-stop]');
+    await d.pause(2200);
+
+    await d.clearCaption();
+    await d.title('', 'An application map, hands-off', 'Reload, resume or extend the run — or export it as a workflow', 2800, { fadeOut: false });
+  },
+
+  /* How-to: themes and terminal fonts, via the Settings modal. */
+  'howto-themes': async (page, d) => {
+    await connectQuietly(page);
+    await d.title('How to', 'Themes and terminal fonts', 'From green phosphor to amber to daylight', 2800);
+
+    await d.caption('Setup', 'Sign on, so there is a full screen of colour to look at.', 800);
+    await signOn(page, d);
+    await d.pause(600);
+
+    await d.caption('Step 1', 'Open Settings from the account menu.', 900);
+    await d.click('.appmenu-end .appmenu-trigger');
+    await d.pause(900);
+    await d.click('[data-settings-open]');
+    await page.waitForSelector('[data-settings-modal]:not([hidden])', { timeout: 8000 });
+    await d.pause(700);
+
+    await d.caption('Step 2', 'The Theme tab holds the terminal look: theme and glyph font.', 900);
+    await d.click('.settings-tab:has-text("Theme")');
+    await d.pause(900);
+    await d.click('#theme-select');
+    await page.selectOption('#theme-select', 'theme-io-amber');
+    await d.pause(900);
+    await page.selectOption('#font-select', 'ibm-3270');
+    await d.pause(700);
+    await d.caption('Step 3', 'Save, and the terminal changes in place.', 800);
+    await d.click('[data-settings-save]');
+    await d.pause(1600);
+    const closeBtn = page.locator('button[data-settings-close]');
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await d.click('button[data-settings-close]');
+    }
+    await d.pause(800);
+    await d.caption('Amber phosphor', 'The same session, now on an amber tube with authentic 3270 glyphs.', 3200);
+
+    await d.caption('And back', 'Any theme is one Save away — including the default.', 800);
+    await d.click('.appmenu-end .appmenu-trigger');
+    await d.pause(900);
+    await d.click('[data-settings-open]');
+    await page.waitForSelector('[data-settings-modal]:not([hidden])', { timeout: 8000 });
+    await d.pause(500);
+    await d.click('.settings-tab:has-text("Theme")');
+    await d.pause(600);
+    await page.selectOption('#theme-select', 'theme-yorkshire');
+    await d.pause(500);
+    await page.selectOption('#font-select', 'default');
+    await d.pause(400);
+    await d.click('[data-settings-save]');
+    await d.pause(1400);
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await d.click('button[data-settings-close]');
+    }
+    await d.pause(1000);
+
+    await d.clearCaption();
+    await d.title('', 'Eleven themes, four terminal fonts', 'Every combination is in Settings → Theme', 2800, { fadeOut: false });
+  },
+
+  /* How-to: PF keys from the physical keyboard, the virtual keypad, and the
+   * command palette. */
+  'howto-keyboard': async (page, d) => {
+    // "Full" is the readable keypad size on camera; the default "max"
+    // whole-keyboard layout is far too dense at 900px. It must be stored
+    // before /screen loads: submits are asynchronous, so that first load is
+    // the one and only time the keypad is rendered.
+    await openConnectPage(page);
+    await page.evaluate(() => {
+      try { window.localStorage.setItem('h3270KeypadMode', 'full'); } catch { /* private mode */ }
+    });
+    await page.fill('#hostname-input', `sampleapp:${sampleApp}:${samplePort}`);
+    await page.click('#connect-btn');
+    await waitForScreen(page);
+    // Keypad visibility is a server-side preference that survives across
+    // sessions. The scenario narrates switching it on, so make sure it
+    // starts off.
+    const keypadAlreadyOn = await page
+      .locator('.h3270-keypad:not([hidden])')
+      .isVisible()
+      .catch(() => false);
+    if (keypadAlreadyOn) {
+      await page.click('.appmenu-trigger:has-text("View")');
+      await page.click('[data-keypad-toggle]');
+      await page.keyboard.press('Escape');
+      await sleep(500);
+    }
+    await d.title('How to', 'Keyboard, PF keys and the virtual keypad', 'Function keys, on-screen AID keys and the command palette', 2800);
+
+    await d.caption('Setup', 'Sign on to the sample application.', 800);
+    await signOn(page, d);
+    await d.pause(600);
+
+    await d.caption('PF keys', 'Function keys map straight to PF keys — F1 sends PF1, which is Help here.', 1400);
+    await page.keyboard.press('F1');
+    await waitForScreen(page);
+    await d.caption('PF keys', 'The host answers with its command reference. PF3 goes back.', 2600);
+    await page.keyboard.press('F3');
+    await waitForScreen(page);
+    await d.pause(600);
+
+    await d.caption('Virtual keypad', 'No function keys — a touch screen, say? Turn on the virtual keypad in View.', 1100);
+    await d.click('.appmenu-trigger:has-text("View")');
+    await d.pause(900);
+    await d.click('[data-keypad-toggle]');
+    await page.waitForSelector('.h3270-keypad:not([hidden])', { timeout: 8000 });
+    await page.locator('.h3270-keypad').scrollIntoViewIfNeeded();
+    await d.pause(800);
+    await d.highlight('.h3270-keypad', 6);
+    await d.caption('Virtual keypad', 'Every PF, PA and AID key, clickable.', 2400, { pos: 'top' });
+    await d.clearHighlight();
+    await d.click('.h3270-key[data-key="PF1"]:not(.h3270-max-key)');
+    await waitForScreen(page);
+    await d.caption('Virtual keypad', 'Clicking PF1 does exactly what the F1 key did.', 2600);
+    await page.keyboard.press('F3');
+    await waitForScreen(page);
+    await d.pause(400);
+
+    await page.keyboard.press('Control+k');
+    const palette = await page.waitForSelector('.cmdk-panel', { timeout: 5000 }).catch(() => null);
+    if (palette) {
+      await d.caption('Command palette', 'And everything else is one Ctrl+K away.', 900);
+      await page.keyboard.type('keypad', { delay: 90 });
+      await d.pause(2000);
+      await page.keyboard.press('Escape');
+      await d.pause(400);
+    }
+
+    await d.clearCaption();
+    await d.title('', 'Years of muscle memory, kept', 'Keymaps are editable — import your existing .KMP layout too', 2800, { fadeOut: false });
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -517,7 +700,16 @@ async function recordScenario(browser, name, fn) {
   // Give the session back. The server caps concurrent sessions per user,
   // and every scenario is a fresh browser context, so a run that leaves its
   // sessions behind locks the next run out with "maximum sessions open".
-  await page.goto(baseUrl + '/disconnect', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  // /disconnect alone is not enough — it hangs up the host but keeps the
+  // session (and its slot); /sessions/close is what actually frees it.
+  await page.evaluate(() =>
+    fetch('/sessions/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: '',
+    }).catch(() => {})
+  ).catch(() => {});
+  await sleep(400);
   const video = page.video();
   await context.close();
   if (video) {

@@ -10,6 +10,11 @@ description: >-
 
 This page explains the menu bar, keyboard mappings, and the virtual keypad.
 
+PF keys from the physical keyboard, the virtual keypad, and the command
+palette, in under a minute:
+
+![type:video](videos/howto-keyboard.webm)
+
 ## The menu bar
 
 Everything you can do to a session lives in one bar across the top: named

@@ -10,6 +10,10 @@ description: >-
 
 Chaos mode explores host screens by filling input fields with generated values and submitting AID keys (`Enter`, `Tab`, `PF*`, and others). It is useful for discovering navigation paths and producing reusable workflow JSON.
 
+A run from start to stop — exploration, the live map, and where it ends up:
+
+![type:video](videos/howto-chaos.webm)
+
 ## Start a Chaos Run
 
 1. Connect to a host. With no mainframe to hand, `sampleapp:petstore` is a
