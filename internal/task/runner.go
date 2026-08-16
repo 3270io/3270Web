@@ -169,7 +169,11 @@ func (r *Runner) Run(ctx context.Context, t Task, params map[string]string) (*Re
 				result.Failure = &Failure{Step: stepNo, Reason: fmt.Sprintf("%q is not a key this can press.", key)}
 				return finish(), nil
 			}
-			if err := r.Terminal.SendKey(canonical); err != nil {
+			// The canonical spelling is for the catalogue and the messages
+			// below; the host needs its own ("PF3" the name vs "PF(3)" the
+			// s3270 action) or it refuses the key.
+			hostKey, _ := HostAIDKey(canonical)
+			if err := r.Terminal.SendKey(hostKey); err != nil {
 				result.Steps = append(result.Steps, stepResultFailed(stepNo, step, err.Error()))
 				result.Failure = &Failure{
 					Step:   stepNo,

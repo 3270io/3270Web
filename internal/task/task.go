@@ -363,11 +363,35 @@ func IsSupportedAIDKey(key string) bool {
 	return ok
 }
 
-// CanonicalAIDKey returns the host's spelling of a key name, so a task
-// written with "pf3" presses the same key as one written with "PF3".
+// CanonicalAIDKey returns the catalogue's spelling of a key name, so a task
+// written with "pf3" presses the same key as one written with "PF3". This is
+// the spelling for people and stored tasks; it is not what the host is sent —
+// see HostAIDKey.
 func CanonicalAIDKey(key string) (string, bool) {
 	canonical, ok := supportedAIDKeys[strings.ToLower(strings.TrimSpace(key))]
 	return canonical, ok
+}
+
+// HostAIDKey returns the s3270 action for a supported key — the string
+// SendKey must be given. PF and PA keys are actions of their own with the
+// number as an argument ("PF(3)"), and handing s3270 the canonical "PF3"
+// instead makes it fall back to Key(PF3), which it refuses as "Nonexistent
+// or invalid name". Enter, Clear, Attn and SysReq are actions under their
+// canonical names already.
+func HostAIDKey(key string) (string, bool) {
+	canonical, ok := CanonicalAIDKey(key)
+	if !ok {
+		return "", false
+	}
+	// The suffixes are numeric by construction: canonical spellings come
+	// from the allow-list above.
+	switch {
+	case strings.HasPrefix(canonical, "PF"):
+		return "PF(" + strings.TrimPrefix(canonical, "PF") + ")", true
+	case strings.HasPrefix(canonical, "PA"):
+		return "PA(" + strings.TrimPrefix(canonical, "PA") + ")", true
+	}
+	return canonical, true
 }
 
 // Clone returns a deep copy, so a caller cannot mutate a stored task through

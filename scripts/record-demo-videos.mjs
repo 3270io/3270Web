@@ -739,10 +739,13 @@ const scenarios = {
     await waitForScreen(page).catch(() => {});
     await d.pause(1400);
     await signOn(page, d);
-    await d.caption('Recording', 'Sign on and open the stock catalogue — that is the whole flow.', 600);
+    await d.caption('Recording', 'Sign on, open the stock catalogue, and PF3 back to the menu.', 600);
     await command(page, d, 'STOCK');
     await waitForTerminalText(page, 'STOCK CATALOGUE');
-    await d.pause(1000);
+    await d.pause(800);
+    await page.keyboard.press('F3');
+    await waitForTerminalText(page, 'MAIN MENU');
+    await d.pause(600);
     await d.click('.appmenu-trigger:has-text("Automation")');
     await d.pause(1100);
     await d.click('[data-recording-stop] button[type="submit"]');
@@ -757,8 +760,8 @@ const scenarios = {
     await d.click('[data-wizard-open]');
     await page.waitForSelector('.wizard-modal-content', { timeout: 8000 });
     await d.pause(800);
-    await d.typeInto('[data-wizard-name]', 'Stock lines enquiry');
-    await d.typeInto('[data-wizard-description]', 'Signs on, opens the catalogue and reads the line count.');
+    await d.typeInto('[data-wizard-name]', 'Stock valuation enquiry');
+    await d.typeInto('[data-wizard-description]', 'Signs on, opens the catalogue and returns for the valuation total.');
     await d.caption('Inputs', 'Everything typed became an input. The STOCK command never changes — fix it.', 1800);
     const modeSelects = page.locator('.wizard-modal-content [data-param-mode]');
     if ((await modeSelects.count()) > 1) {
@@ -779,7 +782,7 @@ const scenarios = {
       if (!pre) return null;
       screen.scrollIntoView({ block: 'center' });
       const text = pre.textContent;
-      const idx = text.indexOf('Showing 1 to');
+      const idx = text.indexOf('STOCK AT RETAIL');
       if (idx < 0) return null;
       const end = text.indexOf('\n', idx);
       const range = document.createRange();
@@ -811,9 +814,6 @@ const scenarios = {
     // back where the flow begins before running it.
     await d.caption('Step 4', 'Sign off, back to where the flow starts — then run it from Tasks.', 1200);
     await page.keyboard.press('F3');
-    await waitForTerminalText(page, 'MAIN MENU');
-    await d.pause(400);
-    await page.keyboard.press('F3');
     await waitForTerminalText(page, 'Sign on to continue|Signed off');
     await d.pause(800);
     await d.caption('Step 4', 'Fill in the named inputs, and read the answer.', 800);
@@ -825,7 +825,7 @@ const scenarios = {
     // cursor over the card and activate it straight in the DOM.
     const cardBox = await page.evaluate(() => {
       const leaf = [...document.querySelectorAll('*')].find(
-        (e) => e.children.length === 0 && /Stock lines enquiry/.test(e.textContent || '') && e.offsetParent
+        (e) => e.children.length === 0 && /Stock valuation enquiry/.test(e.textContent || '') && e.offsetParent
       );
       if (!leaf) return null;
       const r = leaf.getBoundingClientRect();
@@ -835,7 +835,7 @@ const scenarios = {
     await d.cursorToPoint(cardBox.x, cardBox.y);
     await page.evaluate(() => {
       const leaf = [...document.querySelectorAll('*')].find(
-        (e) => e.children.length === 0 && /Stock lines enquiry/.test(e.textContent || '') && e.offsetParent
+        (e) => e.children.length === 0 && /Stock valuation enquiry/.test(e.textContent || '') && e.offsetParent
       );
       const target = leaf.closest('button, [role="button"], [class*="task-item"], [class*="task-card"], li') || leaf;
       target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
@@ -876,7 +876,7 @@ const scenarios = {
     await page.mouse.click(runBox.x, runBox.y);
     await d.caption('Running', 'The task replays the recorded flow against the live host…', 2000);
     await page.waitForFunction(
-      () => /Showing 1 to/i.test((window.__taskModal || document.body).innerText || ''),
+      () => /STOCK AT RETAIL GBP/i.test((window.__taskModal || document.body).innerText || ''),
       { timeout: 60000 }
     ).catch(() => {});
     await d.pause(1200);

@@ -192,6 +192,30 @@ func TestResolveParametersAnchorsThePattern(t *testing.T) {
 	}
 }
 
+func TestHostAIDKeySpeaksS3270(t *testing.T) {
+	// The catalogue says "PF3"; s3270's action is "PF(3)". Sending the
+	// catalogue spelling makes s3270 fall back to Key(PF3) and refuse it,
+	// which is how business tasks with PF keys used to stop mid-run.
+	cases := map[string]string{
+		"pf3":    "PF(3)",
+		"PF24":   "PF(24)",
+		"pa2":    "PA(2)",
+		"enter":  "Enter",
+		"clear":  "Clear",
+		"attn":   "Attn",
+		"sysreq": "SysReq",
+	}
+	for in, want := range cases {
+		got, ok := HostAIDKey(in)
+		if !ok || got != want {
+			t.Errorf("HostAIDKey(%q) = %q, %v; want %q, true", in, got, ok, want)
+		}
+	}
+	if _, ok := HostAIDKey("PF25"); ok {
+		t.Error("PF25 does not exist and must not be accepted")
+	}
+}
+
 func TestCanonicalAIDKeyNormalisesSpelling(t *testing.T) {
 	for _, spelling := range []string{"pf3", "PF3", " Pf3 "} {
 		got, ok := CanonicalAIDKey(spelling)
