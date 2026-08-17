@@ -35,11 +35,9 @@ jobs:
           package-type: container
           delete-only-untagged-versions: "true"
           min-versions-to-keep: 10
-          # docker-publish.yml logs into GHCR with secrets.PAT_TOKEN, so the
-          # package may not be linked to this repository and the default
-          # GITHUB_TOKEN can't see it (the API reports "Package not found").
-          # Use the same PAT. If deletion fails with a 403, the PAT is
-          # missing the delete:packages scope — either add that scope, or
-          # grant this repo admin access on the package (package settings →
-          # Manage Actions access) and switch back to the default token.
-          token: ${{ secrets.PAT_TOKEN }}
+          # The default token, matching docker-publish.yml, which no longer
+          # uses a PAT. Both steps now depend on the package being linked to
+          # this repository; if this reports "Package not found" or a 403,
+          # that link is what is missing — package settings on GHCR → Manage
+          # Actions access → add this repository with the admin role.
+          token: ${{ secrets.GITHUB_TOKEN }}

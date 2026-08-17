@@ -41,6 +41,14 @@ RUN apt-get update \
 COPY --from=build /out/3270Web /app/3270Web
 COPY web/ ./web/
 
+# The licences travel with the program. Section 4 of the AGPL asks that a copy
+# of the licence go with every copy of the work conveyed, and an image pushed to
+# a registry is a conveyance; the s3270 installed above is BSD 3-Clause and asks
+# the same of a binary redistribution. Someone who only ever pulls the image
+# would otherwise never see either. The About dialog's source link answers the
+# separate section 13 obligation to the people using the terminal in a browser.
+COPY LICENSE LICENSING.md THIRD-PARTY-LICENSES.md /usr/share/doc/3270Web/
+
 # State goes somewhere the image does not, because the image is replaced on
 # every deploy. Accounts, API tokens, the audit trail and everyone's saved work
 # live here; /app holds only the program and its web assets. Without this,

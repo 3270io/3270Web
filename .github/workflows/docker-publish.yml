@@ -27,12 +27,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # The job's own GITHUB_TOKEN, not a personal access token. A PAT is a
+      # credential that expires, and when it did this step began failing with
+      # "denied: denied" before the build ever started — so main carried on
+      # merging while the published image quietly stopped being updated.
+      # GITHUB_TOKEN cannot expire, and `packages: write` above is what it
+      # needs. 3270Connect publishes to the same organisation this way.
+      #
+      # If this ever returns 403 rather than logging in, the package is not
+      # linked to this repository: open the package's settings on GHCR →
+      # Manage Actions access → add this repository with the write role. The
+      # org.opencontainers.image.source label in the Dockerfile is what makes
+      # GitHub link them in the first place.
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker metadata
         id: meta
