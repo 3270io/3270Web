@@ -27,8 +27,8 @@ workflow recording do the heavy lifting.
 
 <div class="hero-actions" markdown>
 [Install and run](installation.md){ .md-button .md-button--primary }
+[Watch the videos](#see-it-in-action){ .md-button }
 [Connect a host](configuration.md){ .md-button }
-[REST API](rest-api.md){ .md-button }
 </div>
 
 </div>
@@ -60,6 +60,21 @@ workflow recording do the heavy lifting.
 </div>
 
 </div>
+
+## See It in Action
+
+3270Web in under a minute — connect, sign on, work the screens, the command
+palette, and where the automation lives. Recorded from a live session against
+the bundled sample application; nothing is mocked.
+
+![type:video](videos/showcase-tour.webm)
+
+Eight more short walk-throughs — connecting, recording and replaying a
+workflow, chaos exploration, themes and fonts, keyboard and keypad, running
+several hosts at once — live on the
+[Demonstration Videos](demo-videos.md) page.
+
+---
 
 ## Feature Highlights
 
@@ -187,6 +202,7 @@ workflow recording do the heavy lifting.
 
 | Section | What you'll find |
 |---|---|
+| [Demonstration Videos](demo-videos.md) | Short recorded tours — the terminal, recording and replay, chaos, themes, keyboard |
 | [Install and Run](installation.md) | Run the native Linux binary, Docker image, or Docker Compose |
 | [User Accounts and Sign-In](authentication.md) | Turn on accounts, create the first administrator, manage people |
 | [Running a Shared Instance](multi-user.md) | What one account is kept from another, API tokens, host allowlist, rate limits, the audit trail |
