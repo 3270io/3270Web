@@ -29,6 +29,18 @@ Discovery, business understanding and recording are the same pass. Explore an
 application once and you get its map, its business vocabulary, a way to drive it
 in English, and the load-test workload — not four separate projects.
 
+## See it in action
+
+**[▶ 3270Web in under a minute](https://3270web.3270.io/videos/showcase-tour.webm)** —
+connect, sign on, work the screens, the command palette, and where the
+automation lives. Recorded from a live session against the bundled sample
+application; nothing is mocked.
+
+Eight more short walk-throughs — connecting to a host, recording and replaying
+a workflow, chaos exploration, themes and terminal fonts, keyboard and keypad,
+running several hosts at once — are on the
+[demonstration videos page](https://3270web.3270.io/demo-videos/).
+
 ## Enterprise readiness
 
 - **No client footprint** — a browser tab per user; nothing to install, package or patch on the desktop.
