@@ -310,7 +310,12 @@ func TestUpdateFromTextNormalizesCRLF(t *testing.T) {
 	}
 }
 
-func TestUpdateSkipsZeroLengthFields(t *testing.T) {
+// Two field attributes side by side open and close a field that never reaches
+// a screen position. It is kept — it owns its attribute byte, and the columns
+// after it are placed by walking the field list — but it holds no text, and
+// reading its value used to run off the end of the field and return the rest of
+// the screen.
+func TestUpdateKeepsZeroLengthFieldsEmpty(t *testing.T) {
 	dump := `data: SF(c0=20) SF(c0=28) 41 42 SF(c0=20) 43
 ok`
 
@@ -319,10 +324,48 @@ ok`
 		t.Fatalf("NewScreenFromDump failed: %v", err)
 	}
 
-	if len(s.Fields) != 2 {
-		t.Fatalf("got %d fields, want 2 non-empty fields", len(s.Fields))
+	if len(s.Fields) != 3 {
+		t.Fatalf("got %d fields, want 3", len(s.Fields))
 	}
-	if got := s.Fields[0].GetValue(); got != "AB" {
-		t.Fatalf("first field value = %q, want %q", got, "AB")
+	if !s.Fields[0].IsZeroLength() {
+		t.Fatalf("field 0 (%d,%d)-(%d,%d) is not reported as zero length",
+			s.Fields[0].StartX, s.Fields[0].StartY, s.Fields[0].EndX, s.Fields[0].EndY)
+	}
+	if got := s.Fields[0].GetValue(); got != "" {
+		t.Fatalf("zero-length field value = %q, want empty", got)
+	}
+	if got := s.Fields[1].GetValue(); got != "AB" {
+		t.Fatalf("second field value = %q, want %q", got, "AB")
+	}
+	if got := s.Fields[2].GetValue(); got != "C" {
+		t.Fatalf("third field value = %q, want %q", got, "C")
+	}
+}
+
+// A zero-length field whose attribute sits in the last column of a row ends on
+// the row before it starts, which is the same emptiness reached by a different
+// route.
+func TestUpdateKeepsZeroLengthFieldAtRowEnd(t *testing.T) {
+	dump := `data: SF(c0=20) 41 42 SF(c0=20)
+data: SF(c0=20) 43 44 45
+ok`
+
+	s, err := NewScreenFromDump(strings.NewReader(dump))
+	if err != nil {
+		t.Fatalf("NewScreenFromDump failed: %v", err)
+	}
+
+	if len(s.Fields) != 3 {
+		t.Fatalf("got %d fields, want 3", len(s.Fields))
+	}
+	if !s.Fields[1].IsZeroLength() {
+		t.Fatalf("field 1 (%d,%d)-(%d,%d) is not reported as zero length",
+			s.Fields[1].StartX, s.Fields[1].StartY, s.Fields[1].EndX, s.Fields[1].EndY)
+	}
+	if got := s.Fields[1].GetValue(); got != "" {
+		t.Fatalf("zero-length field value = %q, want empty", got)
+	}
+	if got := s.Fields[2].GetValue(); got != "CDE" {
+		t.Fatalf("field after the zero-length one = %q, want %q", got, "CDE")
 	}
 }
