@@ -447,7 +447,7 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 		endX := s.Width - 1
 		endY := s.Height - 1
 		if endX >= 0 && endY >= 0 {
-			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+			appendDecodedField(s, state, endX, endY)
 		}
 	}
 
@@ -504,7 +504,7 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 			}
 		}
 		if endY >= 0 {
-			s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+			appendDecodedField(s, state, endX, endY)
 		}
 	}
 
@@ -587,6 +587,18 @@ func parseScreenRune(token string) (rune, error) {
 		return 0, strconv.ErrRange
 	}
 	return rune(v), nil
+}
+
+// appendDecodedField closes the field the decoder is holding open and adds it
+// to the screen.
+//
+// The end may land before the start, which is what two adjacent field
+// attributes produce. That field is kept rather than dropped: it owns its
+// attribute byte, and the field list is what the renderer walks to lay the
+// screen out, so leaving one out shifts every column after it. Field.GetValue
+// is where the empty case is answered.
+func appendDecodedField(s *Screen, state *decodeState, endX, endY int) {
+	s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
 }
 
 func parseHexByte(s string) (byte, error) {

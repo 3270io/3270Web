@@ -398,3 +398,59 @@ func TestRenderInputFieldAddsColorAndHighlightClasses(t *testing.T) {
 		t.Fatalf("expected input field classes with color/highlight, got output: %s", out)
 	}
 }
+
+// A zero-length field contributes its attribute byte and nothing else. The
+// renderer lays the screen out by walking the field list and writing one
+// spacer per attribute, so the row it appears on has to come out the same
+// width as the host wrote it — dropping the field, or letting it render an
+// input, moves every column after it.
+func TestRenderZeroLengthFieldKeepsColumns(t *testing.T) {
+	dump := "data: SF(c0=20) SF(c0=28) 41 42 SF(c0=20) 43\nok"
+
+	screen, err := host.NewScreenFromDump(strings.NewReader(dump))
+	if err != nil {
+		t.Fatalf("NewScreenFromDump failed: %v", err)
+	}
+
+	out := NewHtmlRenderer().Render(screen, "/submit", "")
+
+	pre, ok := betweenTags(out, "<pre>", "</pre>")
+	if !ok {
+		t.Fatalf("rendered output has no <pre> block: %s", out)
+	}
+	row := strings.TrimSuffix(stripTags(pre), "\n")
+	if want := screen.Text(); row != want {
+		t.Fatalf("rendered row = %q (%d columns), want %q (%d columns)",
+			row, len(row), want, len(want))
+	}
+	if strings.Contains(pre, "<input") {
+		t.Fatalf("zero-length field rendered an input: %s", pre)
+	}
+}
+
+func betweenTags(s, open, close string) (string, bool) {
+	_, after, ok := strings.Cut(s, open)
+	if !ok {
+		return "", false
+	}
+	inner, _, ok := strings.Cut(after, close)
+	return inner, ok
+}
+
+// stripTags removes HTML elements so what is left is the characters the
+// operator sees, which is what has to line up column for column.
+func stripTags(s string) string {
+	var sb strings.Builder
+	depth := 0
+	for _, r := range s {
+		switch {
+		case r == '<':
+			depth++
+		case r == '>' && depth > 0:
+			depth--
+		case depth == 0:
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
+}

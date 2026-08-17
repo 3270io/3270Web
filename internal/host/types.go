@@ -155,6 +155,9 @@ func (f *Field) DisplayMode() int {
 // It lazily extracts it from the screen buffer if not already set.
 func (f *Field) GetValue() string {
 	if f.Value == "" {
+		if f.IsZeroLength() {
+			return ""
+		}
 		f.Value = f.Screen.Substring(f.StartX, f.StartY, f.EndX, f.EndY)
 	}
 	return f.Value
@@ -174,6 +177,23 @@ func (f *Field) SetValue(newValue string) {
 // GetValueLines returns the value split by lines.
 func (f *Field) GetValueLines() []string {
 	return strings.Split(f.GetValue(), "\n")
+}
+
+// IsZeroLength reports whether the field holds no screen positions of its own.
+//
+// Two field attributes written side by side produce one: the second closes the
+// field the first opened before it has reached a single position, so the end
+// lands one place before the start. Hosts do this deliberately — a zero-length
+// field is how a screen stops an entry field from running on, and a map with a
+// column of them is ordinary rather than malformed.
+//
+// The field is still real. It owns its attribute byte, which is a screen
+// position like any other, so it has to stay in the field list for the columns
+// after it to land where the host put them. What it does not have is text, and
+// asking for its value walks the buffer from a start that is already past the
+// end — which is what Substring is asked not to do.
+func (f *Field) IsZeroLength() bool {
+	return f.EndY < f.StartY || (f.EndY == f.StartY && f.EndX < f.StartX)
 }
 
 // IsMultiline returns true if the field spans multiple lines.

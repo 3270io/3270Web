@@ -111,7 +111,12 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 			sb.WriteString(" ")
 		}
 
-		if !f.IsProtected() {
+		if f.IsZeroLength() {
+			// The attribute byte written above is the whole of this field.
+			// An unprotected one still gets no <input>: a box no character
+			// wide is a tab stop the operator cannot type into and cannot
+			// see, and the host that wrote the field meant it as a stop.
+		} else if !f.IsProtected() {
 			r.renderInputField(sb, f, id, rowLabels[f.StartY], nextIsAutoSkip(s, i))
 		} else {
 			needSpan := r.needSpan(f)
