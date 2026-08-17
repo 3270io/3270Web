@@ -437,7 +437,8 @@ phosphor — tuned for a dark terminal — goes milky against white tab chrome.
 ## Licence
 
 3270Web is released under the **GNU Affero General Public License v3.0 or
-later** — see [`LICENSE`](LICENSE).
+later** — see [`LICENSE`](LICENSE). **0.5.0 is the first AGPL release;
+everything up to and including v0.4 is MIT and stays MIT.**
 
 Self-hosting it, unmodified, asks nothing of you: run it for as many users as
 you like, commercially, on any host, at no cost and with no registration. The

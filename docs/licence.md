@@ -97,12 +97,20 @@ be agreed directly.
 Open an issue on [GitHub](https://github.com/3270io/3270Web/issues) or get in
 touch through [3270.io](https://3270.io).
 
-## Versions published before the change
+## Where the licence changes
 
-3270Web was previously released under the MIT Licence. Every version published
-under those terms stays under them, permanently — a licence already granted
-cannot be withdrawn. If you took 3270Web under MIT, that code remains yours to
-use on that basis. The change binds later versions only.
+3270Web was previously released under the MIT Licence. **0.5.0 is the first
+AGPL release; everything up to and including v0.4 is MIT.**
+
+| Version | Licence |
+|---|---|
+| v0.4 and earlier | MIT |
+| 0.5.0 onward | AGPL-3.0-or-later, or commercial terms |
+
+Every version published under MIT stays under it, permanently — a licence
+already granted cannot be withdrawn. If you took 3270Web at v0.4 or earlier,
+that code remains yours to use on that basis, and you are under no obligation
+to move to a later one. The change binds later versions only.
 
 ## Third-party components
 
