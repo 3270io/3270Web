@@ -44,13 +44,20 @@ one place, so this can be agreed directly.
 Open an issue at <https://github.com/3270io/3270Web/issues> or contact the
 maintainer through <https://3270.io>.
 
-## Versions published before this change
+## Where the licence changes
 
-Every commit up to and including the last MIT-licensed release stays under the
-MIT Licence, permanently. A licence already granted cannot be withdrawn: if
-you obtained 3270Web under MIT, those terms continue to apply to that code,
-and you may keep using and forking it on that basis. This change binds
-subsequent versions only.
+**0.5.0 is the first AGPL release. Everything up to and including v0.4 is
+MIT.**
+
+| Version | Licence |
+|---|---|
+| v0.4 and earlier | MIT |
+| 0.5.0 onward | AGPL-3.0-or-later, or commercial terms |
+
+The MIT releases stay MIT, permanently. A licence already granted cannot be
+withdrawn: if you obtained 3270Web at v0.4 or earlier, those terms continue to
+apply to that code, and you may keep using and forking it on that basis. This
+change binds later versions only.
 
 ## Third-party components are unaffected
 
