@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package authsession tracks logged-in browsers.
 //
 // This is deliberately separate from internal/session, which tracks 3270

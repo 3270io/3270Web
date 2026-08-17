@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package sessionmenu draws the screen an operator lands on when their
 // account may reach more than one mainframe.
 //

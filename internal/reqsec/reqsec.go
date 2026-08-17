@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package reqsec answers security questions about an inbound request that
 // depend on how the deployment is fronted.
 package reqsec

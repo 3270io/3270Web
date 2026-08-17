@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package copilot implements GitHub Copilot integration for the 3270 web UI.
 //
 // The wire protocol mirrors the GitHub Copilot Chat plugin: an OAuth device

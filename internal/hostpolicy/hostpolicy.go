@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package hostpolicy decides which mainframes an instance may be pointed at.
 //
 // Hostname *validity* is a different question, answered elsewhere: whether a

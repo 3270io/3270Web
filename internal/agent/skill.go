@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package agent implements the skills, instructions and extensions that
 // shape how an AI assistant drives 3270Web.
 //

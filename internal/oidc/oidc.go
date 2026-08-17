@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package oidc signs people in through an OpenID Connect identity provider.
 //
 // It is a client for the authorization-code flow with PKCE, and nothing else.

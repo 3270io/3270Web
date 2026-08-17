@@ -44,6 +44,25 @@ sometimes unavoidable — a `.KMP` keymap importer has to say which format it
 reads, and IND$FILE and TN3270 are protocol names. State the format, never
 the vendor whose product writes it.
 
+## Licence
+
+3270Web is **AGPL-3.0-or-later**, with commercial terms available. New Go
+files carry `// SPDX-License-Identifier: AGPL-3.0-or-later` as their first
+line. `LICENSING.md` is the reference; `docs/licence.md` is the user-facing
+version; `CONTRIBUTING.md` sets the terms contributions arrive under (DCO
+sign-off plus the additional grant that keeps dual-licensing possible).
+
+**The boundary with 3270Connect is load-bearing.** 3270Connect is MIT and
+stays MIT, and the two repositories share
+`internal/{authz,authsession,users,apitoken,audit,oidc,reqsec,agent,profiler}`
+by hand-copying. Code may be copied **from 3270Connect into here, never from
+here into 3270Connect** unless the copyright holder wrote it. Write a shared
+change in 3270Connect first and copy it across.
+
+s3270 is unaffected by any of this: separate process, aggregated not combined,
+still BSD 3-Clause. Do not describe it as AGPL, and do not fold it into
+3270Web's Corresponding Source.
+
 ## Project Overview
 
 **3270Web** is a Go web application that provides a browser-based IBM 3270 mainframe terminal interface. It wraps the `s3270` binary and exposes a REST/JSON API alongside a full-featured HTML/JS UI for interactive sessions, workflow recording/replay, automated chaos exploration, and GitHub Copilot integration.
