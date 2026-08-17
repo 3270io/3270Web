@@ -144,7 +144,9 @@ extra_javascript:
   - javascripts/3270-theme.js
 
 extra:
-  version: 1.8.6
+  # Mirrors appVersion in cmd/3270Web/main.go, which is the one place the
+  # version is decided. TestVersionStringsAgree fails if they drift apart.
+  version: 0.4.0
   CNAME: 3270.io
   generator: false
   # Short enough to sit next to the product name in a social card title, where

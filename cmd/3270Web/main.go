@@ -219,7 +219,18 @@ const defaultSampleAppID = "petstore"
 // somebody is most likely to reach for it.
 const defaultSampleAppPort = 3271
 
-// appVersion can be overridden at build time with:
+// appVersion is where the version is decided. It reaches an operator through
+// the About dialog and /api/v1 responses; mkdocs.yml (extra.version) and the
+// chip on docs/index.md carry the same number for the docs site, and
+// TestVersionStringsAgree fails if any of the three drift apart. The docs
+// once said 1.8.6 while every built binary said 0.4.0, which is the kind of
+// disagreement nobody notices until somebody is trying to work out which
+// version they are actually running.
+//
+// Releasing: change it here, let the test tell you what else to update, and
+// tag to match.
+//
+// Can be overridden at build time with:
 // go build -ldflags "-X main.appVersion=v1.2.3"
 var appVersion = "0.4.0"
 

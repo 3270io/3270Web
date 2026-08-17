@@ -14,7 +14,7 @@ hide:
 
 <div class="hero-lockup">
 <p class="hero-mark"></p>
-<span class="chip accent"><span class="dot live"></span> Open source · v1.8.6</span>
+<span class="chip accent"><span class="dot live"></span> Open source · v0.4.0</span>
 </div>
 
 # The mainframe, <span class="grad">in a browser tab</span>
