@@ -195,4 +195,6 @@ Notable test files: `chaos_test.go` (68 KB), `resiliency_test.go`, `security_tes
 
 - `docker-publish.yml` — builds Docker image, pushes to GHCR on push to main
 - `docs-gh-pages.yml` — deploys MkDocs site to gh-pages branch
-- Both run on self-hosted runner; docker-publish requires `PAT_TOKEN` secret
+- Both run on self-hosted runner; docker-publish authenticates to GHCR with
+  the job's own `GITHUB_TOKEN` (`packages: write`), not a PAT — a PAT expired
+  once and the image silently stopped being published while main stayed green
