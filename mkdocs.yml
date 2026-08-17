@@ -97,6 +97,7 @@ nav:
   - Accessibility: accessibility.md
   - Feature Roadmap: feature-roadmap.md
   - Acknowledgements: acknowledgements.md
+  - Licence: licence.md
 
 plugins:
   - search

@@ -220,3 +220,4 @@ several hosts at once — live on the
 | [Compatibility Profile Schema](compatibility-profile-schema.md) | Field-by-field reference for the shared profile JSON (v1.0.0) |
 | [Feature Roadmap](feature-roadmap.md) | Planned and in-progress features |
 | [Acknowledgements](acknowledgements.md) | s3270 and the x3270 family, whose protocol work 3270Web is built on |
+| [Licence](licence.md) | What the AGPL asks of a deployment — and what it does not |

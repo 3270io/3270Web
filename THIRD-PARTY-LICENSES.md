@@ -3,6 +3,12 @@
 3270Web bundles and depends on software written by other people. This file
 records what that software is, who wrote it, and the terms it comes under.
 
+3270Web's own source is AGPL-3.0-or-later ([`LICENSE`](LICENSE),
+[`LICENSING.md`](LICENSING.md)). Nothing below is under that licence: each
+component keeps the terms its authors chose, and relicensing 3270Web does not
+touch them. All of them are permissive — BSD, MIT, ISC or Apache-2.0 — which
+is what allows them to be combined with a copyleft work in the first place.
+
 ## s3270 — the x3270 family of 3270 terminal emulators
 
 3270Web does not implement TN3270 itself. Every screen it renders, every field
@@ -29,6 +35,28 @@ thanks to them.
 
 s3270 is used unmodified, as a separate executable invoked over its scripting
 interface. 3270Web does not link against or embed x3270 source code.
+
+### s3270 and 3270Web's Corresponding Source
+
+Because 3270Web is served over a network under the AGPL, it is worth being
+precise about where its Corresponding Source stops.
+
+s3270 is an **independent program aggregated** with 3270Web, not a part of it:
+separate executable, separate process, separate address space, spoken to over
+a documented scripting interface across a pipe. It was written by other people
+and is distributed under its own licence. It is therefore outside 3270Web's
+Corresponding Source, and the AGPL does not extend to it — nor could it, since
+its copyright belongs to the x3270 authors.
+
+The BSD 3-Clause licence permits redistribution in the binary form used here,
+and its conditions are satisfied by this file. Anyone wanting the source of
+the s3270 that ships with 3270Web can get it from the x3270 project directly:
+
+- Source: <https://github.com/pmattes/x3270>
+- Version bundled in `s3270-bin/`: **s3270 4.5ga5**
+- Version in the Docker image: whichever `s3270` the Debian archive provided
+  when the image was built — `apt-get source s3270` inside the image, or
+  <https://packages.debian.org/source/s3270>, gets the matching source.
 
 ### Licence — BSD 3-Clause
 

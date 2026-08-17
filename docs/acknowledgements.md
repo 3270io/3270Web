@@ -40,6 +40,10 @@ obtains its s3270 binary, is reproduced in
 [`THIRD-PARTY-LICENSES.md`](https://github.com/3270io/3270Web/blob/main/THIRD-PARTY-LICENSES.md)
 in the repository.
 
+s3270 keeps those terms whatever 3270Web is licensed under: it is a separate
+executable, aggregated rather than combined, and its copyright belongs to its
+authors. 3270Web's own licence is covered in [Licence](licence.md).
+
 !!! note "Not an endorsement"
 
     The licence's third clause reserves the authors' names: they may not be

@@ -21,6 +21,17 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w" -o
 FROM public.ecr.aws/ubuntu/ubuntu:24.04 AS runtime
 WORKDIR /app
 
+# Standard OCI metadata. The licence label is what an image scanner and a
+# corporate policy gate read; s3270, installed below from the Debian archive,
+# is an independent program aggregated here and keeps its own BSD 3-Clause
+# terms (see THIRD-PARTY-LICENSES.md).
+LABEL org.opencontainers.image.title="3270Web" \
+      org.opencontainers.image.description="Browser-based IBM 3270 terminal with AI discovery, session recording and chaos exploration" \
+      org.opencontainers.image.source="https://github.com/3270io/3270Web" \
+      org.opencontainers.image.documentation="https://3270web.3270.io" \
+      org.opencontainers.image.url="https://3270.io" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl s3270 pr3287 \
     && rm -rf /var/lib/apt/lists/* \

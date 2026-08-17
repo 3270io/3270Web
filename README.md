@@ -434,10 +434,25 @@ site) are the kit's `*-icon.*` files, which carry the daylight green rather than
 phosphor. A tab strip is a surface this app does not own and cannot theme, and
 phosphor — tuned for a dark terminal — goes milky against white tab chrome.
 
-## License
+## Licence
 
-3270Web is released under the MIT License — see [`LICENSE`](LICENSE).
+3270Web is released under the **GNU Affero General Public License v3.0 or
+later** — see [`LICENSE`](LICENSE).
 
-That covers 3270Web's own code. The s3270 binary it bundles and the other
-third-party components it ships stay under their own terms; those are recorded
-in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
+Self-hosting it, unmodified, asks nothing of you: run it for as many users as
+you like, commercially, on any host, at no cost and with no registration. The
+copyleft obligation starts only if you *modify* 3270Web and run the modified
+version as a network service other people use — then those users must be
+offered your corresponding source. Configuring it, calling its API, embedding
+the terminal in your own page, and everything you do *through* the terminal
+are all outside that.
+
+Commercial terms are available for anyone who cannot take the AGPL.
+[`LICENSING.md`](LICENSING.md) covers the practical detail, including the
+boundary with MIT-licensed 3270Connect;
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers the terms contributions come under.
+
+That is 3270Web's own code. The s3270 binary it bundles and the other
+third-party components it ships stay under their own terms — s3270 remains BSD
+3-Clause, an independent program aggregated with this one — and those are
+recorded in [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).

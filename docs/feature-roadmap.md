@@ -33,7 +33,7 @@ fixed.
 
 | Emulator | How it reaches the user | Runs on | Licence | Automation surface |
 |---|---|---|---|---|
-| **3270Web** | A URL. One Go binary or container serves the terminal to a browser tab | Any modern browser; server on Linux, Windows, macOS or Docker | Open source (MIT) | REST/JSON API, recorded workflows replayed as JSON, Guided Business Tasks, an HLLAPI-shaped endpoint, and an MCP server |
+| **3270Web** | A URL. One Go binary or container serves the terminal to a browser tab | Any modern browser; server on Linux, Windows, macOS or Docker | Open source (AGPL-3.0-or-later), commercial terms available | REST/JSON API, recorded workflows replayed as JSON, Guided Business Tasks, an HLLAPI-shaped endpoint, and an MCP server |
 | **Quick3270** | Installed Windows application | Windows client and server, Citrix and Terminal Server | Commercial, per seat | VBScript macro language with an editor and debugger, EHLLAPI (32- and 64-bit), a session API and COM automation |
 | **Vista TN3270** | Installed Windows application | Windows | Commercial, low per-seat fee | Fully tailorable keyboard, multiple paste buffers, JCL-aware selection — aimed at the programmer at the keyboard |
 | **Mocha TN3270** | Installed application, one per platform | Windows, macOS, ChromeOS, iOS, Android | Commercial, per seat | Keyboard definition and user-defined function keys |
