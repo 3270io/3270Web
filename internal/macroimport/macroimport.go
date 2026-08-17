@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package macroimport translates a terminal-emulator macro file into a
 // 3270Web recording.
 //

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package task implements Guided Business Tasks: a recorded 3270 flow that
 // someone who knows the business question — but not the application — can run
 // by filling in a form.

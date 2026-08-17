@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package apitoken issues and verifies the credentials automated clients use.
 //
 // It replaces a single API_TOKEN environment variable shared by everybody.

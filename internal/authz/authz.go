@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package authz models who is making a request and what they are allowed to
 // touch. It is deliberately free of HTTP and storage dependencies so the
 // rules can be read and tested on their own.

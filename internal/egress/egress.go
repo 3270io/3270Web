@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package egress decides which addresses this server may open a connection
 // to on a caller's behalf, and enforces that at the moment the connection is
 // made rather than when the destination was typed in.

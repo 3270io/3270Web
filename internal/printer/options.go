@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package printer runs a 3287 printer session beside a terminal session.
 //
 // A 3270 shop's batch output does not arrive on the display. It arrives on a

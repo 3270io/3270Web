@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package profiler probes a connected 3270 host (typically via s3270 Query
 // actions) and emits a structured CompatibilityProfile describing the host's
 // terminal model, protocol capabilities, and timing characteristics.

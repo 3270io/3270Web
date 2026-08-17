@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package render
 
 import "github.com/jnnngs/3270Web/internal/host"

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package users stores local accounts and verifies their passwords.
 //
 // This is the account database for AUTH_MODE=local: a JSON file the server

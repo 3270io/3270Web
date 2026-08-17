@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package safepath resolves caller-supplied file names into paths that are
 // guaranteed to stay inside a directory the server chose.
 //

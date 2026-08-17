@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package mcptools binds 3270Web's tool catalogue to a transport an AI
 // client can reach.
 //

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package audit records who did what, separately from the debug log.
 //
 // The debug log is for diagnosing the server: it is verbose, it is written by
