@@ -177,6 +177,16 @@ go test ./internal/chaos/...       # chaos package
 
 Notable test files: `chaos_test.go` (68 KB), `resiliency_test.go`, `security_test.go`, `workflow_playback_test.go`.
 
+**Terminal conformance suite** — `internal/host/tn3270host_test.go` plus the
+`conformance_*_test.go` files. A scripted TN3270 host writes a real 3270 data
+stream, a real `s3270` reads it, and the assertion is on the decoded `Screen`
+or on the inbound record the host receives. Anything touching the data stream,
+the field model, the renderer or the styles it names goes here rather than into
+a test built from a captured `ReadBuffer` line — a capture agrees with whoever
+wrote it, which is precisely what a fidelity bug survives. Skips cleanly where
+no `s3270` is available; `S3270_TEST_BINARY` overrides the search. See
+`CONTRIBUTING.md` for the builder API.
+
 ## Skills & Validation
 
 - Use `playwright` skill for browser/UI flow validation (web/, webapp/)

@@ -75,11 +75,19 @@ func TestFakeS3270Helper(t *testing.T) {
 			fmt.Println("error")
 			continue
 		}
-		// "unformatted" never reports a formatted screen, which is what a
-		// connection that does not come up looks like from here.
-		if mode == "unformatted" {
+		// "unformatted" never reports a formatted screen — a host that puts up
+		// a line-mode banner rather than a panel. It is a session that comes
+		// up, not one that fails.
+		//
+		// "dropped" reports a connection that has gone: the status names no
+		// host. That is the one a connection failure actually looks like from
+		// here, and the one the teardown test needs.
+		switch mode {
+		case "unformatted":
 			fmt.Println(strings.Replace(fakeStatus, "U F", "U U", 1))
-		} else {
+		case "dropped":
+			fmt.Println(strings.Replace(strings.Replace(fakeStatus, "U F", "U U", 1), "C(fake)", "N", 1))
+		default:
 			fmt.Println(fakeStatus)
 		}
 		fmt.Println("ok")
@@ -228,7 +236,7 @@ func TestReapLockedCollectsAKilledProcess(t *testing.T) {
 // failing connects is a process leak with a rate limit on it.
 func TestStartReapsItsChildWhenTheConnectionFails(t *testing.T) {
 	logPath := t.TempDir() + "/commands.log"
-	t.Setenv(fakeS3270Env, "unformatted")
+	t.Setenv(fakeS3270Env, "dropped")
 	t.Setenv(fakeLogEnv, logPath)
 
 	h := &S3270{
@@ -240,7 +248,7 @@ func TestStartReapsItsChildWhenTheConnectionFails(t *testing.T) {
 
 	if err := h.Start(); err == nil {
 		_ = h.Stop()
-		t.Fatal("Start reported success against a screen that never became formatted")
+		t.Fatal("Start reported success against a connection that was never up")
 	}
 
 	if h.cmd != nil {
@@ -248,5 +256,32 @@ func TestStartReapsItsChildWhenTheConnectionFails(t *testing.T) {
 	}
 	if h.stdin != nil || h.stdout != nil || h.stderrRead != nil {
 		t.Error("Start left its pipes open after failing")
+	}
+}
+
+// A host that puts up an unformatted screen — a line-mode banner, a front end
+// asking which application you want — is a host this application can render
+// and submit to. It used to be the one screen that could be shown at every
+// point in a session except the first: the connection was failed on the way
+// up, and the operator was told the host could not be reached.
+func TestStartAcceptsAnUnformattedFirstScreen(t *testing.T) {
+	logPath := t.TempDir() + "/commands.log"
+	t.Setenv(fakeS3270Env, "unformatted")
+	t.Setenv(fakeLogEnv, logPath)
+
+	h := &S3270{
+		ExecPath:   os.Args[0],
+		Args:       []string{"-test.run=TestFakeS3270Helper", "fake.host:3270"},
+		TargetHost: "fake.host:3270",
+		screen:     &Screen{},
+	}
+
+	if err := h.Start(); err != nil {
+		t.Fatalf("a connected host showing an unformatted screen should start: %v", err)
+	}
+	defer func() { _ = h.Stop() }()
+
+	if h.cmd == nil {
+		t.Error("Start succeeded without keeping the subprocess")
 	}
 }

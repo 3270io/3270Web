@@ -26,6 +26,7 @@ terminal.
 | Capability | 3270Web |
 |---|:---:|
 | TN3270 and TN3270E, with TLS | ✅ |
+| Connecting to a host whose first screen has nothing to type into — a report, a notice, a line-mode banner | ✅ |
 | Full AID and control key coverage — PF1–24, PA1–3, Attn, SysReq, Clear, Reset, EraseEOF, EraseInput, Dup, FieldMark, NewLine, Home | ✅ |
 | Extended colour, blink, reverse video, underscore, intensify | ✅ |
 | Character-level attributes — a run coloured or highlighted *inside* a field, not just the field as a whole | ✅ |
@@ -35,6 +36,7 @@ terminal.
 | A cursor that can rest anywhere on the display, protected text included, for cursor-position-driven screens | ✅ |
 | Numeric field enforcement, with a real operator-error lock | ✅ |
 | Auto-skip driven by the field attributes the application sends, not by guesswork | ✅ |
+| Fields that wrap — past the end of a row, and past the end of the display back to the top of it | ✅ |
 | Insert / overtype toggle | ✅ |
 | Type-ahead while the host holds the keyboard | ✅ |
 | Selectable terminal models and screen sizes | ✅ |

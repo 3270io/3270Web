@@ -183,6 +183,48 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **A conformance suite that talks to the terminal** — every test of how a
+  screen is read used to be built from a captured `ReadBuffer` line, which
+  answers "does this parse" and nothing else: the capture was written by
+  whoever wrote the test, so it agrees with them by construction. A
+  terminal-fidelity bug is exactly a disagreement between what the terminal
+  says and what this code believes it says, and it survives that kind of test
+  indefinitely — blink was compared against a value the attribute cannot hold
+  for as long as there were tests for blink. There is now a scripted TN3270
+  host in the tree: a test writes a real 3270 data stream, a real terminal
+  reads it, and the assertion is on the decoded screen. It also keeps every
+  inbound record, so the other half of the conversation — which AID byte a key
+  produces, which fields report as modified, where the host was told the cursor
+  was — is checked for the first time. Three gaps came out of it on the first
+  pass, each described below
+
+- **A first screen with nothing to type into** — a report, a broadcast notice,
+  a "system unavailable" message, a line-mode banner: display-only screens are
+  ordinary, and one arriving first stopped the session coming up at all. The
+  connection succeeded and the screen arrived; the terminal was then waiting
+  for an entry field before it would answer anything, and fifteen seconds later
+  the operator was told the host could not be reached. It could — it was
+  already showing them something. Connections are now made by asking the
+  terminal to make one rather than by naming the host on its command line,
+  which also makes them faster and makes a genuine refusal say what went wrong
+
+- **A field that wraps past the end of the display** — the 3270 buffer is one
+  address space that wraps, so when the first field attribute on a screen is
+  not at the very first position, the positions in front of it belong to the
+  *last* field: the one that runs off the bottom right and continues at the top
+  left. Reading left to right cannot see that, and what happened instead was an
+  invented protected field. That is right whenever the last field is protected,
+  which is most of the time and is why it went unnoticed; when the last field is
+  an entry field it showed the operator a region they could not type into, on a
+  screen where the host was waiting for them to
+
+- **Function keys spelled the other way** — a PF or PA key arrives written
+  several ways, because the tools and the people that produce one do not agree.
+  This side already treated every spelling as a real AID key and then sent one
+  of them to a terminal that has only "PF(3)", which answered "nonexistent or
+  invalid name" — a strange thing to be told about F3. Every spelling now
+  becomes the one the terminal answers to
+
 - **The attributes that were decoded and then not shown** — a terminal can get
   every byte of the data stream right and still show the operator the wrong
   screen, because between reading an attribute and drawing it there are two

@@ -112,7 +112,7 @@ func (h *S3270) Start() error {
 	// Both halves of pinning the codeset — the option where the build takes one,
 	// the environment everywhere else. See locale.go for why a server that
 	// inherits no locale at all costs every screen its non-ASCII characters.
-	h.cmd = exec.Command(h.ExecPath, withUTF8Flag(h.ExecPath, h.Args)...)
+	h.cmd = exec.Command(h.ExecPath, withUTF8Flag(h.ExecPath, h.spawnArgs())...)
 	h.cmd.Env = s3270Environment(os.Environ())
 	configureCmd(h.cmd)
 
@@ -184,17 +184,10 @@ func (h *S3270) Start() error {
 		return nil
 	}
 
-	// If a target host wasn't provided as a command arg, connect explicitly.
-	if len(h.Args) == 0 || h.Args[len(h.Args)-1] != h.TargetHost {
-		if err := h.reconnectLocked(); err != nil {
-			return err
-		}
-		handedOver = true
-		return nil
-	}
-
-	// Wait for formatted screen like Java, but keep it bounded.
-	if err := h.waitFormattedLocked(); err != nil {
+	// The connection is made by asking the terminal to make it, rather than by
+	// naming the host on its command line — see spawnArgs for why the two are
+	// not the same thing.
+	if err := h.reconnectLocked(); err != nil {
 		return err
 	}
 	if !h.connectStart.IsZero() {
@@ -202,6 +195,34 @@ func (h *S3270) Start() error {
 	}
 	handedOver = true
 	return nil
+}
+
+// spawnArgs is the terminal's command line with the host taken off the end.
+//
+// A host named on the command line is not merely a shorthand for connecting to
+// it: the terminal then holds its own control pipe until the session reaches a
+// screen with an input field on it, and answers nothing until it does. A first
+// screen with no entry field never reaches that point — a report panel, a
+// broadcast notice, a "system unavailable" message, any display-only screen
+// that is read and dismissed with a function key — so the connection succeeded,
+// the screen arrived, and this side sat waiting for a reply to a command the
+// terminal had not started reading yet. Fifteen seconds later the command
+// budget expired, which expires by killing the subprocess, and the operator was
+// told the host could not be reached. It could: it was already showing them
+// something.
+//
+// Connecting with the Connect() action instead leaves the control pipe
+// answering from the moment the process starts. The refusal that comes back
+// from a host that really is unreachable is also the better one — it says what
+// went wrong rather than reporting that the process died.
+func (h *S3270) spawnArgs() []string {
+	if h.TargetHost == "" || len(h.Args) == 0 {
+		return h.Args
+	}
+	if h.Args[len(h.Args)-1] != h.TargetHost {
+		return h.Args
+	}
+	return h.Args[:len(h.Args)-1]
 }
 
 // configureSessionLocked sets the terminal options this program's own handling
@@ -545,14 +566,21 @@ func (h *S3270) sendKeyOnce(key string) error {
 	}
 
 	isAid := isAidKey(key)
-	data, status, err, done := h.executeKeyCommand(key, isAid)
+
+	// The terminal's own spelling first — see keyToAction, which is where the
+	// several ways a function key gets written become the one the terminal
+	// answers to.
+	data, status, err, done := h.executeKeyCommand(keyToAction(key), isAid)
 	if done {
 		return err
 	}
 
-	keySpec := keyToKeySpec(key)
-	if keySpec != "" {
-		fallback := fmt.Sprintf("Key(%s)", keySpec)
+	// Anything with no action of that name may still be a key the terminal can
+	// type. The original spelling goes to Key() rather than the normalised
+	// one: Key() takes a key *name*, and a function key's name is not its
+	// action's.
+	if spec := strings.TrimSpace(key); spec != "" {
+		fallback := fmt.Sprintf("Key(%s)", spec)
 		// Use original key intent (isAid) for checking unlock status even on fallback
 		data, status, err, done = h.executeKeyCommand(fallback, isAid)
 		if done {
@@ -1057,18 +1085,37 @@ func (h *S3270) terminalError(fallback string) error {
 	return fmt.Errorf("%s", fallback)
 }
 
+// waitFormattedLocked gives the host a moment to draw its first panel.
+//
+// A formatted screen is what almost every host sends and what the field model
+// downstream is for, so it is what this waits for. It is not, however, the only
+// legitimate answer. A host can put up an unformatted screen — a line-mode
+// banner, a front end asking which application you want, a message written
+// before any panel — and this application renders and submits those everywhere
+// else. Failing the connection because one arrived first made an unformatted
+// screen the one screen that could be shown at every point in a session except
+// the first.
+//
+// So the wait ends either way: with the formatted screen if one comes, and
+// otherwise with whatever the terminal has, provided it is still connected.
+// A connection that has genuinely gone is still a failure, and says so.
 func (h *S3270) waitFormattedLocked() error {
+	last := ""
 	for i := 0; i < 50; i++ {
 		_, status, err := h.doCommandLocked("")
 		if err != nil {
 			return err
 		}
+		last = status
 		if strings.HasPrefix(status, "U F") {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("formatted screen not ready")
+	if last != "" && !isDisconnectedStatus(last) {
+		return nil
+	}
+	return fmt.Errorf("host connected but sent no screen")
 }
 
 func (h *S3270) reconnectLocked() error {

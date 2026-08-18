@@ -227,3 +227,21 @@ func TestGraphicEscapeCharacterIsDrawn(t *testing.T) {
 		t.Errorf("expected the character after a graphic escape to keep its column, got %q", got)
 	}
 }
+
+// The emulator-mode letter in the status line. A TN3270E session reports P
+// until the host sends the BIND that names it, and a status the pattern does
+// not match yields no cursor position at all — so a mode letter left out of
+// the pattern parks the cursor at the top left for as long as that window
+// lasts.
+func TestStatusCursorIsReadInEveryEmulatorMode(t *testing.T) {
+	for _, mode := range []string{"I", "L", "C", "N", "P"} {
+		s := &Screen{}
+		status := "U F P C(host) " + mode + " 2 24 80 7 13 0x0 0.000"
+		if err := s.Update(status, []string{"data: " + strings.Repeat("00 ", 80)}); err != nil {
+			t.Fatalf("mode %s: %v", mode, err)
+		}
+		if s.CursorY != 7 || s.CursorX != 13 {
+			t.Errorf("mode %s: cursor read as (%d,%d), want (7,13)", mode, s.CursorX, s.CursorY)
+		}
+	}
+}

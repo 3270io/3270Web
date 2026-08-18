@@ -104,8 +104,14 @@ func TestBlinkKeepsAStillFormUnderReducedMotion(t *testing.T) {
 			block = block[:end]
 		}
 		if strings.Contains(block, "highlight-blink") {
-			if !strings.Contains(block, "outline") && !strings.Contains(block, "text-decoration") &&
-				!strings.Contains(block, "background") {
+			replaced := false
+			for _, marker := range []string{"outline", "text-decoration", "background", "box-shadow", "border"} {
+				if strings.Contains(block, marker) {
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
 				t.Errorf("reduced motion drops the blink without replacing it:\n%s", block)
 			}
 			return
