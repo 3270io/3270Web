@@ -102,7 +102,18 @@ term := connectTerminal(t, host, "-model", "2")
 ```
 
 `go test ./internal/host/` runs it. A platform with no `s3270` to run skips
-rather than fails; point `S3270_TEST_BINARY` at one to be sure it is running.
+rather than fails, so the rest of the package's tests still work on an
+architecture this repository ships no binary for.
+
+Setting `S3270_TEST_BINARY` does two things: it points the suite at a
+particular terminal, and it withdraws the suite's permission to skip. A binary
+named there that is missing or will not run fails the test rather than
+disappearing into a skip. CI sets it to the bundled binary for exactly that
+reason — `go test` prints nothing for a skip, so a run that skipped every case
+would be indistinguishable from one that tested everything, which is the same
+failure this suite exists to catch one level up.
+`TestConformanceRunsAgainstARealTerminal` names the terminal and its version in
+the log, so which `s3270` a run was driving is on the record.
 
 There is one thing the suite cannot see: a style the renderer names and the
 stylesheet has never heard of, which renders as nothing at all with no error

@@ -40,13 +40,10 @@ func TestConformanceRecognisesAnUnformattedScreen(t *testing.T) {
 // fields to wait for.
 func connectTerminalUnformatted(t *testing.T, h *conformanceHost, args ...string) *S3270 {
 	t.Helper()
-	exe := terminalBinary()
-	if exe == "" {
-		t.Skip("no s3270 available to test against")
-	}
+	exe := requireTerminal(t)
 	term := NewS3270(exe, append(append([]string{}, args...), h.addr())...)
 	if err := term.Start(); err != nil {
-		t.Skipf("could not start the terminal at %s: %v", exe, err)
+		skipOrFail(t, "could not start the terminal at %s: %v", exe, err)
 	}
 	t.Cleanup(func() { _ = term.Stop() })
 	return term
