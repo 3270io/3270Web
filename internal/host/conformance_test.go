@@ -7,9 +7,30 @@ package host
 // the harness and for why a captured transcript is not enough on its own.
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
+
+// Which terminal the suite is driving, named in the log.
+//
+// Everything else here skips where there is no s3270 to run, which is right on
+// a platform this repository ships no binary for and wrong everywhere it
+// matters: `go test` prints nothing for a skip, so a suite that skipped every
+// case is indistinguishable from one that passed. This test is where that
+// becomes visible — it names the binary and its version, and where the
+// environment promised one (see requireTerminal) a missing terminal fails here
+// rather than quietly taking the whole suite with it.
+func TestConformanceRunsAgainstARealTerminal(t *testing.T) {
+	exe := requireTerminal(t)
+
+	out, err := exec.Command(exe, "--version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("the terminal at %s would not report its version: %v\n%s", exe, err, out)
+	}
+	version, _, _ := strings.Cut(string(out), "\n")
+	t.Logf("conformance suite driving %s (%s)", exe, strings.TrimSpace(version))
+}
 
 // A first screen, end to end: the host writes it, the terminal draws it, and
 // this package decodes it. If this test fails nothing below it means anything.

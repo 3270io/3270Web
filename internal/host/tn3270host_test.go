@@ -547,13 +547,23 @@ func (r *byteReader) next() (byte, bool) {
 	return r.buf[0], true
 }
 
+// terminalBinaryEnv names the terminal to test against. Setting it also says
+// there *is* one — see requireTerminal.
+const terminalBinaryEnv = "S3270_TEST_BINARY"
+
 // terminalBinary finds an s3270 to run, or "" when there is none.
 //
 // The repository ships one for the platform it is built for, which is what
 // makes this suite run in CI without a package install. A build on some other
 // platform, or one whose bundled binary will not execute, skips instead.
 func terminalBinary() string {
-	if path := strings.TrimSpace(os.Getenv("S3270_TEST_BINARY")); path != "" {
+	if path := strings.TrimSpace(os.Getenv(terminalBinaryEnv)); path != "" {
+		// Named but absent returns nothing, so the caller can say which
+		// promise was broken rather than falling back to some other terminal
+		// and testing a different thing than the one that was asked for.
+		if info, err := os.Stat(path); err != nil || info.IsDir() {
+			return ""
+		}
 		return path
 	}
 	name := "s3270"
@@ -580,6 +590,45 @@ func terminalBinary() string {
 	return path
 }
 
+// requireTerminal returns the terminal to drive, or skips the test.
+//
+// Skipping is the right answer for somebody on a platform this repository
+// ships no binary for: they should still be able to run the rest of the
+// package. It is the wrong answer in CI, where a suite that quietly skips
+// looks exactly like one that passes and is protecting nothing — which is the
+// failure this whole suite exists to catch, reappearing one level up.
+//
+// So terminalBinaryEnv says two things at once: here is the terminal, and do
+// not skip. A binary named there that is missing, or that will not run, is a
+// broken configuration and fails rather than disappearing into a skip.
+func requireTerminal(t *testing.T) string {
+	t.Helper()
+	if exe := terminalBinary(); exe != "" {
+		return exe
+	}
+	if named := strings.TrimSpace(os.Getenv(terminalBinaryEnv)); named != "" {
+		t.Fatalf("%s names %q, and there is no terminal there", terminalBinaryEnv, named)
+	}
+	t.Skipf("no s3270 available to test against; set %s to require one", terminalBinaryEnv)
+	return ""
+}
+
+// terminalRequired reports whether this environment has promised a terminal
+// and must therefore not skip.
+func terminalRequired() bool {
+	return strings.TrimSpace(os.Getenv(terminalBinaryEnv)) != ""
+}
+
+// skipOrFail ends a test that cannot reach a terminal: a skip where none was
+// promised, a failure where one was.
+func skipOrFail(t *testing.T, format string, args ...interface{}) {
+	t.Helper()
+	if terminalRequired() {
+		t.Fatalf(format, args...)
+	}
+	t.Skipf(format, args...)
+}
+
 // connectTerminal starts a real terminal against the scripted host and reads
 // the first screen.
 //
@@ -589,14 +638,11 @@ func terminalBinary() string {
 // carefully-configured one does.
 func connectTerminal(t *testing.T, h *conformanceHost, args ...string) *S3270 {
 	t.Helper()
-	exe := terminalBinary()
-	if exe == "" {
-		t.Skip("no s3270 available to test against")
-	}
+	exe := requireTerminal(t)
 
 	term := NewS3270(exe, append(append([]string{}, args...), h.addr())...)
 	if err := term.Start(); err != nil {
-		t.Skipf("could not start the terminal at %s: %v", exe, err)
+		skipOrFail(t, "could not start the terminal at %s: %v", exe, err)
 	}
 	t.Cleanup(func() { _ = term.Stop() })
 

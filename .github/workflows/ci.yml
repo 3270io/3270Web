@@ -49,8 +49,29 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Check the bundled terminal runs
+        # The conformance suite in internal/host drives a real s3270. Running
+        # it here first means a binary that will not execute on the runner —
+        # a missing shared library, a libc or OpenSSL that has moved on — says
+        # so in one line, instead of surfacing as a wall of test failures whose
+        # cause is a sentence deep in each one.
+        run: ./s3270-bin/s3270-linux-amd64 --version
+
       - name: Test
-        run: go test ./...
+        env:
+          # Naming the terminal does two things. It points the conformance
+          # suite at the binary this repository ships, and it withdraws that
+          # suite's permission to skip: without it, a run where no terminal
+          # could be found skips every case and reports success, which is
+          # indistinguishable from a run that tested everything. That is the
+          # same failure this suite exists to catch — a test that agrees with
+          # itself and checks nothing — one level up.
+          S3270_TEST_BINARY: ${{ github.workspace }}/s3270-bin/s3270-linux-amd64
+        # -run for the one test that names the terminal and its version, so the
+        # log says which s3270 the suite was driving, then the suite itself.
+        run: |
+          go test ./internal/host/ -run TestConformanceRunsAgainstARealTerminal -v
+          go test ./...
 
   race:
     name: Go (race detector, advisory)
@@ -73,6 +94,8 @@ jobs:
           cache: true
 
       - name: Test with the race detector
+        env:
+          S3270_TEST_BINARY: ${{ github.workspace }}/s3270-bin/s3270-linux-amd64
         run: go test -race ./...
 
   web-assets:
