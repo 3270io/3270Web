@@ -171,6 +171,7 @@ Includes:
 - `CHAOS_LEARNED_KEY_REUSE_BIAS` (default `1.0`) — how often the engine retries AID keys that have previously caused a transition versus exploring untried keys.
 - `CHAOS_EXPORT_SUCCESS_BALANCE` (default `1.0`) — when exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps.
 - `CHAOS_OUTPUT_FILE` — **file name** for the exported workflow JSON. Written into the chaos runs directory; any directory component is dropped. See the note in [Chaos Mode](chaos-mode.md#jsonl-transition-log).
+- `CHAOS_TRANSITION_LOG_PATH` — **file name** for a JSONL log with one line per attempt, written into the chaos runs directory. See [Chaos Mode](chaos-mode.md#jsonl-transition-log).
 - `CHAOS_EXCLUDE_NO_PROGRESS_EVENTS`
 
 Use this section to tune how aggressively chaos mode explores screens and where optional output should be written. See [Chaos Mode](chaos-mode.md) for a deeper walkthrough of the bias settings.

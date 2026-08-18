@@ -977,7 +977,8 @@ that already drive 3270Web through the cookie.
 | `POST` | `/printer/jobs/delete?name=` | Drop one job. |
 | `GET` | `/workflow/status` | Recording and playback state for the current session: the step a run is on, its recent events, and `playbackVariables` — what a recording that makes decisions has read so far. See [Recordings and Playback](workflow.md#decisions-variables-and-loops). |
 | `POST` | `/workflow/import-macro` | Translate an uploaded macro file and load the result as this session's recording. Returns the same report as the API route, without the recording itself. See [Recordings and Playback](workflow.md#importing-a-macro-file). |
-| `POST` | `/chaos/report` | Markdown discovery report for the active chaos run (ASCII screen graph, per-screen stats, suggested experiments). |
+| `POST` | `/chaos/report` | Markdown discovery report for the current or most recently loaded chaos run: TL;DR, Mermaid flow map, and per-screen detail including working keys, untried keys and field discovery. |
+| `GET` | `/chaos/insights` | Machine-readable exploration guidance: per-screen productive/dead/untried keys, unproductive fields, conditional transitions, a `frontierScreens` count, ranked `suggestedExperiments`, and live saturation/termination diagnostics. |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
 | `GET` | `/chaos/screens` | Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. `?include_previews=false` omits previews. |
 | `POST` | `/chaos/screens/annotate` | Record a screen's business purpose and field semantics. Body: `{"screen_hash", "business_purpose", "notes", "field_semantics": {"R5C20L8": {"name", "description", "example", "sensitive"}}}`. |
