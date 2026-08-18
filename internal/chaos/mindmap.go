@@ -342,6 +342,161 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	}
 }
 
+// mergeAreaInto folds src's learning into dst. Counters and learned values
+// are additive (presses, progressions, destinations, known values, field
+// discovery); descriptive fields (label, preview, business annotations) keep
+// dst's value when set and fill from src otherwise, so importing an older map
+// never clobbers what the local run has already observed first-hand.
+func mergeAreaInto(dst, src *MindMapArea) {
+	if dst == nil || src == nil {
+		return
+	}
+	dst.Visits += src.Visits
+	if dst.FirstSeen.IsZero() || (!src.FirstSeen.IsZero() && src.FirstSeen.Before(dst.FirstSeen)) {
+		dst.FirstSeen = src.FirstSeen
+	}
+	if src.LastSeen.After(dst.LastSeen) {
+		dst.LastSeen = src.LastSeen
+	}
+	if dst.Label == "" {
+		dst.Label = src.Label
+	}
+	if dst.PreviewText == "" {
+		dst.PreviewText = src.PreviewText
+		dst.PreviewWidth = src.PreviewWidth
+		dst.PreviewHeight = src.PreviewHeight
+	}
+	if dst.ScreenWidth == 0 && dst.ScreenHeight == 0 {
+		dst.ScreenWidth = src.ScreenWidth
+		dst.ScreenHeight = src.ScreenHeight
+	}
+	if dst.FieldCount == 0 && dst.InputFieldCount == 0 {
+		dst.FieldCount = src.FieldCount
+		dst.InputFieldCount = src.InputFieldCount
+		dst.NumericFieldCount = src.NumericFieldCount
+		dst.HiddenFieldCount = src.HiddenFieldCount
+	}
+	if dst.DedupSignature == "" {
+		dst.DedupSignature = src.DedupSignature
+	}
+	if len(src.FieldMetadata) > 0 {
+		if dst.FieldMetadata == nil {
+			dst.FieldMetadata = make(map[string]MindMapFieldMetadata, len(src.FieldMetadata))
+		}
+		for key, meta := range src.FieldMetadata {
+			if _, ok := dst.FieldMetadata[key]; !ok {
+				dst.FieldMetadata[key] = meta
+			}
+		}
+	}
+	if len(src.FieldDiscovery) > 0 {
+		if dst.FieldDiscovery == nil {
+			dst.FieldDiscovery = make(map[string]MindMapFieldDiscovery, len(src.FieldDiscovery))
+		}
+		for key, in := range src.FieldDiscovery {
+			fd := dst.FieldDiscovery[key]
+			fd.Writes += in.Writes
+			fd.WriteSuccesses += in.WriteSuccesses
+			fd.Progressions += in.Progressions
+			if in.LastTriedAt.After(fd.LastTriedAt) {
+				fd.LastTriedAt = in.LastTriedAt
+			}
+			if in.LastWorkedAt.After(fd.LastWorkedAt) {
+				fd.LastWorkedAt = in.LastWorkedAt
+			}
+			if fd.LastValue == "" {
+				fd.LastValue = in.LastValue
+			}
+			if fd.LastWorkedValue == "" {
+				fd.LastWorkedValue = in.LastWorkedValue
+			}
+			dst.FieldDiscovery[key] = fd
+		}
+	}
+	if len(src.KnownTriedValues) > 0 {
+		if dst.KnownTriedValues == nil {
+			dst.KnownTriedValues = make(map[string][]string, len(src.KnownTriedValues))
+		}
+		for key, values := range src.KnownTriedValues {
+			for _, v := range values {
+				dst.KnownTriedValues[key] = appendUniqueLimited(dst.KnownTriedValues[key], v, maxKnownValuesPerField*2)
+			}
+		}
+	}
+	if len(src.KnownWorkingValues) > 0 {
+		if dst.KnownWorkingValues == nil {
+			dst.KnownWorkingValues = make(map[string][]string, len(src.KnownWorkingValues))
+		}
+		for key, values := range src.KnownWorkingValues {
+			for _, v := range values {
+				dst.KnownWorkingValues[key] = appendUniqueLimited(dst.KnownWorkingValues[key], v, maxKnownValuesPerField)
+			}
+		}
+	}
+	if len(src.FieldCountProgressions) > 0 {
+		if dst.FieldCountProgressions == nil {
+			dst.FieldCountProgressions = make(map[int]int, len(src.FieldCountProgressions))
+		}
+		for count, score := range src.FieldCountProgressions {
+			dst.FieldCountProgressions[count] += score
+		}
+	}
+	dst.SingleFieldProgressions += src.SingleFieldProgressions
+	dst.MultiFieldProgressions += src.MultiFieldProgressions
+	if len(src.KeyPresses) > 0 {
+		if dst.KeyPresses == nil {
+			dst.KeyPresses = make(map[string]*MindMapKeyPress, len(src.KeyPresses))
+		}
+		for key, in := range src.KeyPresses {
+			if in == nil {
+				continue
+			}
+			kp, ok := dst.KeyPresses[key]
+			if !ok || kp == nil {
+				kp = &MindMapKeyPress{Destinations: make(map[string]int)}
+				dst.KeyPresses[key] = kp
+			}
+			kp.Presses += in.Presses
+			kp.Progressions += in.Progressions
+			kp.SingleFieldProgressions += in.SingleFieldProgressions
+			kp.MultiFieldProgressions += in.MultiFieldProgressions
+			if in.LastUsedAt.After(kp.LastUsedAt) {
+				kp.LastUsedAt = in.LastUsedAt
+			}
+			if len(in.Destinations) > 0 {
+				if kp.Destinations == nil {
+					kp.Destinations = make(map[string]int, len(in.Destinations))
+				}
+				for to, count := range in.Destinations {
+					kp.Destinations[to] += count
+				}
+			}
+		}
+	}
+	if len(src.AutoBlockedKeys) > 0 {
+		dst.AutoBlockedKeys = mergeSortedUniqueStrings(dst.AutoBlockedKeys, src.AutoBlockedKeys)
+	}
+	if len(src.AutoKnownKeys) > 0 {
+		dst.AutoKnownKeys = mergeSortedUniqueStrings(dst.AutoKnownKeys, src.AutoKnownKeys)
+	}
+	if dst.BusinessPurpose == "" {
+		dst.BusinessPurpose = src.BusinessPurpose
+	}
+	if dst.BusinessNotes == "" {
+		dst.BusinessNotes = src.BusinessNotes
+	}
+	if len(src.FieldSemantics) > 0 {
+		if dst.FieldSemantics == nil {
+			dst.FieldSemantics = make(map[string]BusinessFieldSemantic, len(src.FieldSemantics))
+		}
+		for key, sem := range src.FieldSemantics {
+			if _, ok := dst.FieldSemantics[key]; !ok {
+				dst.FieldSemantics[key] = sem
+			}
+		}
+	}
+}
+
 func summarizeScreenArea(screen *host.Screen) (string, int, int, int, int, map[string]MindMapFieldMetadata) {
 	if screen == nil {
 		return "", 0, 0, 0, 0, nil

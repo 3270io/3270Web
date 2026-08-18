@@ -272,7 +272,7 @@ func DefaultTools() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "chaos_start",
-				Description: "Start a chaos exploration run from the current screen. max_steps caps the total submissions (default 100). time_budget_sec caps wall-clock seconds. Use chaos_save_screen_hint first if you want to bias the run.",
+				Description: "Start a chaos exploration run from the current screen. max_steps caps the total submissions (default 100). time_budget_sec caps wall-clock seconds. The run automatically favours keys never tried on a screen and steers back toward screens that still have untried keys. Use chaos_save_screen_hint first if you want to bias the run.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -282,6 +282,14 @@ func DefaultTools() []Tool {
 						"seed":                    map[string]any{"type": "integer"},
 						"max_field_length":        map[string]any{"type": "integer", "minimum": 1},
 						"screen_dedup_similarity": map[string]any{"type": "number", "minimum": 0, "maximum": 1},
+						"auto_prefer_navigation_keys": map[string]any{
+							"type":        "boolean",
+							"description": "Boost keys whose on-screen legend labels look like navigation (Help/Menu/Next/Prev). Defaults to true; exit-style keys stay penalised even when false.",
+						},
+						"transition_log_path": map[string]any{
+							"type":        "string",
+							"description": "File name for a JSONL log with one line per attempt, written inside the chaos runs directory (any directory component is dropped).",
+						},
 					},
 					"additionalProperties": false,
 				},
@@ -594,7 +602,7 @@ func DefaultTools() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "chaos_insights",
-				Description: "Analyze the chaos discovery data and return actionable guidance for smarter exploration: per-screen productive keys vs dead keys (pressed but never advanced), input fields that accept writes but never advance the screen, conditional transitions (which AID key leads where), plus a ranked list of suggested next experiments and the current saturation/termination diagnostics. Call this after a chaos run stops (especially on 'saturated' or 'blocked') to decide which hints to add before resuming, instead of blindly re-running.",
+				Description: "Analyze the chaos discovery data and return actionable guidance for smarter exploration: per-screen productive keys vs dead keys (pressed but never advanced), untried keys (the exploration frontier — frontierScreens counts screens that still have some), input fields that accept writes but never advance the screen, conditional transitions (which AID key leads where), plus a ranked list of suggested next experiments and the current saturation/termination diagnostics (coverage includes frontierAreas/untriedKeysTotal). Call this after a chaos run stops (especially on 'saturated' or 'blocked') to decide which hints to add before resuming, instead of blindly re-running.",
 				Parameters:  objNoProps,
 			},
 		},

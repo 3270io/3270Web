@@ -5,6 +5,8 @@ package main
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/jnnngs/3270Web/internal/chaos"
 )
 
 // TestChaosScreenHintUpsertRequestBindsSnakeCase verifies the bug fix for
@@ -179,5 +181,63 @@ func TestChaosStartRequestBindsCamelCase(t *testing.T) {
 	}
 	if req.AutoBlockExitKeys == nil || *req.AutoBlockExitKeys {
 		t.Errorf("AutoBlockExitKeys = %v, want false", req.AutoBlockExitKeys)
+	}
+}
+
+// TestChaosStartRequestBindsTransitionLogAndNavPreference covers the fields
+// added for docs parity (transition_log_path was documented but not accepted)
+// and for the AutoPreferNavigationKeys wiring, in both naming forms plus
+// snake-over-camel precedence and the merge into chaos.Config.
+func TestChaosStartRequestBindsTransitionLogAndNavPreference(t *testing.T) {
+	var req chaosStartRequest
+	if err := json.Unmarshal([]byte(`{
+		"transition_log_path": "attempts.jsonl",
+		"auto_prefer_navigation_keys": false
+	}`), &req); err != nil {
+		t.Fatalf("unmarshal snake: %v", err)
+	}
+	if req.TransitionLogPath != "attempts.jsonl" {
+		t.Errorf("TransitionLogPath = %q, want attempts.jsonl", req.TransitionLogPath)
+	}
+	if req.AutoPreferNavigationKeys == nil || *req.AutoPreferNavigationKeys {
+		t.Errorf("AutoPreferNavigationKeys = %v, want false", req.AutoPreferNavigationKeys)
+	}
+
+	req = chaosStartRequest{}
+	if err := json.Unmarshal([]byte(`{
+		"transitionLogPath": "camel.jsonl",
+		"autoPreferNavigationKeys": true
+	}`), &req); err != nil {
+		t.Fatalf("unmarshal camel: %v", err)
+	}
+	if req.TransitionLogPath != "camel.jsonl" {
+		t.Errorf("camel TransitionLogPath = %q, want camel.jsonl", req.TransitionLogPath)
+	}
+	if req.AutoPreferNavigationKeys == nil || !*req.AutoPreferNavigationKeys {
+		t.Errorf("camel AutoPreferNavigationKeys = %v, want true", req.AutoPreferNavigationKeys)
+	}
+
+	req = chaosStartRequest{}
+	if err := json.Unmarshal([]byte(`{
+		"transition_log_path": "snake.jsonl",
+		"transitionLogPath": "camel.jsonl"
+	}`), &req); err != nil {
+		t.Fatalf("unmarshal both: %v", err)
+	}
+	if req.TransitionLogPath != "snake.jsonl" {
+		t.Errorf("snake should win: %q", req.TransitionLogPath)
+	}
+
+	cfg := chaos.DefaultConfig()
+	off := false
+	applyChaosStartRequestToConfig(&cfg, chaosStartRequest{
+		TransitionLogPath:        "attempts.jsonl",
+		AutoPreferNavigationKeys: &off,
+	})
+	if cfg.TransitionLogPath != "attempts.jsonl" {
+		t.Errorf("cfg.TransitionLogPath = %q, want attempts.jsonl", cfg.TransitionLogPath)
+	}
+	if cfg.AutoPreferNavigationKeys {
+		t.Error("cfg.AutoPreferNavigationKeys should be false after override")
 	}
 }

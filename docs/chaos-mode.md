@@ -10,6 +10,37 @@ description: >-
 
 Chaos mode explores host screens by filling input fields with generated values and submitting AID keys (`Enter`, `Tab`, `PF*`, and others). It is useful for discovering navigation paths and producing reusable workflow JSON.
 
+## How Exploration Chooses Actions
+
+Each step, the engine reads the screen, fills a chosen subset of the
+unprotected fields, and presses one AID key. The key is picked by weighted
+random selection, where the configured key weights are adjusted by several
+learned signals:
+
+- **Learned progressions** — keys that previously moved this screen forward
+  are boosted; keys pressed many times with no effect are penalised.
+- **Hints** — user-supplied key assignments and per-screen known keys.
+- **On-screen legend** — the bottom rows are scanned for `PFn Label` pairs.
+  Navigation-style labels (Help/Menu/Next/Prev) are boosted
+  (`auto_prefer_navigation_keys`, default on), and exit-style labels
+  (Exit/Quit/Logoff) are penalised — and, with `Auto-block exit keys` on,
+  refused outright.
+- **Novelty** — once a screen has some history, candidate keys that have
+  never been pressed from it get a boost, so low-weight keys are not starved
+  by an early winner.
+- **Frontier steering** — when every candidate key on the current screen has
+  been tried, keys whose known destinations lead (over the discovered
+  transition graph) toward screens that still have untried keys are boosted.
+  A run that wanders into a fully-explored corner finds its way back out
+  instead of idling to saturation.
+
+The novelty and frontier boosts are exploration signals: unlike the learned
+boosts they are not scaled down by `CHAOS_LEARNED_KEY_REUSE_BIAS`, so setting
+that bias low genuinely shifts the run toward exploration. The remaining
+exploration frontier is visible while a run is active as `frontierAreas` and
+`untriedKeysTotal` in the coverage stats (`GET /chaos/status`), per screen as
+`untriedKeys` in `GET /chaos/insights`, and in the discovery report.
+
 A run from start to stop — exploration, the live map, and where it ends up:
 
 ![type:video](videos/howto-chaos.webm)
@@ -114,21 +145,23 @@ env vars (also exposed in **Settings -> Chaos**) tune that bias:
 
 | Setting | Default | Effect |
 |---|---|---|
-| `CHAOS_LEARNED_INPUT_REUSE_BIAS` | `1.0` | Weight applied to known-good input values when generating new field writes. `0` disables reuse and forces fresh values; `>1` makes reuse more aggressive. |
-| `CHAOS_LEARNED_KEY_REUSE_BIAS` | `1.0` | Same idea for AID keys — how often the engine retries a key that has previously caused a transition versus exploring untried keys. |
+| `CHAOS_LEARNED_INPUT_REUSE_BIAS` | `1.0` | Weight applied to known-good input values when generating new field writes, in the range `0`–`1`. `0` disables reuse and forces fresh values; `1` is the full default reuse bias. |
+| `CHAOS_LEARNED_KEY_REUSE_BIAS` | `1.0` | Same idea for AID keys (range `0`–`1`) — how often the engine retries a key that has previously caused a transition versus exploring untried keys. The novelty/frontier exploration boosts are unaffected by this bias. |
 | `CHAOS_EXPORT_SUCCESS_BALANCE` | `1.0` | When exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps. `1.0` is the neutral default; higher values favour reliability, lower values keep more discovery noise in the export. |
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.
 
 ## Discovery Report
 
-Click **Automation → Discovery report**, or call `POST /chaos/report`, for a Markdown summary of the current run:
+Click **Automation → Discovery report**, or call `POST /chaos/report`, for a Markdown report of the current (or most recently loaded) run:
 
-- Summary line: steps, transitions, unique screens/inputs, termination reason (`max_steps`, `time_budget`, `saturated`, `stopped`, or `error`)
-- Coverage stats: new screens and transitions in the last 10 steps, current saturation streak
-- ASCII screen graph: nodes are screens (labelled by hash), edges are transitions with the AID key and how often that key produced the move
-- Per-screen detail: input fields with success/progression counts, auto-blocked and auto-known keys, list of "working" vs "tried but no progress" AID keys
-- Suggested next experiments: per-screen list of untried (and non-auto-blocked) AID keys to try next
+- TL;DR and executive summary: steps, transitions, unique screens/inputs, most-visited screen, confirmed working keys, and how many screens still have untried candidate keys (the exploration frontier)
+- Global AID key usage table
+- A Mermaid flow map of the discovered screens and the keys that move between them
+- Per-screen detail: a captured screen example, known working function keys with destinations, untried keys, and input field discovery (allowed data types, observed working values, tried values)
+- Any analyst hints configured for each screen
+
+For machine-readable guidance — per-screen productive/dead/untried keys, unproductive fields, conditional transitions, and ranked suggested experiments — call `GET /chaos/insights` (also available to the AI panel as the `chaos_insights` tool).
 
 The report is also exposed to the AI chat side panel via the `chaos_report` tool.
 
@@ -139,7 +172,7 @@ Chaos learning can carry across sessions:
 - `GET /chaos/mindmap/export` returns the engine's current mind map as JSON.
 - `POST /chaos/mindmap/import` merges a previously exported mind map into the current engine (rejected while a run is active).
 
-Imported areas overwrite any existing areas with the same hash. Use this to seed a new chaos run with everything a previous run learned about a host's screen layouts and working keys.
+Imported areas are merged with existing areas of the same hash: visit counts, key-press statistics, and known working/tried values accumulate, while descriptive fields and business annotations keep the local value when both sides have one. Use this to seed a new chaos run with everything a previous run learned about a host's screen layouts and working keys.
 
 ## Business Understanding
 

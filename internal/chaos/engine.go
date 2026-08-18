@@ -69,6 +69,13 @@ type CoverageStats struct {
 	NewTransitionsInWindow   int `json:"newTransitionsLast10Steps"`
 	SaturationStreak         int `json:"saturationStreak"`
 	SaturationThresholdSteps int `json:"saturationThresholdSteps,omitempty"`
+	// FrontierAreas counts discovered areas that still have at least one
+	// candidate AID key never pressed from them; UntriedKeysTotal is the sum
+	// of those untried keys. Together they say how much known-but-unexplored
+	// territory remains — 0/0 with an active run means the configured key set
+	// is exhausted everywhere the run has been.
+	FrontierAreas    int `json:"frontierAreas"`
+	UntriedKeysTotal int `json:"untriedKeysTotal"`
 }
 
 // Termination reasons reported via Status.TerminationReason.
@@ -163,6 +170,11 @@ type Engine struct {
 	h   host.Host
 	rng *rand.Rand
 
+	// candidateKeys is the normalized AID-key candidate set implied by
+	// cfg.AIDKeyWeights, fixed at construction. It is the baseline that
+	// novelty and frontier steering measure "untried" against.
+	candidateKeys []string
+
 	mu             sync.Mutex
 	active         bool
 	stopCh         chan struct{}
@@ -229,6 +241,7 @@ func New(h host.Host, cfg Config) *Engine {
 		cfg:              cfg,
 		h:                h,
 		rng:              rand.New(rand.NewSource(seed)), //nolint:gosec
+		candidateKeys:    CandidateKeys(cfg.AIDKeyWeights),
 		stopCh:           make(chan struct{}),
 		workflowHeader:   workflowHeaderFromConfig(cfg),
 		hintTransactions: hintTransactions,
@@ -264,8 +277,10 @@ func (e *Engine) ExportMindMap() ([]byte, error) {
 }
 
 // ImportMindMap merges the supplied mind map into the engine's current one.
-// Areas with the same hash overwrite existing ones. Returns false if the
-// engine is currently active (imports must happen between runs to avoid
+// Areas with the same hash are merged: learning counters and known values
+// accumulate, while descriptive fields and business annotations keep the
+// local value when both sides have one (see mergeAreaInto). Returns false if
+// the engine is currently active (imports must happen between runs to avoid
 // races with the run loop's own mind-map writes).
 func (e *Engine) ImportMindMap(imported *MindMap) bool {
 	e.mu.Lock()
@@ -285,6 +300,10 @@ func (e *Engine) ImportMindMap(imported *MindMap) bool {
 	}
 	for hash, area := range imported.Areas {
 		if area == nil || strings.TrimSpace(hash) == "" {
+			continue
+		}
+		if existing, ok := e.mindMap.Areas[hash]; ok && existing != nil {
+			mergeAreaInto(existing, area)
 			continue
 		}
 		e.mindMap.Areas[hash] = area
@@ -519,12 +538,15 @@ func (e *Engine) coverageStatsSnapshotLocked() *CoverageStats {
 			newTrans++
 		}
 	}
+	frontierAreas, untriedKeys := e.frontierStatsLocked()
 	return &CoverageStats{
 		WindowSteps:              len(e.newScreensWindow),
 		NewScreensInWindow:       newScreens,
 		NewTransitionsInWindow:   newTrans,
 		SaturationStreak:         e.saturationStreak,
 		SaturationThresholdSteps: e.cfg.SaturationSteps,
+		FrontierAreas:            frontierAreas,
+		UntriedKeysTotal:         untriedKeys,
 	}
 }
 
@@ -734,10 +756,23 @@ func flattenTransitionSteps(transitions []Transition) []session.WorkflowStep {
 	return steps
 }
 
+// buildUnsuccessfulCheckSteps builds check steps for a run that never
+// produced a successful transition. With no successes to anchor the usual
+// success:unsuccessful ratio, the balance is applied as the share of attempts
+// left for exploration noise: balance 0.8 keeps at most 20% of the attempts
+// as check steps (minimum one, since the caller only gets here when the
+// balance asked for some unsuccessful representation).
 func buildUnsuccessfulCheckSteps(attempts []Attempt, mindMap *MindMap, successBalance float64) []session.WorkflowStep {
-	_ = successBalance
-	steps := make([]session.WorkflowStep, 0, len(attempts))
+	balance := clampExportSuccessBalance(successBalance)
+	budget := int(float64(len(attempts))*(1-balance) + 0.5)
+	if budget < 1 {
+		budget = 1
+	}
+	steps := make([]session.WorkflowStep, 0, budget)
 	for _, attempt := range attempts {
+		if len(steps) >= budget {
+			break
+		}
 		if isSuccessfulExportAttempt(attempt) {
 			continue
 		}
@@ -1199,10 +1234,21 @@ func (e *Engine) run() {
 		// run is active), so reading it unlocked is a data race / panic.
 		e.mu.Lock()
 		keyBoosts := e.snapshotKeyBoostsLocked(currentHash, attempt.FieldsTargeted)
+		// Exploration steering is kept separate from the learned boosts: it is
+		// deliberately NOT scaled by LearnedKeyReuseBias, because turning that
+		// bias down means "explore more", which must not also mute the
+		// exploration boosts themselves.
+		explorationBoosts := mergeKeyBoostMaps(e.noveltyKeyBoostsLocked(currentHash), e.frontierKeyBoostsLocked(currentHash))
 		e.mu.Unlock()
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, inferScreenHelpKeyBoosts(screen))
+		helpBoosts := inferScreenHelpKeyBoosts(screen)
+		if !e.cfg.AutoPreferNavigationKeys {
+			// The operator declined the navigation-label steering, not the
+			// protection: penalties for exit/logoff-style labels stay live.
+			helpBoosts = negativeKeyBoostsOnly(helpBoosts)
+		}
+		keyBoosts = mergeKeyBoostMaps(keyBoosts, helpBoosts)
 
 		for idx, f := range fields {
 			value := e.generateValueForFieldWithPolicy(f, idx == 0, knownValues, triedValues, screenHint, forceHintValues)
@@ -1274,7 +1320,7 @@ func (e *Engine) run() {
 			}
 			e.mu.Unlock()
 		}
-		aidKey := e.chooseAIDKeyBoosted(keyBoosts)
+		aidKey := e.chooseAIDKeyWithExploration(keyBoosts, explorationBoosts)
 		if isBlacklistedKeyInSet(blocked, aidKey) {
 			aidKey = fallbackChaosKey(blocked)
 		}
@@ -2361,6 +2407,26 @@ func chaosHelpLabelBoost(label string) int {
 	return 20
 }
 
+// negativeKeyBoostsOnly strips the positive entries from a legend-inferred
+// boost map, keeping only the penalties (exit/logoff-style labels). Used when
+// AutoPreferNavigationKeys is off, so declining the navigation steering does
+// not also drop the soft protection against session-ending keys.
+func negativeKeyBoostsOnly(boosts map[string]int) map[string]int {
+	if len(boosts) == 0 {
+		return nil
+	}
+	out := make(map[string]int)
+	for k, v := range boosts {
+		if v < 0 {
+			out[k] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func mergeKeyBoostMaps(base, extra map[string]int) map[string]int {
 	if len(extra) == 0 {
 		return base
@@ -3068,9 +3134,19 @@ func (e *Engine) chooseAIDKey() string {
 // Each effective weight is clamped to a minimum of 1 so that all configured
 // keys remain selectable for exploration breadth even when penalties apply.
 func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
+	return e.chooseAIDKeyWithExploration(boosts, nil)
+}
+
+// chooseAIDKeyWithExploration extends chooseAIDKeyBoosted with a second boost
+// map that bypasses LearnedKeyReuseBias scaling. Learned/hint boosts encode
+// reuse of what already worked and are scaled by the bias; exploration boosts
+// (novelty, frontier proximity) encode the opposite pull and are applied
+// verbatim, so turning the reuse bias down genuinely shifts selection toward
+// exploration instead of muting both.
+func (e *Engine) chooseAIDKeyWithExploration(boosts, explorationBoosts map[string]int) string {
 	weights := e.cfg.AIDKeyWeights
 	blocked := e.blacklistedKeysSnapshot()
-	if len(weights) == 0 && len(boosts) == 0 {
+	if len(weights) == 0 && len(boosts) == 0 && len(explorationBoosts) == 0 {
 		return fallbackChaosKey(blocked)
 	}
 
@@ -3096,6 +3172,16 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 			continue
 		}
 		effective[key] += e.scaleLearnedKeyReuseBoost(b)
+	}
+	for rawKey, b := range explorationBoosts {
+		key := normalizeChaosKeyName(rawKey)
+		if key == "" {
+			key = strings.TrimSpace(rawKey)
+		}
+		if key == "" || isBlacklistedKeyInSet(blocked, key) {
+			continue
+		}
+		effective[key] += b
 	}
 	// Clamp to minimum weight of 1 so that penalised keys remain selectable
 	// (preserving exploration breadth) rather than being silently excluded.
