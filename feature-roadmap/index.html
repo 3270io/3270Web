@@ -1,0 +1,2940 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="How 3270Web compares with the other 3270 terminal emulators available today, and what it may do next — a menu of candidate work rather than a dated schedule.">
+      
+      
+        <meta name="author" content="3270.io">
+      
+      
+        <link rel="canonical" href="https://3270web.3270.io/feature-roadmap/">
+      
+      
+        <link rel="prev" href="../accessibility/">
+      
+      
+        <link rel="next" href="../acknowledgements/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+    <title>3270Web feature roadmap and where it sits in the field</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/3270-theme.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="https://3270web.3270.io/feature-roadmap/">
+    <meta property="og:title" content="3270Web feature roadmap and where it sits in the field">
+    <meta property="og:description" content="How 3270Web compares with the other 3270 terminal emulators available today, and what it may do next — a menu of candidate work rather than a dated schedule.">
+    <meta property="og:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:secure_url" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="3270Web feature roadmap and where it sits in the field">
+    <meta name="twitter:description" content="How 3270Web compares with the other 3270 terminal emulators available today, and what it may do next — a menu of candidate work rather than a dated schedule.">
+    <meta name="twitter:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab"><script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3270web.3270.io/#website",
+          "name": "3270Web",
+          "url": "https://3270web.3270.io/",
+          "description": "Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no emulator install, then record sessions, explore with AI Chat and replay them.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "Feature Roadmap",
+          "description": "How 3270Web compares with the other 3270 terminal emulators available today, and what it may do next \u2014 a menu of candidate work rather than a dated schedule.",
+          "url": "https://3270web.3270.io/feature-roadmap/",
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": "https://3270web.3270.io/#website" },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+      ]
+    }
+    </script>
+
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="3270" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#feature-roadmap" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="3270Web" class="md-header__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            3270Web
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Feature Roadmap
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../demo-videos/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Demonstration Videos
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and Run
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect and Use 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../sample-apps/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Bundled Sample Applications
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../authentication/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User Accounts and Sign-In
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../multi-user/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Running a Shared Instance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../session-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Session Manager
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workflow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Recordings and Playback
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../business-tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guided Business Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-mode/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-compare/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mind-Map Compare
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../host-profiler/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Host Compatibility Profiler
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../compatibility-profile-schema/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Compatibility Profile Schema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-fonts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Fonts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-chat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Chat Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-providers/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Providers
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keyboard-and-controls/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Keyboard and Controls
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../printer-sessions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Printer Sessions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-model-limits/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Screen Size and Model Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../rest-api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  REST API
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../embedding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Embedding 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../mcp/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  MCP Server
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Skills and Extensions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-capabilities/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Capabilities
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../accessibility/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Accessibility
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../acknowledgements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Acknowledgements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../licence/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licence
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="3270Web" class="md-nav__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    3270Web
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-videos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demonstration Videos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect and Use 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sample-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Sample Applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Accounts and Sign-In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a Shared Instance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Session Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../business-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guided Business Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mind-Map Compare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../host-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host Compatibility Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility-profile-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compatibility Profile Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Fonts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-and-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard and Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../printer-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Printer Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-model-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screen Size and Model Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedding 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and Extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../accessibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Accessibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-field-and-where-3270web-sits-in-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The field, and where 3270Web sits in it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The field, and where 3270Web sits in it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-3270web-is-different" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where 3270Web is different
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-field-is-ahead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the field is ahead
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#category-parity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Category parity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recently-shipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recently shipped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guided-business-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guided Business Tasks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#daily-use-fidelity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily-use fidelity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#s3270-actions-not-yet-surfaced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        s3270 actions not yet surfaced
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="s3270 actions not yet surfaced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worth-having" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worth having
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#belonging-to-protocols-this-terminal-does-not-speak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Belonging to protocols this terminal does not speak
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#held-deliberately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Held deliberately
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enterprise-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enterprise deployment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#web-native-and-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web-native and integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ai-assisted-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI-assisted use
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-leverage-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the leverage is
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acknowledgements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../licence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/3270io/3270Web/edit/main/docs/feature-roadmap.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/3270io/3270Web/raw/main/docs/feature-roadmap.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<div><h1 id="feature-roadmap">Feature Roadmap<a class="headerlink" href="#feature-roadmap" title="Permanent link">¶</a></h1>
+<p>What may come next. This page is a <strong>menu, not a schedule</strong> — an unchecked
+item is a candidate, not a commitment, and the order is not a queue.</p>
+<p>For what 3270Web provides <strong>today</strong>, see
+<a href="../terminal-capabilities/">Terminal Capabilities</a>. That page is the one to
+read before an evaluation; this one is for deciding what to build.</p>
+<h2 id="the-field-and-where-3270web-sits-in-it">The field, and where 3270Web sits in it<a class="headerlink" href="#the-field-and-where-3270web-sits-in-it" title="Permanent link">¶</a></h2>
+<p>A roadmap is a set of choices, and the choices are made against a category
+that already exists. So the comparison comes first, and the rest of the page
+follows from it.</p>
+<p>The table describes <strong>how each emulator is delivered and what it offers for
+automation</strong> — facts each vendor states plainly and that rarely change from
+release to release. It is deliberately not a feature-by-feature grid: nobody
+can honestly audit eight products from the outside, and a tick in a column
+you cannot verify is worse than no column at all. Each vendor's own
+documentation is the authority on that vendor's product. Rows were checked
+against published documentation in August 2026; if one is wrong or has gone
+stale, <a href="https://github.com/3270io/3270Web/issues">tell us</a> and it gets
+fixed.</p>
+<table>
+<thead>
+<tr>
+<th>Emulator</th>
+<th>How it reaches the user</th>
+<th>Runs on</th>
+<th>Licence</th>
+<th>Automation surface</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>3270Web</strong></td>
+<td>A URL. One Go binary or container serves the terminal to a browser tab</td>
+<td>Any modern browser; server on Linux, Windows, macOS or Docker</td>
+<td>Open source (AGPL-3.0-or-later), commercial terms available</td>
+<td>REST/JSON API, recorded workflows replayed as JSON, Guided Business Tasks, an HLLAPI-shaped endpoint, and an MCP server</td>
+</tr>
+<tr>
+<td><strong>Quick3270</strong></td>
+<td>Installed Windows application</td>
+<td>Windows client and server, Citrix and Terminal Server</td>
+<td>Commercial, per seat</td>
+<td>VBScript macro language with an editor and debugger, EHLLAPI (32- and 64-bit), a session API and COM automation</td>
+</tr>
+<tr>
+<td><strong>Vista TN3270</strong></td>
+<td>Installed Windows application</td>
+<td>Windows</td>
+<td>Commercial, low per-seat fee</td>
+<td>Fully tailorable keyboard, multiple paste buffers, JCL-aware selection — aimed at the programmer at the keyboard</td>
+</tr>
+<tr>
+<td><strong>Mocha TN3270</strong></td>
+<td>Installed application, one per platform</td>
+<td>Windows, macOS, ChromeOS, iOS, Android</td>
+<td>Commercial, per seat</td>
+<td>Keyboard definition and user-defined function keys</td>
+</tr>
+<tr>
+<td><strong>HCL Z and I Emulator for Web</strong></td>
+<td>Browser, served from an application server</td>
+<td>Browser client; Windows, Linux or z server</td>
+<td>Commercial, licensed per user</td>
+<td>EHLLAPI and the host-access toolkit APIs, including a J2EE connector</td>
+</tr>
+<tr>
+<td><strong>Inventu Viewer+</strong> (formerly Flynet Viewer)</td>
+<td>Browser, served from a Windows server — no plug-in, no applet</td>
+<td>Browser client; Windows Server</td>
+<td>Commercial</td>
+<td>Server-side screen integration, with generated web services</td>
+</tr>
+<tr>
+<td><strong>Ericom PowerTerm WebConnect HostView</strong></td>
+<td>Browser, served from a central server</td>
+<td>Browser client; Windows or Linux server</td>
+<td>Commercial</td>
+<td>Centrally managed sessions, with scripting in the PowerTerm client</td>
+</tr>
+<tr>
+<td><strong>x3270 / wc3270 / c3270 / s3270</strong></td>
+<td>Installed command-line or X11 application</td>
+<td>Linux, Unix, Windows, macOS</td>
+<td>Open source (BSD-3-Clause)</td>
+<td>The <code>s3270</code> scripting protocol — the same engine 3270Web drives</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reading-the-table">Reading the table<a class="headerlink" href="#reading-the-table" title="Permanent link">¶</a></h3>
+<p>Three delivery models, and which one a product picked decides most of
+everything else about it.</p>
+<p><strong>Installed desktop clients</strong> — Quick3270, Vista TN3270, Mocha TN3270 and
+the x3270 family — have the deepest terminal fidelity and the widest set of
+integration points, because they have a whole operating system to
+reach into: an EHLLAPI library that a twenty-year-old binary can load, a
+printer session that appears as a real device, a COM object another desktop
+application can drive. What that costs is per-machine. Something is
+packaged, installed, patched and version-matched on every desk, and the
+Windows-only ones decide what the desk has to be.</p>
+<p><strong>Server-delivered browser sessions</strong> — Z and I Emulator for Web, Inventu
+Viewer+, PowerTerm WebConnect, 3270Web — put nothing on the desk. One place
+to upgrade, one place to control who reaches which host, and a Chromebook or
+a tablet is as good a terminal as a laptop. The trade is that anything which
+had to touch the local machine has to be re-earned some other way, over an
+API rather than a DLL.</p>
+<p><strong>Open source</strong> — the x3270 family and 3270Web — means the thing can be
+read, forked, audited and deployed without a purchase order. It is the
+smaller half of this category by a distance. 3270Web builds directly on
+<code>s3270</code>; see <a href="../acknowledgements/">Acknowledgements</a>.</p>
+<h3 id="where-3270web-is-different">Where 3270Web is different<a class="headerlink" href="#where-3270web-is-different" title="Permanent link">¶</a></h3>
+<p>Comparing against the category rather than against any one product, because
+these are axes rather than checkboxes:</p>
+<table>
+<thead>
+<tr>
+<th>Axis</th>
+<th>Where the category generally sits</th>
+<th>3270Web</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Getting a terminal onto a desk</td>
+<td>An install, or a server product plus a client entitlement per user</td>
+<td>A URL</td>
+</tr>
+<tr>
+<td>Automating a flow</td>
+<td>A vendor macro language, or EHLLAPI against a presentation space</td>
+<td>The recording made in the browser <strong>is</strong> the JSON an API replays — no second language in between, and it decides, repeats and remembers without becoming one</td>
+</tr>
+<tr>
+<td>Serving somebody who does not know the application</td>
+<td>Out of scope: the operator is expected to learn the green screen</td>
+<td><a href="../business-tasks/">Guided Business Tasks</a> — named inputs, a named answer, no green screen</td>
+</tr>
+<tr>
+<td>Finding out what an application actually does</td>
+<td>Documentation, or a person with twenty years of it</td>
+<td><a href="../chaos-mode/">Chaos exploration</a> walks it and produces a screen mind-map, diffable between two hosts</td>
+</tr>
+<tr>
+<td>Regression-testing a host application</td>
+<td>Left to whatever test tooling the shop already has</td>
+<td>Named screen snapshots, diffed row by row, over the API</td>
+</tr>
+<tr>
+<td>Accessibility</td>
+<td>Rarely stated in public documentation at all</td>
+<td>A tested <a href="../accessibility/">WCAG 2.1 AA statement</a>, including where it falls short</td>
+</tr>
+<tr>
+<td>AI</td>
+<td>Increasingly offered, generally as the vendor's own service</td>
+<td>Bring your own provider — <a href="../ai-providers/">six of them</a> — plus an <a href="../mcp/">MCP server</a> any agent can drive</td>
+</tr>
+<tr>
+<td>Reading the source</td>
+<td>Closed, with the x3270 family the long-standing exception</td>
+<td>Open, on GitHub</td>
+</tr>
+</tbody>
+</table>
+<h3 id="where-the-field-is-ahead">Where the field is ahead<a class="headerlink" href="#where-the-field-is-ahead" title="Permanent link">¶</a></h3>
+<p>The honest half, and the reason the next section exists. These are
+capabilities the established emulators have had for years and 3270Web does
+not:</p>
+<ul>
+<li><strong>Printing to the operator's own printer.</strong> A 3287 printer LU is now bound
+  and collected — see <a href="../printer-sessions/">Printer sessions</a> — but the job
+  arrives in the browser as a file. An installed client can hand it to the
+  print spooler on the desk it is installed on; a browser tab cannot, and no
+  amount of work here changes that.</li>
+<li><strong>Protocols beyond TN3270.</strong> 5250, the protocol AS/400 and IBM i hosts
+  drive their terminals with, and VT for everything else, usually ship in the
+  same box. 3270Web speaks TN3270 and TN3270E only — and so does <code>s3270</code>
+  underneath it, which carries no 5250 at all. Those hosts are still
+  reachable, through a 3270 front end of their own rather than through
+  anything 3270Web does; see
+  <a href="../terminal-model-limits/#as400-and-ibm-i-hosts">AS/400 and IBM i hosts</a>
+  for the two conditions that come with it.</li>
+<li><strong>A loadable EHLLAPI library.</strong> The
+  <a href="../rest-api/#post-apiv1sessionsidhllapi">HLLAPI-shaped endpoint</a> ports a
+  screen-scraper by changing <em>how</em> it calls rather than what it does — but
+  only if it can be rebuilt. A binary that links the DLL and has no
+  surviving source still needs the DLL.</li>
+<li><strong>DBCS and bidirectional language support.</strong> Arabic, Hebrew, and the
+  double-byte character sets. Neither is a rendering tweak; both reach the
+  code page handling and the field model.</li>
+<li><strong>A scripting language with an editor and a debugger around it.</strong> A
+  recording now decides, repeats and remembers — see
+  <a href="../workflow/#decisions-variables-and-loops">Decisions, variables and loops</a>
+  — which closes the part of this gap that mattered most: a flow that reads a
+  balance and takes a different path is now a recording rather than a person.
+  What the established emulators still have is the rest of a language and the
+  tooling around it: arithmetic, subroutines, an editor that knows the syntax,
+  a debugger with breakpoints. Playback steps and shows every decision it
+  makes, and that is not the same thing.</li>
+</ul>
+<h2 id="category-parity">Category parity<a class="headerlink" href="#category-parity" title="Permanent link">¶</a></h2>
+<p>Derived from the section above. None of these make 3270Web better at what it
+is already good at — they remove reasons an evaluation stops early.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>3287 printer session</strong> — <em>shipped: a printer LU bound beside the
+      terminal session, by name or as the display LU's associated printer, on
+      the same host and the same TLS terms. Each job the host prints arrives
+      as a file to download, from the panel or over the API. <code>pr3287</code> does the
+      protocol; what this adds is where a browser-delivered terminal is
+      allowed to send paper. See <a href="../printer-sessions/">Printer sessions</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>5250, for AS/400 and IBM i</strong> — the same terminal, the same recording
+      and task machinery, pointed at the platform whose green screens are not
+      3270 ones. A larger job than it looks, and larger from here than from
+      most places: <code>s3270</code> has no 5250 in it, so this is a second protocol
+      engine rather than a switch on the existing one. 5250 has its own field
+      model and its own AID set, and pretending otherwise is how an emulator
+      ends up subtly wrong on both. Meanwhile these hosts are reachable
+      through their own 3270 front end —
+      <a href="../terminal-model-limits/#as400-and-ibm-i-hosts">model 2 only, with the 5250 function keys arriving as PF-key
+      sequences</a></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>VT emulation</strong> — commonly in the same box as 3270, and the reason a
+      shop can standardise on one client. Worth doing only if it does not
+      compromise the 3270 path, which is what 3270Web is actually for</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>DBCS and bidirectional language support</strong> — double-byte character
+      sets, and right-to-left screens with the field-level orientation rules
+      that go with them. Reaches the code page handling, the field model and
+      the renderer, in that order</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>A native EHLLAPI shim</strong> — a small DLL that presents the classic
+      entry points and forwards them to the HLLAPI-shaped endpoint, for the
+      binaries that cannot be rebuilt. The semantics are already
+      implemented; what is missing is a library for them to load</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Decisions in a recording</strong> — <em>shipped: <code>SetVariable</code>, <code>If</code>/<code>Else</code>/
+      <code>EndIf</code>, <code>While</code>/<code>EndWhile</code> and <code>Stop</code> as ordinary steps in the same flat
+      list, so a flow can read a balance off the screen and take a different
+      path, or press a key until the host stops saying MORE. Every loop is
+      bounded, a decision that cannot be made stops the run rather than
+      guessing a branch, and a recording whose blocks do not close is refused
+      when it is loaded rather than half-way through. See
+      <a href="../workflow/#decisions-variables-and-loops">Decisions, variables and loops</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Translating a macro's decisions, not just its steps</strong> — <em>shipped: a
+      branch, a loop and a variable in a macro file become <code>If</code>/<code>Else</code>/<code>EndIf</code>,
+      <code>While</code>/<code>EndWhile</code> and <code>SetVariable</code> steps, where the file says enough for
+      the translation to be a translation. Which lines are inside a block is the
+      file's own structure; the condition has to name a row, column and length,
+      or a variable already read, compared against a literal. Everything else is
+      reported — and a branch that did not translate takes its body with it,
+      because the failure worth preventing is the one where the <code>If</code> is dropped
+      and the steps inside it start running every time. See
+      <a href="../workflow/#the-branches-and-loops-it-reads">Importing a macro file</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Macro-file import</strong> — <em>shipped: a macro file written against the
+      session automation object model becomes a recording — its steps, and the
+      branches, loops and variables the file says enough about — and every line
+      that would not translate is reported with its number, its text and the
+      reason. One click in the Automation menu, and on the API without a
+      session so a directory of them converts in one pass. See
+      <a href="../workflow/#importing-a-macro-file">Recordings and Playback</a></em></li>
+</ul>
+<h2 id="recently-shipped">Recently shipped<a class="headerlink" href="#recently-shipped" title="Permanent link">¶</a></h2>
+<p>Newest first. Every item here is live and documented.</p>
+<ul>
+<li>
+<p><strong>A conformance suite that talks to the terminal</strong> — every test of how a
+  screen is read used to be built from a captured <code>ReadBuffer</code> line, which
+  answers "does this parse" and nothing else: the capture was written by
+  whoever wrote the test, so it agrees with them by construction. A
+  terminal-fidelity bug is exactly a disagreement between what the terminal
+  says and what this code believes it says, and it survives that kind of test
+  indefinitely — blink was compared against a value the attribute cannot hold
+  for as long as there were tests for blink. There is now a scripted TN3270
+  host in the tree: a test writes a real 3270 data stream, a real terminal
+  reads it, and the assertion is on the decoded screen. It also keeps every
+  inbound record, so the other half of the conversation — which AID byte a key
+  produces, which fields report as modified, where the host was told the cursor
+  was — is checked for the first time. Three gaps came out of it on the first
+  pass, each described below</p>
+</li>
+<li>
+<p><strong>A first screen with nothing to type into</strong> — a report, a broadcast notice,
+  a "system unavailable" message, a line-mode banner: display-only screens are
+  ordinary, and one arriving first stopped the session coming up at all. The
+  connection succeeded and the screen arrived; the terminal was then waiting
+  for an entry field before it would answer anything, and fifteen seconds later
+  the operator was told the host could not be reached. It could — it was
+  already showing them something. Connections are now made by asking the
+  terminal to make one rather than by naming the host on its command line,
+  which also makes them faster and makes a genuine refusal say what went wrong</p>
+</li>
+<li>
+<p><strong>A field that wraps past the end of the display</strong> — the 3270 buffer is one
+  address space that wraps, so when the first field attribute on a screen is
+  not at the very first position, the positions in front of it belong to the
+  <em>last</em> field: the one that runs off the bottom right and continues at the top
+  left. Reading left to right cannot see that, and what happened instead was an
+  invented protected field. That is right whenever the last field is protected,
+  which is most of the time and is why it went unnoticed; when the last field is
+  an entry field it showed the operator a region they could not type into, on a
+  screen where the host was waiting for them to</p>
+</li>
+<li>
+<p><strong>Function keys spelled the other way</strong> — a PF or PA key arrives written
+  several ways, because the tools and the people that produce one do not agree.
+  This side already treated every spelling as a real AID key and then sent one
+  of them to a terminal that has only "PF(3)", which answered "nonexistent or
+  invalid name" — a strange thing to be told about F3. Every spelling now
+  becomes the one the terminal answers to</p>
+</li>
+<li>
+<p><strong>The attributes that were decoded and then not shown</strong> — a terminal can get
+  every byte of the data stream right and still show the operator the wrong
+  screen, because between reading an attribute and drawing it there are two
+  more places to lose it. A blinking field was read correctly and compared
+  against a value the attribute cannot hold, so it decoded, travelled the whole
+  way to the renderer, and named no style at all — steady text where the host
+  had asked for attention. A reverse-video field was styled with a rule that
+  cancelled itself, painting the text in the colour it was sitting on, so the
+  line an application had picked out as the one that mattered rendered as a
+  blank hole. Neither failed anywhere: no error, no log line, nothing to point
+  at. Both are fixed, and both now have a test that fails on the old
+  behaviour — including one that renders every attribute the decoder can
+  produce and checks the stylesheet has heard of each style it names, because
+  the gap between "the renderer says this" and "the stylesheet does that" is
+  where a display attribute goes silently missing.</p>
+</li>
+</ul>
+<p>Alongside them, two attributes that were never read at all. A <em>character</em>
+  attribute — the Set Attribute order, which colours a run <em>inside</em> a field
+  rather than the field as a whole — was skipped over, so the four words an
+  application picked out in red came back in the colour of the line around
+  them. And the extended background colour, which the terminal reports and
+  which is a separate attribute from the foreground, was parsed and dropped.
+  Both now reach the screen. See
+  <a href="../terminal-capabilities/#terminal-fidelity">Terminal Capabilities</a>
+- <strong>The whole of an oversize display</strong> — a display can be configured larger
+  than its model, and this application offers the setting. What it then did
+  with the result was cut it back to the model's standard size: an operator
+  running 100x30 was shown 80x24 of it, with the setting that asked for the
+  rest still switched on and nothing saying where it had gone. The terminal
+  reports the size of the screen it is actually showing, and that is now the
+  size that gets drawn — bounded only against a figure no 3270 buffer address
+  can reach, which is a misread status line rather than a large display. See
+  <a href="../terminal-model-limits/#larger-than-the-model-oversize-displays">Screen Size and Model Guide</a>
+- <strong>The byte the host actually sent</strong> — every screen this application serves has
+  been through its own parser first, which is the right arrangement for every
+  question except one: whether the parser is what went wrong. That is the
+  question a code page complaint asks, and it cannot be answered by the thing
+  being asked about — a pound sign showing as a hash looks identical whether the
+  host sent the wrong byte, the terminal read it against the wrong code page, or
+  this side mangled it afterwards, and the parsed screen is downstream of all
+  three. The terminal's buffer is now readable directly: a region by row, column
+  and length, as characters or as the host's own code points, and the field a
+  position falls in with the attribute byte that opens it. Two reads,
+  deliberately not wired into anything that serves a screen — this is a second
+  opinion, and a second opinion is only worth having when it comes from
+  somewhere other than the thing being checked. What did carry over is the
+  redaction: a password is still in the buffer whatever the display did with it,
+  and a read that went straight to the terminal would otherwise have been the
+  one way around the masking every other reader here applies. See
+  <a href="../rest-api/#get-apiv1sessionsidbuffer">REST API</a>.
+- <strong>A host allowed to think for longer than fifteen seconds</strong> — the terminal's
+  own setting was to hold an AID key until the host gave the keyboard back, and
+  it held the session's one control pipe while it waited. Nothing else about
+  that session could happen meanwhile — including reading the screen to show
+  the operator that the host was busy — and the wait was bounded by a budget
+  whose expiry kills the terminal process. Measured against a host stopped at a
+  breakpoint, an Enter took thirty seconds and came back disconnected: a long
+  transaction did not fail, it ended the session. The key now returns as soon
+  as it is sent and the waiting is done in short steps with the pipe let go
+  between them, so the same measurement is twenty seconds, no error, session
+  intact — and twenty-nine screen reads got through while it waited, which is
+  what puts <code>X SYSTEM</code> in front of the operator instead of a page that has
+  stopped responding.
+- <strong>What the operator typed, on the screen it was typed into</strong> — marking a
+  field changed and writing the changed fields to the host were two separate
+  holds of the session, with the browser's own work in between, and the screen
+  those marks live on is rebuilt from the host on every read. The live screen
+  stream reads every 700 ms, so a refresh landing in that gap handed back a
+  screen with nothing marked on it. It did not fail: the fields were simply not
+  written, and the AID key went to the host anyway. The operator watched their
+  typing disappear and the transaction go through without it. Reading the
+  screen, writing the input onto it and submitting it are now one step, taken
+  with the session held, and the only way to reach it is one that cannot be
+  split.
+- <strong>The characters the code page was chosen for, on every platform</strong> — pinning
+  the terminal's character set through the environment works wherever the
+  platform has the one being asked for, and does nothing where it does not.
+  The terminal has its own switch for the same thing, needing no locale data at
+  all — but only on builds that have it, and naming an option an older build
+  does not know makes it refuse to start, which turns a cosmetic fix into no
+  terminal whatsoever. So the build is now asked what it takes, once, from its
+  own help output. Belt and braces, and the braces are the ones that work on a
+  Mac.
+- <strong>The characters the code page was chosen for</strong> — a connection can name
+  cp285 or cp273 or cp880, and the pound signs, umlauts and Cyrillic letters
+  those code pages exist for did not arrive. Two separate reasons, both of them
+  invisible: the terminal describes the screen in whatever character set the
+  server was started with, a container image sets none, and "none" means ASCII,
+  so everything else was turned into a question mark before this program could
+  see it — and where a server did have a character set, one screen cell came
+  back as several bytes and was replaced with a null to keep the columns lined
+  up. The geometry was right and the word was gone. Going the other way had the
+  matching fault: text typed into a field was sent as the bytes of each
+  character rather than as the character, so an "é" landed on the screen as
+  "Ã©" and pushed the rest of the field along a cell. The terminal is now
+  started with a character set rather than left to inherit one, a character is
+  one cell however many bytes it takes, and what is typed goes down as what was
+  typed. See <a href="../terminal-capabilities/#terminal-fidelity">Terminal Capabilities</a>.
+- <strong>A refusal is an answer</strong> — the terminal ends what it says about an action
+  with "ok" when it ran and "error" when it did not, and only the first was
+  ever being listened for. So a refusal was not an error here, it was a
+  silence: the reader was still waiting when the next action went down the
+  pipe, and answered <em>that</em> action's question with this one's output. When
+  nothing followed, it waited out the fifteen-second budget every action
+  shares — and running out of that budget kills the terminal process, so the
+  session went with it. None of the ways to trigger this were exotic. Typing
+  into a protected field is a refusal. So is a key the keyboard has locked out,
+  a PF number that does not exist, a reconnect to a port with nothing behind
+  it, and a transfer the host will not start. Each of those now comes back in
+  milliseconds, carrying the reason the terminal gave for it, with the session
+  still up — and a connection that is turned away says "Connection refused"
+  rather than "the screen was not ready", which was true and useless. The one
+  refusal deliberately not passed on is a host that has not released the
+  keyboard yet: the key was sent, the host has it, and that is what <code>X SYSTEM</code>
+  is for.
+- <strong>A file transfer allowed to take as long as it takes</strong> — IND$FILE moved the
+  file over the same fifteen-second budget as a cursor move, and running out of
+  it killed the terminal process. So a transfer longer than fifteen seconds
+  lost the transfer <em>and</em> the session, and did so more reliably the more the
+  dataset was worth moving. It has its own budget now, sized for a file rather
+  than for a keystroke.
+- <strong>The decisions in the shelf of macros, not just the steps</strong> — a recording
+  learned to decide, and the importer could still only hand over the straight
+  parts of a file, which left the branch — the reason the macro was written at
+  all — for a person. Now a branch, a loop and a variable come across as steps
+  where the file says enough for that to be a translation rather than a guess:
+  the block structure is the file's own, and the condition has to name a place
+  on the screen or a variable already read. What holds it together is one rule
+  going the other way — a branch whose condition did not translate takes its
+  body with it. Dropping the <code>If</code> and keeping its contents would turn steps
+  that ran on some days into steps that run on every day, against a live host,
+  under a report that said the branch needed a human and nothing about where
+  its statements went. The report now names the branch, the reason, and how
+  many statements went with it. See
+  <a href="../workflow/#the-branches-and-loops-it-reads">Importing a macro file</a>.
+- <strong>A recording that can decide</strong> — the flow a shop actually has is not a
+  straight line: read the balance and take a different path under the limit,
+  press a key until the host stops saying MORE, skip the confirmation panel on
+  the days it is not drawn. Recordings now carry <code>SetVariable</code>, <code>If</code>/<code>Else</code>,
+  <code>While</code> and <code>Stop</code> as ordinary steps in the same flat list every reader of a
+  recording already walks, so nothing else had to learn a second shape. The
+  restraint is the design: a loop is always bounded, a condition that cannot be
+  evaluated ends the run instead of picking a branch, and a <code>${name}</code> that
+  names nothing stops the run rather than typing those characters into a field
+  on a live host. Blocks that do not close are refused when the file is
+  loaded, before it has touched anything. See
+  <a href="../workflow/#decisions-variables-and-loops">Decisions, variables and loops</a>.
+- <strong>The shelf of macros that was keeping a shop where it is</strong> — a macro file
+  written for an installed emulator is read here and becomes a recording, and
+  the lines it will not take are named rather than dropped: this condition
+  nothing can read a position out of, that value computed from two others,
+  this text typed at a position the file cannot know. The refusals
+  are the feature. Guessing a coordinate would produce a flow that types an
+  account number into whatever field the host happened to leave the cursor in,
+  and that is discovered in production rather than in the report. The
+  translation and the report are on the API as well, needing no session,
+  because a shop with one macro has three hundred. See
+  <a href="../workflow/#importing-a-macro-file">Recordings and Playback</a>.
+- <strong>A question about the screen in front of you</strong> — "explain this screen" was
+  a starter chip on an empty chat, which is the one moment an operator is
+  least likely to need it; the screen worth explaining is the one that arrived
+  four transactions into a flow. It is now a click from the Terminal menu, the
+  chat composer or the command palette, at any point in a conversation. The
+  screen goes with the question rather than being read a round later, because
+  a host is free to redraw while the question is being asked and an answer
+  about the wrong screen is worse than none. See
+  <a href="../ai-chat/#explain-this-screen">AI Chat Mode</a>.
+- <strong>An assistant that knows what this build can do</strong> — the terminal grew past
+  its own tool surface. Snapshots, the display toggles, the connection's own
+  account of itself, the printer session and the task catalogue were on the
+  API and nowhere an assistant could reach, so one asked whether 3270Web could
+  compare a screen against the one a flow used to land on answered from what
+  it could see — a keyboard and an exploration engine. They are tools now,
+  declared once and offered to the chat panel and the MCP server alike, which
+  also gives the panel the saved tasks it never had. See
+  <a href="../ai-chat/#beyond-the-screen">AI Chat Mode</a>.
+- <strong>Somewhere for the batch output to go</strong> — a 3287 printer LU bound beside
+  the terminal session, by name or as the associated printer of the display
+  LU the host bound, and always on the same host and TLS terms as the session
+  it belongs to. What the host prints arrives as a file to download rather
+  than as paper, which is the trade a browser makes; a job too large to keep
+  is named as truncated rather than quietly ending early. See
+  <a href="../printer-sessions/">Printer sessions</a>.
+- <strong>A deployment's set-up as a file</strong> — the host presets and the recorded
+  tasks in one versioned document, so a second instance is configured by
+  importing rather than by retyping forty entries in the right order. It says
+  what it would change before it changes anything, and a file it cannot store
+  in full it does not store at all. See
+  <a href="../session-manager/#moving-a-set-up-to-another-instance">The session manager</a>.
+- <strong>An accessibility claim with an audit behind it</strong> — thirteen surfaces
+  tested, four conformance failures fixed, and a statement that says where it
+  falls short rather than only where it does not. See
+  <a href="../accessibility/">Accessibility</a>.
+- <strong>A door in the shape of the old one</strong> — an HLLAPI-shaped endpoint, so a
+  screen-scraper written against numbered functions and presentation-space
+  positions can be pointed at 3270Web without being rewritten. See
+  <a href="../rest-api/#post-apiv1sessionsidhllapi">REST API</a>.
+- <strong>Touch</strong> — a bar of terminal keys within a thumb's reach on a tablet or a
+  phone, riding above the software keyboard rather than behind it, and a tap
+  on protected text that places the cursor there. Without an AID key a device
+  with no keyboard could read a screen and never end one. See
+  <a href="../keyboard-and-controls/#touch-devices">Keyboard and Controls</a>.
+- <strong>The terminal inside another application</strong> — a named allowlist of origins
+  that may frame 3270Web or call its API from a page, a chrome-less
+  <code>?embed=1</code> rendering, and a postMessage channel for the page around the
+  frame. Documented end to end, including why HTTPS is not optional for it.
+  See <a href="../embedding/">Embedding 3270Web</a>.
+- <strong>Screen snapshots, display toggles and screen tracing</strong> — the screen frozen
+  under a name and diffed row by row, so a flow can be checked against the
+  screen it used to land on; the terminal's own display settings read and
+  written where they live; and every screen recorded as it is drawn,
+  including the ones replaced before anyone asked to see them. See
+  <a href="../rest-api/">REST API</a>.
+- <strong>The connection's own account of itself</strong> — negotiated telnet options, TLS
+  state, terminal name and byte counts, none of which the screen shows, in a
+  <strong>Connection</strong> panel one click from the terminal and on the API for scripted
+  checks; and a graceful host disconnect on teardown rather than a killed
+  subprocess. See
+  <a href="../keyboard-and-controls/#connection-details">Keyboard and Controls</a>.
+- <strong>A cursor that is not confined to the fields</strong> — it can rest on any cell of
+  the display, so screens driven by cursor position rather than field content
+  are operable; and auto-skip now follows the field-attribute rule instead of
+  approximating it. See <a href="../keyboard-and-controls/">Keyboard and Controls</a>.
+- <strong>Guided Business Tasks</strong> — record a screen flow once, and anyone can run
+  it from a form and read the answer without navigating a green screen.
+  Named inputs, named outputs, and a run that stops at the first divergence
+  rather than typing into a screen nobody expected. See
+  <a href="../business-tasks/">Guided Business Tasks</a>.
+- <strong>Choice of AI provider</strong> — GitHub Copilot, Claude, OpenAI, Google AI,
+  Ollama (local or cloud), or any OpenAI-compatible endpoint, selected from
+  the chat panel. Each provider keeps its own model and credentials. See
+  <a href="../ai-providers/">AI Providers</a>.
+- <strong>Customisable keyboard mapping</strong> — rebind by pressing the key, with JSON
+  export/import and a <code>.KMP</code> keymap-file importer that reports what it could
+  not map. See <a href="../keyboard-and-controls/">Keyboard and Controls</a>.
+- <strong>IND$FILE file transfer</strong> — send and receive, text or binary, with TSO
+  dataset-creation options and PDS member names.
+- <strong>Concurrent sessions with tabs</strong> — up to six live host sessions in one
+  browser, fully independent.
+- <strong>Server-side connection profiles</strong> — per-host TLS, certificate
+  verification, LU name, terminal model and code page.
+- <strong>Screen tools</strong> — hotspots on the application's own key legends, find
+  over the character grid (so it matches typed values), screen history for
+  the last 50 screens, screen-accurate and rectangular block copy.
+- <strong>Terminal fidelity</strong> — local cursor movement with no host round-trip, a
+  real OIA (<code>X SYSTEM</code>, <code>X -f</code>, insert indicator), numeric-field
+  enforcement with an operator-error lock, insert/overtype, and type-ahead.
+- <strong>Focus mode and workspace modes</strong> — the terminal fills the display with
+  an auto-hiding menu rail; Business is the default surface and
+  Engineering is one click away.
+- <strong>Chaos exploration hardening</strong> — saturation detection, structural screen
+  dedup, smarter value generation, automatic exit-key blocking, a Markdown
+  discovery report, and mind-map export/import. See
+  <a href="../chaos-mode/">Chaos Mode</a>.
+- <strong>Host Compatibility Profiler</strong> and <strong>Chaos Mind-Map Compare</strong> — see
+  <a href="../host-profiler/">Host Compatibility Profiler</a> and
+  <a href="../chaos-compare/">Chaos Mind-Map Compare</a>.</p>
+<h2 id="guided-business-tasks">Guided Business Tasks<a class="headerlink" href="#guided-business-tasks" title="Permanent link">¶</a></h2>
+<p>Complete: authoring from a recording, running from a form, the
+token-authenticated API, export/import, and conversion from a chaos run. See
+<a href="../business-tasks/">Guided Business Tasks</a>.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Authoring wizard</strong> — <em>shipped: record a flow, confirm the derived
+      inputs, repair the guard on any step against the screen it runs on, mark
+      the answer by clicking or dragging on the final screen, and see what the
+      server would read back before saving. A recorded password is marked as a
+      secret and never written to the catalogue. See
+      <a href="../business-tasks/">Guided Business Tasks</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Editing a saved task</strong> — <em>shipped: Tasks → Edit reopens a task in the
+      same wizard, so a mislabelled input or a region a character too short is
+      a correction rather than a re-recording. See
+      <a href="../business-tasks/#changing-a-task">Guided Business Tasks</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Export / import task definitions</strong> — <em>shipped: <code>GET /api/v1/tasks</code>
+      returns exactly what <code>POST /api/v1/tasks</code> accepts, so the catalogue
+      moves between deployments and into version control with no separate
+      format</em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Task API</strong> — <em>shipped: <code>POST /api/v1/sessions/{id}/tasks/run</code>,
+      token-authenticated and synchronous, so a bot gets the answer in the
+      response. See <a href="../rest-api/">REST API</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Chaos import</strong> — <em>shipped: <code>GET /chaos/business/task-draft</code> converts
+      a discovered <code>BusinessFunction</code> into a task draft, deriving guards from
+      the screen text the run captured. See
+      <a href="../business-tasks/">Guided Business Tasks</a></em></li>
+</ul>
+<h2 id="daily-use-fidelity">Daily-use fidelity<a class="headerlink" href="#daily-use-fidelity" title="Permanent link">¶</a></h2>
+<p>Behaviours an experienced 3270 operator expects from the terminal itself.
+Tracked apart from features because they are not features — they are whether
+the thing behaves like a terminal. The rest of this list is shipping; see
+<a href="../terminal-capabilities/">Terminal Capabilities</a>.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Strict auto-skip semantics</strong> — <em>shipped: auto-skip now follows the
+      field-attribute rule rather than approximating it as "the field is
+      numeric". See
+      <a href="../keyboard-and-controls/#auto-skip">Keyboard and Controls</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Cursor movement over protected areas</strong> — <em>shipped: the cursor can rest
+      on any cell of the display, which is what makes "position the cursor
+      beside your choice" screens operable. See
+      <a href="../keyboard-and-controls/#cursor-on-protected-text">Keyboard and Controls</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Focus mode vs. a MAX-size keypad</strong> — <em>shipped, and the call is that the
+      terminal wins: focus mode exists to give the terminal the display, so the
+      keyboard takes a share of it and the terminal takes the rest. Measuring
+      first found the two were not merely fighting over the space — they were
+      bidding for it, each sizing itself from what the other had just released,
+      until both overflowed and the terminal's first rows were pushed above the
+      top edge. See
+      <a href="../keyboard-and-controls/#focus-mode-and-the-keypad">Keyboard and Controls</a></em></li>
+</ul>
+<h2 id="s3270-actions-not-yet-surfaced">s3270 actions not yet surfaced<a class="headerlink" href="#s3270-actions-not-yet-surfaced" title="Permanent link">¶</a></h2>
+<p><code>s3270</code> publishes about ninety actions. 3270Web drives roughly a third of them,
+and the rest divide into three groups: a handful worth having, a larger set that
+belongs to protocols this terminal does not speak, and a scripting family held
+back on purpose. All three are below, because "not surfaced" and "not wanted"
+are different answers and a roadmap that only lists the first is a to-do list
+pretending to be a plan.</p>
+<p>Wiring one up is usually a wrapper job, but "usually" is doing work in that
+sentence: an action that occupies the control pipe while it waits, or that
+writes a file, or that changes what the terminal will accept, is a design
+decision before it is a wrapper. Each item below says which kind it is.
+<code>String()</code>, <code>Transfer()</code>, <code>PrintText()</code>, <code>Snap()</code>, <code>Set()</code>/<code>Toggle()</code>,
+<code>ScreenTrace()</code>, <code>Query()</code>, <code>Ascii()</code>, <code>Ebcdic()</code>, <code>ReadBuffer()</code> and
+<code>Disconnect()</code> are already done.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong><code>Query</code></strong> — <em>shipped: <code>GET /api/v1/sessions/:id/query</code> returns
+      everything the terminal knows about the connection — negotiated telnet
+      options, TLS state, terminal name, byte counts — none of which is on the
+      screen. See <a href="../rest-api/">REST API</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Explicit <code>Disconnect</code></strong> — <em>shipped: teardown closes the host session
+      before the subprocess goes away, instead of killing it and leaving the
+      TCP connection for a gateway to notice in its own time</em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong><code>Snap()</code></strong> — <em>shipped: the screen frozen under a name and compared row
+      by row, against another snapshot or against the screen as it stands now.
+      That is what makes a regression test against a green screen possible:
+      the answer is which rows moved, not pass or fail. See
+      <a href="../rest-api/">REST API</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong><code>Toggle()</code> / <code>Set()</code></strong> — <em>shipped: the display toggles this build
+      actually has — monocase, crosshair, cursor blink, the underscore under
+      input fields — read from and written to the terminal rather than
+      mirrored here. A narrow allowlist, because the same action also reaches
+      trace files and printer sessions</em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong><code>ScreenTrace</code></strong> — <em>shipped: every screen recorded as it is drawn,
+      including the ones the host replaced before anyone asked to see them —
+      the screens a poller can never find. Behind <code>ALLOW_SCREEN_TRACE</code>,
+      because it writes a file holding everything that crossed the display.
+      See <a href="../rest-api/">REST API</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong><code>Ascii()</code> / <code>Ebcdic()</code> / <code>ReadBuffer()</code></strong> — <em>shipped: a region read by
+      row, column and length, and the field a position falls in, both answered
+      out of the terminal's own buffer rather than out of this side's parse of
+      it. <code>?encoding=ebcdic</code> gives the host's code points, which is what a code
+      page complaint needs — the byte the host sent, before anything here
+      interpreted it. Cells inside a hidden field are masked on the way out,
+      because reading the buffer directly must not be the one way around the
+      redaction every other reader applies. See
+      <a href="../rest-api/#get-apiv1sessionsidbuffer">REST API</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>A host-details panel in the browser</strong> — <em>shipped: </em><em>Connection</em><em> in the
+      terminal header reads the same endpoint the API does, so the connection's
+      own account of itself is one click away rather than API-only. See
+      <a href="../keyboard-and-controls/#connection-details">Keyboard and Controls</a></em></li>
+</ul>
+<h3 id="worth-having">Worth having<a class="headerlink" href="#worth-having" title="Permanent link">¶</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>SaveInput()</code> / <code>RestoreInput()</code></strong> — the host redraws the panel while
+      somebody is half-way through filling it in, and everything typed is gone.
+      Every operator in this category knows that feeling and most have learned
+      to type the whole thing again rather than find out. These two hold what
+      was entered across a redraw and put it back. A wrapper job, and the
+      question that comes with it is whose decision the restore is — automatic
+      is surprising when the host redrew <em>because</em> the input was wrong</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>Trace()</code></strong> — the data stream, where
+      <a href="../rest-api/"><code>ScreenTrace</code></a> is the screens.
+      They answer different questions: the screens say what the operator saw,
+      the stream says what the host actually sent, and only the second one
+      settles an argument about whether a field attribute arrived. Behind a
+      switch and a server-chosen path, exactly as screen tracing is, because it
+      writes a file holding everything that crossed the wire</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>Wait()</code> beyond <code>Unlock</code></strong> — <code>Wait(Output)</code>, <code>Wait(InputField)</code>,
+      <code>Wait(Disconnect)</code>, <code>Wait(3270Mode)</code>. Playback, chaos exploration and the
+      live screen stream all wait by asking again on a timer; these are the
+      terminal's own way of being told. Not a wrapper job: a wait occupies the
+      one control pipe the session shares, so a keystroke arriving mid-wait has
+      to queue behind it. Worth it only where the wait is bounded and short, and
+      worth measuring before believing</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>KeyboardDisable()</code></strong> — a session that can be watched and not typed
+      into. Useful over somebody's shoulder, useful in a demonstration, and
+      useful as the honest shape of a read-only share, which is currently a
+      thing this terminal cannot offer without simply not giving out the URL</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>The host's alarm</strong> — the write control character that rings the bell is
+      part of the 3270 data stream and part of how an application says "look at
+      this". A browser tab has somewhere to put that; today it goes nowhere</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>Reconnect()</code></strong> — reconnect to the host just disconnected from, on the
+      terms already negotiated. The session reconnects by re-issuing the
+      original <code>Connect()</code>, which is the same thing until a deployment's target
+      is a name resolving to more than one address</li>
+</ul>
+<h3 id="belonging-to-protocols-this-terminal-does-not-speak">Belonging to protocols this terminal does not speak<a class="headerlink" href="#belonging-to-protocols-this-terminal-does-not-speak" title="Permanent link">¶</a></h3>
+<p>Listed so nobody has to check twice. <code>Interrupt()</code>, <code>AnsiText()</code>, <code>NvtText()</code>,
+<code>Expect()</code>, <code>PageUp()</code>/<code>PageDown()</code> and the scrollback around them are NVT-side:
+they become interesting only if <a href="#category-parity">VT emulation</a> does, and are
+otherwise dead surface. <code>Flip()</code>, <code>CircumNot()</code> and <code>TemporaryComposeMap()</code>
+belong to bidirectional and composed input, which is the
+<a href="#category-parity">DBCS and bidi</a> item and reaches the field model long before
+it reaches an action wrapper.</p>
+<h3 id="held-deliberately">Held deliberately<a class="headerlink" href="#held-deliberately" title="Permanent link">¶</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>Source()</code> / <code>Macro()</code> / <code>Script()</code> / <code>Prompt()</code> / <code>Execute()</code></strong> —
+      native s3270 scripting. Held rather than pending: <code>Source()</code> reads a file
+      of actions, <code>Script()</code> and <code>Execute()</code> start a process, and a macro would
+      run on the same control pipe the session depends on. What they are wanted
+      <em>for</em> — running a recorded sequence against a host — is already
+      <a href="../business-tasks/">Guided Business Tasks</a> and workflow replay, over
+      validated steps rather than raw actions. The open question is whether any
+      remaining case justifies the surface</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong><code>Cookie()</code></strong> — authentication for s3270's own script interface. It
+      matters only if that interface is ever exposed, and exposing it would mean
+      a second door into the session with its own authorisation model beside the
+      one every other surface here already shares. The reason it is on this list
+      is to record that the answer is currently no</li>
+</ul>
+<h2 id="enterprise-deployment">Enterprise deployment<a class="headerlink" href="#enterprise-deployment" title="Permanent link">¶</a></h2>
+<p>These gate a production rollout rather than daily usability. A pilot can
+proceed without them; procurement cannot.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Accounts and per-user separation</strong> — <em>shipped: <code>AUTH_MODE=local</code>
+      gives a sign-in page, an account each with roles, and one person's
+      terminal sessions, chaos runs, tasks and saved work kept from another's
+      — administrators included. API tokens belong to accounts and reach only
+      what their owner reaches. See
+      <a href="../multi-user/">Running a shared instance</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Attributable audit logging</strong> — <em>shipped: who signed in, who opened a
+      session against which host, who changed an account or a setting, and
+      every refusal — in a file of its own, admin-readable at <code>/admin/audit</code>,
+      with no switch to turn it off. See
+      <a href="../multi-user/#the-audit-trail">The audit trail</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>OIDC single sign-on</strong> — <em>shipped: <code>AUTH_MODE=oidc</code> signs people in
+      through the directory an organisation already runs, provisioning an
+      account on first use and mapping roles from a group claim. Local accounts
+      keep working alongside it, deliberately: an instance whose only door
+      depends on a service it does not run can be locked out of itself by
+      somebody else's outage. See
+      <a href="../authentication/#single-sign-on-oidc">Single sign-on</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled><span class="task-list-indicator"></span></label> <strong>SAML</strong> — the same job for organisations whose directory does not speak
+      OIDC. A different protocol rather than a different identity model: the
+      account an assertion resolves to, and everything downstream of it, is
+      what OIDC sign-in already builds</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>WCAG 2.1 AA conformance statement</strong> — <em>shipped: an audit across
+      thirteen surfaces, the failures it found fixed, and a statement that
+      names what conforms, what does not, and which two apparent failures are
+      deliberate. See <a href="../accessibility/">Accessibility</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>A session manager</strong> — <em>shipped: an administrator assigns published host
+      profiles to groups, roles or named accounts, and an operator whose
+      account reaches one mainframe is connected straight to it while one who
+      reaches several lands on a real 3270 selection screen. Branded, paged,
+      and driven by the terminal's own keys. See
+      <a href="../session-manager/">The session manager</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Distributable task and profile libraries</strong> — <em>shipped: the recorded
+      tasks and the host presets as one versioned document, downloaded from one
+      deployment and imported into the next. The import says what it would do
+      before it does it, reports every entry, and refuses a file it cannot
+      store in full rather than storing half — because the state a library
+      exists to prevent is two instances quietly disagreeing about which
+      mainframe a name points at. Audiences naming individual accounts are left
+      out, since those accounts exist only where the file came from. See
+      <a href="../session-manager/#moving-a-set-up-to-another-instance">The session manager</a></em></li>
+</ul>
+<h2 id="web-native-and-integration">Web-native and integration<a class="headerlink" href="#web-native-and-integration" title="Permanent link">¶</a></h2>
+<p>Complete. The terminal can be framed by a named origin, driven from the page
+around it, called cross-origin as an API, used with a finger, and reached by a
+screen-scraper that still speaks HLLAPI.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Embed-in-iframe / SPA integration story</strong> — <em>shipped: <code>EMBED_ORIGINS</code>
+      names the origins that may frame the terminal or call the API from a
+      page, <code>?embed=1</code> renders it without chrome, and a postMessage channel
+      lets the surrounding page read the screen and press keys. See
+      <a href="../embedding/">Embedding 3270Web</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Mobile / touch UI</strong> — <em>shipped: a thumb-reachable bar of AID keys that
+      rides above the software keyboard, tap-to-place-cursor on protected
+      text, and a screen that scrolls and zooms rather than reflowing. See
+      <a href="../keyboard-and-controls/#touch-devices">Keyboard and Controls</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>HLLAPI-shape scripting endpoint</strong> — <em>shipped: numbered functions,
+      one-based linear positions and return codes, so an existing
+      screen-scraper is ported by changing how it calls rather than what it
+      does. <code>"SMITH@E"</code> still means what it always meant. See
+      <a href="../rest-api/#post-apiv1sessionsidhllapi">REST API</a></em></li>
+</ul>
+<h2 id="ai-assisted-use">AI-assisted use<a class="headerlink" href="#ai-assisted-use" title="Permanent link">¶</a></h2>
+<p>Complete, and kept here rather than deleted: what an AI section promises is
+the part a reader is most entitled to check, and a list of what was actually
+built is the only honest way to let them.</p>
+<p>What is live: a chat panel beside the terminal that <strong>drives the session
+through a tool surface of about forty calls</strong> — read the screen, write a
+field, press an AID key, wait for the host, connect somewhere, run and steer a
+chaos exploration, annotate what it learns, catalogue a business function,
+generate a workflow from one, run a saved task and report its answer, freeze a
+screen and say which rows moved since, read what the connection negotiated,
+change a display toggle, collect what the host printed. Six AI providers to choose between, each with
+its own credentials. Procedures kept as
+<a href="../skills/">skills and instructions</a> in files, so an installation can add its
+own without editing a prompt. An <a href="../mcp/">MCP server</a> over stdio and HTTP with
+safety tiers and a host allowlist, offering every Guided Business Task as a
+tool of its own. Per-call approval, and an auto mode that still stops at
+<code>ask_user</code>. And everything read from a host wrapped as untrusted data, because
+a screen can be made to read like an instruction and the assistant is told,
+in the prompt, not to take one from it.</p>
+<p>See <a href="../ai-chat/">AI Chat Mode</a>, <a href="../ai-providers/">AI Providers</a>,
+<a href="../skills/">Skills and Extensions</a> and <a href="../mcp/">MCP Server</a>.</p>
+<p>What this section once listed as outstanding, and where each of it landed:</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>Natural-language → keystrokes</strong> — <em>shipped: this is what the tool
+      surface is. "Fill in the account number and press Enter" resolves to
+      <code>write_field</code> and <code>send_key</code> against the screen the assistant just
+      read, with the call shown before it runs unless auto mode is on</em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>AI-proposed task authoring</strong> — <em>shipped by a different route than the
+      one imagined here: a chaos run's discovered business function converts
+      into a task draft, guards derived from the screen text the run captured,
+      for a human to confirm. Nothing about Guided Business Tasks requires AI
+      — the authoring wizard works from a plain recording — which is the
+      difference between a differentiator and a dependency</em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>"Explain this screen" from the terminal, at any point</strong> — <em>shipped:
+      one click from the Terminal menu, from the composer, or from the command
+      palette, at any point in a conversation rather than only on an empty
+      one. The screen is captured when the question is asked and carried with
+      it, so the answer is about the screen that prompted the question and not
+      whichever one the host drew while it was being asked. See
+      <a href="../ai-chat/#explain-this-screen">AI Chat Mode</a></em></li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked><span class="task-list-indicator"></span></label> <strong>An assistant that knows what this build can do</strong> — <em>shipped: the
+      capabilities that were on the API and nowhere a model could reach are
+      tools now. Snapshots — take, list, diff, delete — so a flow can be
+      checked against the screen it used to land on; the display toggles; the
+      connection's own account of itself; the printer session and the jobs it
+      has collected; and the Guided Business Task catalogue, with a run that
+      waits and returns the answer rather than the step list. Declared once
+      and offered on both surfaces, the chat panel and the
+      <a href="../mcp/">MCP server</a>, and named in the system prompt — a tool a model
+      has to guess at is a capability it will tell the user this build does
+      not have. See <a href="../ai-chat/#beyond-the-screen">AI Chat Mode</a></em></li>
+</ul>
+<h2 id="where-the-leverage-is">Where the leverage is<a class="headerlink" href="#where-the-leverage-is" title="Permanent link">¶</a></h2>
+<p>Three areas where 3270Web can lead rather than match:</p>
+<ol>
+<li><strong>Guided Business Tasks.</strong> They change who can use the product.
+   Everything else here makes a terminal better for people who already use
+   terminals; this serves people who only know the business question.</li>
+<li><strong>Accessibility.</strong> A documented WCAG and screen-reader story is rare in
+   this category, and most of the work is already done — deriving each
+   field's label from the screen's own text is the hard part, and it exists.</li>
+<li><strong>Public REST API plus workflow JSON.</strong> Paired, they make 3270Web
+   straightforward to adopt for RPA and CI: a flow recorded by hand is the
+   same document an automated job replays, with no separate scripting
+   language in between.</li>
+</ol></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../accessibility/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Accessibility">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Accessibility
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../acknowledgements/" class="md-footer__link md-footer__link--next" aria-label="Next: Acknowledgements">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Acknowledgements
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      (c) Since 2023 3270.io
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://3270.io" target="_blank" rel="noopener" title="3270.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 8 6v12h-5v-7H9v7H4V9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://3270connect.3270.io" target="_blank" rel="noopener" title="3270Connect documentation" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19v-3h8v3zm-4.5-6L2.47 7h4.24l4.96 4.95c.58.59.58 1.55 0 2.12L6.74 19H2.5z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/3270io" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://linkedin.com/company/3270io" target="_blank" rel="noopener" title="linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://x.com/3270io" target="_blank" rel="noopener" title="x.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.sections", "navigation.tabs", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit", "content.action.view", "toc.integrate", "content.tabs.link", "content.footnotes"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "0.5.0"}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/3270-theme.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2477 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Run 3270Web as a Model Context Protocol server so an AI client outside the browser can read screens, fill fields and press keys. Same binary, nothing added.">
+      
+      
+        <meta name="author" content="3270.io">
+      
+      
+        <link rel="canonical" href="https://3270web.3270.io/mcp/">
+      
+      
+        <link rel="prev" href="../embedding/">
+      
+      
+        <link rel="next" href="../skills/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+    <title>3270Web MCP server: a live 3270 session for AI clients</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/3270-theme.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="https://3270web.3270.io/mcp/">
+    <meta property="og:title" content="3270Web MCP server: a live 3270 session for AI clients">
+    <meta property="og:description" content="Run 3270Web as a Model Context Protocol server so an AI client outside the browser can read screens, fill fields and press keys. Same binary, nothing added.">
+    <meta property="og:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:secure_url" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="3270Web MCP server: a live 3270 session for AI clients">
+    <meta name="twitter:description" content="Run 3270Web as a Model Context Protocol server so an AI client outside the browser can read screens, fill fields and press keys. Same binary, nothing added.">
+    <meta name="twitter:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab"><script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3270web.3270.io/#website",
+          "name": "3270Web",
+          "url": "https://3270web.3270.io/",
+          "description": "Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no emulator install, then record sessions, explore with AI Chat and replay them.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "MCP Server",
+          "description": "Run 3270Web as a Model Context Protocol server so an AI client outside the browser can read screens, fill fields and press keys. Same binary, nothing added.",
+          "url": "https://3270web.3270.io/mcp/",
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": "https://3270web.3270.io/#website" },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+      ]
+    }
+    </script>
+
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="3270" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="3270Web" class="md-header__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            3270Web
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../demo-videos/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Demonstration Videos
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and Run
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect and Use 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../sample-apps/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Bundled Sample Applications
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../authentication/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User Accounts and Sign-In
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../multi-user/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Running a Shared Instance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../session-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Session Manager
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workflow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Recordings and Playback
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../business-tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guided Business Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-mode/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-compare/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mind-Map Compare
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../host-profiler/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Host Compatibility Profiler
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../compatibility-profile-schema/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Compatibility Profile Schema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-fonts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Fonts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-chat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Chat Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-providers/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Providers
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keyboard-and-controls/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Keyboard and Controls
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../printer-sessions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Printer Sessions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-model-limits/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Screen Size and Model Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../rest-api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  REST API
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../embedding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Embedding 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  MCP Server
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Skills and Extensions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-capabilities/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Capabilities
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../accessibility/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Accessibility
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../feature-roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../acknowledgements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Acknowledgements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../licence/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licence
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="3270Web" class="md-nav__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    3270Web
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-videos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demonstration Videos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect and Use 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sample-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Sample Applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Accounts and Sign-In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a Shared Instance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Session Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../business-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guided Business Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mind-Map Compare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../host-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host Compatibility Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility-profile-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compatibility Profile Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Fonts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-and-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard and Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../printer-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Printer Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-model-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screen Size and Model Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedding 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#check-it-works-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check it works first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-claude-desktop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up Claude Desktop
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-session-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the session runs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Where the session runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-the-instance-has-accounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If the instance has accounts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-tiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool tiers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sessions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guided-business-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guided Business Tasks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-model-sees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the model sees
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sample-applications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sample applications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skills
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-compose-and-remote-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker, Compose and remote clients
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Docker, Compose and remote clients">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#turn-it-on-in-the-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn it on in the stack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-the-endpoint-before-configuring-a-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check the endpoint before configuring a client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connect-a-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connect a client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-conversation-one-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One conversation, one connection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#before-you-publish-the-port" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you publish the port
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and Extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../accessibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Accessibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acknowledgements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../licence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/3270io/3270Web/edit/main/docs/mcp.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/3270io/3270Web/raw/main/docs/mcp.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<div><h1 id="mcp-server">MCP Server<a class="headerlink" href="#mcp-server" title="Permanent link">¶</a></h1>
+<p>3270Web can act as a <strong>Model Context Protocol</strong> server, so an AI client drives
+a 3270 session directly — reading screens, filling fields, pressing keys,
+running chaos exploration and building business understanding. The same tools
+the <a href="../ai-chat/">AI Chat panel</a> uses, from a client outside the browser.</p>
+<p>It is the same binary. There is nothing extra to install.</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>mcp
+</code></pre></div>
+<p>Running in Docker or Compose, where there is no local binary for a client to
+launch? The server speaks MCP over HTTP itself — skip to <a href="#docker-compose-and-remote-clients">Docker, Compose and
+remote clients</a>.</p>
+<h2 id="check-it-works-first">Check it works first<a class="headerlink" href="#check-it-works-first" title="Permanent link">¶</a></h2>
+<p>Before configuring any client, confirm the binary answers:</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>mcp<span class="w"> </span>--list-tools
+</code></pre></div>
+<p>That prints the tool catalogue as JSON and exits. It needs no host, no session
+and no mainframe. If you see JSON, the wiring is right and anything that fails
+afterwards is configuration.</p>
+<h2 id="setting-up-claude-desktop">Setting up Claude Desktop<a class="headerlink" href="#setting-up-claude-desktop" title="Permanent link">¶</a></h2>
+<ol>
+<li>
+<p>Open <strong>Claude Desktop</strong> → <strong>Settings</strong> → <strong>Developer</strong> → <strong>Edit Config</strong>.
+   That opens <code>claude_desktop_config.json</code>.</p>
+</li>
+<li>
+<p>Add 3270Web to the <code>mcpServers</code> section.</p>
+<p><strong>Windows</strong></p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"3270web"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"C:\\3270Web\\3270Web.exe"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"mcp"</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>macOS and Linux</strong></p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"3270web"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/opt/3270web/3270Web"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"mcp"</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+</li>
+<li>
+<p><strong>Restart Claude Desktop.</strong> 3270Web appears in the tools list.</p>
+</li>
+<li>
+<p>Try it with no mainframe at all:</p>
+<blockquote>
+<p>Connect to <code>sampleapp:petstore</code> and tell me what is on the screen.</p>
+</blockquote>
+</li>
+</ol>
+<p>Other MCP clients — VS Code, Claude Code, Cursor, Windsurf — take the same
+command and arguments in their own configuration format.</p>
+<h2 id="where-the-session-runs">Where the session runs<a class="headerlink" href="#where-the-session-runs" title="Permanent link">¶</a></h2>
+<p>With no options, <code>3270Web mcp</code> starts 3270Web on a loopback port and drives
+that, printing the URL to stderr:</p>
+<div class="highlight"><pre><span></span><code>3270Web UI: http://127.0.0.1:54321
+</code></pre></div>
+<p>Open it. Watching the green screen while the model works is most of the point
+— you see what it typed, on which screen, before it moves on.</p>
+<p>If 3270Web is <strong>already running</strong> and <code>API_TOKEN</code> is set, the MCP server
+attaches to that instead, so the model drives the session you already have
+open rather than an invisible second copy.</p>
+<p>To attach to an instance elsewhere:</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>mcp<span class="w"> </span>--url<span class="w"> </span>http://terminal.example.com:3270<span class="w"> </span>--token<span class="w"> </span><span class="s2">"</span><span class="nv">$API_TOKEN</span><span class="s2">"</span>
+</code></pre></div>
+<p>The target must have the same <code>API_TOKEN</code> set. See the <a href="../rest-api/">REST API</a>
+for that surface.</p>
+<h3 id="if-the-instance-has-accounts">If the instance has accounts<a class="headerlink" href="#if-the-instance-has-accounts" title="Permanent link">¶</a></h3>
+<p>An MCP client cannot sign in, so on an instance with
+<a href="../authentication/">accounts</a> (<code>AUTH_MODE=local</code>) it presents a token issued
+to one:</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>token<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span>mcp
+3270Web<span class="w"> </span>mcp<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:3270<span class="w"> </span>--token<span class="w"> </span><span class="s2">"</span><span class="nv">$MY_TOKEN</span><span class="s2">"</span>
+</code></pre></div>
+<p>Every tool call then acts as that account — <code>list_sessions</code> shows its
+sessions, <code>use_session</code> reaches its sessions only. Launching <code>3270Web mcp</code>
+with no <code>--url</code> will refuse rather than start a second instance with the
+authentication turned off over the same files.</p>
+<p>A <code>--read-only</code> token will not work over MCP: every tool call is a <code>POST</code>,
+including the ones that only read. Use the <code>readonly</code> tool tier below to limit
+what a client can do.</p>
+<h2 id="tool-tiers">Tool tiers<a class="headerlink" href="#tool-tiers" title="Permanent link">¶</a></h2>
+<p>The tools are grouped by what they can do, set with the <code>MCP_TOOLS</code>
+environment variable. <strong>The default is <code>interactive</code>.</strong></p>
+<table>
+<thead>
+<tr>
+<th><code>MCP_TOOLS</code></th>
+<th>Adds</th>
+<th>For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>readonly</code></td>
+<td><code>get_screen</code>, <code>wait_for_unlock</code>, <code>get_connection_details</code>, <code>get_display_toggles</code>, <code>snapshot_take</code>, <code>snapshot_list</code>, <code>snapshot_diff</code>, <code>printer_status</code>, <code>printer_read_job</code>, <code>chaos_status</code>, <code>chaos_report</code>, <code>chaos_insights</code>, <code>chaos_list_screens</code>, <code>chaos_get_hints</code>, <code>business_list_functions</code>, <code>business_app_overview</code>, the export tools, <code>list_skills</code>, <code>load_skill</code>, <code>list_tasks</code>, <code>list_sessions</code></td>
+<td>Reading and reporting on a session someone else is driving</td>
+</tr>
+<tr>
+<td><code>interactive</code> <em>(default)</em></td>
+<td>+ <code>send_key</code>, <code>write_field</code>, <code>submit_screen</code>, <code>move_cursor</code>, <code>connect_session</code>, <code>use_session</code>, <code>set_display_toggle</code>, <code>snapshot_delete</code>, <code>printer_start</code>, <code>printer_stop</code>, the hint and annotation writes, <code>run_task</code> and the generated <code>task_*</code> tools</td>
+<td>Driving a session the way a person at the keyboard would</td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td>+ <code>chaos_start</code>, <code>chaos_stop</code>, <code>chaos_resume</code></td>
+<td>Automated chaos exploration</td>
+</tr>
+</tbody>
+</table>
+<p>Each tier includes the ones below it.</p>
+<p>Taking a snapshot is in the read tier even though it stores something. What it
+stores is a copy of the screen held in this process for the life of the
+session, and nothing reaches the host — which is what the tiers are about. So
+a read-only connection can still capture a screen and ask what moved since,
+which is most of the point of having snapshots. Deleting one is in the tier
+above, because deleting is not reading.</p>
+<p>Chaos is a tier of its own not because a single key press is safer than
+another, but because a person pressing keys is watching and an unattended
+exploration run is not.</p>
+<p>Two keys stop and ask whatever the tier: <strong>PF3</strong> commonly logs the session
+off and <strong>Clear</strong> discards what is on the screen. The AI Chat panel will not
+press either in Auto Mode without someone clicking Run, and <code>send_key</code>'s own
+description says so, so a model knows before it builds a plan around one. Over
+MCP the equivalent is your client's tool-approval prompt — leave it on.</p>
+<p>Set it in the client's config:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"3270web"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/opt/3270web/3270Web"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"mcp"</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"MCP_TOOLS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"full"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">¶</a></h2>
+<p>The AI Chat panel's session is whichever browser tab you are in. An MCP client
+has no tab, so sessions are explicit:</p>
+<ul>
+<li><code>list_sessions</code> — what is open, and which one is currently being driven.</li>
+<li><code>connect_session</code> — open one against a hostname. This is the only tool that
+  works before a session exists.</li>
+<li><code>use_session</code> — attach to an existing one by id. It verifies the session
+  before adopting it, so a mistyped id fails where it was made rather than on
+  the next call.</li>
+</ul>
+<p>Any other tool called with no session refuses and says which of these to use.</p>
+<h2 id="guided-business-tasks">Guided Business Tasks<a class="headerlink" href="#guided-business-tasks" title="Permanent link">¶</a></h2>
+<p>A <a href="../business-tasks/">Guided Business Task</a> is a recorded flow with named
+inputs and named outputs — "check a balance", "look up an order" — that stops
+rather than continuing when a screen is not the one it expected.</p>
+<p>Each saved task is offered as <strong>its own tool</strong>, <code>task_&lt;name&gt;</code>, with a schema
+built from the parameters it declares:</p>
+<div class="highlight"><pre><span></span><code>task_account_balance_enquiry(account_number: string, ...)
+</code></pre></div>
+<p>So a model sees that checking a balance is a thing this application does, and
+what it needs, in the same list as every other tool — rather than having to
+know to go looking for a catalogue. Prefer one over driving the screens by
+hand: a task guards every step, and a model typing an account number into
+whatever field is under the cursor is the failure the guards exist to prevent.</p>
+<p><code>list_tasks</code> describes the catalogue, and <code>run_task</code> runs one by name for
+clients that do not act on <code>tools/list_changed</code>. A task saved in the browser
+mid-conversation becomes callable without restarting the server.</p>
+<p>The generated <code>task_*</code> tools are the one thing <code>3270Web mcp --list-tools</code> does
+not report: that check runs without a target, so there is no catalogue to read.
+Everything else it prints is exactly what the server offers.</p>
+<h2 id="what-the-model-sees">What the model sees<a class="headerlink" href="#what-the-model-sees" title="Permanent link">¶</a></h2>
+<p>Everything read from the host arrives wrapped in <code>&lt;untrusted-host-data&gt;</code>
+tags. A mainframe screen is text somebody else controls, and it can be made to
+read like an instruction — a "system notice" telling the assistant to press a
+PF key, for example. The browser panel applies that marking today; over MCP
+there is no browser in the loop, so the server does it.</p>
+<p>Hidden fields are redacted before anything leaves the server: a password's
+value is empty and its characters are replaced in the screen text. See
+<a href="../terminal-capabilities/">Terminal Capabilities</a>.</p>
+<h2 id="sample-applications">Sample applications<a class="headerlink" href="#sample-applications" title="Permanent link">¶</a></h2>
+<p>The bundled sample apps are how you try this without a mainframe. When
+<code>3270Web mcp</code> starts its own instance it enables them automatically; on a
+server you started yourself, set <code>ALLOW_SAMPLE_APPS=1</code>.</p>
+<div class="highlight"><pre><span></span><code>connect to sampleapp:petstore
+</code></pre></div>
+<p>The default sample is a pet store with a counter, a back office and a
+command line on every screen, which is enough of an application to ask real
+questions of: <em>"sign on as ADMIN, then tell me which stock lines are below
+their reorder level"</em>. See
+<a href="../sample-apps/">Bundled Sample Applications</a> for its screens and commands.</p>
+<h2 id="skills">Skills<a class="headerlink" href="#skills" title="Permanent link">¶</a></h2>
+<p>The procedures the assistant follows are files, not prose baked into a prompt.
+<code>list_skills</code> shows what is available; <code>load_skill</code> fetches one. The built-in
+set covers chaos exploration, business understanding, whole-application
+overview and performing a catalogued business function.</p>
+<p>You can add your own, or replace a built-in with one that knows your
+application — and an extension can contribute saved tasks as well as skills.
+See <a href="../skills/">Skills and Extensions</a>.</p>
+<h2 id="docker-compose-and-remote-clients">Docker, Compose and remote clients<a class="headerlink" href="#docker-compose-and-remote-clients" title="Permanent link">¶</a></h2>
+<p>Everything above assumes a client that can launch <code>3270Web mcp</code> as a local
+process. A containerised instance is the other case: nothing to launch, so the
+running server speaks MCP over HTTP itself, at <code>POST /api/v1/mcp</code>, behind the
+same <code>API_TOKEN</code> as the rest of <a href="../rest-api/"><code>/api/v1</code></a>.</p>
+<p>It is under <code>/api/v1</code> deliberately. The origin check that protects the browser
+UI skips that prefix, and a top-level <code>/mcp</code> would be origin-checked — which
+rejects every MCP client, all of them being non-browsers.</p>
+<h3 id="turn-it-on-in-the-stack">Turn it on in the stack<a class="headerlink" href="#turn-it-on-in-the-stack" title="Permanent link">¶</a></h3>
+<div class="highlight"><pre><span></span><code><span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">3270Web</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/3270io/3270web:latest</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Loopback until this is behind TLS. See the warning below.</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"127.0.0.1:3270:3270"</span>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GIN_MODE=release</span>
+<span class="w">      </span><span class="c1"># Interpolated from a .env file beside this one.</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">API_TOKEN=${API_TOKEN}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MCP_TOOLS=interactive</span>
+<span class="w">      </span><span class="c1"># - ALLOW_SAMPLE_APPS=1</span>
+<span class="w">      </span><span class="c1"># - MCP_ALLOWED_HOSTS=*.test.example.com</span>
+<span class="w">    </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unless-stopped</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nb">printf</span><span class="w"> </span><span class="s1">'API_TOKEN=%s\n'</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">24</span><span class="k">)</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>.env
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>.env
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div>
+<p>The <a href="../installation/#install-with-the-api-and-mcp-switched-on">installer</a>
+writes that for you with <code>--api-token auto</code>.</p>
+<p>There is no separate switch for MCP: <code>API_TOKEN</code> turns on <code>/api/v1</code>, and MCP
+is part of it. With the variable unset the endpoint answers <strong>503</strong>, not 401 —
+if a client reports the server as unreachable rather than unauthorised, the
+token is not reaching the container.</p>
+<p>On a stack with <code>AUTH_MODE=local</code>, drop <code>API_TOKEN</code> — it is refused at startup
+— and give each client a token of its own with
+<a href="../multi-user/#api-tokens"><code>3270Web token add</code></a>. Each connection's tool
+calls are authorized as the account whose token opened it.</p>
+<h3 id="check-the-endpoint-before-configuring-a-client">Check the endpoint before configuring a client<a class="headerlink" href="#check-the-endpoint-before-configuring-a-client" title="Permanent link">¶</a></h3>
+<div class="highlight"><pre><span></span><code><span class="nb">set</span><span class="w"> </span>-a<span class="p">;</span><span class="w"> </span>.<span class="w"> </span>./.env<span class="p">;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a
+curl<span class="w"> </span>-sS<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:3270/api/v1/mcp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Accept: application/json, text/event-stream'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"jsonrpc":"2.0","id":1,"method":"initialize",</span>
+<span class="s1">       "params":{"protocolVersion":"2025-06-18","capabilities":{},</span>
+<span class="s1">                 "clientInfo":{"name":"curl","version":"0"}}}'</span>
+</code></pre></div>
+<p>A JSON-RPC result is the whole check. Both headers on <code>Accept</code> matter — the
+transport is Streamable HTTP and may answer either way.</p>
+<table>
+<thead>
+<tr>
+<th>Answer</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSON-RPC <code>result</code></td>
+<td>Working; anything that fails now is client configuration</td>
+</tr>
+<tr>
+<td><code>503</code></td>
+<td><code>API_TOKEN</code> is not set in the container</td>
+</tr>
+<tr>
+<td><code>401</code></td>
+<td>Set, but not the value you sent</td>
+</tr>
+<tr>
+<td>Connection refused</td>
+<td>Port mapping, not MCP — check <code>docker compose ps</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="connect-a-client">Connect a client<a class="headerlink" href="#connect-a-client" title="Permanent link">¶</a></h3>
+<p>For a client that speaks HTTP transports directly:</p>
+<div class="highlight"><pre><span></span><code>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>3270web<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://terminal.example.com/api/v1/mcp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--header<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span>
+</code></pre></div>
+<p>Or as project configuration, which VS Code and Cursor take in their own
+formats:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"3270web"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://terminal.example.com/api/v1/mcp"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"headers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Authorization"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bearer ${API_TOKEN}"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>A desktop client that only launches local processes reaches the same endpoint
+through a stdio bridge:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"3270web"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"npx"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">"-y"</span><span class="p">,</span><span class="w"> </span><span class="s2">"mcp-remote"</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">"https://terminal.example.com/api/v1/mcp"</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">"--header"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Authorization:${AUTH_HEADER}"</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"AUTH_HEADER"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bearer your-token-here"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The <code>${AUTH_HEADER}</code> indirection is not decoration: config arguments are split
+on spaces, so <code>Authorization: Bearer …</code> written inline arrives at the server in
+pieces.</p>
+<p>If you have the binary to hand, it bridges too, and needs no proxy package:</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>mcp<span class="w"> </span>--url<span class="w"> </span>http://localhost:3270<span class="w"> </span>--token<span class="w"> </span><span class="s2">"</span><span class="nv">$API_TOKEN</span><span class="s2">"</span>
+</code></pre></div>
+<p>That is the same stdio server described above, driving your stack instead of
+one it started. Configure it exactly as in <a href="#setting-up-claude-desktop">Setting up Claude
+Desktop</a>, with <code>--url</code> and <code>--token</code> in <code>args</code>.</p>
+<h3 id="one-conversation-one-connection">One conversation, one connection<a class="headerlink" href="#one-conversation-one-connection" title="Permanent link">¶</a></h3>
+<p>A fresh MCP server is built per connection, so the current session and the
+skills one client has loaded do not leak into another's. What is <em>not</em> per
+connection is the sessions themselves: two clients pointed at one stack can
+<code>use_session</code> the same id and type into the same screen. That is occasionally
+what you want — a person watching the green screen in the browser while a
+model works — and otherwise it is two hands on one keyboard.</p>
+<h3 id="before-you-publish-the-port">Before you publish the port<a class="headerlink" href="#before-you-publish-the-port" title="Permanent link">¶</a></h3>
+<p>A token is a password for the terminal. A client holding it opens sessions,
+types into fields and presses keys on whatever host the container can reach,
+with no second prompt in between.</p>
+<ul>
+<li>Keep the mapping on <code>127.0.0.1</code> until the stack is behind TLS. The token
+  travels in a header; over plain HTTP on a shared network it travels in the
+  clear.</li>
+<li>Set <code>MCP_ALLOWED_HOSTS</code> to a glob list of hosts an AI client may connect to.
+  Unset means anything the container can route to, which is right for a lab
+  and wrong for a network with production on it.</li>
+<li>Choose the tier deliberately. <code>MCP_TOOLS=readonly</code> is a real answer for a
+  shared instance: the model reads and reports on a session a person is
+  driving, and cannot press anything.</li>
+<li>Leave your client's tool-approval prompt on. It is the only thing standing
+  between a plan and a PF3 on a live session.</li>
+<li><code>ALLOW_SAMPLE_APPS=1</code> is what lets a headless client open the bundled sample
+  hosts. Useful for trying this out; not something to leave on a stack that
+  can see a real mainframe.</li>
+</ul>
+<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MCP_TOOLS</code></td>
+<td><code>interactive</code></td>
+<td>Tool tier: <code>readonly</code>, <code>interactive</code> or <code>full</code></td>
+</tr>
+<tr>
+<td><code>API_TOKEN</code></td>
+<td>unset</td>
+<td>Bearer token for <code>/api/v1</code> and for attaching to a running instance</td>
+</tr>
+<tr>
+<td><code>ALLOW_SAMPLE_APPS</code></td>
+<td>off</td>
+<td>Let the headless API open sessions against bundled sample apps</td>
+</tr>
+<tr>
+<td><code>MCP_ALLOWED_HOSTS</code></td>
+<td>unset</td>
+<td>Comma-separated glob list of hosts that may be connected to</td>
+</tr>
+</tbody>
+</table>
+<p>These live in the <code>.env</code> file beside the binary, or in the client's <code>env</code>
+block. See <a href="../configuration/">Connect and Use 3270Web</a>.</p></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../embedding/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Embedding 3270Web">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Embedding 3270Web
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../skills/" class="md-footer__link md-footer__link--next" aria-label="Next: Skills and Extensions">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Skills and Extensions
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      (c) Since 2023 3270.io
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://3270.io" target="_blank" rel="noopener" title="3270.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 8 6v12h-5v-7H9v7H4V9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://3270connect.3270.io" target="_blank" rel="noopener" title="3270Connect documentation" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19v-3h8v3zm-4.5-6L2.47 7h4.24l4.96 4.95c.58.59.58 1.55 0 2.12L6.74 19H2.5z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/3270io" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://linkedin.com/company/3270io" target="_blank" rel="noopener" title="linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://x.com/3270io" target="_blank" rel="noopener" title="x.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.sections", "navigation.tabs", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit", "content.action.view", "toc.integrate", "content.tabs.link", "content.footnotes"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "0.5.0"}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/3270-theme.js"></script>
+      
+    
+  </body>
+</html>

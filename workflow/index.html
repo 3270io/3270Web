@@ -1,0 +1,2635 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Capture what you do at the terminal as a JSON recording, then load, play, step through and debug it later — with every recording and playback control explained.">
+      
+      
+        <meta name="author" content="3270.io">
+      
+      
+        <link rel="canonical" href="https://3270web.3270.io/workflow/">
+      
+      
+        <link rel="prev" href="../session-manager/">
+      
+      
+        <link rel="next" href="../business-tasks/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+    <title>Record a 3270 session in 3270Web and play it back later</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/3270-theme.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="https://3270web.3270.io/workflow/">
+    <meta property="og:title" content="Record a 3270 session in 3270Web and play it back later">
+    <meta property="og:description" content="Capture what you do at the terminal as a JSON recording, then load, play, step through and debug it later — with every recording and playback control explained.">
+    <meta property="og:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:secure_url" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="Record a 3270 session in 3270Web and play it back later">
+    <meta name="twitter:description" content="Capture what you do at the terminal as a JSON recording, then load, play, step through and debug it later — with every recording and playback control explained.">
+    <meta name="twitter:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab"><script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3270web.3270.io/#website",
+          "name": "3270Web",
+          "url": "https://3270web.3270.io/",
+          "description": "Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no emulator install, then record sessions, explore with AI Chat and replay them.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "Recordings and Playback",
+          "description": "Capture what you do at the terminal as a JSON recording, then load, play, step through and debug it later \u2014 with every recording and playback control explained.",
+          "url": "https://3270web.3270.io/workflow/",
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": "https://3270web.3270.io/#website" },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+      ]
+    }
+    </script>
+
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="3270" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#recordings-and-playback" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="3270Web" class="md-header__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            3270Web
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Recordings and Playback
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../demo-videos/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Demonstration Videos
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and Run
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect and Use 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../sample-apps/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Bundled Sample Applications
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../authentication/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User Accounts and Sign-In
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../multi-user/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Running a Shared Instance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../session-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Session Manager
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Recordings and Playback
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../business-tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guided Business Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-mode/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-compare/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mind-Map Compare
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../host-profiler/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Host Compatibility Profiler
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../compatibility-profile-schema/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Compatibility Profile Schema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-fonts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Fonts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-chat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Chat Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-providers/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Providers
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keyboard-and-controls/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Keyboard and Controls
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../printer-sessions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Printer Sessions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-model-limits/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Screen Size and Model Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../rest-api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  REST API
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../embedding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Embedding 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../mcp/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  MCP Server
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Skills and Extensions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-capabilities/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Capabilities
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../accessibility/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Accessibility
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../feature-roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../acknowledgements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Acknowledgements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../licence/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licence
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="3270Web" class="md-nav__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    3270Web
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-videos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demonstration Videos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect and Use 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sample-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Sample Applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Accounts and Sign-In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a Shared Instance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Session Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#recording-and-playback-callouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recording and Playback Callouts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#record-a-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Record a Session
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#load-a-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load a Recording
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#play-a-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Play a Recording
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debug-a-recording-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debug a Recording (Step-by-step)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-a-macro-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing a Macro File
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Importing a Macro File">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-it-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it reads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-branches-and-loops-it-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The branches and loops it reads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-will-not-do-and-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it will not do, and why
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#differences-in-meaning-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences in meaning worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remove-a-loaded-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove a Loaded Recording
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-status-widget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow Status Widget
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recording-json-basics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recording JSON Basics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions-variables-and-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions, Variables and Loops
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decisions, Variables and Loops">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-something-off-the-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading something off the screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#asking-a-question-about-the-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking a question about the screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repeating-until-the-host-is-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repeating until the host is done
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-stops-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What stops a run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#watching-it-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watching it decide
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#business-metadata-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business metadata fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting-playback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting Playback
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-chaos-exploration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related: Chaos Exploration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../business-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guided Business Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mind-Map Compare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../host-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host Compatibility Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility-profile-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compatibility Profile Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Fonts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-and-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard and Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../printer-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Printer Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-model-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screen Size and Model Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedding 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and Extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../accessibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Accessibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acknowledgements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../licence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/3270io/3270Web/edit/main/docs/workflow.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/3270io/3270Web/raw/main/docs/workflow.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<div><h1 id="recordings-and-playback">Recordings and Playback<a class="headerlink" href="#recordings-and-playback" title="Permanent link">¶</a></h1>
+<p>3270Web can capture terminal actions as JSON recordings and run them later.</p>
+<p>The whole loop in one take — record a flow, download it, load it back and
+replay it against the live host:</p>
+<p><div class="video-container"><video style="position:relative;width:100%;height:22.172vw" controls alt="type:video"><source src="../videos/howto-workflow.webm" type="video/mp4"></source></video></div></p>
+<h2 id="recording-and-playback-callouts">Recording and Playback Callouts<a class="headerlink" href="#recording-and-playback-callouts" title="Permanent link">¶</a></h2>
+<p class="doc-medal-wrap"><img alt="Recording and playback screenshot" class="doc-medal" src="../images/workflow-controls-real.png"></p>
+<ol>
+<li>Start recording</li>
+<li>Play recording</li>
+<li>Debug recording</li>
+<li>View recording JSON</li>
+<li>Remove loaded recording</li>
+<li>Save the recording as a business task</li>
+</ol>
+<p>While a run is live, its progress shows in the strip under the menu bar and
+in the Workflow Status widget.</p>
+<h2 id="record-a-session">Record a Session<a class="headerlink" href="#record-a-session" title="Permanent link">¶</a></h2>
+<ol>
+<li>Connect to the target host.</li>
+<li>Click <strong>Start recording</strong>.</li>
+<li>Perform your terminal actions.</li>
+<li>Click <strong>Stop recording</strong>.</li>
+<li>Optional: click <strong>Download</strong> to save the generated JSON file.</li>
+</ol>
+<p>A finished recording can be turned into a
+<a href="../business-tasks/">Guided Business Task</a> — named inputs, guarded steps and a
+named answer — with <strong>Save recording as a task</strong>. The wizard reads the
+recording, proposes what it can, and asks for the rest. A recorded field whose
+label names a secret arrives marked as one, so the password that was typed
+during the recording is not carried into the saved task.</p>
+<h2 id="load-a-recording">Load a Recording<a class="headerlink" href="#load-a-recording" title="Permanent link">¶</a></h2>
+<ol>
+<li>Click <strong>Load recording</strong>.</li>
+<li>Choose a <code>.json</code> file.</li>
+<li>Confirm the filename appears as loaded in the Automation menu.</li>
+<li>Click <strong>View recording</strong> to inspect the full JSON.</li>
+</ol>
+<h2 id="play-a-recording">Play a Recording<a class="headerlink" href="#play-a-recording" title="Permanent link">¶</a></h2>
+<ol>
+<li>Load a recording.</li>
+<li>Click <strong>Play recording</strong>.</li>
+<li>Watch playback status in the strip under the menu bar and the Workflow Status widget.</li>
+<li>Use <strong>Pause/Resume</strong> in play mode if needed.</li>
+<li>Click <strong>Stop playback</strong> to end execution.</li>
+</ol>
+<h2 id="debug-a-recording-step-by-step">Debug a Recording (Step-by-step)<a class="headerlink" href="#debug-a-recording-step-by-step" title="Permanent link">¶</a></h2>
+<ol>
+<li>Load a recording.</li>
+<li>Click <strong>Debug recording</strong>.</li>
+<li>Use <strong>Step</strong> to execute one action at a time.</li>
+<li>Watch current step number/type in the status indicators.</li>
+<li>Click <strong>Stop playback</strong> when done.</li>
+</ol>
+<p>Debug mode is recommended for new or edited recordings.</p>
+<h2 id="importing-a-macro-file">Importing a Macro File<a class="headerlink" href="#importing-a-macro-file" title="Permanent link">¶</a></h2>
+<p>A shop that has been driving a green screen from an installed terminal
+emulator usually has a shelf of macros — and a shelf of macros is a reason not
+to move anywhere. <strong>Automation → Import a macro file…</strong> reads one and turns it
+into a recording, then tells you, line by line, what it would not translate.</p>
+<p>The report is the point. A partial conversion that names the twelve lines
+needing a person is worth more than a confident-looking one that quietly drops
+four of them; the second kind is discovered in production, by a flow doing
+something nobody asked it to.</p>
+<ol>
+<li>Click <strong>Automation → Import a macro file…</strong> and choose the file.</li>
+<li>Read the report: how many steps it produced, and every line it left out.</li>
+<li>Close it. The recording is loaded, named after the macro.</li>
+<li>Run it with <strong>Debug recording</strong> first. A translated flow has never met this
+   host.</li>
+</ol>
+<p>The same translation is on the API at
+<a href="../rest-api/#post-apiv1macrostranslate"><code>POST /api/v1/macros/translate</code></a>,
+which takes no session and returns the recording itself — that is the one to
+point at a directory of three hundred files.</p>
+<h3 id="what-it-reads">What it reads<a class="headerlink" href="#what-it-reads" title="Permanent link">¶</a></h3>
+<p>Macro files in this category are written in a BASIC-family scripting language
+against a session automation object model. The object name varies between the
+products that write them — <code>Session</code>, <code>Sess0</code>, whatever a variable was called
+— so it is ignored; the method decides everything, and parentheses are
+optional as they are in the language itself.</p>
+<table>
+<thead>
+<tr>
+<th>The macro says</th>
+<th>The recording gets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PutString "USER01", 5, 20</code></td>
+<td><code>FillString</code> at row 5, column 20</td>
+</tr>
+<tr>
+<td><code>MoveTo 5, 20</code> then <code>SendKeys "USER01"</code></td>
+<td>the same, from the position the macro set</td>
+</tr>
+<tr>
+<td><code>SendKeys "&lt;Enter&gt;"</code>, <code>&lt;PF3&gt;</code>, <code>&lt;Clear&gt;</code>, <code>&lt;EraseEOF&gt;</code>…</td>
+<td><code>PressEnter</code>, <code>PressPF3</code>, <code>PressClear</code>, <code>PressEraseEOF</code>…</td>
+</tr>
+<tr>
+<td><code>WaitForString "MAIN MENU", 1, 30</code></td>
+<td><code>CheckValue</code> — that text, at that position</td>
+</tr>
+<tr>
+<td><code>WaitHostQuiet 2500</code></td>
+<td>2.5 seconds of delay on the step that follows</td>
+</tr>
+<tr>
+<td><code>WaitHostQuiet</code> with no time</td>
+<td>nothing: playback waits for the keyboard at every step already</td>
+</tr>
+<tr>
+<td><code>Connect</code>, <code>Disconnect</code></td>
+<td><code>Connect</code>, <code>Disconnect</code></td>
+</tr>
+<tr>
+<td>a comment, <code>Dim</code>, <code>Sub</code>, <code>End Sub</code>, <code>Option Explicit</code></td>
+<td>nothing, and no note — it is scaffolding, not an instruction</td>
+</tr>
+</tbody>
+</table>
+<p>Function keys are read as <code>&lt;PF3&gt;</code> or <code>&lt;F3&gt;</code>; both mean the same key to the
+host.</p>
+<h3 id="the-branches-and-loops-it-reads">The branches and loops it reads<a class="headerlink" href="#the-branches-and-loops-it-reads" title="Permanent link">¶</a></h3>
+<p>A macro is not a straight line, and neither is a recording any more. Where the
+file says enough for the translation to be a translation rather than a guess,
+the <a href="#decisions-variables-and-loops">decision steps</a> come across too:</p>
+<table>
+<thead>
+<tr>
+<th>The macro says</th>
+<th>The recording gets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>If Session.Screen.GetString(5, 20, 8) = "APPROVED" Then</code> … <code>Else</code> … <code>End If</code></td>
+<td><code>If</code> / <code>Else</code> / <code>EndIf</code>, comparing that row, column and length</td>
+</tr>
+<tr>
+<td><code>ElseIf … Then</code></td>
+<td>an <code>Else</code> holding a further <code>If</code>, closed at the end of the block</td>
+</tr>
+<tr>
+<td><code>If … Then &lt;statement&gt;</code> on one line</td>
+<td>the same branch, around that one statement</td>
+</tr>
+<tr>
+<td><code>Do While …</code> … <code>Loop</code>, <code>While …</code> … <code>Wend</code></td>
+<td><code>While</code> / <code>EndWhile</code></td>
+</tr>
+<tr>
+<td><code>Do Until …</code> … <code>Loop</code></td>
+<td><code>While</code> testing the exact opposite</td>
+</tr>
+<tr>
+<td><code>balance = Session.Screen.GetString(12, 20, 10)</code></td>
+<td><code>SetVariable balance</code>, reading that region</td>
+</tr>
+<tr>
+<td><code>label = "REFER"</code>, <code>copy = balance</code></td>
+<td><code>SetVariable</code>, holding the literal or the other variable</td>
+</tr>
+<tr>
+<td><code>If balance &gt; 1000 Then</code></td>
+<td><code>If</code> comparing the variable, numerically</td>
+</tr>
+<tr>
+<td><code>Session.Screen.PutString balance, 9, 20</code></td>
+<td><code>FillString</code> typing <code>${balance}</code> at row 9, column 20</td>
+</tr>
+<tr>
+<td><code>Exit Sub</code>, in a file that declares one routine</td>
+<td><code>Stop</code></td>
+</tr>
+</tbody>
+</table>
+<p>The condition is the part that has to be readable. An <code>If</code> or a <code>While</code> in a
+recording compares <strong>one</strong> thing — a named row, column and length on the
+screen, or a variable this file has already set — against <strong>one</strong> literal
+value. That is what <code>GetString(5, 20, 8) = "APPROVED"</code> says exactly, which is
+why it converts. A condition that calls a function, joins two tests with <code>And</code>,
+or searches the whole screen says none of it, and is reported instead.</p>
+<div class="admonition warning">
+<p class="admonition-title">A branch that does not translate takes its body with it</p>
+<p>This is the one rule worth reading twice. If the condition on an <code>If</code>
+cannot be translated, <strong>the statements inside it are left out too</strong>, and
+the report says how many.</p>
+<p>The alternative is the worst outcome available: the <code>If</code> is dropped, the
+statements inside it survive, and steps that ran on some days now run on
+every day — against a live host, confidently, with a report that mentioned
+the branch but not that its contents had escaped it.</p>
+<p>So a reported branch is a hole in the recording, not a line to tidy up
+later. Write it by hand against the step types in
+<a href="#decisions-variables-and-loops">Decisions, variables and loops</a>, and run
+the result in <strong>Debug recording</strong> before it matters.</p>
+</div>
+<h3 id="what-it-will-not-do-and-why">What it will not do, and why<a class="headerlink" href="#what-it-will-not-do-and-why" title="Permanent link">¶</a></h3>
+<p>Each of these is reported against its line rather than approximated:</p>
+<ul>
+<li><strong>A condition that is not a comparison.</strong> <code>If Session.Screen.Search("READY")
+  Then</code> asks a question a recording cannot: which row and column would it be
+  comparing? So is <code>Trim(GetString(…)) = "A"</code>, and so is any condition joining
+  two tests with <code>And</code>, <code>Or</code> or <code>Not</code> — a recording tests one thing at a time,
+  and the same branch written as nested <code>If</code>s converts.</li>
+<li><strong>Counted loops.</strong> <code>For i = 1 To 10</code> counts, and a recording has no
+  arithmetic to count with. The loop that translates is the one that repeats
+  while the screen still says something.</li>
+<li><strong><code>Select Case</code>.</strong> Several cases decided at once; a recording decides one
+  comparison at a time. Written as nested <code>If</code>s it converts.</li>
+<li><strong>A loop tested at the bottom.</strong> <code>Do … Loop While</code> runs its body before it
+  tests anything, and a recording's <code>While</code> tests first — a translated one
+  would run the body once even where the macro would not have.</li>
+<li><strong>A loop that leaves early.</strong> <code>Exit Do</code> has no counterpart: a recording's
+  <code>While</code> has no way out but its own condition, so a translated loop would
+  carry on where the macro stopped.</li>
+<li><strong>A file that jumps.</strong> <code>GoTo</code>, <code>GoSub</code>, <code>Resume</code> and <code>On Error</code> land
+  somewhere a list of steps cannot follow, and skipping the branch a jump sits
+  in removes the jump but not the lines it was jumping over. One of them
+  anywhere in the file means <strong>no</strong> branch or loop in it is translated; the
+  ordinary steps still are, in the order the file writes them.</li>
+<li><strong>A value that has to be computed.</strong> <code>total = balance + 1</code> is not a value
+  this file can hand over: a <code>SetVariable</code> step remembers a literal, another
+  variable, or the text at a named row, column and length. The name is then
+  forgotten rather than left pointing at what it held before, so a later
+  condition reading a stale value is reported instead of quietly working.</li>
+<li><strong>A variable that may not have been set.</strong> One assigned inside a branch is
+  not known after it: the branch may not run, and a step reading a variable
+  nothing set stops the run against a live host.</li>
+<li><strong>Text typed with no known cursor position.</strong> <code>SendKeys "USER&lt;Tab&gt;PASS"</code>
+  types <code>USER</code> where the macro last put the cursor, and <code>PASS</code> into whichever
+  field the host moved to — which is not knowable from the file. The first
+  half translates; the second is reported. Nothing is ever emitted with the
+  coordinates left off, because an absent position reads as row zero to
+  everything downstream, and typing into the wrong field is exactly what this
+  rule prevents.</li>
+<li><strong>A wait for text with no position.</strong> <code>WaitForString "BALANCE"</code> searches the
+  whole screen; a recording checks a named row and column. Add them and it
+  translates.</li>
+<li><strong>Dialogs.</strong> A replayed recording has nobody at the keyboard to answer a
+  <code>MsgBox</code>.</li>
+<li><strong>Anything outside the terminal session</strong> — files, other applications, the
+  operating system.</li>
+</ul>
+<h3 id="differences-in-meaning-worth-knowing">Differences in meaning worth knowing<a class="headerlink" href="#differences-in-meaning-worth-knowing" title="Permanent link">¶</a></h3>
+<p>The report names each of these when it applies:</p>
+<ul>
+<li><strong>A wait for text becomes a check, not a wait.</strong> Playback waits for the
+  keyboard to unlock before every step, but it does not poll for text. If the
+  screen behind a check is slow to draw, give that step a delay.</li>
+<li><strong>Wait times are read as milliseconds.</strong> A macro that counted in seconds
+  replays faster than it ran, which is the safer way to be wrong; the step
+  delays in the recording are where to correct it.</li>
+<li><strong>A comparison against the screen ignores the field's padding.</strong> The macro
+  compared the padded value, so <code>GetString(5, 20, 8) = "APPROVED"</code> was false
+  when the field was wider than the word. A recording trims first, which is
+  almost always the comparison that was meant — but it is not the same
+  comparison.</li>
+<li><strong>Every loop is bounded.</strong> A <code>While</code> still true after 100 passes ends the
+  run rather than repeating for ever. Set <code>MaxIterations</code> on that step if the
+  flow genuinely needs more.</li>
+<li><strong>A file of several routines becomes one flow.</strong> Their steps follow one
+  another in the order the file writes them, rather than in the order
+  something called them — and <code>Exit Sub</code> is reported rather than translated,
+  because what it returns to is not in the file.</li>
+</ul>
+<p>The translated recording is a recording like any other — edit it in <strong>View
+recording</strong>, save it as a <a href="../business-tasks/">Guided Business Task</a>, or feed
+it to chaos exploration.</p>
+<div class="admonition warning">
+<p class="admonition-title">Treat an imported recording as a secret</p>
+<p>A macro that logs in has the password in it, and so does the recording it
+becomes — and so does any report line quoting that statement. The same
+caution applies as to recordings that fill sensitive fields.</p>
+</div>
+<h2 id="remove-a-loaded-recording">Remove a Loaded Recording<a class="headerlink" href="#remove-a-loaded-recording" title="Permanent link">¶</a></h2>
+<p>Click <strong>Remove recording</strong> to clear the currently loaded file from the session.</p>
+<h2 id="workflow-status-widget">Workflow Status Widget<a class="headerlink" href="#workflow-status-widget" title="Permanent link">¶</a></h2>
+<p>The Workflow Status panel shows:</p>
+<ul>
+<li>Current step and total steps</li>
+<li>Current action type</li>
+<li>Delay range and applied delay (when present)</li>
+<li>Recent playback events</li>
+</ul>
+<p>When you connect to a host the widget starts minimized so it stays out of the
+way until you need it.</p>
+<p>You can:</p>
+<ul>
+<li>Open it from the status indicator</li>
+<li>Minimize/maximize it</li>
+<li>Enable or disable tracking</li>
+</ul>
+<h2 id="recording-json-basics">Recording JSON Basics<a class="headerlink" href="#recording-json-basics" title="Permanent link">¶</a></h2>
+<p>A recording includes a <code>Steps</code> array of actions.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"Host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sampleapp:app1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Connect"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"FillString"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"Coordinates"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"Text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PressEnter"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Disconnect"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Common action types:</p>
+<ul>
+<li><code>FillString</code></li>
+<li><code>PressEnter</code></li>
+<li><code>PressTab</code></li>
+<li><code>PressPF&lt;n&gt;</code> (for example <code>PressPF3</code>)</li>
+</ul>
+<h2 id="decisions-variables-and-loops">Decisions, Variables and Loops<a class="headerlink" href="#decisions-variables-and-loops" title="Permanent link">¶</a></h2>
+<p>Everything above describes a straight line: fill this field, press that key,
+check that text. That is the whole of what a recorded flow needs when the
+answer is the same every time.</p>
+<p>It is not the whole of what a flow needs when the host has an opinion. Read
+the balance, and take a different path if it is under the limit. Press Enter
+until the screen stops saying <code>MORE</code>. Skip the confirmation panel on the days
+the host does not draw one. Those need a recording that can decide, and the
+step types below are that.</p>
+<p>They are ordinary steps in the same <code>Steps</code> array — nothing nests, and a
+recording that makes no decisions is byte-for-byte the file it always was.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SetVariable</code></td>
+<td>Remember a literal, or the text at a place on the screen</td>
+</tr>
+<tr>
+<td><code>If</code> … <code>Else</code> … <code>EndIf</code></td>
+<td>Run one group of steps or the other</td>
+</tr>
+<tr>
+<td><code>While</code> … <code>EndWhile</code></td>
+<td>Repeat a group of steps while something stays true</td>
+</tr>
+<tr>
+<td><code>Stop</code></td>
+<td>End the run here, and say why</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reading-something-off-the-screen">Reading something off the screen<a class="headerlink" href="#reading-something-off-the-screen" title="Permanent link">¶</a></h3>
+<p><code>SetVariable</code> with <code>Coordinates</code> reads that region of the screen and trims the
+padding a field carries; with <code>Text</code> instead, it stores that literal.</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SetVariable"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Variable"</span><span class="p">:</span><span class="w"> </span><span class="s2">"balance"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Coordinates"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">40</span><span class="p">,</span><span class="w"> </span><span class="nt">"Length"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Anywhere a later <code>FillString</code> or <code>CheckValue</code> writes <code>${balance}</code>, the value
+goes in:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"FillString"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Coordinates"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"Text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ACCT ${account}"</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>A name that has not been set is an error that ends the run, rather than an
+empty string quietly typed into a field. To type the two characters <code>${</code>
+literally, write <code>$${</code>.</p>
+<p>Add <code>"Sensitive": true</code> to a <code>SetVariable</code> step that reads a password or
+anything else that should not be written down. The run still uses the value —
+<code>${name}</code> fills the field it was read for — but the run log and the status
+endpoint say the variable was set rather than what it was set to.</p>
+<h3 id="asking-a-question-about-the-screen">Asking a question about the screen<a class="headerlink" href="#asking-a-question-about-the-screen" title="Permanent link">¶</a></h3>
+<p><code>If</code> and <code>While</code> compare one thing against another. The left-hand side is
+either <code>Coordinates</code> (a region of the screen, trimmed) or <code>Variable</code> (one you
+set earlier) — one or the other, never both. <code>Text</code> is what it is compared
+against, and may itself contain <code>${…}</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="p">[</span>
+<span class="w">  </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"If"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Coordinates"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"Length"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"Operator"</span><span class="p">:</span><span class="w"> </span><span class="s2">"contains"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NOT FOUND"</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Stop"</span><span class="p">,</span><span class="w"> </span><span class="nt">"Text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"the host has no record of that account"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EndIf"</span><span class="w"> </span><span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>The comparisons are <code>equals</code>, <code>notEquals</code>, <code>contains</code>, <code>notContains</code>,
+<code>startsWith</code>, <code>endsWith</code>, <code>isEmpty</code>, <code>isNotEmpty</code>, <code>greaterThan</code>,
+<code>greaterOrEqual</code>, <code>lessThan</code> and <code>lessOrEqual</code>. The symbolic spellings
+(<code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>) mean the same thing. Add
+<code>"IgnoreCase": true</code> to fold case; comparisons are case-sensitive without it.</p>
+<p>The four numeric comparisons read a number the way a green screen writes one:
+grouped with commas, and negative by a leading sign, a trailing one, or a pair
+of brackets — <code>1,240.55</code>, <code>45.00-</code>, <code>(12)</code> and <code>1,000CR</code> all parse. A value
+that is not a number ends the run rather than being compared as zero, because
+a screen that did not say what the recording expected is worth stopping for.</p>
+<h3 id="repeating-until-the-host-is-done">Repeating until the host is done<a class="headerlink" href="#repeating-until-the-host-is-done" title="Permanent link">¶</a></h3>
+<div class="highlight"><pre><span></span><code><span class="p">[</span>
+<span class="w">  </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"While"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Coordinates"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">70</span><span class="p">,</span><span class="w"> </span><span class="nt">"Length"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"Operator"</span><span class="p">:</span><span class="w"> </span><span class="s2">"equals"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MORE"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"MaxIterations"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PressPF8"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EndWhile"</span><span class="w"> </span><span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>Every <code>While</code> is bounded. <code>MaxIterations</code> sets the bound, up to 10000; without
+it, a loop stops after 100 passes. A loop that reaches its bound ends the run
+and says so — a host that never changes its screen would otherwise hold the
+session until somebody noticed.</p>
+<h3 id="what-stops-a-run">What stops a run<a class="headerlink" href="#what-stops-a-run" title="Permanent link">¶</a></h3>
+<p>Everywhere else in playback, a step that fails is logged and the run carries
+on to the next one. That is right for a step that acts and wrong for a step
+that decides: carrying on past an <code>If</code> whose condition could not be evaluated
+means guessing which branch was wanted, and the wrong guess types real values
+into a real host. So these end the run instead:</p>
+<ul>
+<li>a condition that cannot be evaluated — a region off the screen, a variable
+  that was never set, a comparison of a number against text</li>
+<li>a <code>${name}</code> in a step's text that names nothing the run has set</li>
+<li>a <code>While</code> that reaches its iteration bound</li>
+<li>a <code>Stop</code> step, which is the deliberate one; it counts as a completed run,
+  and its <code>Text</code> is the reason in the log</li>
+</ul>
+<p>Structural mistakes are caught earlier still. A recording whose blocks do not
+close, or whose comparison names an operator that does not exist, is refused
+when it is <strong>loaded</strong> — before it has typed anything anywhere. The message
+names the step number.</p>
+<h3 id="watching-it-decide">Watching it decide<a class="headerlink" href="#watching-it-decide" title="Permanent link">¶</a></h3>
+<p>The Workflow Status widget carries each decision as it is made — which branch
+an <code>If</code> took and on what value, which pass a <code>While</code> is on, what a
+<code>SetVariable</code> read. <code>GET /workflow/status</code> returns the same events, plus
+<code>playbackVariables</code>: what the run knows, which survives the end of the run so
+"what did it read?" is answerable afterwards.</p>
+<div class="admonition note">
+<p class="admonition-title">Variables are per run</p>
+<p>A run starts knowing nothing. That is what makes a replay a replay — a
+recording that behaved differently on its second run because of something
+left over from its first would be much harder to trust.</p>
+</div>
+<h3 id="business-metadata-fields">Business metadata fields<a class="headerlink" href="#business-metadata-fields" title="Permanent link">¶</a></h3>
+<p>Workflows generated from a cataloged business function (see <a href="../ai-chat/#business-understanding">AI Chat — Business Understanding</a>) carry optional top-level metadata. All fields are ignored by playback, so older workflows and older 3270Web versions remain fully compatible:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"Host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sampleapp:app1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Port"</span><span class="p">:</span><span class="w"> </span><span class="mi">3270</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Account inquiry"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Look up an account balance"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"BusinessFunction"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Account inquiry"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"Parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"Name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"account_number"</span><span class="p">,</span><span class="w"> </span><span class="nt">"Value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1234"</span><span class="p">,</span><span class="w"> </span><span class="nt">"Row"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="nt">"Column"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="p">,</span><span class="w"> </span><span class="nt">"Length"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"Steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Connect"</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PressEnter"</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Disconnect"</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>Parameters</code> documents which business input produced which <code>FillString</code> value and where it was written, making the file self-describing.</p>
+<p>Parameters whose value lands in a hidden (password-style) field, or in a field the AI marked sensitive, are exported with <code>"Sensitive": true</code> and an empty <code>Value</code> in the metadata. The <code>FillString</code> step itself still carries the value — playback needs it — so treat generated workflow files that fill sensitive fields as secrets.</p>
+<h2 id="troubleshooting-playback">Troubleshooting Playback<a class="headerlink" href="#troubleshooting-playback" title="Permanent link">¶</a></h2>
+<ul>
+<li>Confirm host and port are correct.</li>
+<li>Confirm terminal model matches the one used when recording.</li>
+<li>Confirm screen layout and field coordinates still match host screens.</li>
+<li>Add delays for timing-sensitive screens.</li>
+<li>Use Debug mode to find the first failing step.</li>
+</ul>
+<h2 id="related-chaos-exploration">Related: Chaos Exploration<a class="headerlink" href="#related-chaos-exploration" title="Permanent link">¶</a></h2>
+<p>Use Chaos mode when you need to discover unknown screen paths or generate new workflow steps automatically.</p>
+<ul>
+<li>Start/stop chaos from the Automation menu</li>
+<li>Review granular attempt status in the Workflow Status widget</li>
+<li>Export the generated JSON and load it back as a standard workflow</li>
+</ul>
+<p>See <a href="../chaos-mode/">Chaos Mode</a> for full details.</p></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../session-manager/" class="md-footer__link md-footer__link--prev" aria-label="Previous: The Session Manager">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                The Session Manager
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../business-tasks/" class="md-footer__link md-footer__link--next" aria-label="Next: Guided Business Tasks">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Guided Business Tasks
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      (c) Since 2023 3270.io
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://3270.io" target="_blank" rel="noopener" title="3270.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 8 6v12h-5v-7H9v7H4V9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://3270connect.3270.io" target="_blank" rel="noopener" title="3270Connect documentation" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19v-3h8v3zm-4.5-6L2.47 7h4.24l4.96 4.95c.58.59.58 1.55 0 2.12L6.74 19H2.5z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/3270io" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://linkedin.com/company/3270io" target="_blank" rel="noopener" title="linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://x.com/3270io" target="_blank" rel="noopener" title="x.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.sections", "navigation.tabs", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit", "content.action.view", "toc.integrate", "content.tabs.link", "content.footnotes"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "0.5.0"}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/3270-theme.js"></script>
+      
+    
+  </body>
+</html>

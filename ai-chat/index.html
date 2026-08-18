@@ -1,0 +1,2387 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Drive a 3270 session by conversation: AI Chat reads the current screen, fills fields, presses keys and runs chaos exploration, with your approval each time.">
+      
+      
+        <meta name="author" content="3270.io">
+      
+      
+        <link rel="canonical" href="https://3270web.3270.io/ai-chat/">
+      
+      
+        <link rel="prev" href="../terminal-fonts/">
+      
+      
+        <link rel="next" href="../ai-providers/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+    <title>AI Chat Mode: drive a 3270 session by conversation</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/3270-theme.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="https://3270web.3270.io/ai-chat/">
+    <meta property="og:title" content="AI Chat Mode: drive a 3270 session by conversation">
+    <meta property="og:description" content="Drive a 3270 session by conversation: AI Chat reads the current screen, fills fields, presses keys and runs chaos exploration, with your approval each time.">
+    <meta property="og:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:secure_url" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="AI Chat Mode: drive a 3270 session by conversation">
+    <meta name="twitter:description" content="Drive a 3270 session by conversation: AI Chat reads the current screen, fills fields, presses keys and runs chaos exploration, with your approval each time.">
+    <meta name="twitter:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab"><script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3270web.3270.io/#website",
+          "name": "3270Web",
+          "url": "https://3270web.3270.io/",
+          "description": "Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no emulator install, then record sessions, explore with AI Chat and replay them.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "AI Chat Mode",
+          "description": "Drive a 3270 session by conversation: AI Chat reads the current screen, fills fields, presses keys and runs chaos exploration, with your approval each time.",
+          "url": "https://3270web.3270.io/ai-chat/",
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": "https://3270web.3270.io/#website" },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+      ]
+    }
+    </script>
+
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="3270" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ai-chat-mode" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="3270Web" class="md-header__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            3270Web
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              AI Chat Mode
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../demo-videos/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Demonstration Videos
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and Run
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect and Use 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../sample-apps/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Bundled Sample Applications
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../authentication/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User Accounts and Sign-In
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../multi-user/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Running a Shared Instance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../session-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Session Manager
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workflow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Recordings and Playback
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../business-tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guided Business Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-mode/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-compare/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mind-Map Compare
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../host-profiler/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Host Compatibility Profiler
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../compatibility-profile-schema/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Compatibility Profile Schema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-fonts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Fonts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Chat Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-providers/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Providers
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keyboard-and-controls/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Keyboard and Controls
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../printer-sessions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Printer Sessions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-model-limits/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Screen Size and Model Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../rest-api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  REST API
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../embedding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Embedding 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../mcp/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  MCP Server
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Skills and Extensions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-capabilities/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Capabilities
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../accessibility/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Accessibility
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../feature-roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../acknowledgements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Acknowledgements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../licence/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licence
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="3270Web" class="md-nav__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    3270Web
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-videos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demonstration Videos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect and Use 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sample-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Sample Applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Accounts and Sign-In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a Shared Instance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Session Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../business-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guided Business Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mind-Map Compare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../host-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host Compatibility Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility-profile-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compatibility Profile Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Fonts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#open-the-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open the Panel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connect-a-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connect a Provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#send-a-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send a Message
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#explain-this-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explain This Screen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Approval
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose a Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Available Actions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beyond-the-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Beyond the Screen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chaos-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chaos Integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#business-understanding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business Understanding
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Business Understanding">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performing-business-functions-by-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performing business functions by prompt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clear-the-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear the Conversation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcut" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard Shortcut
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-and-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard and Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../printer-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Printer Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-model-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screen Size and Model Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedding 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and Extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../accessibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Accessibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acknowledgements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../licence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/3270io/3270Web/edit/main/docs/ai-chat.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/3270io/3270Web/raw/main/docs/ai-chat.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<div><h1 id="ai-chat-mode">AI Chat Mode<a class="headerlink" href="#ai-chat-mode" title="Permanent link">¶</a></h1>
+<p>AI Chat mode is a side panel that lets you drive a 3270 session through conversation. You type instructions in plain language; the AI reads the current screen, fills fields, presses keys, and runs chaos exploration — all with your approval before each action.</p>
+<div class="admonition note">
+<p class="admonition-title">Driving 3270Web from outside the browser</p>
+<p>The same tools are available to any MCP client — Claude Desktop, VS Code,
+Claude Code — through the <a href="../mcp/">MCP Server</a>. Everything on this page
+about what the assistant can do applies there too; only the front end
+differs.</p>
+</div>
+<p>You choose which AI answers. GitHub Copilot, Claude, OpenAI, Google AI,
+Ollama (local or cloud) and any OpenAI-compatible endpoint are all
+supported, and everything on this page works the same way whichever one
+you pick. See <a href="../ai-providers/">AI Providers</a> to set one up.</p>
+<h2 id="open-the-panel">Open the Panel<a class="headerlink" href="#open-the-panel" title="Permanent link">¶</a></h2>
+<ol>
+<li>Connect to a host.</li>
+<li>Click the <strong>Open AI chat</strong> button in the menu bar (the chat bubble icon), or press <span class="keys"><kbd class="key-control">Ctrl</kbd><span>+</span><kbd class="key-k">K</kbd></span> and run <em>Toggle AI chat</em>.</li>
+<li>The side panel slides open on the right.</li>
+</ol>
+<p><img alt="AI chat panel screenshot" src="../images/copilot-panel.png"></p>
+<p>Drag the panel's left edge to resize it, or focus the edge and use
+<span class="keys"><kbd class="key-arrow-left">Left</kbd></span> / <span class="keys"><kbd class="key-arrow-right">Right</kbd></span> (hold <span class="keys"><kbd class="key-shift">Shift</kbd></span> for larger steps). The width is
+remembered between sessions.</p>
+<h2 id="connect-a-provider">Connect a Provider<a class="headerlink" href="#connect-a-provider" title="Permanent link">¶</a></h2>
+<p>The panel starts on <strong>GitHub Copilot</strong>. Before the first message you need
+either a Copilot sign-in or an API key for a different provider — the
+panel prompts for whichever the selected provider needs.</p>
+<ol>
+<li>Click <strong>Provider</strong> in the panel header (or press <span class="keys"><kbd class="key-control">Ctrl</kbd><span>+</span><kbd class="key-k">K</kbd></span> and run
+   <em>AI provider settings</em>).</li>
+<li>Pick a provider, fill in whatever it asks for, and click <strong>Save</strong>.</li>
+<li>The panel header shows the provider you are talking to, and the model
+   dropdown reloads with that provider's models.</li>
+</ol>
+<p>To disconnect, click <strong>Sign out</strong> in the panel header. For Copilot that
+clears the OAuth token; for every other provider it forgets the stored
+API key.</p>
+<p>Full per-provider setup — including GitHub Enterprise, local Ollama and
+corporate gateways — is in <a href="../ai-providers/">AI Providers</a>.</p>
+<h2 id="send-a-message">Send a Message<a class="headerlink" href="#send-a-message" title="Permanent link">¶</a></h2>
+<p>Type any instruction in the input box and press <strong>Send</strong> (or <span class="keys"><kbd class="key-enter">Enter</kbd></span>).</p>
+<p>Examples:</p>
+<ul>
+<li><em>"Read the current screen and tell me what options are available."</em></li>
+<li><em>"Navigate to the account inquiry menu and look up account 12345."</em></li>
+<li><em>"Run a chaos exploration and give me a summary when it finishes."</em></li>
+</ul>
+<p>The AI reads the current screen before acting, then proposes one tool call at a time.</p>
+<h2 id="explain-this-screen">Explain This Screen<a class="headerlink" href="#explain-this-screen" title="Permanent link">¶</a></h2>
+<p>Sooner or later a screen arrives that nobody recognises — an unfamiliar
+transaction, a panel four steps into a flow somebody else recorded, an
+error code with no legend on it. Asking about that screen should not
+require typing a sentence describing it.</p>
+<p><strong>Explain this screen</strong> does it in one click, from three places:</p>
+<ul>
+<li><strong>Terminal → Explain this screen</strong> in the menu bar.</li>
+<li>The bulb button beside the chat input, whenever the panel is open.</li>
+<li><span class="keys"><kbd class="key-control">Ctrl</kbd><span>+</span><kbd class="key-k">K</kbd></span>, then <em>Explain this screen</em>.</li>
+</ul>
+<p>The panel opens if it was closed, and the question is asked for you.</p>
+<p>The screen is captured <strong>at the moment you ask</strong> and travels with the
+question. This matters more than it sounds. The screen worth explaining is
+rarely the first one, and the host is free to redraw at any time — an
+inactivity timeout, a broadcast message, the next panel of a conversational
+transaction. An assistant told only <em>"explain this screen"</em> reads the
+display a round later and explains whatever is there by then, which is
+worse than no answer: it is a confident answer about a screen you were not
+asking about. Pinning the screen to the question removes that gap.</p>
+<p>Because the screen is part of the message rather than a passing note,
+follow-up questions still work — <em>"what is the field on line 12 for?"</em> is
+answered against the screen you asked about, not the one now on the
+display.</p>
+<p>Two details worth knowing:</p>
+<ul>
+<li>The transcript shows your question, not the eighty columns of screen
+  attached to it. The screen is there for the model; the panel stays
+  readable.</li>
+<li>Hidden fields are masked before the screen leaves 3270Web, so a password
+  typed into a sign-on panel is never sent to the AI provider and never
+  written to the stored conversation. This is the same redaction the
+  <a href="../rest-api/">REST API</a> applies.</li>
+</ul>
+<p>As with anything read from a host, the captured screen reaches the model
+wrapped in <code>&lt;untrusted-host-data&gt;</code> tags: a screen is text somebody else
+controls, and text that reads like an instruction is still data. See
+<a href="../mcp/#what-the-model-sees">What the model sees</a>.</p>
+<h2 id="tool-approval">Tool Approval<a class="headerlink" href="#tool-approval" title="Permanent link">¶</a></h2>
+<p>Each AI action requires explicit approval:</p>
+<ul>
+<li>The panel shows a <strong>Run</strong> button before executing any tool call.</li>
+<li>Click <strong>Run</strong> to approve it, or <strong>Skip</strong> to decline it.</li>
+<li>This prevents unintended writes or key presses.</li>
+</ul>
+<p>Every tool call is a card carrying its name, arguments, result, and a
+status badge. The badge and the card's left edge are colour-coded so you
+can scan a long exchange quickly:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Pending approval</strong> (amber)</td>
+<td>Waiting for you to click <strong>Run</strong></td>
+</tr>
+<tr>
+<td><strong>Running</strong> (blue)</td>
+<td>Executing against the session</td>
+</tr>
+<tr>
+<td><strong>Done</strong> (green)</td>
+<td>Completed successfully</td>
+</tr>
+<tr>
+<td><strong>Failed</strong> (red)</td>
+<td>The call returned an error</td>
+</tr>
+<tr>
+<td><strong>Skipped</strong> (grey)</td>
+<td>You declined it</td>
+</tr>
+</tbody>
+</table>
+<p>To let the AI proceed without pausing, enable <strong>Auto Mode</strong> (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click <strong>Run</strong> each time.</p>
+<h2 id="choose-a-model">Choose a Model<a class="headerlink" href="#choose-a-model" title="Permanent link">¶</a></h2>
+<p>Above the input box is a <strong>model selector</strong> listing the models your
+selected provider offers. 3270Web asks the provider for its live catalogue
+and falls back to a built-in list when it cannot (no key entered yet, or an
+endpoint that has no model list). Switch at any time and the next message
+uses the new model.</p>
+<p>Each provider remembers its own model, so moving between providers does
+not reset your choice — and a model name the dropdown does not list can be
+typed into the <strong>Model</strong> box in the provider dialog.</p>
+<p>Pick a heavier model for screen-reasoning-heavy sessions and a lighter one
+for quick reads or repetitive automation.</p>
+<h2 id="available-actions">Available Actions<a class="headerlink" href="#available-actions" title="Permanent link">¶</a></h2>
+<p>The AI can perform the following actions on your 3270 session:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read screen</td>
+<td>Returns the current screen as ASCII text with a full field map (row, col, value, protection flags)</td>
+</tr>
+<tr>
+<td>Send key</td>
+<td>Sends any AID key: <code>Enter</code>, <code>PF1</code>–<code>PF24</code>, <code>PA1</code>–<code>PA3</code>, <code>Tab</code>, <code>BackTab</code>, <code>Clear</code>, <code>Reset</code>, <code>Home</code>, arrow keys, and more</td>
+</tr>
+<tr>
+<td>Write field</td>
+<td>Writes text into an unprotected field at a given row and column</td>
+</tr>
+<tr>
+<td>Submit screen</td>
+<td>Writes modified fields then presses <code>Enter</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="beyond-the-screen">Beyond the Screen<a class="headerlink" href="#beyond-the-screen" title="Permanent link">¶</a></h2>
+<p>The panel drives more of this build than the keyboard does. Each of the
+following was on the <a href="../rest-api/">REST API</a> before it was a tool, which meant
+an assistant asked whether 3270Web could do it had no way to find out that it
+could — and answered from what it <em>could</em> see, which was a keyboard and an
+exploration engine.</p>
+<table>
+<thead>
+<tr>
+<th>Ask for</th>
+<th>Tool used</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run a saved task</td>
+<td><code>list_tasks</code> / <code>run_task</code></td>
+<td>Lists the <a href="../business-tasks/">Guided Business Tasks</a> saved here — each with the values it needs and the answer it returns — and runs one by name. Preferred over driving the screens by hand: a task verifies it is on the screen it expects before typing</td>
+</tr>
+<tr>
+<td>Check a screen against a known-good one</td>
+<td><code>snapshot_take</code> / <code>snapshot_diff</code></td>
+<td>Freezes the screen under a name, then reports which rows moved — against another snapshot or against the screen as it stands. The answer is the rows that differ, not a pass or a fail</td>
+</tr>
+<tr>
+<td>Manage what is held</td>
+<td><code>snapshot_list</code> / <code>snapshot_delete</code></td>
+<td>Names and sizes of the snapshots this session holds, and how to make room</td>
+</tr>
+<tr>
+<td>Describe the connection</td>
+<td><code>get_connection_details</code></td>
+<td>What was negotiated: TN3270E, the bound LU, the terminal type, TLS, byte counts. None of it is on the screen, and all of it matters when a session renders but misbehaves</td>
+</tr>
+<tr>
+<td>Change what the terminal shows</td>
+<td><code>get_display_toggles</code> / <code>set_display_toggle</code></td>
+<td>Reads and writes the terminal's own display settings — monocase, crosshair, cursor blink, the underscore under input fields</td>
+</tr>
+<tr>
+<td>Collect printed output</td>
+<td><code>printer_status</code> / <code>printer_start</code> / <code>printer_stop</code> / <code>printer_read_job</code></td>
+<td>Reports the <a href="../printer-sessions/">3287 printer session</a> bound beside this one and every job it has collected, binds or ends one, and reads what the host printed. Batch output goes to a printer LU, never to the screen</td>
+</tr>
+</tbody>
+</table>
+<p>Snapshots live in memory for the life of the session and are never written to
+disk. A long print job is cut short before it reaches the conversation; the
+reply says so, and the whole file stays downloadable from the printer panel.</p>
+<h2 id="chaos-integration">Chaos Integration<a class="headerlink" href="#chaos-integration" title="Permanent link">¶</a></h2>
+<p>The AI can run and monitor chaos exploration directly from the chat panel. This gives you the same capability as the Automation menu, but driven by conversation.</p>
+<table>
+<thead>
+<tr>
+<th>Chat command</th>
+<th>Tool used</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Start exploration</td>
+<td><code>chaos_start</code></td>
+<td>Begins automated exploration with configurable step/time limits</td>
+</tr>
+<tr>
+<td>Stop / Resume</td>
+<td><code>chaos_stop</code> / <code>chaos_resume</code></td>
+<td>Stops a running run or resumes a loaded one</td>
+</tr>
+<tr>
+<td>Check progress</td>
+<td><code>chaos_status</code></td>
+<td>Returns current steps, transitions, unique screens, and coverage stats including the exploration frontier</td>
+</tr>
+<tr>
+<td>Discovery report</td>
+<td><code>chaos_report</code></td>
+<td>Markdown report with a Mermaid flow map, per-screen working and untried keys, field discovery, and analyst hints</td>
+</tr>
+<tr>
+<td>Next experiments</td>
+<td><code>chaos_insights</code></td>
+<td>Ranked guidance after a run stops: productive vs dead vs untried keys per screen, unproductive fields, and suggested experiments</td>
+</tr>
+<tr>
+<td>Save hints</td>
+<td><code>chaos_save_screen_hint</code> / <code>chaos_update_hints</code></td>
+<td>Adds known transaction codes, data values, or key assignments to guide exploration</td>
+</tr>
+<tr>
+<td>Export workflow</td>
+<td><code>chaos_export_workflow</code></td>
+<td>Downloads learned paths as 3270Connect-compatible JSON</td>
+</tr>
+</tbody>
+</table>
+<p>The default system prompt uses a five-phase workflow: read the screen → review existing hints → ask you to choose run mode → start exploration → export results. You can override this by writing your own instructions.</p>
+<p>The Automation menu and the AI panel share the same run state — you can freely mix both. See <a href="../chaos-mode/">Chaos Mode</a> for full details on the menu controls, settings, and the discovery report format, and see <a href="../chaos-mode/#running-chaos-via-ai-chat">Running Chaos via AI Chat</a> for a side-by-side comparison.</p>
+<h2 id="business-understanding">Business Understanding<a class="headerlink" href="#business-understanding" title="Permanent link">¶</a></h2>
+<p>Chaos exploration discovers <em>what works</em> — screens, key presses, and input values. The business-understanding tools let the AI add <em>what it means</em>: after a run (or whenever you ask it to "understand the app" or "map the business functions"), the AI reviews each discovered screen, infers its business purpose and the meaning of each input field, and records the result in the chaos mind map.</p>
+<table>
+<thead>
+<tr>
+<th>Chat command</th>
+<th>Tool used</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Review discovered screens</td>
+<td><code>chaos_list_screens</code></td>
+<td>Lists every screen with previews, fields, learned values, key destinations, and existing annotations</td>
+</tr>
+<tr>
+<td>Annotate a screen</td>
+<td><code>chaos_annotate_screen</code></td>
+<td>Records a business purpose (e.g. <em>"Customer account inquiry"</em>) and per-field semantics (e.g. <code>R5C20L8</code> → <code>account_number</code>)</td>
+</tr>
+<tr>
+<td>Catalog a business function</td>
+<td><code>business_save_function</code></td>
+<td>Saves a named multi-screen operation (steps + parameters), e.g. <em>"Account inquiry"</em></td>
+</tr>
+<tr>
+<td>List the catalog</td>
+<td><code>business_list_functions</code></td>
+<td>Returns all cataloged business functions with their parameters</td>
+</tr>
+<tr>
+<td>Generate a workflow</td>
+<td><code>business_generate_workflow</code></td>
+<td>Turns a cataloged function plus parameter values into a downloadable, business-focused workflow JSON</td>
+</tr>
+</tbody>
+</table>
+<p>Annotations and the function catalog are stored inside the chaos run's mind map, so they persist with <a href="../chaos-mode/">saved runs</a> and travel through mind-map export/import. Knowledge is <strong>per run</strong>: load the annotated run (or import its mind map) in a new session to reuse it.</p>
+<h3 id="performing-business-functions-by-prompt">Performing business functions by prompt<a class="headerlink" href="#performing-business-functions-by-prompt" title="Permanent link">¶</a></h3>
+<p>Once functions are cataloged you can drive them in plain language:</p>
+<ul>
+<li><em>"Look up account 1234"</em> — the AI matches the request against the catalog and drives the live session step by step, verifying each screen before writing.</li>
+<li><em>"Create a workflow that looks up an account"</em> — the AI collects any missing required parameters (via clickable questions), calls <code>business_generate_workflow</code>, and offers the resulting JSON for download. The file loads and replays through the standard <a href="../workflow/">workflow</a> controls.</li>
+</ul>
+<p>Generated business workflows carry <code>Name</code>, <code>Description</code>, <code>BusinessFunction</code>, and <code>Parameters</code> metadata so they are self-describing; see <a href="../workflow/">Workflow</a> for the format.</p>
+<h2 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">¶</a></h2>
+<ul>
+<li>Chat requests and tool endpoints are not rate-limited server-side; very long automated loops are bounded only by the per-message tool budget and your provider's own quotas.</li>
+<li>Tool calling is required. Every provider listed in <a href="../ai-providers/">AI Providers</a> supports it, but a small local model served through an OpenAI-compatible endpoint may not, or may do it badly — if the assistant answers in prose instead of reading the screen, that is usually the cause.</li>
+<li>Reasoning/thinking output is not displayed. Models that think before answering still do so, but only the final answer reaches the panel.</li>
+<li>If the model stream fails mid-response, that exchange is not added to the history — re-send the prompt.</li>
+<li>Conversation history is persisted in browser localStorage and capped at the most recent 200 messages.</li>
+<li>Business annotations key on screen hashes, which are specific to the run's mind map. Re-running discovery against a changed application may produce new hashes; re-annotate or re-import the mind map in that case.</li>
+</ul>
+<h2 id="clear-the-conversation">Clear the Conversation<a class="headerlink" href="#clear-the-conversation" title="Permanent link">¶</a></h2>
+<p>Click <strong>Clear</strong> in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted.</p>
+<h2 id="keyboard-shortcut">Keyboard Shortcut<a class="headerlink" href="#keyboard-shortcut" title="Permanent link">¶</a></h2>
+<p>Press <span class="keys"><kbd class="key-control">Ctrl</kbd><span>+</span><kbd class="key-k">K</kbd></span> (<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-k">K</kbd></span> on macOS) and run <em>Toggle AI chat</em> to
+show or hide the panel without reaching for the menu bar; <em>AI provider
+settings</em> in the same palette opens the provider dialog, and <em>Explain this
+screen</em> asks about the panel in front of you without opening the chat
+first. All other 3270
+key bindings remain active while the panel is open; see
+<a href="../keyboard-and-controls/">Keyboard and Controls</a>.</p></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../terminal-fonts/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Terminal Fonts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Terminal Fonts
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../ai-providers/" class="md-footer__link md-footer__link--next" aria-label="Next: AI Providers">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                AI Providers
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      (c) Since 2023 3270.io
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://3270.io" target="_blank" rel="noopener" title="3270.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 8 6v12h-5v-7H9v7H4V9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://3270connect.3270.io" target="_blank" rel="noopener" title="3270Connect documentation" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19v-3h8v3zm-4.5-6L2.47 7h4.24l4.96 4.95c.58.59.58 1.55 0 2.12L6.74 19H2.5z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/3270io" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://linkedin.com/company/3270io" target="_blank" rel="noopener" title="linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://x.com/3270io" target="_blank" rel="noopener" title="x.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.sections", "navigation.tabs", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit", "content.action.view", "toc.integrate", "content.tabs.link", "content.footnotes"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "0.5.0"}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/3270-theme.js"></script>
+      
+    
+  </body>
+</html>

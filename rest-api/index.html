@@ -1,0 +1,3563 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="The versioned JSON HTTP API for non-browser clients — RPA bots, CI jobs and integration scripts — gated by a Bearer token and enabled per deployment.">
+      
+      
+        <meta name="author" content="3270.io">
+      
+      
+        <link rel="canonical" href="https://3270web.3270.io/rest-api/">
+      
+      
+        <link rel="prev" href="../terminal-model-limits/">
+      
+      
+        <link rel="next" href="../embedding/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+    <title>3270Web REST API v1: drive a session over JSON HTTP</title>
+
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/3270-theme.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <script>
+    (function () {
+      var THEMES = ['phosphor', 'amber', 'ice', 'daylight'];
+      var theme = 'phosphor';
+      try {
+        // The cookie is shared across *.3270.io, so the palette a reader
+        // picked on the landing page is already the right answer here.
+        var match = document.cookie.match(/(?:^|;\s*)3270io_theme=([^;]+)/);
+        var found = match ? decodeURIComponent(match[1]) : null;
+        if (THEMES.indexOf(found) === -1) found = localStorage.getItem('3270io:theme');
+        if (THEMES.indexOf(found) !== -1) theme = found;
+      } catch (e) { /* cookies or storage blocked — the default is fine */ }
+
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  
+
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="3270Web">
+    <meta property="og:url" content="https://3270web.3270.io/rest-api/">
+    <meta property="og:title" content="3270Web REST API v1: drive a session over JSON HTTP">
+    <meta property="og:description" content="The versioned JSON HTTP API for non-browser clients — RPA bots, CI jobs and integration scripts — gated by a Bearer token and enabled per deployment.">
+    <meta property="og:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:secure_url" content="https://3270web.3270.io/assets/og-image.png">
+    <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
+    <meta property="og:locale" content="en_GB">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@3270io">
+    <meta name="twitter:title" content="3270Web REST API v1: drive a session over JSON HTTP">
+    <meta name="twitter:description" content="The versioned JSON HTTP API for non-browser clients — RPA bots, CI jobs and integration scripts — gated by a Bearer token and enabled per deployment.">
+    <meta name="twitter:image" content="https://3270web.3270.io/assets/og-image.png">
+    <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab"><script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://3270.io/#organization",
+          "name": "3270.io",
+          "url": "https://3270.io/",
+          "sameAs": ["https://github.com/3270io"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3270web.3270.io/#website",
+          "name": "3270Web",
+          "url": "https://3270web.3270.io/",
+          "description": "Browser-based IBM 3270 terminal emulation: connect to any TN3270 host with no emulator install, then record sessions, explore with AI Chat and replay them.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://3270.io/#organization" }
+        },
+        {
+          "@type": "TechArticle",
+          "headline": "REST API",
+          "description": "The versioned JSON HTTP API for non-browser clients \u2014 RPA bots, CI jobs and integration scripts \u2014 gated by a Bearer token and enabled per deployment.",
+          "url": "https://3270web.3270.io/rest-api/",
+          "inLanguage": "en-GB",
+          "isPartOf": { "@id": "https://3270web.3270.io/#website" },
+          "publisher": { "@id": "https://3270.io/#organization" }
+        }
+      ]
+    }
+    </script>
+
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="3270" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rest-api-v1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="3270Web" class="md-header__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            3270Web
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              REST API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../demo-videos/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Demonstration Videos
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and Run
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect and Use 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../sample-apps/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Bundled Sample Applications
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../authentication/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  User Accounts and Sign-In
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../multi-user/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Running a Shared Instance
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../session-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Session Manager
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workflow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Recordings and Playback
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../business-tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Guided Business Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-mode/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../chaos-compare/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Chaos Mind-Map Compare
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../host-profiler/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Host Compatibility Profiler
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../compatibility-profile-schema/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Compatibility Profile Schema
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-fonts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Fonts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-chat/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Chat Mode
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../ai-providers/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Providers
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../keyboard-and-controls/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Keyboard and Controls
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../printer-sessions/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Printer Sessions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-model-limits/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Screen Size and Model Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  REST API
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../embedding/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Embedding 3270Web
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../mcp/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  MCP Server
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../skills/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Skills and Extensions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terminal-capabilities/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terminal Capabilities
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../accessibility/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Accessibility
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../feature-roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../acknowledgements/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Acknowledgements
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../licence/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Licence
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="3270Web" class="md-nav__button md-logo" aria-label="3270Web" data-md-component="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="20 25 96 88" width="128" height="128" role="img"><defs><linearGradient id="swebtf" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="var(--accent-2, #7cf9d0)"/><stop offset="1" stop-color="var(--accent, #4effb3)"/></linearGradient><linearGradient id="swebtsp" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.26"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.03"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="swebtsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="5" stdDeviation="6" style="flood-color:var(--accent, #4effb3)" flood-opacity="0.45"/></filter><mask id="swebtm" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect width="128" height="128" fill="#fff"/><g fill="#000"><path d="M57 55.5 57 79.1 62.7 73.9 66.5 82 70.3 80.3 66.6 72.5 73.7 72Z" stroke="#000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></g></mask><clipPath id="swebtcp"><rect x="30" y="46" width="70" height="46" rx="11"/></clipPath></defs><rect class="t3270-plane t3270-plane-2" x="52" y="32" width="54" height="46" rx="9" fill="var(--accent, #4effb3)" fill-opacity="0.20"/><rect class="t3270-plane t3270-plane-1" x="41" y="39" width="62" height="46" rx="10" fill="var(--accent, #4effb3)" fill-opacity="0.38"/><g filter="url(#swebtsh)"><rect x="30" y="46" width="70" height="46" rx="11" fill="url(#swebtf)" mask="url(#swebtm)"/></g><g class="t3270-spec" clip-path="url(#swebtcp)"><path d="M30 46h70v20L30 84Z" fill="url(#swebtsp)"/></g></svg>
+    </a>
+    3270Web
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/3270io/3270Web" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-videos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demonstration Videos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect and Use 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sample-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Sample Applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Accounts and Sign-In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a Shared Instance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Session Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recordings and Playback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../business-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guided Business Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Mind-Map Compare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../host-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host Compatibility Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility-profile-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compatibility Profile Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-fonts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Fonts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Chat Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-and-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard and Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../printer-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Printer Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-model-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screen Size and Model Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#enabling-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enabling the API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-an-instance-with-accounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On an instance with accounts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calling-from-a-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calling from a browser
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1sessionsidscreen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/sessions/:id/screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidsubmit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/submit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-apiv1sessionsid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DELETE /api/v1/sessions/:id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1sessionsidprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/sessions/:id/profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1sessionsidquery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/sessions/:id/query
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screen-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screen snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1sessionsidbuffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/sessions/:id/buffer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1sessionsidbufferfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/sessions/:id/buffer/field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-and-post-apiv1sessionsidtoggles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET and POST /api/v1/sessions/:id/toggles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apiv1sessionsidscreen-trace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /api/v1/sessions/:id/screen-trace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apiv1sessionsidprinter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /api/v1/sessions/:id/printer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidhllapi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/hllapi
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1tasks-and-post-apiv1tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/tasks and POST /api/v1/tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1sessionsidtasksrun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/sessions/:id/tasks/run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1library-and-post-apiv1library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/library and POST /api/v1/library
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1macrostranslate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/macros/translate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-session-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser-session endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ai-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#system-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (v1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedding 3270Web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills and Extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../accessibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Accessibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acknowledgements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acknowledgements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../licence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Licence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/3270io/3270Web/edit/main/docs/rest-api.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/3270io/3270Web/raw/main/docs/rest-api.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<div><h1 id="rest-api-v1">REST API (v1)<a class="headerlink" href="#rest-api-v1" title="Permanent link">¶</a></h1>
+<p>3270Web exposes a small JSON HTTP API for non-browser clients (RPA bots,
+CI jobs, integration scripts). The API is versioned and gated by a
+Bearer token so it can be enabled per-deployment.</p>
+<h2 id="enabling-the-api">Enabling the API<a class="headerlink" href="#enabling-the-api" title="Permanent link">¶</a></h2>
+<p>Set the <code>API_TOKEN</code> environment variable to a non-empty secret before
+starting 3270Web. The simplest way is to add a line to the <code>.env</code> file
+that 3270Web reads on startup:</p>
+<div class="highlight"><pre><span></span><code>API_TOKEN=replace-with-a-long-random-string
+</code></pre></div>
+<p>When <code>API_TOKEN</code> is unset or empty, every <code>/api/v1/*</code> request returns
+<code>503 Service Unavailable</code> with <code>{"error": "API disabled: API_TOKEN not
+configured"}</code>. This is the default so the API can't be accidentally
+exposed.</p>
+<p>The 3270Web server binds to <code>127.0.0.1:3270</code> by default, so the API is
+only reachable from the local host. The Bearer token is additional
+defense-in-depth for any deployment that changes the bind address via
+<code>WEBUI_BIND</code> — including the Docker image, which sets <code>WEBUI_BIND=0.0.0.0</code>
+so that published ports work at all. In a container, what the API is
+reachable from is decided by the port mapping, not the bind address.</p>
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">¶</a></h2>
+<p>Every request must include an <code>Authorization: Bearer &lt;token&gt;</code> header.
+Bad or missing tokens get <code>401 Unauthorized</code>.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions
+</code></pre></div>
+<h3 id="on-an-instance-with-accounts">On an instance with accounts<a class="headerlink" href="#on-an-instance-with-accounts" title="Permanent link">¶</a></h3>
+<p><code>API_TOKEN</code> is one shared credential, which is all there is to say about who
+is calling when there is one operator. Where <a href="../authentication/">accounts</a> are
+enabled (<code>AUTH_MODE=local</code>) it is refused at startup, and clients present a
+token issued to an account instead:</p>
+<div class="highlight"><pre><span></span><code>3270Web<span class="w"> </span>token<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span><span class="s2">"ci pipeline"</span>
+</code></pre></div>
+<p>Such a token reaches exactly what its owner reaches. <code>GET /api/v1/sessions</code>
+lists that account's sessions, and naming somebody else's session in a path
+answers <code>404</code> — the same answer as an ID that does not exist. A token issued
+<code>--read-only</code> may only make <code>GET</code>, <code>HEAD</code> and <code>OPTIONS</code> requests; anything
+else answers <code>403</code>.</p>
+<p>See <a href="../multi-user/#api-tokens">API tokens</a> for issuing, scoping and
+revoking them.</p>
+<h3 id="calling-from-a-browser">Calling from a browser<a class="headerlink" href="#calling-from-a-browser" title="Permanent link">¶</a></h3>
+<p>A page on another origin cannot reach this surface unless its origin is named
+in <code>EMBED_ORIGINS</code>; see <a href="../embedding/">Embedding 3270Web</a>. Credentials are
+never allowed on those cross-origin calls — the token in the <code>Authorization</code>
+header is the whole of the authentication, and a browser's own 3270Web session
+cookie is never involved.</p>
+<h2 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions</code></td>
+<td>List active sessions</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions</code></td>
+<td>Start a new host session</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/sessions/:id</code></td>
+<td>Disconnect and remove a session</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/screen</code></td>
+<td>Refresh and read the current screen</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/key</code></td>
+<td>Send an AID or navigation key</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/field</code></td>
+<td>Write text into a field</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/submit</code></td>
+<td>Submit modified fields + send Enter (or another AID)</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/profile</code></td>
+<td>Run a host compatibility probe and return the <code>CompatibilityProfile</code> JSON</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/profile</code></td>
+<td>Return the cached <code>CompatibilityProfile</code> from the last probe</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/query</code></td>
+<td>Ask the terminal about the connection itself</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/snapshots</code></td>
+<td>Freeze the screen and keep it under a name</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/snapshots</code></td>
+<td>List the snapshots this session holds, or read one with <code>?name=</code></td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/sessions/:id/snapshots?name=</code></td>
+<td>Drop one snapshot</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/snapshots/diff</code></td>
+<td>Compare two snapshots, or one against the live screen</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/toggles</code></td>
+<td>Read the terminal's display toggles</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/toggles</code></td>
+<td>Change one display toggle</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/buffer</code></td>
+<td>Read a region out of the terminal's own buffer, as characters or as the host's code points</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/buffer/field</code></td>
+<td>Report the field a position falls in, as the terminal's buffer describes it</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/screen-trace</code></td>
+<td>Start recording every screen the terminal draws</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/screen-trace</code></td>
+<td>Report the trace, or download it with <code>?download=1</code></td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/sessions/:id/screen-trace</code></td>
+<td>Stop recording</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/printer</code></td>
+<td>Bind a 3287 printer LU beside this session</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/printer</code></td>
+<td>Report the printer and the jobs it has collected</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/sessions/:id/printer</code></td>
+<td>Stop the printer, keeping its jobs</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/sessions/:id/printer/jobs</code></td>
+<td>List the print jobs, or download one with <code>?name=</code></td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/sessions/:id/printer/jobs?name=</code></td>
+<td>Drop one print job</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/hllapi</code></td>
+<td>Drive the terminal with HLLAPI-shaped calls: function numbers, one-based positions, return codes</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/tasks</code></td>
+<td>List the Guided Business Task catalogue</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/tasks</code></td>
+<td>Add or replace a task</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/sessions/:id/tasks/run</code></td>
+<td>Run a task in a session and return the result</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/library</code></td>
+<td>Download the tasks and host presets as one portable document</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/library</code></td>
+<td>Import one, or ask what importing it would do</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/macros/translate</code></td>
+<td>Turn a macro file into a recording, with a report of what did not translate</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1sessions"><code>POST /api/v1/sessions</code><a class="headerlink" href="#post-apiv1sessions" title="Permanent link">¶</a></h3>
+<p>Create and start a host session. Sample-app pseudo-hostnames (<code>mock</code>,
+<code>demo</code>, <code>sampleapp:appN</code>) are rejected by the API — those are reserved
+for the browser UI.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"host":"mainframe.example.com:23"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions
+</code></pre></div>
+<p>Response:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"f1c5..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mainframe.example.com"</span><span class="p">,</span><span class="w"> </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h3 id="get-apiv1sessionsidscreen"><code>GET /api/v1/sessions/:id/screen</code><a class="headerlink" href="#get-apiv1sessionsidscreen" title="Permanent link">¶</a></h3>
+<p>Refreshes the screen and returns its full structure.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/screen
+</code></pre></div>
+<p>Response:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"width"</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"height"</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"...screen contents...\n...\n"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"formatted"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"kbd_lock"</span><span class="p">:</span><span class="w"> </span><span class="s2">"U"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"cursor"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="nt">"col"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"start_row"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"start_col"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"end_row"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"end_col"</span><span class="p">:</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"USERID"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"protected"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"numeric"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"hidden"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"length"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"U F P C(mainframe.example.com) I 4 24 80 5 12 0x0 0.000"</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>kbd_lock</code> is <code>"U"</code> (unlocked), <code>"L"</code> (locked), or <code>"E"</code> (error). The
+field is omitted when 3270Web could not parse the status line.</p>
+<h3 id="post-apiv1sessionsidkey"><code>POST /api/v1/sessions/:id/key</code><a class="headerlink" href="#post-apiv1sessionsidkey" title="Permanent link">¶</a></h3>
+<p>Send a single key. The key name follows the same vocabulary the Copilot
+side panel uses: <code>Enter</code>, <code>PF1</code>..<code>PF24</code>, <code>PA1</code>..<code>PA3</code>, <code>Tab</code>, <code>BackTab</code>,
+<code>Clear</code>, <code>Reset</code>, <code>EraseEOF</code>, <code>EraseInput</code>, <code>Home</code>, <code>Up</code>, <code>Down</code>,
+<code>Left</code>, <code>Right</code>.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"key":"PF3"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/key
+</code></pre></div>
+<h3 id="post-apiv1sessionsidfield"><code>POST /api/v1/sessions/:id/field</code><a class="headerlink" href="#post-apiv1sessionsidfield" title="Permanent link">¶</a></h3>
+<p>Write text into the input field that contains <code>(row, col)</code>. Coordinates
+are 0-indexed. Text containing CR, LF, or TAB is rejected.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"row":3,"col":10,"text":"USER01"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/field
+</code></pre></div>
+<h3 id="post-apiv1sessionsidsubmit"><code>POST /api/v1/sessions/:id/submit</code><a class="headerlink" href="#post-apiv1sessionsidsubmit" title="Permanent link">¶</a></h3>
+<p>Submit any modified fields and send an AID key. The default AID is
+<code>Enter</code>; pass <code>{"aid": "PF3"}</code> to use a different key. The response
+includes the updated screen.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"aid":"Enter"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/submit
+</code></pre></div>
+<h3 id="delete-apiv1sessionsid"><code>DELETE /api/v1/sessions/:id</code><a class="headerlink" href="#delete-apiv1sessionsid" title="Permanent link">¶</a></h3>
+<p>Disconnect from the host and remove the session.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>
+</code></pre></div>
+<h3 id="post-apiv1sessionsidprofile"><code>POST /api/v1/sessions/:id/profile</code><a class="headerlink" href="#post-apiv1sessionsidprofile" title="Permanent link">¶</a></h3>
+<p>Probe the session's connected host and return a <code>CompatibilityProfile</code>
+JSON document. The schema is shared byte-for-byte with <code>3270Connect
+-profile</code> output, so profiles from either tool can be diffed against
+each other. Body is optional.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"collect_raw": true}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/profile
+</code></pre></div>
+<p>Supported body fields: <code>ind_file_probe</code>, <code>collect_raw</code>,
+<code>per_action_timeout_ms</code>. See the
+<a href="../host-profiler/">Host Compatibility Profiler</a> page for the full
+walkthrough and the
+<a href="../compatibility-profile-schema/">Compatibility Profile Schema</a> for the
+response shape.</p>
+<h3 id="get-apiv1sessionsidprofile"><code>GET /api/v1/sessions/:id/profile</code><a class="headerlink" href="#get-apiv1sessionsidprofile" title="Permanent link">¶</a></h3>
+<p>Return the cached <code>CompatibilityProfile</code> from the last probe in this
+session. <code>404 Not Found</code> if no probe has run.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/profile
+</code></pre></div>
+<h3 id="get-apiv1sessionsidquery"><code>GET /api/v1/sessions/:id/query</code><a class="headerlink" href="#get-apiv1sessionsidquery" title="Permanent link">¶</a></h3>
+<p>The connection's own account of itself: negotiated telnet options, TLS state,
+terminal name, cursor, byte counts, the s3270 build actually running, and
+everything else the terminal knows about its link to the host.</p>
+<p>None of it is on the screen, which is the point. A session that renders
+perfectly may still have failed to negotiate TN3270E, or bound a different LU
+from the one that was asked for, and this is the only place that shows. It is
+the difference between "the application looks fine" and "the connection is
+what we specified".</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/query
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa255b1f4d29257119f4e8f021"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"queries"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"ConnectionState"</span><span class="p">:</span><span class="w"> </span><span class="s2">"connected-3270"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"host mvs01.example.com 992"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"TerminalName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IBM-3278-4-E"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"ScreenSizeCurrent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"rows 24 columns 80"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"TelnetHostOptions"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BINARY END OF RECORD"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Tls"</span><span class="p">:</span><span class="w"> </span><span class="s2">"not secure"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"LuName"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"s3270 v4.5ga5"</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"available"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"About"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Actions"</span><span class="p">,</span><span class="w"> </span><span class="s2">"BindPluName"</span><span class="p">,</span><span class="w"> </span><span class="s2">"..."</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>available</code> is every field name, in the terminal's own order. A field whose
+value is genuinely empty is still reported — "the LU name is blank" and "this
+build has no LU name to report" are different facts.</p>
+<p>Add <code>?name=</code> for one field. The match is case-insensitive and the reply echoes
+the canonical spelling:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">"http://127.0.0.1:3270/api/v1/sessions/</span><span class="nv">$ID</span><span class="s2">/query?name=terminalname"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TerminalName"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IBM-3278-4-E"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>A name that is not in <code>available</code> gets <code>400 Bad Request</code> <strong>and the list of
+names that would have worked</strong>. That refusal is deliberate rather than
+pedantic: the underlying terminal action does not reliably reject a keyword it
+does not know — it can block instead — and a blocked command costs the session,
+because the only way out of it is to restart the terminal process. So names are
+only ever taken from the terminal's own answer, never from the request.</p>
+<p><code>409 Conflict</code> if the session is not connected.</p>
+<p>The browser reads the same thing through its session cookie at
+<code>GET /host/query</code>, which is what the <strong>Connection</strong> panel shows — one
+implementation, two doors. See
+<a href="../keyboard-and-controls/#connection-details">Keyboard and Controls</a>.</p>
+<h3 id="screen-snapshots">Screen snapshots<a class="headerlink" href="#screen-snapshots" title="Permanent link">¶</a></h3>
+<p>A snapshot is the screen frozen and kept under a name. Freezing matters
+because every other read goes to the live buffer: between deciding to capture
+a screen and finishing reading it, the host may have written over it, and what
+comes back is half of one screen and half of another. One command freezes the
+display, and everything read afterwards is of the same instant.</p>
+<p>The point of freezing it is comparison. Capture the screen a flow is supposed
+to land on, run the flow again tomorrow, and ask what changed — the answer is
+a list of rows, which is the difference between a test that tells you it
+failed and one that tells you why.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"name":"before"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/snapshots
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"before"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"taken_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-04T10:15:22.184Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"snapshot"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"rows"</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"cols"</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"U F P C(mvs01.example.com) I 4 24 80 5 20 0x0 0.012"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"                    ACCOUNT ENQUIRY\n..."</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Then run the transaction and ask what moved. Omitting <code>right</code> compares against
+the screen as it stands now, which is the shape this is usually used in:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"left":"before"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/snapshots/diff
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"left"</span><span class="p">:</span><span class="w"> </span><span class="s2">"before"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"right"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(live screen)"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"identical"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"lines"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"left"</span><span class="p">:</span><span class="w"> </span><span class="s2">" LAST NAME . . . ."</span><span class="p">,</span><span class="w"> </span><span class="nt">"right"</span><span class="p">:</span><span class="w"> </span><span class="s2">" LAST NAME . . . .  SMITH"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">11</span><span class="p">,</span><span class="w"> </span><span class="nt">"left"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"right"</span><span class="p">:</span><span class="w"> </span><span class="s2">" FIRST NAME FIELD IS REQUIRED."</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Rows are numbered from 1, the way an operator counts lines on a screen.
+Trailing blanks are ignored, so a one-character change reports one row rather
+than every row whose padding differs. A screen that grew or shrank reports its
+extra rows against an empty string rather than matching on the common prefix.</p>
+<p>Names may contain letters, digits, spaces, dots, dashes and underscores.
+Capturing over a name that already exists replaces it — re-capturing <code>before</code>
+at the top of a loop is the ordinary way to use this. A session holds up to 32
+snapshots, and they end when the session does: a snapshot is a working note
+taken during a run, not a record.</p>
+<p><code>409 Conflict</code> if the session is not connected, or if the ceiling is reached.</p>
+<h3 id="get-apiv1sessionsidbuffer"><code>GET /api/v1/sessions/:id/buffer</code><a class="headerlink" href="#get-apiv1sessionsidbuffer" title="Permanent link">¶</a></h3>
+<p>Every other screen-reading endpoint here serves the <em>parsed</em> screen: the
+terminal is asked for the display, 3270Web turns it into a buffer and a list of
+fields, and the response is cut out of that. This one serves the terminal's own
+buffer instead, and it exists for the single question the parsed screen cannot
+answer — whether the parse is what went wrong.</p>
+<p>That question arrives as a code page complaint, and it always looks the same: a
+pound sign showing as a hash, an umlaut taking two cells, a field reported one
+column wider than the application drew it. What settles it is the byte the host
+actually transmitted, and only the terminal has that.</p>
+<p><code>row</code>, <code>col</code> and <code>length</code> are required. Positions are one-based, as everywhere
+else on this API — row 1, column 1 is the top-left cell.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">"http://127.0.0.1:3270/api/v1/sessions/</span><span class="nv">$ID</span><span class="s2">/buffer?row=6&amp;col=21&amp;length=12"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"col"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="p">,</span><span class="w"> </span><span class="nt">"length"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">"encoding"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ascii"</span><span class="p">,</span><span class="w"> </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SMITH       "</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p><code>?encoding=ebcdic</code> answers with the host's own code points instead, one hex
+byte per cell, in reading order:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">"http://127.0.0.1:3270/api/v1/sessions/</span><span class="nv">$ID</span><span class="s2">/buffer?row=6&amp;col=21&amp;length=5&amp;encoding=ebcdic"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"col"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="p">,</span><span class="w"> </span><span class="nt">"length"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="nt">"encoding"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ebcdic"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"codes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"e2"</span><span class="p">,</span><span class="w"> </span><span class="s2">"d4"</span><span class="p">,</span><span class="w"> </span><span class="s2">"c9"</span><span class="p">,</span><span class="w"> </span><span class="s2">"e3"</span><span class="p">,</span><span class="w"> </span><span class="s2">"c8"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>That is the comparison worth making. If the codes are what the application
+says it sent and the characters are wrong, the code page is wrong — see
+<a href="../terminal-capabilities/#terminal-fidelity">Terminal Capabilities</a> and the
+<code>codePage</code> setting on the connection profile. If the codes themselves are not
+what the host was asked to send, the problem is upstream of this terminal
+entirely.</p>
+<p>A region that runs past the end of a row continues on the next one. The 3270
+display is a single buffer that happens to be drawn as a rectangle, and a field
+is entitled to straddle the right-hand edge; a wrapped region comes back with
+the rows separated by newlines.</p>
+<p>Cells inside a hidden field are masked — <code>*</code> in the text, <code>**</code> in the code
+list — for the same reason they are masked on <code>/screen</code>: 3270 "hidden" only
+suppresses local echo on a real terminal, so the characters an operator typed
+into a password field are still in the buffer. Reading the buffer directly is
+not a way around that.</p>
+<p><code>400</code> if the position or length is not a position or length the screen has, or
+if the terminal refuses the read — the refusal carries the terminal's own words.
+<code>409</code> if the session is not connected, or if there is no parsed screen to check
+the region against.</p>
+<h3 id="get-apiv1sessionsidbufferfield"><code>GET /api/v1/sessions/:id/buffer/field</code><a class="headerlink" href="#get-apiv1sessionsidbufferfield" title="Permanent link">¶</a></h3>
+<p>The field a position falls in, as the terminal's buffer describes it rather
+than as 3270Web reconstructed it. <code>row</code> and <code>col</code> are required and one-based.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">"http://127.0.0.1:3270/api/v1/sessions/</span><span class="nv">$ID</span><span class="s2">/buffer/field?row=6&amp;col=25"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"row"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"col"</span><span class="p">:</span><span class="w"> </span><span class="mi">21</span><span class="p">,</span><span class="w"> </span><span class="nt">"length"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"attribute"</span><span class="p">:</span><span class="w"> </span><span class="s2">"c0"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"protected"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"numeric"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"hidden"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"intensified"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"modified"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"formatted"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SMITH               "</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"codes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"e2"</span><span class="p">,</span><span class="w"> </span><span class="s2">"d4"</span><span class="p">,</span><span class="w"> </span><span class="s2">"c9"</span><span class="p">,</span><span class="w"> </span><span class="s2">"e3"</span><span class="p">,</span><span class="w"> </span><span class="s2">"c8"</span><span class="p">,</span><span class="w"> </span><span class="s2">"40"</span><span class="p">,</span><span class="w"> </span><span class="s2">"…"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>row</code> and <code>col</code> are the field's first <em>content</em> cell. A 3270 field attribute
+occupies a buffer position of its own, so the attribute for the field above
+sits at column 20 and the text starts at 21 — the off-by-one every 3270 field
+calculation gets wrong at least once, and the reason this endpoint reports the
+content start rather than the attribute's.</p>
+<p><code>attribute</code> is the field attribute byte in hex, and the flags beside it are
+that byte decoded. It is the answer to "does the application think this field
+is numeric" and "is this field really protected", asked of the terminal rather
+than of anything downstream of it.</p>
+<p><code>formatted</code> is <code>false</code> on a screen carrying no field structure at all. An
+unformatted 3270 screen has no fields, so the whole buffer is reported as one
+unprotected field, which is what an unformatted screen is.</p>
+<p><code>codes</code> is the host's own EBCDIC code point for each content cell. It is absent
+on a terminal build that will not report them — rather than filled in from the
+display's code points, since the difference between those two is the whole
+question this endpoint exists to answer.</p>
+<p>A hidden field reports its extent and its attributes, and <code>*</code> in place of its
+contents. Where it is and how wide it is disclose nothing; what was typed into
+it does.</p>
+<h3 id="get-and-post-apiv1sessionsidtoggles"><code>GET</code> and <code>POST /api/v1/sessions/:id/toggles</code><a class="headerlink" href="#get-and-post-apiv1sessionsidtoggles" title="Permanent link">¶</a></h3>
+<p>The terminal's own display settings — monocase, the crosshair, cursor blink,
+the underscore under input fields. They are settings of the <em>terminal</em>, so
+they are read from and written to it rather than stored here; what you read is
+what the terminal will actually do.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/toggles
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa…"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"toggles"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"blankFill"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"treat trailing blanks in a field as if they were nulls"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"monoCase"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"display all letters in upper case"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Only what this terminal build actually reports is listed. A toggle that is
+absent is absent, not <code>false</code> — an older or newer build not having one is not
+the same as it being off, and s3270 legitimately has fewer of them than a
+windowed terminal does.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"name":"monoCase","value":true}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/toggles
+</code></pre></div>
+<p>The reply carries the toggle as the terminal reports it <em>afterwards</em>, not as
+the request asked for it, so a build that silently declines a change is
+visible in the answer.</p>
+<p><code>value</code> is required and must be <code>true</code> or <code>false</code>. A body without it would
+otherwise be indistinguishable from asking for the toggle to be turned off.</p>
+<p>The settable names are an allowlist, and a name outside it gets <code>400 Bad
+Request</code> together with the names that would have worked. The underlying
+terminal action also reaches trace files, printer sessions and the proxy
+configuration, none of which belong on an HTTP endpoint — so only display
+toggles can be named at all, and every name that reaches the terminal is one
+the terminal itself just reported.</p>
+<p>The browser reads and writes the same thing through its session cookie at
+<code>GET</code> and <code>POST /host/toggles</code>.</p>
+<h3 id="apiv1sessionsidscreen-trace"><code>/api/v1/sessions/:id/screen-trace</code><a class="headerlink" href="#apiv1sessionsidscreen-trace" title="Permanent link">¶</a></h3>
+<p>Records every screen the terminal draws, as it draws it — including the ones
+replaced before anybody asked to see them. That is what separates it from
+polling: a host that paints an error and immediately paints over it leaves a
+poller nothing to find, and that is usually the screen someone needs
+afterwards.</p>
+<p><strong>Requires <code>ALLOW_SCREEN_TRACE=1</code></strong> as well as the API token. A trace is a
+file on the server holding everything that crossed the display, including
+whatever was typed into a field the host did not mark hidden, so it is off
+until somebody turns it on. Without the flag, the start call returns <code>403</code>.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"format":"text"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/screen-trace
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa…"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa…-20260304T101522Z.txt"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"format"</span><span class="p">:</span><span class="w"> </span><span class="s2">"text"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"started_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-04T10:15:22.184Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"running"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>format</code> is <code>text</code> (the default) or <code>html</code>, which preserves colour and
+highlighting. Files are written to <code>screen-traces/</code> beside the executable,
+next to <code>chaos-runs/</code>. The destination is chosen by the server — no part of it
+comes from the request — and only a file this server started is ever served
+back.</p>
+<p><code>GET</code> reports the trace; <code>?download=1</code> returns the file itself, as an
+attachment, up to 16 MB. An HTML trace is a page built out of whatever the
+host painted, so it is never served inline. <code>DELETE</code> stops the capture;
+stopping one that was never started succeeds, so a cleanup path does not have
+to know whether it is cleaning up.</p>
+<p>One trace per session: the terminal has a single trace destination, so a
+second concurrent start would silently redirect the first and is refused with
+<code>409</code>.</p>
+<p>Ending the session drops this server's record of where the trace went. The
+file stays on disk for whoever asked for it.</p>
+<h3 id="apiv1sessionsidprinter"><code>/api/v1/sessions/:id/printer</code><a class="headerlink" href="#apiv1sessionsidprinter" title="Permanent link">¶</a></h3>
+<p>Binds a 3287 printer LU alongside the terminal session, and collects what the
+host prints to it. Batch output does not come back on the display: the host
+binds a separate printer LU and sends the job there, and something has to be
+listening.</p>
+<p>On the token surface as well as the browser's because the case for it is
+unattended — a job runs overnight and something collects it in the morning.
+<a href="../printer-sessions/">Printer sessions</a> is the full page; this is the API
+shape.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"lu":"PRT001","mpp":132}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/printer
+</code></pre></div>
+<p>Body fields, all optional: <code>lu</code> names a printer LU, or <code>associate: true</code>
+requests the printer paired with this session's own display LU (the terminal
+is asked what that is; the caller does not supply it). Then <code>code_page</code>,
+<code>mpp</code> (40–256), <code>eoj_timeout</code>, <code>crlf</code>, <code>blank_lines</code>, <code>ff_skip</code>, <code>ff_thru</code>,
+<code>ignore_eoj</code> and <code>skip_cc</code>. A body with neither <code>lu</code> nor <code>associate</code> binds by
+association.</p>
+<p>The host, the port and the TLS terms are <strong>not</strong> settable: a printer session
+always follows the terminal session it belongs to. An endpoint that took a
+hostname would be a way to make the server open connections wherever it can
+reach, and the real case is always the printer LU on the mainframe the caller
+is already connected to.</p>
+<p><code>GET</code> returns <code>available</code> (whether this installation has a <code>pr3287</code> binary at
+all), <code>running</code>, the <code>printer</code> itself, and the <code>jobs</code> collected so far:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"running"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"printer"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1900afaa…"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mainframe.example"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">992</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"lu"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PRT001"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"tls"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"started_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-08-10T09:14:02Z"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"running"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"jobs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"job-20260810T091455Z-3fa1c209.prt"</span><span class="p">,</span><span class="w"> </span><span class="nt">"bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">18422</span><span class="p">,</span>
+<span class="w">     </span><span class="nt">"received_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-08-10T09:14:55Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"truncated"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>GET /printer/jobs</code> lists them; the same path with <code>?name=</code> returns one job as
+an attachment. The name is checked against the shape this server generates, so
+nothing else under the spool directory or outside it is reachable.
+<code>DELETE /printer/jobs?name=</code> drops one.</p>
+<p>Without a <code>pr3287</code> binary the start call returns <code>501</code> naming what to install.
+A printer that will not bind — an unknown LU, an LU somebody else holds —
+returns <code>502</code> carrying what <code>pr3287</code> said, because that sentence is usually
+the whole diagnosis.</p>
+<p>One printer per session; a second start is refused with <code>409</code>. Stopping the
+printer keeps its jobs. Ending the <em>session</em> deletes them, along with the
+spool directory: the jobs belong to the session that collected them.</p>
+<h3 id="post-apiv1sessionsidhllapi"><code>POST /api/v1/sessions/:id/hllapi</code><a class="headerlink" href="#post-apiv1sessionsidhllapi" title="Permanent link">¶</a></h3>
+<p>A compatibility surface for screen-scrapers written against HLLAPI.</p>
+<p>There is a lot of working code that drives a terminal by calling numbered
+functions with a presentation-space position and branching on a return code.
+Porting it to the endpoints above is not hard, but it is a rewrite of every
+call site — and the reason those programs still exist is that nobody has time
+to rewrite them. This endpoint lets one be ported by changing <em>how</em> it calls
+rather than <em>what</em> it does.</p>
+<p>What it reproduces is the shape, because the shape is what the calling code is
+built around:</p>
+<ul>
+<li><strong>Positions are one-based and linear.</strong> Position 81 on a 24x80 screen is row
+  2, column 1. Every HLLAPI program does this arithmetic already.</li>
+<li><strong>Every call answers with a return code.</strong> The response is always HTTP 200
+  with an <code>rc</code> in the body — turning "string not found" into an HTTP error
+  would make it a different program.</li>
+<li><strong><code>SendKey</code> takes text with mnemonics embedded</strong>, so <code>"SMITH@E"</code> still means
+  what it always meant.</li>
+</ul>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"function":6,"text":"First Name"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/hllapi
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">"rc"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"function"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SearchPresentationSpace"</span><span class="p">,</span><span class="w"> </span><span class="nt">"number"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"position"</span><span class="p">:</span><span class="w"> </span><span class="mi">322</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h4 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">¶</a></h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Name</th>
+<th>Reads</th>
+<th>Answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>ConnectPresentationSpace</code></td>
+<td>—</td>
+<td><code>rc</code> 0. A no-op: the session is named in the path</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>DisconnectPresentationSpace</code></td>
+<td>—</td>
+<td><code>rc</code> 0. Also a no-op; <code>DELETE /sessions/:id</code> ends a session</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>SendKey</code></td>
+<td><code>text</code></td>
+<td>Types the literal runs and presses the mnemonics, in order</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>Wait</code></td>
+<td>—</td>
+<td><code>rc</code> 0 when the keyboard is unlocked, 4 while the host is still working</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>CopyPresentationSpace</code></td>
+<td>—</td>
+<td><code>data</code> — the whole screen, plus <code>rows</code> and <code>cols</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>SearchPresentationSpace</code></td>
+<td><code>text</code>, <code>position</code></td>
+<td><code>position</code> of the match, or <code>rc</code> 24</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>QueryCursorLocation</code></td>
+<td>—</td>
+<td><code>position</code>, and <code>row</code>/<code>col</code> one-based</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>CopyPresentationSpaceToString</code></td>
+<td><code>position</code>, <code>length</code></td>
+<td><code>data</code></td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>CopyStringToPresentationSpace</code></td>
+<td><code>position</code>, <code>text</code></td>
+<td>Writes at that position</td>
+</tr>
+<tr>
+<td>31</td>
+<td><code>FindFieldPosition</code></td>
+<td><code>position</code></td>
+<td><code>position</code> and <code>length</code> of the field there</td>
+</tr>
+<tr>
+<td>32</td>
+<td><code>FindFieldLength</code></td>
+<td><code>position</code></td>
+<td><code>length</code></td>
+</tr>
+<tr>
+<td>33</td>
+<td><code>CopyStringToField</code></td>
+<td><code>position</code>, <code>text</code></td>
+<td>Writes from the <em>start</em> of the field the position falls in</td>
+</tr>
+<tr>
+<td>34</td>
+<td><code>CopyFieldToString</code></td>
+<td><code>position</code></td>
+<td><code>data</code> — the field's contents</td>
+</tr>
+<tr>
+<td>40</td>
+<td><code>SetCursor</code></td>
+<td><code>position</code></td>
+<td>Moves the cursor</td>
+</tr>
+</tbody>
+</table>
+<p><code>function</code> accepts the number or the name — the number for a mechanical port,
+the name for whoever reads it afterwards.</p>
+<p>A function that is not implemented is refused with <code>rc</code> 25 and the list of
+those that are. Answering 0 for something that did not happen is the one thing
+a compatibility layer must never do, so nothing is guessed at.</p>
+<p>A hidden field read through function 34 comes back redacted, with
+<code>"hidden": true</code> — the same treatment it gets everywhere else this application
+hands a screen out. This endpoint is not a way around that.</p>
+<h4 id="return-codes">Return codes<a class="headerlink" href="#return-codes" title="Permanent link">¶</a></h4>
+<table>
+<thead>
+<tr>
+<th><code>rc</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>The call did what was asked</td>
+</tr>
+<tr>
+<td>1</td>
+<td>There is no presentation space — the session is not connected</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A parameter was missing, malformed or untranslatable</td>
+</tr>
+<tr>
+<td>4</td>
+<td>The keyboard is locked; the host has not finished</td>
+</tr>
+<tr>
+<td>7</td>
+<td>The position is outside the presentation space</td>
+</tr>
+<tr>
+<td>9</td>
+<td>The terminal could not carry the call out</td>
+</tr>
+<tr>
+<td>24</td>
+<td>The string was not found</td>
+</tr>
+<tr>
+<td>25</td>
+<td>This function is not implemented here</td>
+</tr>
+</tbody>
+</table>
+<h4 id="mnemonics">Mnemonics<a class="headerlink" href="#mnemonics" title="Permanent link">¶</a></h4>
+<table>
+<thead>
+<tr>
+<th>Mnemonic</th>
+<th>Key</th>
+<th></th>
+<th>Mnemonic</th>
+<th>Key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@E</code></td>
+<td>Enter</td>
+<td></td>
+<td><code>@1</code>–<code>@9</code></td>
+<td><code>PF1</code>–<code>PF9</code></td>
+</tr>
+<tr>
+<td><code>@C</code></td>
+<td>Clear</td>
+<td></td>
+<td><code>@a</code> <code>@b</code> <code>@c</code></td>
+<td><code>PF10</code> <code>PF11</code> <code>PF12</code></td>
+</tr>
+<tr>
+<td><code>@T</code></td>
+<td>Tab</td>
+<td></td>
+<td><code>@x</code> <code>@y</code> <code>@z</code></td>
+<td><code>PA1</code> <code>PA2</code> <code>PA3</code></td>
+</tr>
+<tr>
+<td><code>@B</code></td>
+<td>Back-tab</td>
+<td></td>
+<td><code>@@</code></td>
+<td>A literal <code>@</code></td>
+</tr>
+<tr>
+<td><code>@R</code></td>
+<td>Reset</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>@F</code></td>
+<td>Erase EOF</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>This is a subset on purpose. The mnemonic tables diverge between vendors past
+this common core, and a mnemonic mapped to the <em>wrong</em> key is worse than one
+that is not mapped at all: the wrong key reaches the host and the program
+carries on believing it did what it asked. Anything outside the table is
+refused with <code>rc</code> 2, and a key it does not cover can be named instead —
+<code>{"function":3,"text":"PF13"}</code> — since the rest of this application already
+understands key names.</p>
+<h4 id="a-worked-port">A worked port<a class="headerlink" href="#a-worked-port" title="Permanent link">¶</a></h4>
+<p>Typing a name into two fields and pressing Enter:</p>
+<div class="highlight"><pre><span></span><code>post<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/hllapi<span class="p">;</span><span class="w"> </span><span class="o">}</span>
+
+post<span class="w"> </span><span class="s1">'{"function":6,"text":"First Name"}'</span><span class="w">                  </span><span class="c1"># find the prompt</span>
+post<span class="w"> </span><span class="s1">'{"function":33,"position":341,"text":"GRACE"}'</span><span class="w">       </span><span class="c1"># fill its field</span>
+post<span class="w"> </span><span class="s1">'{"function":33,"position":421,"text":"HOPPER"}'</span>
+post<span class="w"> </span><span class="s1">'{"function":3,"text":"@E"}'</span><span class="w">                          </span><span class="c1"># press Enter</span>
+post<span class="w"> </span><span class="s1">'{"function":5}'</span><span class="w">                                      </span><span class="c1"># read the result</span>
+</code></pre></div>
+<h3 id="get-apiv1tasks-and-post-apiv1tasks"><code>GET /api/v1/tasks</code> and <code>POST /api/v1/tasks</code><a class="headerlink" href="#get-apiv1tasks-and-post-apiv1tasks" title="Permanent link">¶</a></h3>
+<p>The <a href="../business-tasks/">Guided Business Task</a> catalogue. <code>GET</code> returns
+exactly the documents <code>POST</code> accepts, so these two are also export and
+import — moving a catalogue between deployments, or keeping one in version
+control, needs no separate format. Every task goes through the same
+validation the browser and the runner use.</p>
+<p>The catalogue is deployment-wide, which is why it is not under
+<code>/sessions/:id</code>.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/tasks<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.tasks'</span>
+</code></pre></div>
+<h3 id="post-apiv1sessionsidtasksrun"><code>POST /api/v1/sessions/:id/tasks/run</code><a class="headerlink" href="#post-apiv1sessionsidtasksrun" title="Permanent link">¶</a></h3>
+<p>Run a task and return its result. The task name travels in the body rather
+than the path: task names are prose, and one containing a slash would
+silently become two path segments.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"name":"Account balance enquiry","parameters":{"account_number":"40218855"}}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:3270/api/v1/sessions/<span class="nv">$ID</span>/tasks/run
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"task"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Account balance enquiry"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"durationMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">152</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"completed"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nt">"index"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Enter the account number"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ok"</span><span class="w"> </span><span class="p">}],</span>
+<span class="w">  </span><span class="nt">"outputs"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cleared_balance"</span><span class="p">,</span><span class="w"> </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Cleared balance"</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1,240.55"</span><span class="p">,</span><span class="w"> </span><span class="nt">"found"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Synchronous</strong>, unlike the browser's <code>/tasks/run</code>: a bot wants the answer in
+the response rather than a poll loop. Bounded at five minutes. One run per
+session, shared with the browser path, so an API run and a browser run cannot
+overlap on the same terminal.</p>
+<p>A task that stops early returns <strong><code>200</code> with <code>completed: false</code></strong> plus the
+failure detail — which step, what it expected, what it found, and the screen
+it stopped on. The request succeeded; the body says what the host did. An HTTP
+status cannot express "step 3 saw the wrong screen".</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200</code></td>
+<td>The run finished. Check <code>completed</code>.</td>
+</tr>
+<tr>
+<td><code>400</code></td>
+<td>A parameter was rejected. Nothing was sent to the host.</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td>No such session, or no such task.</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td>The session is not connected, or a run is already in progress on it.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1library-and-post-apiv1library"><code>GET /api/v1/library</code> and <code>POST /api/v1/library</code><a class="headerlink" href="#get-apiv1library-and-post-apiv1library" title="Permanent link">¶</a></h3>
+<p>A <strong>library</strong> is this deployment's Guided Business Tasks and connection
+profiles as one document, for carrying a set-up to another deployment. <code>GET</code>
+returns exactly what <code>POST</code> accepts, so the file downloaded from one instance
+is the body posted to the next.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://test.internal:3270/api/v1/library<span class="w"> </span>&gt;<span class="w"> </span>library.json
+
+curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--data-binary<span class="w"> </span>@library.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s1">'http://prod.internal:3270/api/v1/library?dryRun=true'</span>
+</code></pre></div>
+<p>The document:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"formatVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"exportedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-02T09:14:00Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"instance"</span><span class="p">:</span><span class="w"> </span><span class="s2">"test.internal:3270"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"tasks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">…</span><span class="w"> </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"profiles"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">…</span><span class="w"> </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"notes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Host presets were read from the published list every account connects through."</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Query parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Where</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>include</code></td>
+<td><code>GET</code></td>
+<td><code>tasks</code>, <code>profiles</code>, or both (the default)</td>
+</tr>
+<tr>
+<td><code>download</code></td>
+<td><code>GET</code></td>
+<td><code>1</code> to be offered as a file rather than shown</td>
+</tr>
+<tr>
+<td><code>onConflict</code></td>
+<td><code>POST</code></td>
+<td><code>skip</code> (default) leaves an existing name alone; <code>replace</code> overwrites it</td>
+</tr>
+<tr>
+<td><code>dryRun</code></td>
+<td><code>POST</code></td>
+<td><code>true</code> reports what would happen and writes nothing</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Three rules worth knowing before pointing this at a production instance.</strong></p>
+<p><em>Nothing is written until everything validates.</em> A library holding one entry
+this build refuses is refused whole, with that entry named, rather than half
+stored. The refusal is a <code>400</code> carrying the same report a success carries.</p>
+<p><em>A library covers the set you administer.</em> Tasks are always your own
+catalogue. Host presets are the published list for an administrator — and for
+the single operator of an instance with no accounts — and your own presets for
+anybody else. The report says which under <code>profileScope</code>.</p>
+<p><em>It is not a backup.</em> Audiences that name individual accounts are dropped on
+export: those accounts exist only on the deployment the file came from, and a
+file meant to be handed to another site should not carry a staff list. Groups
+and roles survive, since those are names two deployments plausibly share. A
+preset whose only audience was named accounts arrives <strong>not offered</strong>, so
+losing the restriction cannot silently turn "these four people" into
+"everyone". Tasks contributed by an installed extension are left out too —
+install the extension at the far end instead. Every one of these is recorded
+in the document's own <code>notes</code>.</p>
+<p>The report:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"dryRun"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"profileScope"</span><span class="p">:</span><span class="w"> </span><span class="s2">"published"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"added"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">"replaced"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"skipped"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"rejected"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"entries"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"profile"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Production TSO"</span><span class="p">,</span><span class="w"> </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"added"</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"task"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Account balance enquiry"</span><span class="p">,</span><span class="w"> </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"skipped"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a task with this name is already here"</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"notes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Host presets go into the published list every account connects through."</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>An administrator who would rather not use curl has the same thing on
+<strong>Session screen → Library</strong>: download, choose a file, read what it would
+change, import.</p>
+<h3 id="post-apiv1macrostranslate"><code>POST /api/v1/macros/translate</code><a class="headerlink" href="#post-apiv1macrostranslate" title="Permanent link">¶</a></h3>
+<p>Reads a macro file written for an installed terminal emulator and returns the
+<a href="../workflow/">recording</a> it becomes, together with a line-by-line account of
+what it would not translate. It needs no session and touches none: it reads
+text and returns JSON, which is what converting a directory of macros in one
+pass needs.</p>
+<p>Send the file as an upload in a <code>macro</code> field, or as JSON:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-F<span class="w"> </span><span class="nv">macro</span><span class="o">=</span>@account-inquiry.mac<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://3270web.internal:3270/api/v1/macros/translate
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"account-inquiry.json"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"stepTotal"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"statements"</span><span class="p">:</span><span class="w"> </span><span class="mi">11</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"translated"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"notes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"If Session.Screen.Search(\"READY\") Then"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"its condition is not something a recording can test: an If or a While compares one place on the screen, named by row, column and length, or one variable this file has already set, against a literal value — and the 2 statements inside it were left out with it, because a step inside a branch that did not translate would otherwise run every time"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"advisories"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Wait times were read as milliseconds. …"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"workflow"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Host"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"Port"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"Name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"account-inquiry.json"</span><span class="p">,</span><span class="w"> </span><span class="nt">"Steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">…</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>workflow</code> is a recording in the schema on this page — write it to a file and
+it plays like any other. <code>Host</code> and <code>Port</code> are left empty: nothing here knows
+where you intend to replay it, and a recording that names a host it invented
+is worse than one that names none.</p>
+<p><strong>Read <code>notes</code> before replaying anything.</strong> They are the lines that were left
+out, each with the reason, and a run that ignores them is a flow with holes in
+it. A note against a branch is the largest hole of all: a branch whose
+condition did not translate takes the statements inside it too, and the note
+says how many. What produces a note, and why, is in
+<a href="../workflow/#importing-a-macro-file">Recordings and Playback</a>; the same
+translation and the same report are one click away in the browser.</p>
+<p>Converting a directory, keeping the report beside each file:</p>
+<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>f<span class="w"> </span><span class="k">in</span><span class="w"> </span>macros/*.mac<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$API_TOKEN</span><span class="s2">"</span><span class="w"> </span>-F<span class="w"> </span><span class="s2">"macro=@</span><span class="nv">$f</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>http://3270web.internal:3270/api/v1/macros/translate<span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"out/</span><span class="k">$(</span>basename<span class="w"> </span><span class="s2">"</span><span class="nv">$f</span><span class="s2">"</span><span class="k">)</span><span class="s2">.json"</span>
+<span class="k">done</span>
+jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'select(.notes | length &gt; 0) | "\(.name): \(.notes | length) line(s) need a person"'</span><span class="w"> </span>out/*.json
+</code></pre></div>
+<p>A file no larger than 512 KB, and a body that is neither an upload nor
+<code>{"name", "content"}</code> JSON, is a <code>400</code>.</p>
+<h2 id="browser-session-endpoints">Browser-session endpoints<a class="headerlink" href="#browser-session-endpoints" title="Permanent link">¶</a></h2>
+<p>These endpoints reuse the session cookie set by the connect flow rather
+than <code>API_TOKEN</code>. They are useful for in-browser callers and for tools
+that already drive 3270Web through the cookie.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/profile</code></td>
+<td>Probe the current session and return the <code>CompatibilityProfile</code> JSON.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/profile</code></td>
+<td>Return the cached profile for the current session.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/printer/status</code></td>
+<td>The session's printer session and the jobs it has collected.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/printer/start</code></td>
+<td>Bind a printer LU. Same body as the API route; see <a href="../printer-sessions/">Printer sessions</a>.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/printer/stop</code></td>
+<td>Stop the printer, keeping its jobs.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/printer/jobs</code></td>
+<td>List the print jobs.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/printer/jobs/download?name=</code></td>
+<td>Download one job as an attachment.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/printer/jobs/delete?name=</code></td>
+<td>Drop one job.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/workflow/status</code></td>
+<td>Recording and playback state for the current session: the step a run is on, its recent events, and <code>playbackVariables</code> — what a recording that makes decisions has read so far. See <a href="../workflow/#decisions-variables-and-loops">Recordings and Playback</a>.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/workflow/import-macro</code></td>
+<td>Translate an uploaded macro file and load the result as this session's recording. Returns the same report as the API route, without the recording itself. See <a href="../workflow/#importing-a-macro-file">Recordings and Playback</a>.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chaos/report</code></td>
+<td>Markdown discovery report for the current or most recently loaded chaos run: TL;DR, Mermaid flow map, and per-screen detail including working keys, untried keys and field discovery.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/chaos/insights</code></td>
+<td>Machine-readable exploration guidance: per-screen productive/dead/untried keys, unproductive fields, conditional transitions, a <code>frontierScreens</code> count, ranked <code>suggestedExperiments</code>, and live saturation/termination diagnostics.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chaos/mindmap/compare</code></td>
+<td>Diff two previously-exported chaos mind maps. JSON by default; pass <code>Accept: text/html</code> (or <code>?format=html</code>) for the HTML report. See <a href="../chaos-compare/">Chaos Mind-Map Compare</a>.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/chaos/screens</code></td>
+<td>Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. <code>?include_previews=false</code> omits previews.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chaos/screens/annotate</code></td>
+<td>Record a screen's business purpose and field semantics. Body: <code>{"screen_hash", "business_purpose", "notes", "field_semantics": {"R5C20L8": {"name", "description", "example", "sensitive"}}}</code>.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/chaos/business/functions</code></td>
+<td>List cataloged business functions (name, description, steps, parameters).</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chaos/business/functions</code></td>
+<td>Upsert a business function. Body: <code>{"name", "description", "entry_screen_hash", "steps": [{"screen_hash", "inputs": [{"field_key", "value", "parameter"}], "aid_key", "expect_hash"}], "parameters": [{"name", "description", "screen_hash", "field_key", "example", "required"}]}</code>.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/chaos/business/generate-workflow</code></td>
+<td>Generate a business-focused workflow JSON from a cataloged function. Body: <code>{"name", "parameters": {"param": "value"}, "host", "port"}</code>. Returns a playback-compatible workflow document with <code>Name</code>/<code>Description</code>/<code>BusinessFunction</code>/<code>Parameters</code> metadata.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="ai-provider">AI provider<a class="headerlink" href="#ai-provider" title="Permanent link">¶</a></h2>
+<p>These endpoints configure which AI service <a href="../ai-chat/">AI Chat Mode</a> talks
+to. Like the browser-session endpoints above, they use a cookie rather than
+<code>API_TOKEN</code> — settings are scoped to one browser identity (<code>3270Web_copilot_id</code>),
+so a shared instance keeps each person's credentials to themselves. See
+<a href="../ai-providers/">AI Providers</a> for the concepts.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/ai/providers</code></td>
+<td>The provider catalogue (id, label, auth style, default endpoint, fallback model list) plus the caller's saved settings.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/ai/status</code></td>
+<td>Whether the selected provider can answer a chat: <code>{"provider", "providerLabel", "auth", "ready", "needs", "model", "baseUrl"}</code>. <code>needs</code> is <code>login</code> (Copilot sign-in required), <code>config</code> (key or endpoint missing), or empty.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/ai/config</code></td>
+<td>Saved settings, per provider: <code>{"provider", "providers": {"&lt;id&gt;": {"baseUrl", "model", "hasKey"}}}</code>. <strong>API keys are never returned</strong> — only <code>hasKey</code>.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/ai/config</code></td>
+<td>Save settings. Body: <code>{"provider", "target", "baseUrl", "apiKey", "model"}</code>. Omitted fields keep their stored value, so a model change does not clear the key; an explicit <code>"apiKey": ""</code> clears it. <code>target</code> names the provider the other fields apply to (defaults to <code>provider</code>).</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/ai/forget</code></td>
+<td>Clear the credentials for one provider. Body: <code>{"provider"}</code> (defaults to the selected one). For Copilot this also performs the OAuth logout.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/ai/models</code></td>
+<td>Model IDs available from the selected provider, fetched live where possible and falling back to the built-in list otherwise.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/ai/tools</code></td>
+<td>The tool schema and system prompt handed to the model. Identical for every provider — the tools describe the 3270 session, not the backend.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/ai/chat</code></td>
+<td>Streaming chat proxy. Takes an OpenAI-shaped <code>/chat/completions</code> body and returns OpenAI-shaped SSE chunks, whichever provider is selected — Anthropic's Messages protocol is translated in both directions.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="c1"># Point AI Chat at a local Ollama and confirm it is usable</span>
+curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:3270/api/ai/config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"provider":"ollama","baseUrl":"http://localhost:11434/v1","model":"qwen3"}'</span>
+
+curl<span class="w"> </span>http://127.0.0.1:3270/api/ai/status
+</code></pre></div>
+<p>The GitHub-specific <code>/api/copilot/*</code> routes (<code>status</code>, <code>login/start</code>,
+<code>login/poll</code>, <code>logout</code>, <code>enterprise</code>) are unchanged and still drive the OAuth
+device flow.</p>
+<h2 id="system-endpoints">System endpoints<a class="headerlink" href="#system-endpoints" title="Permanent link">¶</a></h2>
+<p>Unauthenticated and not session-scoped — intended for liveness/readiness probes.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/healthz</code></td>
+<td>Returns <code>200 OK</code> with <code>{"status":"ok","version":"&lt;app version&gt;"}</code>. Used by the Docker <code>HEALTHCHECK</code> and orchestrators. Performs no session or <code>s3270</code> work. See <a href="../installation/">Install and Run</a>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>400 Bad Request</code></td>
+<td>Bad input — e.g. missing host, CR/LF/TAB in field text</td>
+</tr>
+<tr>
+<td><code>401 Unauthorized</code></td>
+<td>Missing or bad <code>Authorization</code> header</td>
+</tr>
+<tr>
+<td><code>404 Not Found</code></td>
+<td>Session id does not exist</td>
+</tr>
+<tr>
+<td><code>502 Bad Gateway</code></td>
+<td>The host or s3270 subprocess returned an error</td>
+</tr>
+<tr>
+<td><code>503 Service Unavailable</code></td>
+<td><code>API_TOKEN</code> not configured — API is disabled</td>
+</tr>
+</tbody>
+</table>
+<h2 id="out-of-scope-v1">Out of scope (v1)<a class="headerlink" href="#out-of-scope-v1" title="Permanent link">¶</a></h2>
+<p>The following are deliberately not part of v1. Some of them are tracked
+in the <a href="../feature-roadmap/">Feature Roadmap</a>.</p>
+<ul>
+<li>WebSocket / SSE streaming of screen changes</li>
+<li>File transfer endpoints (<code>IND$FILE</code>)</li>
+<li>OAuth / OIDC / SAML auth</li>
+<li>Multiple tokens, per-token scopes, rate limiting</li>
+<li>API token rotation</li>
+</ul>
+<h2 id="mcp">MCP<a class="headerlink" href="#mcp" title="Permanent link">¶</a></h2>
+<p>The <a href="../mcp/">MCP Server</a> is built on this API. <code>3270Web mcp</code> speaks the Model
+Context Protocol on stdin and stdout and calls these routes underneath, and
+the running server also exposes MCP over HTTP at <code>POST /api/v1/mcp</code> behind the
+same <code>API_TOKEN</code>.</p>
+<p>The session-scoped routes above exist largely for it: naming the session in
+the path is what lets a client with no browser cookie drive chaos exploration
+and business understanding.</p></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../terminal-model-limits/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Screen Size and Model Guide">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Screen Size and Model Guide
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../embedding/" class="md-footer__link md-footer__link--next" aria-label="Next: Embedding 3270Web">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Embedding 3270Web
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      (c) Since 2023 3270.io
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://3270.io" target="_blank" rel="noopener" title="3270.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 8 6v12h-5v-7H9v7H4V9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://3270connect.3270.io" target="_blank" rel="noopener" title="3270Connect documentation" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19v-3h8v3zm-4.5-6L2.47 7h4.24l4.96 4.95c.58.59.58 1.55 0 2.12L6.74 19H2.5z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/3270io" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://linkedin.com/company/3270io" target="_blank" rel="noopener" title="linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://x.com/3270io" target="_blank" rel="noopener" title="x.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.sections", "navigation.tabs", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit", "content.action.view", "toc.integrate", "content.tabs.link", "content.footnotes"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "0.5.0"}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/3270-theme.js"></script>
+      
+    
+  </body>
+</html>
