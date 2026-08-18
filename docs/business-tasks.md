@@ -84,23 +84,36 @@ result card showing a blank balance is worse than an honest error.
 ### From a recording (the wizard)
 
 Record the flow once, then press **Save recording as a task** on the
-recording controls — or find it in the command palette.
+recording controls — or find it in the command palette. The wizard is five
+stages, in the shape of the task itself:
 
-1. **Record.** Start recording, work through the screens exactly as the task
-   should run, then stop.
-2. **Confirm the inputs.** Everything typed during the recording arrives as
-   an input the operator will be asked for, labelled with the text the screen
-   itself uses. Switch any that should always be the same to **Always this
-   value**; that removes the input from the form and bakes the value into the
-   step.
-3. **Mark the answer.** Drag across the screen the flow ended on to mark each
-   value the task should report back. This is the one thing a recording
-   cannot work out for itself.
-4. **Name it and save.**
+1. **Details.** What the task is called and what it does. The name is what
+   appears on the menu, and what an assistant calls to run it.
+2. **Inputs.** Everything typed during the recording arrives as an input the
+   operator will be asked for, labelled with the text the screen itself uses.
+   Each one is **Ask the operator**, **Always this value** — which removes it
+   from the form and bakes the value into the step — or **Ask, and never
+   store it**, for a secret. Behind *Validation and hint* are the pattern, the
+   maximum length and the hint shown under the field.
+3. **Steps.** The guard on each step, shown against the screen that step was
+   recorded on. Drag on the screen to guard on different text, pick from the
+   shortlist of what else that screen offers, tick **must NOT be there** to
+   guard against an error line, or type a row, column and text directly. A
+   step with no guard is marked as such — it will act on whatever screen the
+   terminal is showing.
+4. **The answer.** Click a value on the screen the flow ended on, or drag
+   across it, to mark what the task reports back. This is the one thing a
+   recording cannot work out for itself. Each marked region can be adjusted by
+   row, column and width, given a pattern to extract from, or marked as one
+   that may be missing.
+5. **Review.** The server validates the task and reads the answer back from
+   the screen — using the same validation and the same extraction the runner
+   uses, so what it shows is what a run will do. Then save.
 
-Above the form is **What was assumed** — every guess the draft made, listed
-rather than buried. Read it: a guard that could not be derived, a field with
-no label, or a value that was cleared rather than typed all show up there.
+On the first stage is **What was assumed** — every guess the draft made,
+listed rather than buried. Read it: a guard that could not be derived, a field
+with no label, or a value that was cleared rather than typed all show up
+there.
 
 !!! note "Marked regions extend to the next text on the row"
 
@@ -109,6 +122,45 @@ no label, or a value that was cleared rather than typed all show up there.
     sized to the recorded value would silently truncate a longer one, so
     `GRACE` would come back as `GRA`. Trailing spaces are trimmed from the
     result.
+
+!!! warning "A recorded password is never stored"
+
+    A recording of a sign-on carries the password that was typed. A field
+    whose label names a secret — password, passcode, PIN, API key — arrives
+    marked **Ask, and never store it**: masked on the form, absent from the
+    catalogue file, and kept out of every result and log line. The host still
+    receives it; nothing else does. Clear the mark if the field is not a
+    secret, and set it yourself on one whose label does not say so.
+
+### Changing a task
+
+Open **Tasks**, pick the task, and press **Edit**. The same five stages come
+back with the saved task in them, and saving replaces it.
+
+A correction that costs a re-recording of the whole flow does not get made,
+and a catalogue nobody dares touch is worse than one that is a little wrong.
+The screen offered for re-marking the answer is whatever the terminal is
+showing *now* — the wizard says so rather than implying it is the screen the
+task ends on — and every region can be edited as a row, a column and a width
+regardless of where the terminal happens to be.
+
+Renaming a task saves it as a new one and leaves the old one in place; the
+Review stage says so before you save.
+
+### Where a task can be run from
+
+The Review stage ends with **Where this task can be run from**, because a task
+is not only a menu entry. The same document is:
+
+- an entry on the **Tasks** menu for anyone with a session;
+- an **MCP tool** of its own, `task_<name>`, offered to an assistant with a
+  schema built from the inputs — see [MCP Server](mcp.md). The Review stage
+  gives the generated tool name, and says so when another task would collide
+  with it;
+- an operation on the token-authenticated
+  [REST API](rest-api.md), with the request shown ready to copy;
+- content an [extension](skills.md) can ship to another deployment, alongside
+  the skills that explain when to use it.
 
 ### From a chaos run
 
@@ -246,10 +298,18 @@ These endpoints use the browser session cookie.
 |---|---|---|
 | `GET` | `/tasks` | List the catalogue |
 | `POST` | `/tasks/save` | Add or replace a task, validated |
+| `GET` | `/tasks/draft` | Build a draft from the session's recording, or reopen a saved one with `?from=` |
+| `POST` | `/tasks/preview` | Validate an unsaved task and report what its outputs would read |
 | `POST` | `/tasks/delete` | Remove a task by name |
 | `POST` | `/tasks/run` | Start a run in this session |
 | `GET` | `/tasks/status` | Progress, then the result |
 | `POST` | `/tasks/cancel` | Stop a run |
+
+`/tasks/preview` answers `200` with `ok: false` and the reason when the task
+is not valid yet: an incomplete task is the expected state of one being
+authored, and the complaint belongs beside the field rather than in a failed
+request. It reads the answer with the same code the runner uses, so a preview
+that says a value cannot be read is a run that would fail.
 
 `/tasks/run` returns `202` immediately and the run proceeds in the
 background; poll `/tasks/status` for progress and the result. One run per

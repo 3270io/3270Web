@@ -448,8 +448,15 @@ token-authenticated API, export/import, and conversion from a chaos run. See
 [Guided Business Tasks](business-tasks.md).
 
 - [x] **Authoring wizard** — *shipped: record a flow, confirm the derived
-      inputs, mark the answer by dragging on the final screen, save. See
+      inputs, repair the guard on any step against the screen it runs on, mark
+      the answer by clicking or dragging on the final screen, and see what the
+      server would read back before saving. A recorded password is marked as a
+      secret and never written to the catalogue. See
       [Guided Business Tasks](business-tasks.md)*
+- [x] **Editing a saved task** — *shipped: Tasks → Edit reopens a task in the
+      same wizard, so a mislabelled input or a region a character too short is
+      a correction rather than a re-recording. See
+      [Guided Business Tasks](business-tasks.md#changing-a-task)*
 - [x] **Export / import task definitions** — *shipped: `GET /api/v1/tasks`
       returns exactly what `POST /api/v1/tasks` accepts, so the catalogue
       moves between deployments and into version control with no separate

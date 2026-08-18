@@ -5,7 +5,6 @@ package task
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -198,7 +197,7 @@ func (r *Runner) Run(ctx context.Context, t Task, params map[string]string) (*Re
 		return finish(), nil
 	}
 
-	outputs, missing := captureOutputs(final, t.Outputs)
+	outputs, missing := captureOutputs(screenRegionReader(final), t.Outputs)
 	result.Outputs = outputs
 	if len(missing) > 0 {
 		// The navigation worked and the answer is not there. That is a
@@ -278,9 +277,10 @@ func (r *Runner) applyInputs(step Step, resolved map[string]string) error {
 
 // checkExpectations returns nil when every guard holds.
 func checkExpectations(screen *host.Screen, expects []Expect) *Failure {
+	read := screenRegionReader(screen)
 	for _, e := range expects {
 		want := strings.TrimRight(e.Text, " ")
-		got := strings.TrimRight(regionText(screen, e.Row, e.Column, len([]rune(e.Text))), " ")
+		got := strings.TrimRight(read(e.Row, e.Column, len([]rune(e.Text))), " ")
 		matched := got == want
 		if e.Absent {
 			if matched {
@@ -303,73 +303,29 @@ func checkExpectations(screen *host.Screen, expects []Expect) *Failure {
 	return nil
 }
 
-// captureOutputs reads the answer off the final screen. It returns the
-// values it found and the labels of any non-optional output it could not.
-func captureOutputs(screen *host.Screen, outputs []Output) ([]OutputValue, []string) {
-	if len(outputs) == 0 {
-		return nil, nil
-	}
-	values := make([]OutputValue, 0, len(outputs))
-	var missing []string
-	for _, o := range outputs {
-		raw := strings.TrimSpace(regionText(screen, o.Row, o.Column, o.Length))
-		value := raw
-		found := raw != ""
-		if o.Pattern != "" {
-			// Validate() compiled this already; a failure here means the
-			// task was stored by something that skipped validation, so treat
-			// it as "cannot read" rather than panicking on a run.
-			re, err := regexp.Compile(o.Pattern)
-			if err != nil {
-				found = false
-				value = ""
-			} else if match := re.FindStringSubmatch(raw); match != nil {
-				if len(match) > 1 {
-					value = match[1]
-				} else {
-					value = match[0]
-				}
-				found = true
-			} else {
-				found = false
-				value = ""
-			}
+// screenRegionReader reads regions off a live screen. A region is a span on
+// one line: an answer that wraps is two outputs, and letting one silently run
+// onto the next line would capture the label of whatever sits below it.
+func screenRegionReader(screen *host.Screen) regionReader {
+	return func(row, col, length int) string {
+		if screen == nil || length <= 0 || row <= 0 || col <= 0 {
+			return ""
 		}
-		values = append(values, OutputValue{
-			Name:  o.Name,
-			Label: o.DisplayLabel(),
-			Value: value,
-			Found: found,
-		})
-		if !found && !o.Optional {
-			missing = append(missing, o.DisplayLabel())
+		y := row - 1
+		x := col - 1
+		if y >= screen.Height || x >= screen.Width {
+			return ""
 		}
+		end := x + length - 1
+		if end >= screen.Width {
+			end = screen.Width - 1
+		}
+		// Positions the host never wrote come back as NUL rather than space.
+		// Left alone they would reach a JSON result and a comparison against
+		// recorded text, where a rune nobody can see would silently fail every
+		// match. Screen.Text() already normalises them; Substring does not.
+		return strings.ReplaceAll(screen.Substring(x, y, end, y), "\x00", " ")
 	}
-	return values, missing
-}
-
-// regionText reads length characters from a 1-based row/column, clamped to
-// the row. A region is a span on one line: an answer that wraps is two
-// outputs, and letting one silently run onto the next line would capture the
-// label of whatever sits below it.
-func regionText(screen *host.Screen, row, col, length int) string {
-	if screen == nil || length <= 0 || row <= 0 || col <= 0 {
-		return ""
-	}
-	y := row - 1
-	x := col - 1
-	if y >= screen.Height || x >= screen.Width {
-		return ""
-	}
-	end := x + length - 1
-	if end >= screen.Width {
-		end = screen.Width - 1
-	}
-	// Positions the host never wrote come back as NUL rather than space.
-	// Left alone they would reach a JSON result and a comparison against
-	// recorded text, where a rune nobody can see would silently fail every
-	// match. Screen.Text() already normalises them; Substring does not.
-	return strings.ReplaceAll(screen.Substring(x, y, end, y), "\x00", " ")
 }
 
 func screenText(screen *host.Screen) string {

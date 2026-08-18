@@ -529,6 +529,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.POST("/tasks/run", app.TasksRunHandler)
 	r.GET("/tasks/status", app.TasksStatusHandler)
 	r.GET("/tasks/draft", app.TasksDraftHandler)
+	r.POST("/tasks/preview", app.TasksPreviewHandler)
 	r.POST("/tasks/cancel", app.TasksCancelHandler)
 
 	r.GET("/sessions", app.SessionsListHandler)

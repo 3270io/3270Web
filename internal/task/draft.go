@@ -5,6 +5,7 @@ package task
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -43,6 +44,16 @@ type RecordedScreen struct {
 // Draft is a proposed task plus the reasoning behind it.
 type Draft struct {
 	Task Task `json:"task"`
+	// Origin says where the draft came from: "recording", "chaos", or "task"
+	// when a saved task was reopened to be edited. The wizard needs it to
+	// know whether it is creating something or changing something, which is
+	// the difference between "Save" and "Save under a new name and you now
+	// have two".
+	Origin string `json:"origin,omitempty"`
+	// OriginalName is the catalogue name a reopened task had, so a rename can
+	// be reported as what it is rather than silently leaving the old one in
+	// place beside the new one.
+	OriginalName string `json:"originalName,omitempty"`
 	// Notes explain every suggestion, so the person confirming the draft can
 	// see what was assumed rather than having to reverse-engineer it.
 	Notes []string `json:"notes,omitempty"`
@@ -51,6 +62,25 @@ type Draft struct {
 	// is a judgement about the business, not something derivable from a
 	// recording.
 	FinalScreen string `json:"finalScreen,omitempty"`
+	// StepScreens carries, one per proposed step and in the same order, the
+	// screen that step was recorded on and the other guards available on it.
+	//
+	// Without this the wizard can report that a step has no guard — which the
+	// notes have always done — and offer no way to give it one, which is
+	// advice with nowhere to go. With it, a guard is picked the same way an
+	// output is: by looking at the screen the step runs against.
+	StepScreens []DraftStep `json:"stepScreens,omitempty"`
+}
+
+// DraftStep is the evidence behind one proposed step: the screen it was
+// recorded on, and the anchors that screen offers as guards.
+type DraftStep struct {
+	Screen string `json:"screen,omitempty"`
+	// GuardCandidates are the anchors this screen offers, best first. The
+	// first is the one the draft chose; the rest are what a person picks from
+	// when the chosen one is a date, a queue depth, or anything else that
+	// identifies the moment rather than the panel.
+	GuardCandidates []Expect `json:"guardCandidates,omitempty"`
 }
 
 // aidStepTypes maps a recording's step type onto the key a task step presses.
@@ -163,6 +193,20 @@ func DraftFromRecording(name string, steps []RecordedStep, screens []RecordedScr
 				Example:   fill.Text,
 				MaxLength: fill.Length,
 			}
+			if looksSensitive(label) {
+				// A recording of a sign-on carries the password that was
+				// typed. Left alone it would become this parameter's example,
+				// which is a plain-text password written into the catalogue
+				// file and shown as the placeholder on the form every
+				// operator sees. Sensitive by default is the only safe way
+				// round: clearing the mark is a click, whereas a secret
+				// already written to disk is not retrievable.
+				p.Sensitive = true
+				p.Example = ""
+				draft.Notes = append(draft.Notes, fmt.Sprintf(
+					"The field labelled %q was treated as a secret: it is masked on the form and the recorded value was NOT stored with the task. Clear that in the wizard if it is not one.",
+					label))
+			}
 			if !hasLabel {
 				p.Label = fmt.Sprintf("Value at row %d column %d", fill.Row, fill.Column)
 				draft.Notes = append(draft.Notes, fmt.Sprintf(
@@ -186,6 +230,10 @@ func DraftFromRecording(name string, steps []RecordedStep, screens []RecordedScr
 		}
 
 		draft.Task.Steps = append(draft.Task.Steps, taskStep)
+		draft.StepScreens = append(draft.StepScreens, DraftStep{
+			Screen:          screen,
+			GuardCandidates: guardCandidates(screen, maxGuardCandidates),
+		})
 		pending = nil
 	}
 
@@ -221,6 +269,33 @@ func DraftFromRecording(name string, steps []RecordedStep, screens []RecordedScr
 // what identifies it. Both are protected text, so neither is affected by what
 // the operator types.
 func deriveAnchor(screen string) (Expect, bool) {
+	candidates := guardCandidates(screen, 1)
+	if len(candidates) == 0 {
+		return Expect{}, false
+	}
+	return candidates[0], true
+}
+
+// maxGuardCandidates bounds what a draft offers per step. The list is for
+// choosing between, not for browsing: past half a dozen it stops being a
+// shortlist and the screen itself is the better place to look.
+const maxGuardCandidates = 6
+
+// guardCandidates returns the anchors a screen offers, best first.
+//
+// Same scoring as the guard the draft picks, so the first entry IS that
+// guard — the shortlist and the choice cannot disagree. Ordering is by row
+// and then by score, which is the order the reasoning above argues for: the
+// title row first, and within a row the text that most identifies the panel.
+func guardCandidates(screen string, limit int) []Expect {
+	if limit <= 0 {
+		limit = maxGuardCandidates
+	}
+	type scored struct {
+		expect Expect
+		score  int
+	}
+	var out []Expect
 	lines := strings.Split(screen, "\n")
 	for row, line := range lines {
 		if row >= 6 {
@@ -228,8 +303,7 @@ func deriveAnchor(screen string) (Expect, bool) {
 			// message text, which change between runs.
 			break
 		}
-		best := Expect{}
-		bestScore := 0
+		var onRow []scored
 		for _, m := range wordRunPattern.FindAllStringIndex(line, -1) {
 			text := line[m[0]:m[1]]
 			trimmed := strings.TrimSpace(text)
@@ -240,19 +314,29 @@ func deriveAnchor(screen string) (Expect, bool) {
 			score := len(text)
 			// Prefer text with a space in it: "ACCOUNT ENQUIRY" identifies a
 			// screen, "ACCOUNT" could be anywhere.
-			if strings.Contains(strings.TrimSpace(text), " ") {
+			if strings.Contains(trimmed, " ") {
 				score += 8
 			}
-			if score > bestScore {
-				bestScore = score
-				best = Expect{Row: row + 1, Column: m[0] + 1, Text: text}
+			onRow = append(onRow, scored{
+				expect: Expect{Row: row + 1, Column: m[0] + 1, Text: text},
+				score:  score,
+			})
+		}
+		sort.SliceStable(onRow, func(i, j int) bool { return onRow[i].score > onRow[j].score })
+		for _, c := range onRow {
+			out = append(out, c.expect)
+			if len(out) >= limit {
+				return out
 			}
 		}
-		if bestScore > 0 {
-			return best, true
-		}
 	}
-	return Expect{}, false
+	return out
+}
+
+// GuardCandidates exposes the shortlist for the same reason DeriveGuard
+// exposes the choice: one definition of "what identifies this screen".
+func GuardCandidates(screenText string, limit int) []Expect {
+	return guardCandidates(screenText, limit)
 }
 
 // wordRunPattern matches a run of letters, digits and single interior spaces —
@@ -303,6 +387,17 @@ func labelLeftOf(screen string, row, column int) (string, bool) {
 		return "", false
 	}
 	return left, true
+}
+
+// sensitiveLabelPattern matches the labels 3270 panels put beside a field
+// whose value must not be written down. Deliberately a small, boring list:
+// the cost of a false positive is one click to clear the mark, and the cost
+// of a false negative is a password in a catalogue file.
+var sensitiveLabelPattern = regexp.MustCompile(`(?i)\b(pass\s?words?|passwd|pass\s?phrases?|pass\s?codes?|pins?|secrets?|tokens?|api\s?keys?)\b`)
+
+// looksSensitive reports whether a field's label names a secret.
+func looksSensitive(label string) bool {
+	return sensitiveLabelPattern.MatchString(label)
 }
 
 // uniqueParamName turns a label into a machine name, falling back to the

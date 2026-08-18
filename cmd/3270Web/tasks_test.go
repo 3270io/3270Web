@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync"
 	"testing"
 
@@ -32,6 +34,7 @@ func taskRouter(app *App) *gin.Engine {
 	r.GET("/tasks/status", app.TasksStatusHandler)
 	r.POST("/tasks/cancel", app.TasksCancelHandler)
 	r.GET("/tasks/draft", app.TasksDraftHandler)
+	r.POST("/tasks/preview", app.TasksPreviewHandler)
 	return r
 }
 
@@ -390,5 +393,191 @@ func TestAPIRunTaskRejectsADisconnectedSession(t *testing.T) {
 		map[string]any{"name": "Account balance enquiry"})
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409, body=%s", w.Code, w.Body.String())
+	}
+}
+
+/* ---------------------------------------------------------------- */
+/* Authoring: reopening a task, and checking one before it is saved */
+/* ---------------------------------------------------------------- */
+
+// taskSessionRequest builds a request carrying a session cookie for a session
+// with a connected mock host, which is what the authoring endpoints need.
+func taskSessionRequest(t *testing.T, app *App, method, path string, payload any) *http.Request {
+	t.Helper()
+	sess := app.SessionManager.CreateSession(mustMockHost(t))
+	var req *http.Request
+	if payload == nil {
+		req = httptest.NewRequest(method, path, nil)
+	} else {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req = httptest.NewRequest(method, path, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	return req
+}
+
+func TestTasksDraftReopensASavedTaskForEditing(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	if w := postJSON(r, "/tasks/save", validTaskPayload()); w.Code != http.StatusOK {
+		t.Fatalf("save: status = %d (body %s)", w.Code, w.Body.String())
+	}
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, taskSessionRequest(t, app, http.MethodGet,
+		"/tasks/draft?from="+url.QueryEscape("Account balance enquiry"), nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d (body %s)", w.Code, w.Body.String())
+	}
+	var draft task.Draft
+	if err := json.Unmarshal(w.Body.Bytes(), &draft); err != nil {
+		t.Fatal(err)
+	}
+	if draft.Origin != "task" || draft.OriginalName != "Account balance enquiry" {
+		t.Errorf("origin = %q / %q, want the saved task", draft.Origin, draft.OriginalName)
+	}
+	// The whole point of reopening is that nothing is lost on the way in: an
+	// edit that dropped the outputs would be worse than no edit at all.
+	if len(draft.Task.Outputs) != 1 || draft.Task.Outputs[0].Name != "cleared_balance" {
+		t.Errorf("outputs = %+v, want the saved one", draft.Task.Outputs)
+	}
+	if len(draft.Task.Parameters) != 1 || len(draft.Task.Steps) != 1 {
+		t.Errorf("task did not come back whole: %+v", draft.Task)
+	}
+}
+
+func TestTasksDraftFromAnUnknownTaskIs404(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, taskSessionRequest(t, app, http.MethodGet, "/tasks/draft?from=nothing", nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (body %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestTasksPreviewReportsWhatTheOutputsWouldRead(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+
+	payload := validTaskPayload()
+	payload["outputs"] = []map[string]any{
+		{"name": "cleared_balance", "label": "Cleared balance", "row": 3, "column": 20, "length": 20,
+			"pattern": `([\d,]+\.\d{2})`},
+		{"name": "reference", "label": "Reference", "row": 9, "column": 1, "length": 8},
+	}
+	screen := "ACCOUNT DETAIL\n\n Cleared balance   1,240.55 CR\n"
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, taskSessionRequest(t, app, http.MethodPost, "/tasks/preview",
+		map[string]any{"task": payload, "screen": screen}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d (body %s)", w.Code, w.Body.String())
+	}
+	var body struct {
+		OK      bool `json:"ok"`
+		Outputs []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+			Found bool   `json:"found"`
+		} `json:"outputs"`
+		Missing []string `json:"missing"`
+		Error   string   `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OK {
+		t.Fatalf("ok = false, error = %q", body.Error)
+	}
+	if len(body.Outputs) != 2 {
+		t.Fatalf("outputs = %+v", body.Outputs)
+	}
+	if body.Outputs[0].Value != "1,240.55" {
+		t.Errorf("balance = %q, want the pattern's capture", body.Outputs[0].Value)
+	}
+	// A region that reads nothing is the failure the preview exists to catch
+	// before the task is in the catalogue rather than after.
+	if body.Outputs[1].Found || len(body.Missing) != 1 {
+		t.Errorf("a blank region was not reported: %+v / %v", body.Outputs[1], body.Missing)
+	}
+}
+
+// An invalid task is the expected state of something being authored, so the
+// complaint comes back as content the wizard can show beside the field rather
+// than as a failed request.
+func TestTasksPreviewReportsValidationAsContent(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	payload := validTaskPayload()
+	payload["name"] = ""
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, taskSessionRequest(t, app, http.MethodPost, "/tasks/preview",
+		map[string]any{"task": payload}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", w.Code, w.Body.String())
+	}
+	var body struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.OK || body.Error == "" {
+		t.Errorf("ok = %v, error = %q, want a refusal with a reason", body.OK, body.Error)
+	}
+}
+
+func TestTasksPreviewWarnsAboutAnUnguardedStepAndAReplacement(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	if w := postJSON(r, "/tasks/save", validTaskPayload()); w.Code != http.StatusOK {
+		t.Fatalf("save: status = %d (body %s)", w.Code, w.Body.String())
+	}
+
+	payload := validTaskPayload()
+	steps := payload["steps"].([]map[string]any)
+	delete(steps[0], "expect")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, taskSessionRequest(t, app, http.MethodPost, "/tasks/preview",
+		map[string]any{"task": payload, "screen": "ACCOUNT DETAIL\n"}))
+	var body struct {
+		OK       bool     `json:"ok"`
+		Warnings []string `json:"warnings"`
+		Replaces string   `json:"replaces"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.OK {
+		t.Fatalf("ok = false for a task that is legal, if unguarded")
+	}
+	if body.Replaces != "Account balance enquiry" {
+		t.Errorf("replaces = %q, want the task this would overwrite", body.Replaces)
+	}
+	found := false
+	for _, warning := range body.Warnings {
+		if strings.Contains(warning, "no guard") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("warnings = %v, want one about the unguarded step", body.Warnings)
+	}
+}
+
+func TestTasksPreviewRequiresASession(t *testing.T) {
+	app := newTaskTestApp(t)
+	r := taskRouter(app)
+	w := postJSON(r, "/tasks/preview", map[string]any{"task": validTaskPayload()})
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
 	}
 }
