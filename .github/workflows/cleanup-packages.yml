@@ -29,6 +29,13 @@ jobs:
         package: [3270web]
     steps:
       - name: Delete untagged versions of ${{ matrix.package }}
+        # v5 is the newest major, and it still runs on Node 20 — the only
+        # action in this repository that does. Every other one was moved to a
+        # Node 24 major; there is nothing to move this one to. When Node 20
+        # leaves the runners this step stops working and the untagged versions
+        # start accumulating again, silently, because a scheduled workflow has
+        # nobody watching it. Either a Node 24 major appears upstream before
+        # then, or this becomes a `gh api` call in a run step.
         uses: actions/delete-package-versions@v5
         with:
           package-name: ${{ matrix.package }}
