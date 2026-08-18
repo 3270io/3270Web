@@ -336,6 +336,7 @@ type chaosStartRequest struct {
 	DedupMode                   string            `json:"dedup_mode"` // "structural" (default) or "exact"
 	SaturationSteps             int               `json:"saturation_steps"`
 	AutoBlockExitKeys           *bool             `json:"auto_block_exit_keys"`
+	AutoPreferNavigationKeys    *bool             `json:"auto_prefer_navigation_keys"`
 	LearnedInputReuseBias       *float64          `json:"learned_input_reuse_bias"`
 	LearnedKeyReuseBias         *float64          `json:"learned_key_reuse_bias"`
 	LearnedReuseBias            *float64          `json:"learned_reuse_bias"` // legacy alias: applies to both if specific values not provided
@@ -343,6 +344,7 @@ type chaosStartRequest struct {
 	Hints                       []chaos.Hint      `json:"hints"`
 	FirstScreenHint             *chaos.ScreenHint `json:"first_screen_hint,omitempty"`
 	ExcludeNoProgressEvents     *bool             `json:"exclude_no_progress_events"`
+	TransitionLogPath           string            `json:"transition_log_path"`
 	ExtendLimits                bool              `json:"extend_limits"`
 }
 
@@ -360,6 +362,7 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 		DedupMode                   string            `json:"dedup_mode"`
 		SaturationSteps             int               `json:"saturation_steps"`
 		AutoBlockExitKeys           *bool             `json:"auto_block_exit_keys"`
+		AutoPreferNavigationKeys    *bool             `json:"auto_prefer_navigation_keys"`
 		LearnedInputReuseBias       *float64          `json:"learned_input_reuse_bias"`
 		LearnedKeyReuseBias         *float64          `json:"learned_key_reuse_bias"`
 		LearnedReuseBias            *float64          `json:"learned_reuse_bias"`
@@ -367,6 +370,7 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 		Hints                       []chaos.Hint      `json:"hints"`
 		FirstScreenHint             *chaos.ScreenHint `json:"first_screen_hint,omitempty"`
 		ExcludeNoProgressEvents     *bool             `json:"exclude_no_progress_events"`
+		TransitionLogPath           string            `json:"transition_log_path"`
 		ExtendLimits                bool              `json:"extend_limits"`
 	}
 	if err := json.Unmarshal(data, &snake); err != nil {
@@ -384,12 +388,14 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 		DedupMode                   string            `json:"dedupMode"`
 		SaturationSteps             int               `json:"saturationSteps"`
 		AutoBlockExitKeys           *bool             `json:"autoBlockExitKeys"`
+		AutoPreferNavigationKeys    *bool             `json:"autoPreferNavigationKeys"`
 		LearnedInputReuseBias       *float64          `json:"learnedInputReuseBias"`
 		LearnedKeyReuseBias         *float64          `json:"learnedKeyReuseBias"`
 		LearnedReuseBias            *float64          `json:"learnedReuseBias"`
 		ForceOverrideExistingInputs *bool             `json:"forceOverrideExistingInputs"`
 		FirstScreenHint             *chaos.ScreenHint `json:"firstScreenHint,omitempty"`
 		ExcludeNoProgressEvents     *bool             `json:"excludeNoProgressEvents"`
+		TransitionLogPath           string            `json:"transitionLogPath"`
 		ExtendLimits                bool              `json:"extendLimits"`
 	}
 	_ = json.Unmarshal(data, &camel)
@@ -410,6 +416,7 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 	r.DedupMode = firstNonEmptyString(snake.DedupMode, camel.DedupMode)
 	r.SaturationSteps = firstNonZeroInt(snake.SaturationSteps, camel.SaturationSteps)
 	r.AutoBlockExitKeys = firstNonNilBool(snake.AutoBlockExitKeys, camel.AutoBlockExitKeys)
+	r.AutoPreferNavigationKeys = firstNonNilBool(snake.AutoPreferNavigationKeys, camel.AutoPreferNavigationKeys)
 	r.LearnedInputReuseBias = firstNonNilFloat(snake.LearnedInputReuseBias, camel.LearnedInputReuseBias)
 	r.LearnedKeyReuseBias = firstNonNilFloat(snake.LearnedKeyReuseBias, camel.LearnedKeyReuseBias)
 	r.LearnedReuseBias = firstNonNilFloat(snake.LearnedReuseBias, camel.LearnedReuseBias)
@@ -421,6 +428,7 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 		r.FirstScreenHint = camel.FirstScreenHint
 	}
 	r.ExcludeNoProgressEvents = firstNonNilBool(snake.ExcludeNoProgressEvents, camel.ExcludeNoProgressEvents)
+	r.TransitionLogPath = firstNonEmptyString(snake.TransitionLogPath, camel.TransitionLogPath)
 	r.ExtendLimits = snake.ExtendLimits || camel.ExtendLimits
 	return nil
 }
@@ -495,6 +503,9 @@ func applyChaosStartRequestToConfig(cfg *chaos.Config, req chaosStartRequest) {
 	if req.AutoBlockExitKeys != nil {
 		cfg.AutoBlockExitKeys = *req.AutoBlockExitKeys
 	}
+	if req.AutoPreferNavigationKeys != nil {
+		cfg.AutoPreferNavigationKeys = *req.AutoPreferNavigationKeys
+	}
 	if req.LearnedInputReuseBias != nil && *req.LearnedInputReuseBias >= 0 && *req.LearnedInputReuseBias <= 1 {
 		cfg.LearnedInputReuseBias = *req.LearnedInputReuseBias
 	} else if req.LearnedReuseBias != nil && *req.LearnedReuseBias >= 0 && *req.LearnedReuseBias <= 1 {
@@ -513,6 +524,11 @@ func applyChaosStartRequestToConfig(cfg *chaos.Config, req chaosStartRequest) {
 	}
 	if req.ExcludeNoProgressEvents != nil {
 		cfg.ExcludeNoProgressEvents = *req.ExcludeNoProgressEvents
+	}
+	if req.TransitionLogPath != "" {
+		// Confined to a file name inside the runs directory by
+		// confineChaosPaths, exactly like OutputFile.
+		cfg.TransitionLogPath = req.TransitionLogPath
 	}
 }
 

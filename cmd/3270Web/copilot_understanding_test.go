@@ -135,7 +135,7 @@ func TestBuildBusinessAppOverview(t *testing.T) {
 }
 
 func TestBuildChaosInsights(t *testing.T) {
-	out := buildChaosInsights(sampleMindMap())
+	out := buildChaosInsights(sampleMindMap(), chaos.CandidateKeys(chaos.DefaultConfig().AIDKeyWeights))
 
 	if out["screenCount"] != 2 {
 		t.Errorf("screenCount = %v, want 2", out["screenCount"])
@@ -172,5 +172,29 @@ func TestBuildChaosInsights(t *testing.T) {
 	}
 	if got := sliceLen(menu["productiveKeys"]); got != 1 {
 		t.Errorf("menu productiveKeys len = %d, want 1", got)
+	}
+}
+
+// TestBuildChaosInsightsReportsUntriedKeyFrontier verifies the exploration
+// frontier surfaced to the AI: per-screen untriedKeys measured against the
+// candidate key set, and the frontierScreens rollup.
+func TestBuildChaosInsightsReportsUntriedKeyFrontier(t *testing.T) {
+	candidates := []string{"Enter", "PF(1)"}
+	out := buildChaosInsights(sampleMindMap(), candidates)
+
+	if out["frontierScreens"] != 2 {
+		t.Errorf("frontierScreens = %v, want 2", out["frontierScreens"])
+	}
+	screens, ok := out["perScreen"].([]gin.H)
+	if !ok || len(screens) == 0 {
+		t.Fatalf("perScreen missing: %T", out["perScreen"])
+	}
+	// Most-visited screen is the menu: Enter has been pressed there, PF(1) not.
+	untried, ok := screens[0]["untriedKeys"].([]string)
+	if !ok {
+		t.Fatalf("untriedKeys missing on menu screen: %v", screens[0])
+	}
+	if len(untried) != 1 || untried[0] != "PF(1)" {
+		t.Errorf("untriedKeys = %v, want [PF(1)]", untried)
 	}
 }

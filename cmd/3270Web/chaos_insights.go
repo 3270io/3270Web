@@ -43,7 +43,14 @@ func (app *App) ChaosInsightsHandler(c *gin.Context) {
 		return
 	}
 
-	resp := buildChaosInsights(mm)
+	// Measure "untried" against the live engine's actual candidate key set
+	// when one exists; fall back to the default weights for loaded runs.
+	candidates := chaos.CandidateKeys(chaos.DefaultConfig().AIDKeyWeights)
+	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
+		candidates = eng.CandidateKeys()
+	}
+
+	resp := buildChaosInsights(mm, candidates)
 
 	// Layer in live run diagnostics when an engine exists for this session.
 	if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil {
@@ -68,8 +75,9 @@ func (app *App) ChaosInsightsHandler(c *gin.Context) {
 }
 
 // buildChaosInsights is the pure analysis over a mind map. Separated from the
-// handler so it is straightforward to unit test.
-func buildChaosInsights(mm *chaos.MindMap) gin.H {
+// handler so it is straightforward to unit test. candidates is the AID-key
+// set to measure per-screen "untried keys" against (the exploration frontier).
+func buildChaosInsights(mm *chaos.MindMap, candidates []string) gin.H {
 	type areaEntry struct {
 		hash string
 		area *chaos.MindMapArea
@@ -94,6 +102,7 @@ func buildChaosInsights(mm *chaos.MindMap) gin.H {
 		priority int // higher = more important
 	}
 	var experiments []experiment
+	frontierScreens := 0
 
 	perScreen := make([]gin.H, 0, len(areas))
 	for _, ae := range areas {
@@ -135,10 +144,15 @@ func buildChaosInsights(mm *chaos.MindMap) gin.H {
 		}
 		sortKeyStat(unproductiveFields, "writes")
 
+		untriedKeys := chaos.UntriedCandidateKeys(area, candidates)
+
 		entry := gin.H{
 			"hash":   ae.hash,
 			"label":  label,
 			"visits": area.Visits,
+		}
+		if len(untriedKeys) > 0 {
+			entry["untriedKeys"] = untriedKeys
 		}
 		if len(productiveKeys) > 0 {
 			entry["productiveKeys"] = productiveKeys
@@ -183,6 +197,18 @@ func buildChaosInsights(mm *chaos.MindMap) gin.H {
 					label, shortHash(ae.hash), len(unproductiveFields)),
 			})
 		}
+		if len(untriedKeys) > 0 {
+			frontierScreens++
+			// Only worth surfacing as an experiment once the screen has some
+			// history; a brand-new area's untried keys are just "not yet".
+			if len(area.KeyPresses) > 0 {
+				experiments = append(experiments, experiment{
+					priority: 20 + area.Visits,
+					text: fmt.Sprintf("Screen %q (%s): key(s) %v have never been pressed here — untried frontier. Resume the run (it now steers toward untried keys) or press them manually to extend the map.",
+						label, shortHash(ae.hash), untriedKeys),
+				})
+			}
+		}
 	}
 
 	sort.SliceStable(experiments, func(i, j int) bool {
@@ -201,6 +227,7 @@ func buildChaosInsights(mm *chaos.MindMap) gin.H {
 
 	return gin.H{
 		"screenCount":          len(areas),
+		"frontierScreens":      frontierScreens,
 		"perScreen":            perScreen,
 		"perScreenTruncated":   len(areas) > len(perScreen),
 		"suggestedExperiments": suggested,

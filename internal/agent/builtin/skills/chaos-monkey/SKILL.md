@@ -62,9 +62,14 @@ this reason; see `aid-key-safety.instructions.md`.
    - `error` — a host failure stopped it. Report the error; resuming may
      work if it was transient.
 
-9. Choose hints from `suggestedExperiments`, `deadKeys` and
+9. Choose hints from `suggestedExperiments`, `deadKeys`, `untriedKeys` and
    `unproductiveFields` rather than guessing. Look for screens with low visit
-   counts or no productive transitions.
+   counts or no productive transitions. The `frontierScreens` count (and the
+   `frontierAreas` / `untriedKeysTotal` coverage stats) say how much
+   known-but-unexplored territory remains: a saturated run with a non-zero
+   frontier is usually worth resuming as-is — the engine steers toward
+   untried keys — while a zero frontier means only new hints or manual
+   navigation will find more.
 10. In guided mode, ask what to do next with options that match the
     termination reason. Never resume the same run more than twice without
     changing hints — if nothing new is being found, say so and stop.
