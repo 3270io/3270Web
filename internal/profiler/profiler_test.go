@@ -44,14 +44,18 @@ func newMockHostWith(queries map[string]string) *host.MockHost {
 }
 
 func TestProbe_RichZOSLikeHost(t *testing.T) {
+	// The responses are in the shapes s3270 actually answers with, so that a
+	// passing test means the parsers read a real terminal rather than an
+	// invented one. That is how a query no terminal answers went unnoticed
+	// here: the fake answered it.
 	mh := newMockHostWith(map[string]string{
 		"Host":            "host mvs01.example.com 992 tls",
 		"ConnectionState": "tn3270e mvs01.example.com",
-		"Bind":            "rows 32 cols 80 alt color extended",
-		"Model":           "IBM-3279-2-E",
+		"Model":           "IBM-3279-4-E",
 		"BindPluName":     "LU01",
 		"Tn3270eOptions":  "BIND-IMAGE RESPONSES SYSREQ",
 		"ScreenCurSize":   "24 80",
+		"ScreenSizeMax":   "rows 43 columns 80",
 		"Cursor":          "1 1",
 	})
 
@@ -90,23 +94,23 @@ func TestProbe_RichZOSLikeHost(t *testing.T) {
 	if p.Host.BannerSignature == "" || p.Host.BannerPreview == "" {
 		t.Errorf("expected banner_signature and banner_preview, got sig=%q preview=%q", p.Host.BannerSignature, p.Host.BannerPreview)
 	}
-	if p.Device.TerminalType != "IBM-3279-2-E" {
+	if p.Device.TerminalType != "IBM-3279-4-E" {
 		t.Errorf("Device.TerminalType: %q", p.Device.TerminalType)
 	}
-	if p.Device.Rows != 32 { // Bind value wins over ScreenCurSize because it's parsed first.
+	if p.Device.Rows != 24 { // The size in use, not the maximum the model allows.
 		t.Errorf("Device.Rows: %d", p.Device.Rows)
 	}
 	if p.Device.Cols != 80 {
 		t.Errorf("Device.Cols: %d", p.Device.Cols)
 	}
 	if !p.Device.Color {
-		t.Errorf("Device.Color should be true (3279 + bind color)")
+		t.Errorf("Device.Color should be true (3279 family)")
 	}
 	if !p.Device.ExtendedAttributes {
-		t.Errorf("Device.ExtendedAttributes should be true (-E suffix + bind extended)")
+		t.Errorf("Device.ExtendedAttributes should be true (-E suffix)")
 	}
 	if !p.Device.AltScreen {
-		t.Errorf("Device.AltScreen should be true (bind alt)")
+		t.Errorf("alt_screen: a model 4 reporting a 43-row maximum has one, got %+v", p.Device)
 	}
 	if !p.Protocol.TN3270E || !p.Protocol.BindImagePresent || !p.Protocol.StructuredFields {
 		t.Errorf("Protocol flags: %+v", p.Protocol)
@@ -124,8 +128,37 @@ func TestProbe_RichZOSLikeHost(t *testing.T) {
 	if p.Capabilities.INDFile != TriUnknown { // opts.INDFileProbe defaulted to false
 		t.Errorf("Capabilities.INDFile: %q (expected unknown)", p.Capabilities.INDFile)
 	}
-	if p.Raw == nil || p.Raw["Bind"] == "" {
-		t.Errorf("Raw should contain Bind response when CollectRaw=true")
+	if p.Raw == nil || p.Raw["ScreenSizeMax"] == "" {
+		t.Errorf("Raw should contain ScreenSizeMax response when CollectRaw=true")
+	}
+}
+
+// TestProbeSequenceNamesRealQueries guards the failure this sequence has
+// already had: a probe naming a Query the terminal does not have looks exactly
+// like a host declining to answer, so it lands in capabilities.unknown and
+// stays there, on every host, forever — and the list callers read to spot one
+// host stack behaving differently from another is worth less than it looks.
+//
+// The list is x3270's own Query keywords. Anything added to the sequence has
+// to be one of them.
+func TestProbeSequenceNamesRealQueries(t *testing.T) {
+	known := map[string]bool{
+		"About": true, "Actions": true, "BindPluName": true, "BuildOptions": true,
+		"CodePage": true, "CodePages": true, "ConnectTime": true, "ConnectionState": true,
+		"Copyright": true, "Cursor": true, "Cursor1": true, "Formatted": true,
+		"Host": true, "LocalEncoding": true, "LuName": true, "Model": true,
+		"Prefixes": true, "Proxies": true, "Proxy": true, "ScreenCurSize": true,
+		"ScreenSizeCurrent": true, "ScreenSizeMax": true, "ScreenTraceFile": true,
+		"StatsRx": true, "StatsTx": true, "Tasks": true, "TelnetMyOptions": true,
+		"TelnetHostOptions": true, "TerminalName": true, "Tls": true,
+		"TlsCertInfo": true, "TlsProvider": true, "TlsSessionInfo": true,
+		"TlsSubjectNames": true, "Tn3270eOptions": true, "TraceFile": true,
+		"Version": true,
+	}
+	for _, q := range probeSequence() {
+		if !known[q.name] {
+			t.Errorf("probe queries %q, which the terminal does not answer; every host will report it as unknown", q.name)
+		}
 	}
 }
 

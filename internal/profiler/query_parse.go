@@ -71,38 +71,42 @@ func applyQueryConnectionState(p *CompatibilityProfile, resp string) {
 	}
 	// Structured fields are part of the TN3270E function set negotiated
 	// when BIND-IMAGE is present; default to TN3270E presence as a coarse
-	// proxy and refine in applyQueryTn3270eFunctions / applyQueryBind.
+	// proxy and refine in applyQueryTn3270eFunctions.
 	if p.Protocol.TN3270E {
 		p.Protocol.StructuredFields = true
 	}
 }
 
-// applyQueryBind parses `Query(Bind)`. The presence of a BIND image strongly
-// implies a real TN3270E session with structured-field support. Newer
-// s3270 versions print rows/cols/alt-screen as part of the image.
-func applyQueryBind(p *CompatibilityProfile, resp string) {
-	resp = strings.TrimSpace(resp)
-	if resp == "" {
+// applyQueryScreenSizeMax parses `Query(ScreenSizeMax)`, which answers with
+// "rows <n> columns <n>" — the largest screen the negotiated model can use.
+//
+// Compared against the current size it says whether the session has an
+// alternate screen at all: a model 2 reports 24x80 for both, while a model 4
+// reports 43x80 here and 24x80 as current until the host writes to the
+// alternate size. That is the difference between "this host only ever gives
+// you 24 rows" and "this host has 43 rows available and has not used them
+// yet", which is the sort of thing a compatibility profile exists to record.
+func applyQueryScreenSizeMax(p *CompatibilityProfile, resp string) {
+	lower := strings.ToLower(strings.TrimSpace(resp))
+	if lower == "" {
 		return
 	}
-	p.Protocol.BindImagePresent = true
-	p.Protocol.StructuredFields = true
-	// Look for "rows N" / "cols N" / "alt" tokens.
-	lower := strings.ToLower(resp)
-	if rows := tokenValue(lower, "rows"); rows > 0 {
+	rows := tokenValue(lower, "rows")
+	cols := tokenValue(lower, "columns")
+	if cols == 0 {
+		cols = tokenValue(lower, "cols")
+	}
+	if rows == 0 || cols == 0 {
+		return
+	}
+	if p.Device.Rows == 0 {
 		p.Device.Rows = rows
 	}
-	if cols := tokenValue(lower, "cols"); cols > 0 {
+	if p.Device.Cols == 0 {
 		p.Device.Cols = cols
 	}
-	if strings.Contains(lower, "alt") {
+	if rows > p.Device.Rows || cols > p.Device.Cols {
 		p.Device.AltScreen = true
-	}
-	if strings.Contains(lower, "color") || strings.Contains(lower, "colour") {
-		p.Device.Color = true
-	}
-	if strings.Contains(lower, "extended") || strings.Contains(lower, "ext-attr") {
-		p.Device.ExtendedAttributes = true
 	}
 }
 
@@ -170,6 +174,14 @@ func applyQueryTn3270eFunctions(p *CompatibilityProfile, resp string) {
 		p.Protocol.NegotiatedFunctions = out
 		p.Protocol.TN3270E = true
 		p.Protocol.StructuredFields = true
+		for _, f := range out {
+			// BIND-IMAGE being negotiated is what "the host sends a bind
+			// image" means; it is reported here rather than by a separate
+			// query, which is what the old Bind probe was reaching for.
+			if strings.HasPrefix(f, "BIND-IMAGE") || strings.HasPrefix(f, "BIND_IMAGE") {
+				p.Protocol.BindImagePresent = true
+			}
+		}
 	}
 }
 
