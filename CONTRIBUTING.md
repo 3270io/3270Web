@@ -62,6 +62,54 @@ For front-end changes, start the server and check the change in a browser
 before marking it done — the terminal UI has behaviour that tests do not
 cover.
 
+## Changing how a screen is read or drawn
+
+Anything touching the 3270 data stream — the decoder in `internal/host`, the
+field model, the renderer, or the styles the renderer names — belongs in the
+**terminal conformance suite** rather than in a test built from a captured
+transcript.
+
+The difference matters. A captured `ReadBuffer` response answers "does this
+parse", and nothing more: the capture was written by whoever wrote the test,
+so it agrees with them by construction. A terminal-fidelity bug is exactly a
+disagreement between what the terminal says and what this code believes it
+says, and that kind of bug survives that kind of test indefinitely. Blink was
+compared against a value the attribute cannot hold for as long as there were
+tests for blink.
+
+The suite is in `internal/host`:
+
+| File | What it holds |
+|---|---|
+| `tn3270host_test.go` | A scripted TN3270 host and a 3270 data-stream builder |
+| `conformance_test.go` | Field attributes, extended attributes, characters |
+| `conformance_inbound_test.go` | What the terminal sends *back* — AID bytes, modified fields, the cursor |
+| `conformance_screen_test.go` | Screen sizes, code pages, unformatted screens |
+| `conformance_edges_test.go` | Where the buffer wraps and where fields meet |
+
+A test writes a real data stream, a real `s3270` reads it, and the assertion
+is on the decoded `Screen` — or, for the inbound direction, on the bytes the
+host received:
+
+```go
+screen := newScreen(80).
+    at(0, 0).fieldExtended(faProtected, 0x42, AttrColRed, 0x41, AttrEhBlink).text("URGENT").
+    at(1, 0).field(0).cursor().
+    bytes()
+
+host := startConformanceHost(t, screen)
+term := connectTerminal(t, host, "-model", "2")
+```
+
+`go test ./internal/host/` runs it. A platform with no `s3270` to run skips
+rather than fails; point `S3270_TEST_BINARY` at one to be sure it is running.
+
+There is one thing the suite cannot see: a style the renderer names and the
+stylesheet has never heard of, which renders as nothing at all with no error
+anywhere. `internal/render/style_coverage_test.go` covers that gap by
+rendering every attribute the decoder can produce and checking the stylesheet
+defines each class it emits. Add the class *and* the rule, and it stays quiet.
+
 New Go files need the licence header the rest of the tree carries:
 
 ```go

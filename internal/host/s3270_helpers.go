@@ -88,25 +88,46 @@ func isConnectionError(err error) bool {
 	return false
 }
 
-// keyToKeySpec normalizes a key string into an s3270 key specification.
-func keyToKeySpec(key string) string {
+// keyToAction turns a key name into the action the terminal actually has.
+//
+// A PF or PA key arrives here spelled several ways, because the people and the
+// tools that produce one do not agree: "PF3" from a keymap, "pf(3)" from a
+// recording, "PF(3)" from this application's own API. isAidKey accepts every
+// one of them, so by the time a key reaches here it has already been treated
+// as a real AID key. The terminal accepts exactly one spelling — PF(3) — and
+// answers anything else with "Nonexistent or invalid name", which is a
+// confusing thing to tell somebody who pressed a function key that plainly
+// exists.
+//
+// Normalising here rather than at each caller is what keeps the two answers
+// consistent: a key this package calls an AID key is a key it can send.
+// Anything that is not a PF or PA key is passed through untouched, because the
+// terminal's other actions are named exactly as callers write them.
+func keyToAction(key string) string {
 	trimmed := strings.TrimSpace(key)
 	if trimmed == "" {
 		return "Enter"
 	}
 
 	upper := strings.ToUpper(trimmed)
-	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
-		if n, err := strconv.Atoi(inner); err == nil {
-			return fmt.Sprintf("PF%d", n)
+	for _, prefix := range []string{"PF", "PA"} {
+		if !strings.HasPrefix(upper, prefix) {
+			continue
 		}
-	}
-	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
-		if n, err := strconv.Atoi(inner); err == nil {
-			return fmt.Sprintf("PA%d", n)
+		inner := strings.TrimPrefix(upper, prefix)
+		inner = strings.TrimSuffix(strings.TrimPrefix(inner, "("), ")")
+		n, err := strconv.Atoi(strings.TrimSpace(inner))
+		if err != nil {
+			continue
 		}
+		limit := 24
+		if prefix == "PA" {
+			limit = 3
+		}
+		if n < 1 || n > limit {
+			continue
+		}
+		return fmt.Sprintf("%s(%d)", prefix, n)
 	}
 
 	return trimmed

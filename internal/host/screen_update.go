@@ -13,8 +13,15 @@ import (
 )
 
 var (
+	// The fifth field is the emulator mode, and P belongs in it: a TN3270E
+	// session is in 3270 mode from the moment it negotiates, but reports P
+	// rather than I until the host sends the BIND that names the session.
+	// A status the pattern does not match yields no cursor position, so
+	// leaving P out meant the cursor jumped to the top left for however many
+	// polls that window lasted — on exactly the sessions where the host is
+	// slowest to answer.
 	statusPattern = regexp.MustCompile(
-		`^[ULE] [FU] [PU] (?:C\([^)]*\)|N) [ILCN] [2-5] [0-9]+ [0-9]+ ([0-9]+) ([0-9]+) 0x0 (?:[0-9.]+|-)`,
+		`^[ULE] [FU] [PU] (?:C\([^)]*\)|N) [ILCNP] [2-5] [0-9]+ [0-9]+ ([0-9]+) ([0-9]+) 0x0 (?:[0-9.]+|-)`,
 	)
 )
 
@@ -457,6 +464,10 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 	s.Fields = nil
 	s.CellAttrs = nil
 
+	// Whether the buffer opens with a field attribute decides who owns the
+	// positions before the first one. See adoptWrappedLeadingField.
+	leadingWraps := !opensWithFieldAttribute(tokenRows)
+
 	state := &decodeState{
 		fieldStartX:    0,
 		fieldStartY:    0,
@@ -539,7 +550,13 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 	}
 	s.Height = targetHeight
 
-	if state.fieldStartX >= 0 && s.Width > 0 && s.Height > 0 {
+	// The last field runs to the end of the display, because nothing closed
+	// it — there is no field attribute after it. An *unformatted* screen has
+	// no fields at all, though, and manufacturing one here gave it a single
+	// protected field covering the whole display: a caller asking what it
+	// could type into was told "nothing", about a screen where the answer is
+	// "anywhere".
+	if s.IsFormatted && state.fieldStartX >= 0 && s.Width > 0 && s.Height > 0 {
 		endX := s.Width - 1
 		endY := s.Height - 1
 		if endX >= 0 && endY >= 0 {
@@ -547,7 +564,64 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 		}
 	}
 
+	if s.IsFormatted && leadingWraps {
+		adoptWrappedLeadingField(s)
+	}
+
 	return nil
+}
+
+// opensWithFieldAttribute reports whether the first buffer position is a field
+// attribute.
+func opensWithFieldAttribute(tokenRows [][]string) bool {
+	for _, tokens := range tokenRows {
+		for _, token := range tokens {
+			if !occupiesPosition(token) {
+				continue
+			}
+			return strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(")
+		}
+	}
+	return false
+}
+
+// adoptWrappedLeadingField gives the positions before the screen's first field
+// attribute the attributes they actually have.
+//
+// The 3270 buffer is one address space that wraps, not a stack of independent
+// rows. A field runs from its attribute byte to the next attribute byte, and
+// when the first attribute on the screen is not at address zero, the positions
+// in front of it are not unclaimed — they belong to the *last* field on the
+// screen, which runs off the bottom right and continues at the top left.
+//
+// Decoding left to right cannot see that: it reaches those positions before it
+// has met any attribute at all, and so invents one. What it invented was
+// protected, which is right whenever the last field on the screen is protected
+// — most of the time, and the reason this went unnoticed. When the last field
+// is an entry field, it is wrong in the way that matters: the operator is shown
+// a region they cannot type into, on a screen where the host is waiting for
+// them to.
+//
+// The two halves stay two entries in the field list, because a Field is one
+// rectangle and this one is not. What they now share is the attribute byte, so
+// both halves are protected or neither is, and both carry the colour the host
+// gave the field.
+func adoptWrappedLeadingField(s *Screen) {
+	if len(s.Fields) < 2 {
+		return
+	}
+	lead := s.Fields[0]
+	last := s.Fields[len(s.Fields)-1]
+	if lead == nil || last == nil || lead == last {
+		return
+	}
+	if lead.StartX != 0 || lead.StartY != 0 {
+		return
+	}
+	lead.FieldCode = last.FieldCode
+	lead.Color = last.Color
+	lead.ExtendedHighlight = last.ExtendedHighlight
+	lead.Background = last.Background
 }
 
 func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, []CellAttr, error) {

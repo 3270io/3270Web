@@ -81,7 +81,10 @@ func TestIsKeyboardUnlocked(t *testing.T) {
 	}
 }
 
-func TestKeyToKeySpec(t *testing.T) {
+// The terminal has PF(3), not PF3. Every spelling a caller might use has to
+// arrive as the one the terminal answers to, or the key is refused as a
+// nonexistent action — which is a strange thing to say about F3.
+func TestKeyToAction(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -90,24 +93,30 @@ func TestKeyToKeySpec(t *testing.T) {
 		{"   ", "Enter"},
 		{"Enter", "Enter"},
 		{"enter", "enter"},
-		{"PF(1)", "PF1"},
-		{"pf(1)", "PF1"},
-		{"PF(12)", "PF12"},
-		{"PF(24)", "PF24"},
-		{"PA(1)", "PA1"},
-		{"pa(2)", "PA2"},
-		{"PF1", "PF1"}, // Already correct
+		{"PF(1)", "PF(1)"},
+		{"pf(1)", "PF(1)"},
+		{"PF(12)", "PF(12)"},
+		{"PF(24)", "PF(24)"},
+		{"PA(1)", "PA(1)"},
+		{"pa(2)", "PA(2)"},
+		{"PF1", "PF(1)"},
+		{"pf24", "PF(24)"},
+		{"PA3", "PA(3)"},
 		{"Clear", "Clear"},
-		{"PF(a)", "PF(a)"}, // Invalid number, returns trimmed input
-		{"PA()", "PA()"},   // Invalid format
+		// Out of range, so not a function key at all — passed through rather
+		// than turned into one the terminal would refuse differently.
+		{"PF25", "PF25"},
+		{"PA4", "PA4"},
+		{"PF(a)", "PF(a)"},
+		{"PA()", "PA()"},
 		{"Something", "Something"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := keyToKeySpec(tt.input)
+			got := keyToAction(tt.input)
 			if got != tt.expected {
-				t.Errorf("keyToKeySpec(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("keyToAction(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}
