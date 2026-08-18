@@ -28,6 +28,8 @@ terminal.
 | TN3270 and TN3270E, with TLS | ✅ |
 | Full AID and control key coverage — PF1–24, PA1–3, Attn, SysReq, Clear, Reset, EraseEOF, EraseInput, Dup, FieldMark, NewLine, Home | ✅ |
 | Extended colour, blink, reverse video, underscore, intensify | ✅ |
+| Character-level attributes — a run coloured or highlighted *inside* a field, not just the field as a whole | ✅ |
+| Extended background colour, as a separate attribute from the foreground | ✅ |
 | Operator Information Area — online/application block, `X SYSTEM`, `X -f` operator error, insert indicator | ✅ |
 | Local cursor movement — Tab, Back-Tab, arrows and Home resolve in the client, with no host round-trip | ✅ |
 | A cursor that can rest anywhere on the display, protected text included, for cursor-position-driven screens | ✅ |
@@ -36,9 +38,19 @@ terminal.
 | Insert / overtype toggle | ✅ |
 | Type-ahead while the host holds the keyboard | ✅ |
 | Selectable terminal models and screen sizes | ✅ |
+| Oversize displays — a screen larger than its model, at the size the host actually drew | ✅ |
 | Code page selection per connection | ✅ |
 | The characters those code pages are chosen for — pound signs, umlauts, accents, Cyrillic and Greek — drawn on the screen and accepted into a field | ✅ |
 | The host's own code points readable over the API, so a code page complaint is settled against the byte the host sent rather than against the character it became | ✅ |
+
+Two of those rows are about the same distinction. A 3270 sets display
+attributes in two places: the attribute byte that opens a field, and a Set
+Attribute order that changes the characters written after it. An application
+uses the second one to pick out four words of a message in red where the rest
+of the line is green, or a total in reverse video. A terminal that reads only
+the first shows the run in the field's colour — which is the wrong colour by
+exactly the amount the application was trying to say something. Both are read
+here, and the run the host coloured is the run that comes out coloured.
 
 On a 3270 the cursor belongs to the terminal, and the host learns its
 position exactly once — in the inbound data stream, when an AID key is

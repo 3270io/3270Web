@@ -41,6 +41,30 @@ S3270_MODEL=2
 
 Alternative values are also accepted (for example `3279-4-E`).
 
+## Larger Than the Model: Oversize Displays
+
+A model decides the standard screen size, and a display can be configured
+larger than that one. The setting is `S3270_OVERSIZE` — "Oversize" under
+Display Behavior in Settings — written as columns by rows:
+
+```dotenv
+S3270_MODEL=2
+S3270_OVERSIZE=100x30
+```
+
+Two things are worth knowing before switching it on.
+
+**The host has to ask for it.** An oversize display starts at its model's
+standard size and switches to the larger one only when an application writes
+to the alternate screen. Until then a 100x30 display is a 24x80 one, and the
+status bar says so. That is the architecture rather than a limitation: an
+application that was written for 24x80 gets 24x80.
+
+**The application has to want it.** Most host applications draw a fixed
+panel and will paint their 24 rows into the top of a taller screen, leaving
+the rest blank. Oversize earns its keep where the application is one that
+adapts — a browser or an editor that fills whatever it is given.
+
 ## AS/400 and IBM i Hosts
 
 These hosts drive their terminals with 5250, not 3270, and 3270Web does not
@@ -72,7 +96,7 @@ drives: [5250 support](https://x3270.miraheze.org/wiki/5250_support). Native
 
 ## Practical Guidance
 
-- When recordings fail at `FillString` coordinates, confirm the same model is active.
+- When recordings fail at `FillString` coordinates, confirm the same model is active — and the same oversize setting, which changes the coordinates as surely as the model does.
 - Keep the same model across environments (dev/test/prod) for reliable playback.
 - If text alignment looks wrong, check both model and code page settings.
 - Against an AS/400 or IBM i host, use model 2 — see above.

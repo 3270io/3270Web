@@ -1561,40 +1561,93 @@ pre, pre input, textarea {
 
 .h3270-intensified,
 .color-intensified {
-  color: var(--accent-2);
+  --term-ink: var(--accent-2);
+  color: var(--term-ink);
   background-color: transparent;
 }
 
 .color-blue {
-  color: var(--term-color-blue);
+  --term-ink: var(--term-color-blue);
+  color: var(--term-ink);
 }
 
 .color-red {
-  color: var(--term-color-red);
+  --term-ink: var(--term-color-red);
+  color: var(--term-ink);
 }
 
 .color-pink {
-  color: var(--term-color-pink);
+  --term-ink: var(--term-color-pink);
+  color: var(--term-ink);
 }
 
 .color-green {
-  color: var(--term-color-green);
+  --term-ink: var(--term-color-green);
+  color: var(--term-ink);
 }
 
 .color-turquoise {
-  color: var(--term-color-turquoise);
+  --term-ink: var(--term-color-turquoise);
+  color: var(--term-ink);
 }
 
 .color-yellow {
-  color: var(--term-color-yellow);
+  --term-ink: var(--term-color-yellow);
+  color: var(--term-ink);
 }
 
 .color-white {
-  color: var(--term-color-white);
+  --term-ink: var(--term-color-white);
+  color: var(--term-ink);
 }
 
+/* Background colour. The 3270 background attribute is a separate attribute
+   from the foreground one, and a host that sets it is drawing a panel rather
+   than colouring text. The neutral value is the screen's own ground, which is
+   what an application uses to punch a hole back through a coloured area. */
+.bg-neutral {
+  background-color: var(--bg);
+}
+
+.bg-blue {
+  background-color: var(--term-color-blue);
+}
+
+.bg-red {
+  background-color: var(--term-color-red);
+}
+
+.bg-pink {
+  background-color: var(--term-color-pink);
+}
+
+.bg-green {
+  background-color: var(--term-color-green);
+}
+
+.bg-turquoise {
+  background-color: var(--term-color-turquoise);
+}
+
+.bg-yellow {
+  background-color: var(--term-color-yellow);
+}
+
+.bg-white {
+  background-color: var(--term-color-white);
+}
+
+/* Reverse video swaps the ink and the ground, so it has to name the ink
+   rather than reach for currentColor: currentColor in background-color is the
+   element's *own* color, and this rule sets that color in the same breath.
+   Written the short way the two cancel — the text ends up painted in the
+   colour it is sitting on, and a reverse-video field, which is how a host says
+   "this is the line that matters", renders as a blank hole in the screen.
+   --term-ink is published by whichever colour class is on the element, and
+   falls back to the screen's own foreground when the host asked for no colour
+   at all. */
 .highlight-rev-video {
-  background-color: currentColor;
+  background-color: var(--term-ink, var(--fg));
   color: var(--bg);
 }
 
@@ -1619,6 +1672,18 @@ pre, pre input, textarea {
 
 .highlight-blink {
   animation: blink-field 1s steps(1, end) infinite;
+}
+
+/* A blinking field is the host saying "look here", so it cannot simply be
+   switched off for somebody who has asked for less motion — that would drop
+   the message rather than deliver it quietly. It becomes a standing marker
+   instead: the same emphasis, held still. */
+@media (prefers-reduced-motion: reduce) {
+  .highlight-blink {
+    animation: none;
+    outline: 1px dotted currentColor;
+    outline-offset: -1px;
+  }
 }
 
 .h3270-input-hidden,

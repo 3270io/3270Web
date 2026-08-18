@@ -22,7 +22,36 @@ const (
 	attrKeyStartField      = "c0" // 3270 Start Field attribute
 	attrKeyExtHighlight    = "41" // Extended Highlight attribute
 	attrKeyForegroundColor = "42" // Foreground Color attribute
+	attrKeyBackgroundColor = "45" // Background Color attribute
 )
+
+// isOrderToken reports whether a token from the screen read is one of the
+// terminal's order notations rather than a bare character. SF and SFE open a
+// field and occupy the position they are written at; GE names a character from
+// the graphic-escape set and occupies one too; SA sets the attributes of the
+// characters that follow and occupies none.
+func isOrderToken(token string) bool {
+	return strings.HasPrefix(token, "SF(") ||
+		strings.HasPrefix(token, "SFE(") ||
+		strings.HasPrefix(token, "SA(") ||
+		strings.HasPrefix(token, "GE(")
+}
+
+// occupiesPosition reports whether a token stands in a cell of the buffer.
+func occupiesPosition(token string) bool {
+	return !strings.HasPrefix(token, "SA(")
+}
+
+// countPositions returns how many cells of the buffer a run of tokens covers.
+func countPositions(tokens []string) int {
+	n := 0
+	for _, token := range tokens {
+		if occupiesPosition(token) {
+			n++
+		}
+	}
+	return n
+}
 
 func extractTokens(line string) []string {
 	// Pre-allocate tokens with a heuristic (e.g. 1 token per 3 chars) to reduce re-allocations.
@@ -35,13 +64,11 @@ func extractTokens(line string) []string {
 		if c == ' ' || c == '\t' {
 			if start != -1 {
 				token := line[start:i]
-				if !strings.HasPrefix(token, "SA(") {
-					if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || isCharacterToken(token) {
-						tokens = append(tokens, token)
-					} else {
-						// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
-						tokens = append(tokens, "00")
-					}
+				if isOrderToken(token) || isCharacterToken(token) {
+					tokens = append(tokens, token)
+				} else {
+					// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
+					tokens = append(tokens, "00")
 				}
 				start = -1
 			}
@@ -53,13 +80,11 @@ func extractTokens(line string) []string {
 	}
 	if start != -1 {
 		token := line[start:]
-		if !strings.HasPrefix(token, "SA(") {
-			if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") || (len(token) == 2 && isHex(token)) {
-				tokens = append(tokens, token)
-			} else {
-				// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
-				tokens = append(tokens, "00")
-			}
+		if isOrderToken(token) || isCharacterToken(token) {
+			tokens = append(tokens, token)
+		} else {
+			// Replace invalid/unknown tokens with null byte (space) to preserve screen alignment
+			tokens = append(tokens, "00")
 		}
 	}
 	return tokens
@@ -103,7 +128,17 @@ type decodeState struct {
 	fieldStartCode byte
 	color          int
 	extHighlight   int
+	background     int
 	width          int
+
+	// cell holds the character attributes an SA order last set. They apply
+	// from that point on — across the end of a row and across the start of the
+	// next field — until another SA changes them, which is why this lives on
+	// the decode as a whole rather than being reset per line.
+	cell CellAttr
+	// sawCell records whether any SA order set anything at all, so a screen
+	// that has none keeps its attribute grid unallocated.
+	sawCell bool
 }
 
 // NewScreenFromDump parses an s3270 dump file (data lines + status + ok).
@@ -243,22 +278,35 @@ func screenDimensionsFromStatus(status string) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	// Extract model number from status
-	if len(parts) > statusIdxModel {
-		modelNum := parts[statusIdxModel]
-		if expectedRows, expectedCols, ok := getModelDimensions(modelNum); ok {
-			// Validate and enforce model-specific dimension limits
-			if rows > expectedRows {
-				rows = expectedRows
-			}
-			if cols > expectedCols {
-				cols = expectedCols
+	// The terminal reports the size of the display it is *currently* showing,
+	// which is not always the model's own size. A display configured larger
+	// than its model — the oversize setting, which this application offers —
+	// switches to that larger size the moment an application writes to the
+	// alternate screen, and from then on the terminal reports the larger
+	// figures with the model number unchanged.
+	//
+	// Cutting those figures back to the model's would be cropping the screen
+	// the host actually drew: an operator running a 30x100 display would lose
+	// six rows and twenty columns of it, silently, with the setting that asked
+	// for them still switched on. So the terminal's own answer stands, bounded
+	// only against a figure no 3270 display can have — the buffer is addressed
+	// with fourteen bits, so a screen larger than that is a misread status line
+	// rather than a large display, and the model's size is the better guess.
+	if rows*cols > maxBufferPositions {
+		if len(parts) > statusIdxModel {
+			if modelRows, modelCols, ok := getModelDimensions(parts[statusIdxModel]); ok {
+				return modelRows, modelCols, true
 			}
 		}
+		return 0, 0, false
 	}
 
 	return rows, cols, true
 }
+
+// maxBufferPositions is the largest display a 3270 buffer address can reach:
+// fourteen bits of address, and every position of the screen has one.
+const maxBufferPositions = 16384
 
 func normalizeScreenTokens(lines []string, rows, cols int) [][]string {
 	// Fallback to processing lines as-is if we can't normalize
@@ -283,41 +331,62 @@ func normalizeScreenTokens(lines []string, rows, cols int) [][]string {
 	}
 	tokens := extractTokens(line)
 
-	if len(tokens) < cols || len(tokens)%cols != 0 {
+	// Rows are counted in buffer positions rather than in tokens, because an
+	// SA order is a token that stands in no cell. Counting it as one puts the
+	// row break a column early, and every row after the first coloured run
+	// wraps in the wrong place.
+	positions := countPositions(tokens)
+	if positions < cols || positions%cols != 0 {
 		return fallback()
 	}
-	totalRows := len(tokens) / cols
+	totalRows := positions / cols
 	if totalRows < rows {
 		return fallback()
 	}
 
-	// Helper to slice tokens into rows
-	splitTokens := func(t []string, r, c int) [][]string {
-		if r <= 0 || c <= 0 {
-			return nil
-		}
-		out := make([][]string, 0, r)
-		for i := 0; i < r; i++ {
-			start := i * c
-			end := start + c
-			if end > len(t) {
-				break
-			}
-			out = append(out, t[start:end])
-		}
-		return out
+	all := splitTokenRows(tokens, totalRows, cols)
+	if len(all) < rows {
+		return fallback()
 	}
-
 	if totalRows == rows {
-		return splitTokens(tokens, rows, cols)
+		return all
 	}
 	if totalRows%rows != 0 {
 		return fallback()
 	}
-	if !repeatsScreen(tokens, rows, cols, totalRows) {
+	if !repeatsScreen(all, rows) {
 		return fallback()
 	}
-	return splitTokens(tokens, rows, cols)
+	return all[:rows]
+}
+
+// splitTokenRows cuts a flat token run into rows of cols buffer positions.
+// Tokens that occupy no position travel with the row whose characters they
+// describe, which is the row that follows them.
+func splitTokenRows(tokens []string, rows, cols int) [][]string {
+	if rows <= 0 || cols <= 0 {
+		return nil
+	}
+	out := make([][]string, 0, rows)
+	row := make([]string, 0, cols+8)
+	filled := 0
+	for _, token := range tokens {
+		row = append(row, token)
+		if !occupiesPosition(token) {
+			continue
+		}
+		filled++
+		if filled < cols {
+			continue
+		}
+		out = append(out, row)
+		if len(out) == rows {
+			return out
+		}
+		row = make([]string, 0, cols+8)
+		filled = 0
+	}
+	return out
 }
 
 func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
@@ -330,26 +399,27 @@ func normalizeScreenLinesForTest(lines []string, rows, cols int) []string {
 }
 
 func repeatsScreenForTest(tokens []string, rows, cols, totalRows int) bool {
-	return repeatsScreen(tokens, rows, cols, totalRows)
+	return repeatsScreen(splitTokenRows(tokens, totalRows, cols), rows)
 }
 
-func repeatsScreen(tokens []string, rows, cols, totalRows int) bool {
-	if rows <= 0 || cols <= 0 || totalRows <= rows {
+// repeatsScreen reports whether a buffer taller than the display is the same
+// screen written over and over, which is what a terminal returns when the read
+// covers more than one partition's worth of rows.
+func repeatsScreen(all [][]string, rows int) bool {
+	if rows <= 0 || len(all) <= rows {
 		return false
 	}
-	blockSize := rows * cols
-	if blockSize <= 0 || blockSize > len(tokens) {
-		return false
-	}
-	blocks := totalRows / rows
+	blocks := len(all) / rows
 	for block := 1; block < blocks; block++ {
-		offset := block * blockSize
-		if offset+blockSize > len(tokens) {
-			return false
-		}
-		for i := 0; i < blockSize; i++ {
-			if tokens[i] != tokens[offset+i] {
+		for i := 0; i < rows; i++ {
+			a, b := all[i], all[block*rows+i]
+			if len(a) != len(b) {
 				return false
+			}
+			for j := range a {
+				if a[j] != b[j] {
+					return false
+				}
 			}
 		}
 	}
@@ -378,12 +448,14 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 			s.Buffer = nil
 		}
 		s.Fields = nil
+		s.CellAttrs = nil
 		return nil
 	}
 
 	s.Height = decodedHeight
 	s.Buffer = make([][]rune, decodedHeight)
 	s.Fields = nil
+	s.CellAttrs = nil
 
 	state := &decodeState{
 		fieldStartX:    0,
@@ -391,13 +463,15 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 		fieldStartCode: 0xe0,
 		color:          AttrColDefault,
 		extHighlight:   AttrEhDefault,
+		background:     AttrColDefault,
 		width:          s.Width,
 	}
 
 	width := 0
+	rowAttrs := make([][]CellAttr, decodedHeight)
 	for y, tokens := range tokenRows {
 		state.width = width
-		row, err := decodeLineTokens(tokens, y, s.IsFormatted, s, state)
+		row, attrs, err := decodeLineTokens(tokens, y, s.IsFormatted, s, state)
 		if err != nil {
 			return err
 		}
@@ -405,6 +479,10 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 			width = len(row)
 		}
 		s.Buffer[y] = row
+		rowAttrs[y] = attrs
+	}
+	if state.sawCell {
+		s.CellAttrs = rowAttrs
 	}
 	// Preserve the terminal dimensions reported by status/model when available.
 	switch {
@@ -433,12 +511,30 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 				s.Buffer[y] = s.Buffer[y][:s.Width]
 			}
 		}
+		for y := 0; y < len(s.CellAttrs); y++ {
+			if len(s.CellAttrs[y]) < s.Width {
+				row := make([]CellAttr, s.Width)
+				copy(row, s.CellAttrs[y])
+				s.CellAttrs[y] = row
+			} else if len(s.CellAttrs[y]) > s.Width {
+				s.CellAttrs[y] = s.CellAttrs[y][:s.Width]
+			}
+		}
 	}
 	if targetHeight < len(s.Buffer) {
 		s.Buffer = s.Buffer[:targetHeight]
 	} else if targetHeight > len(s.Buffer) {
 		for y := len(s.Buffer); y < targetHeight; y++ {
 			s.Buffer = append(s.Buffer, make([]rune, s.Width))
+		}
+	}
+	if s.CellAttrs != nil {
+		if targetHeight < len(s.CellAttrs) {
+			s.CellAttrs = s.CellAttrs[:targetHeight]
+		} else {
+			for y := len(s.CellAttrs); y < targetHeight; y++ {
+				s.CellAttrs = append(s.CellAttrs, make([]CellAttr, s.Width))
+			}
 		}
 	}
 	s.Height = targetHeight
@@ -454,31 +550,59 @@ func (s *Screen) updateBuffer(tokenRows [][]string, enforcedRows, enforcedCols i
 	return nil
 }
 
-func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, error) {
+func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *decodeState) ([]rune, []CellAttr, error) {
 	// Pre-allocate result to avoid allocations during append.
 	// Each token maps to exactly one rune (either a character or a space for SF tokens).
 	result := make([]rune, 0, len(tokens))
+	var attrs []CellAttr
 	index := 0
+
+	// stamp records the character attributes in force at the position just
+	// added. The slice stays nil until there is something to record, so a row
+	// with no character attributes on it costs nothing.
+	stamp := func() {
+		if state.cell.IsZero() && attrs == nil {
+			return
+		}
+		if attrs == nil {
+			attrs = make([]CellAttr, len(result)-1, len(tokens))
+		}
+		for len(attrs) < len(result)-1 {
+			attrs = append(attrs, CellAttr{})
+		}
+		attrs = append(attrs, state.cell)
+	}
 
 	for _, token := range tokens {
 		if strings.HasPrefix(token, "SA(") {
 			// Set Attribute order does not consume a screen position.
+			processSetAttribute(token, state)
 			continue
 		}
 		if strings.HasPrefix(token, "SF(") || strings.HasPrefix(token, "SFE(") {
 			if !formatted {
-				return nil, fmt.Errorf("format information in unformatted screen")
+				return nil, nil, fmt.Errorf("format information in unformatted screen")
 			}
 			result = append(result, ' ')
+			stamp()
 			processStartField(token, index, y, s, state)
 			index++
 			continue
 		}
+		// A graphic-escape names one character of the alternate set — the box
+		// drawing and APL glyphs a panel is ruled with. It stands in a cell
+		// like any other character; only the notation around it differs, and a
+		// terminal that does not unwrap it draws a hole where the line should
+		// be.
+		if inner, ok := graphicEscapeCode(token); ok {
+			token = inner
+		}
 		r, err := parseScreenRune(token)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		result = append(result, r)
+		stamp()
 		index++
 	}
 
@@ -487,7 +611,61 @@ func decodeLineTokens(tokens []string, y int, formatted bool, s *Screen, state *
 		state.fieldStartY = y + 1
 	}
 
-	return result, nil
+	return result, attrs, nil
+}
+
+// graphicEscapeCode unwraps a GE(xx) token to the character code inside it.
+func graphicEscapeCode(token string) (string, bool) {
+	if !strings.HasPrefix(token, "GE(") || !strings.HasSuffix(token, ")") {
+		return "", false
+	}
+	return token[len("GE(") : len(token)-1], true
+}
+
+// processSetAttribute applies one SA order to the running character-attribute
+// state.
+//
+// An SA naming the attribute's default value — no colour, no highlighting — is
+// how the data stream turns a run off again, and it arrives as often as the one
+// that turned it on. Both spellings of "nothing" collapse to zero here so that
+// a position which has been reset is indistinguishable from one that was never
+// set, which is what lets the field's own attribute answer for it again.
+func processSetAttribute(token string, state *decodeState) {
+	inner := strings.TrimSuffix(strings.TrimPrefix(token, "SA("), ")")
+	for inner != "" {
+		var attr string
+		attr, inner, _ = strings.Cut(inner, ",")
+
+		key, val, ok := strings.Cut(attr, "=")
+		if !ok {
+			continue
+		}
+		b, err := parseHexByte(strings.TrimSpace(val))
+		if err != nil {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case attrKeyForegroundColor:
+			state.cell.Color = b
+		case attrKeyExtHighlight:
+			state.cell.Highlight = normaliseHighlight(b)
+		case attrKeyBackgroundColor:
+			state.cell.Background = b
+		default:
+			continue
+		}
+		state.sawCell = state.sawCell || !state.cell.IsZero()
+	}
+}
+
+// normaliseHighlight folds the explicit "no highlighting" value onto the
+// absent-attribute default, so a comparison against AttrEhDefault answers for
+// both.
+func normaliseHighlight(b byte) uint8 {
+	if b == AttrEhNormal {
+		return AttrEhDefault
+	}
+	return b
 }
 
 func processStartField(token string, index, y int, s *Screen, state *decodeState) {
@@ -517,6 +695,7 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	startCode := byte(0)
 	color := AttrColDefault
 	extHighlight := AttrEhDefault
+	background := AttrColDefault
 
 	for inner != "" {
 		var attr string
@@ -537,11 +716,15 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 			}
 		case attrKeyExtHighlight:
 			if b, err := parseHexByte(val); err == nil {
-				extHighlight = int(b)
+				extHighlight = int(normaliseHighlight(b))
 			}
 		case attrKeyForegroundColor:
 			if b, err := parseHexByte(val); err == nil {
 				color = int(b)
+			}
+		case attrKeyBackgroundColor:
+			if b, err := parseHexByte(val); err == nil {
+				background = int(b)
 			}
 		}
 	}
@@ -551,6 +734,7 @@ func processStartField(token string, index, y int, s *Screen, state *decodeState
 	state.fieldStartCode = startCode
 	state.color = color
 	state.extHighlight = extHighlight
+	state.background = background
 }
 
 // parseScreenRune turns one screen position's token into the character it
@@ -598,7 +782,9 @@ func parseScreenRune(token string) (rune, error) {
 // screen out, so leaving one out shifts every column after it. Field.GetValue
 // is where the empty case is answered.
 func appendDecodedField(s *Screen, state *decodeState, endX, endY int) {
-	s.Fields = append(s.Fields, NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight))
+	f := NewField(s, state.fieldStartCode, state.fieldStartX, state.fieldStartY, endX, endY, state.color, state.extHighlight)
+	f.Background = state.background
+	s.Fields = append(s.Fields, f)
 }
 
 func parseHexByte(s string) (byte, error) {
