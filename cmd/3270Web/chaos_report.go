@@ -412,6 +412,24 @@ func buildChaosDiscoveryTLDRLines(targetHost string, targetPort int, run *chaos.
 			totalWorkingKeys,
 			pluralS(totalWorkingKeys),
 		))
+		candidates := chaos.CandidateKeys(chaos.DefaultConfig().AIDKeyWeights)
+		frontierScreens := 0
+		for _, area := range m.Areas {
+			if area == nil {
+				continue
+			}
+			if len(chaos.UntriedCandidateKeys(area, candidates)) > 0 {
+				frontierScreens++
+			}
+		}
+		if frontierScreens > 0 {
+			lines = append(lines, fmt.Sprintf(
+				"%d screen%s still %s untried candidate keys — the exploration frontier is not exhausted.",
+				frontierScreens,
+				pluralS(frontierScreens),
+				pluralHave(frontierScreens),
+			))
+		}
 	}
 	if strings.TrimSpace(run.Error) != "" {
 		lines = append(lines, fmt.Sprintf("Run ended with error: %s.", strings.TrimSpace(run.Error)))
@@ -629,6 +647,11 @@ func writeChaosScreenSection(buf *bytes.Buffer, _ int, sr chaosReportScreenRow, 
 
 	write("#### Known Working Function Keys\n\n")
 	write("%s\n\n", buildChaosWorkingKeyTable(area, m, screenRefByHash))
+
+	if untried := chaos.UntriedCandidateKeys(area, chaos.CandidateKeys(chaos.DefaultConfig().AIDKeyWeights)); len(untried) > 0 {
+		write("#### Untried Keys (Exploration Frontier)\n\n")
+		write("These candidate keys have never been pressed from this screen: %s. A resumed run steers toward them; they are also worth trying manually.\n\n", mdText(strings.Join(untried, ", ")))
+	}
 
 	write("#### Input Field Discovery\n\n")
 	fields := buildChaosFieldRows(area)
@@ -1196,4 +1219,11 @@ func pluralS(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+func pluralHave(n int) string {
+	if n == 1 {
+		return "has"
+	}
+	return "have"
 }

@@ -186,8 +186,9 @@ The AI can run and monitor chaos exploration directly from the chat panel. This 
 |---|---|---|
 | Start exploration | `chaos_start` | Begins automated exploration with configurable step/time limits |
 | Stop / Resume | `chaos_stop` / `chaos_resume` | Stops a running run or resumes a loaded one |
-| Check progress | `chaos_status` | Returns current steps, transitions, and unique screens |
-| Discovery report | `chaos_report` | Markdown report with ASCII screen graph, per-screen stats, and suggested next experiments |
+| Check progress | `chaos_status` | Returns current steps, transitions, unique screens, and coverage stats including the exploration frontier |
+| Discovery report | `chaos_report` | Markdown report with a Mermaid flow map, per-screen working and untried keys, field discovery, and analyst hints |
+| Next experiments | `chaos_insights` | Ranked guidance after a run stops: productive vs dead vs untried keys per screen, unproductive fields, and suggested experiments |
 | Save hints | `chaos_save_screen_hint` / `chaos_update_hints` | Adds known transaction codes, data values, or key assignments to guide exploration |
 | Export workflow | `chaos_export_workflow` | Downloads learned paths as 3270Connect-compatible JSON |
 

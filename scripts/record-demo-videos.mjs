@@ -17,6 +17,9 @@
  *   DEMO_SAMPLE_APP   sample app id          (default app1)
  *   DEMO_SAMPLE_PORT  sample app port        (default 3271 — 3270 is the web
  *                     server's own port and is not in the sample-app allow list)
+ *   DEMO_CHROMIUM     path to a Chromium executable, for environments where
+ *                     the installed Playwright package and the pre-installed
+ *                     browser revisions do not match
  *
  * Notes
  *   - The viewport is 16:9 and the video is recorded at the same size, so
@@ -531,7 +534,8 @@ const scenarios = {
     await d.highlight('[data-active-run-row], [data-active-run-container], [data-active-run-chip]', 6);
     await d.caption('Running', 'Chaos presses keys and fills fields on its own — the banner counts attempts, screens and transitions.', 3200, { pos: 'bottom' });
     await d.clearHighlight();
-    await d.caption('Running', 'Every screen it reaches is added to a live map of the application.', 4500);
+    await d.caption('Running', 'Every screen it reaches is added to a live map of the application.', 3600);
+    await d.caption('Running', 'It favours keys it has not tried yet, and steers back toward screens with untried actions.', 3600);
 
     await d.caption('Step 2', 'Open the chaos map to see the structure it has discovered so far.', 900);
     await d.click('.appmenu-trigger:has-text("Automation")');
@@ -558,8 +562,30 @@ const scenarios = {
     await d.click('[data-chaos-stop]');
     await d.pause(2200);
 
+    // The report entry only appears once the run has stopped and its data
+    // has synced back to the session — wait for the run to finalise rather
+    // than pacing. The "exploration complete" toast that fires on that
+    // transition steals focus and closes an open menu, so let it land first
+    // and reopen the menu if it still got in the way.
+    await page.waitForFunction(async () => {
+      const r = await fetch('/chaos/status').then((res) => res.json()).catch(() => null);
+      return !!(r && !r.active && String(r.loadedRunID || '').trim());
+    }, { timeout: 30000, polling: 1500 });
+    await d.pause(2500);
+    await d.caption('Step 4', 'Open the discovery report — everything the run learned, as Markdown.', 900);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await d.click('.appmenu-trigger:has-text("Automation")');
+      await d.pause(1100);
+      if (await page.locator('[data-chaos-report]').first().isVisible().catch(() => false)) break;
+    }
+    await d.click('[data-chaos-report]');
+    await page.waitForSelector('[data-chaos-report-modal]:not([hidden]) .chaos-report-markdown', { timeout: 20000 });
+    await d.caption('Discovery report', 'Screens, working keys, field discoveries — and which keys are still untried on each screen.', 4200);
+    await d.click('[data-chaos-report-modal]:not([hidden]) [data-chaos-report-close]');
+    await d.pause(600);
+
     await d.clearCaption();
-    await d.title('', 'An application map, hands-off', 'Reload, resume or extend the run — or export it as a workflow', 2800, { fadeOut: false });
+    await d.title('', 'An application map, hands-off', 'Resume to push the frontier further — or export the run as a workflow', 2800, { fadeOut: false });
   },
 
   /* How-to: themes and terminal fonts, via the Settings modal. */
@@ -1010,7 +1036,9 @@ async function main() {
     }
   }
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    executablePath: process.env.DEMO_CHROMIUM || undefined,
+  });
   const failures = [];
   for (const name of names) {
     try {

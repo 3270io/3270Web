@@ -37,8 +37,9 @@ tasks](business-tasks.md) and the [REST API](rest-api.md).
 
 ## How To: Explore an Application with Chaos
 
-Start a chaos run, watch it drive the screens on its own, open the live
-map of what it has discovered, and stop it — see [Chaos
+Start a chaos run, watch it drive the screens on its own — favouring keys
+it has not tried yet — open the live map of what it has discovered, stop
+it, and read the discovery report it leaves behind. See [Chaos
 Mode](chaos-mode.md) for everything the run can do afterwards.
 
 ![type:video](videos/howto-chaos.webm)

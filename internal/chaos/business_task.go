@@ -219,15 +219,22 @@ func finalPreview(mm *MindMap, steps []BusinessFunctionStep) string {
 	return ""
 }
 
-// screenLabel names a screen for a human-readable note. shortHash lives in
-// report.go and returns "" for an empty hash, which would read as a gap in
-// the sentence rather than as the absence it is.
+// screenLabel names a screen for a human-readable note. shortHash returns ""
+// for an empty hash, which would read as a gap in the sentence rather than as
+// the absence it is.
 func screenLabel(hash string) string {
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
 		return "this step"
 	}
 	return "screen " + shortHash(hash)
+}
+
+func shortHash(h string) string {
+	if len(h) <= 12 {
+		return h
+	}
+	return h[:12]
 }
 
 // BusinessFunctionsToTaskDrafts converts every function in the catalogue,

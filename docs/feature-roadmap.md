@@ -183,6 +183,39 @@ is already good at — they remove reasons an evaluation stops early.
 
 Newest first. Every item here is live and documented.
 
+- **The attributes that were decoded and then not shown** — a terminal can get
+  every byte of the data stream right and still show the operator the wrong
+  screen, because between reading an attribute and drawing it there are two
+  more places to lose it. A blinking field was read correctly and compared
+  against a value the attribute cannot hold, so it decoded, travelled the whole
+  way to the renderer, and named no style at all — steady text where the host
+  had asked for attention. A reverse-video field was styled with a rule that
+  cancelled itself, painting the text in the colour it was sitting on, so the
+  line an application had picked out as the one that mattered rendered as a
+  blank hole. Neither failed anywhere: no error, no log line, nothing to point
+  at. Both are fixed, and both now have a test that fails on the old
+  behaviour — including one that renders every attribute the decoder can
+  produce and checks the stylesheet has heard of each style it names, because
+  the gap between "the renderer says this" and "the stylesheet does that" is
+  where a display attribute goes silently missing.
+
+  Alongside them, two attributes that were never read at all. A *character*
+  attribute — the Set Attribute order, which colours a run *inside* a field
+  rather than the field as a whole — was skipped over, so the four words an
+  application picked out in red came back in the colour of the line around
+  them. And the extended background colour, which the terminal reports and
+  which is a separate attribute from the foreground, was parsed and dropped.
+  Both now reach the screen. See
+  [Terminal Capabilities](terminal-capabilities.md#terminal-fidelity)
+- **The whole of an oversize display** — a display can be configured larger
+  than its model, and this application offers the setting. What it then did
+  with the result was cut it back to the model's standard size: an operator
+  running 100x30 was shown 80x24 of it, with the setting that asked for the
+  rest still switched on and nothing saying where it had gone. The terminal
+  reports the size of the screen it is actually showing, and that is now the
+  size that gets drawn — bounded only against a figure no 3270 buffer address
+  can reach, which is a misread status line rather than a large display. See
+  [Screen Size and Model Guide](terminal-model-limits.md#larger-than-the-model-oversize-displays)
 - **The byte the host actually sent** — every screen this application serves has
   been through its own parser first, which is the right arrangement for every
   question except one: whether the parser is what went wrong. That is the
