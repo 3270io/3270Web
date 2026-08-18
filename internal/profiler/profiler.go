@@ -170,11 +170,24 @@ type queryStep struct {
 	apply func(p *CompatibilityProfile, response string)
 }
 
+// probeSequence is the read-only Query sequence the probe runs.
+//
+// The names are the terminal's own, and only names it actually has belong
+// here: a query it does not recognise is indistinguishable, from where this
+// stands, from a host declining to answer, so it lands in
+// capabilities.unknown on every host and dilutes the one signal that list
+// exists to carry.
+//
+// Bind was such a name. It is not a keyword the terminal answers; it was only
+// ever matching BindPluName by abbreviation, which is why it came back as an
+// empty string rather than an error, and why every profile ever taken here
+// reported it unknown. It is dropped rather than renamed — BindPluName is
+// already probed, and BIND-IMAGE is reported as a negotiated TN3270E
+// function, which is what the Bind probe was reaching for.
 func probeSequence() []queryStep {
 	return []queryStep{
 		{"Host", applyQueryHost},
 		{"ConnectionState", applyQueryConnectionState},
-		{"Bind", applyQueryBind},
 		{"Cursor", applyQueryCursor},
 		{"Model", applyQueryModel},
 		{"BindPluName", applyQueryBindPluName},
@@ -187,6 +200,7 @@ func probeSequence() []queryStep {
 		// same question, in the same shape, immediately.
 		{"Tn3270eOptions", applyQueryTn3270eFunctions},
 		{"ScreenCurSize", applyQueryScreenCurSize},
+		{"ScreenSizeMax", applyQueryScreenSizeMax},
 	}
 }
 

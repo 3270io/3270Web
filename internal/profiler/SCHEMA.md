@@ -96,6 +96,10 @@ this document; bump in lock-step.
   **primary signal** for spotting mainframe-vs-Rocket divergence: a query
   present in one environment's `unknown` and absent from the other's
   highlights a capability gap.
+- Only queries the emulator actually has belong in the probe sequence. One
+  that it does not recognise is indistinguishable here from a host declining
+  to answer, so it lands in `unknown` on every host and dilutes the signal
+  the list exists to carry.
 
 ### `timing`
 
@@ -109,7 +113,7 @@ connect timing).
 ### `raw` (optional)
 
 ```json
-{"Bind": "rows 24 cols 80 ...", "Model": "IBM-3279-2-E"}
+{"ScreenSizeMax": "rows 43 columns 80", "Model": "IBM-3279-2-E"}
 ```
 
 Only emitted when the caller passes `collect_raw: true`. Useful for
