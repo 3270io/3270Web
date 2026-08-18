@@ -152,6 +152,18 @@ func BusinessFunctionToTask(mm *MindMap, name string) (*task.Draft, error) {
 		}
 
 		draft.Task.Steps = append(draft.Task.Steps, taskStep)
+		// The screen behind the step, so the wizard can repair a guard here
+		// exactly as it does for a recording. A chaos-derived step is the one
+		// most likely to need it: a screen the run saw once is a weaker
+		// source of anchors than one somebody deliberately worked through.
+		screenText := ""
+		if area != nil {
+			screenText = area.PreviewText
+		}
+		draft.StepScreens = append(draft.StepScreens, task.DraftStep{
+			Screen:          screenText,
+			GuardCandidates: task.GuardCandidates(screenText, 0),
+		})
 	}
 
 	// Only parameters something actually fills survive. A task with a

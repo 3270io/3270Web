@@ -762,7 +762,12 @@ const scenarios = {
     await d.pause(800);
     await d.typeInto('[data-wizard-name]', 'Stock valuation enquiry');
     await d.typeInto('[data-wizard-description]', 'Signs on, opens the catalogue and returns for the valuation total.');
-    await d.caption('Inputs', 'Everything typed became an input. The STOCK command never changes — fix it.', 1800);
+
+    // The wizard is five stages; the stage bar is how it is navigated.
+    await d.caption('Inputs', 'Everything typed became an input. The STOCK command never changes — fix it.', 1600);
+    await d.click('.wizard-step >> nth=1');
+    await page.waitForSelector('[data-wizard-stage="inputs"]', { timeout: 8000 });
+    await d.pause(700);
     const modeSelects = page.locator('.wizard-modal-content [data-param-mode]');
     if ((await modeSelects.count()) > 1) {
       await d.cursorTo('.wizard-modal-content [data-param-mode] >> nth=-1');
@@ -770,40 +775,59 @@ const scenarios = {
       await d.pause(800);
     }
 
-    await d.caption('The answer', 'Drag across the final screen to mark what the task should report back.', 1400);
+    await d.caption('Guards', 'Each step checks the screen it expects before it types anything.', 1600);
+    await d.click('.wizard-step >> nth=2');
+    await page.waitForSelector('[data-wizard-stage="steps"]', { timeout: 8000 });
+    await d.pause(1400);
+
+    await d.caption('The answer', 'Click the value on the final screen to mark what the task reports back.', 1400);
+    await d.click('.wizard-step >> nth=3');
+    await page.waitForSelector('[data-wizard-stage="answer"]', { timeout: 8000 });
+    await d.pause(600);
     // The modal is taller than the viewport, so the answer panel can sit
-    // mostly below the fold; a drag aimed at clipped text lands on the
-    // backdrop — which closes the wizard. Bring the panel into view, scroll
-    // the target line inside it, and clamp the drag to the panel's visible
-    // box before trusting the coordinates.
+    // mostly below the fold; a click aimed at clipped text lands on the
+    // backdrop — which closes the wizard. Bring the value into view inside the
+    // screen block, and clamp to its visible box before trusting the point.
     const rect = await page.evaluate(() => {
-      const screen = document.querySelector('.wizard-screen');
+      const screen = document.querySelector('[data-wizard-stage="answer"] .wizard-screen');
       const pre = screen && screen.querySelector('pre');
       if (!pre) return null;
       screen.scrollIntoView({ block: 'center' });
       const text = pre.textContent;
-      const idx = text.indexOf('STOCK AT RETAIL');
-      if (idx < 0) return null;
-      const end = text.indexOf('\n', idx);
+      // The figure itself, not the line it is on: a click has to land on the
+      // value for the wizard to mark the value.
+      const line = text.indexOf('STOCK AT RETAIL');
+      if (line < 0) return null;
+      const eol = text.indexOf('\n', line);
+      const m = /[\d,]+\.\d{2}/.exec(text.slice(line, eol > line ? eol : line + 60));
+      if (!m) return null;
+      const start = line + m.index;
       const range = document.createRange();
-      range.setStart(pre.firstChild, idx);
-      range.setEnd(pre.firstChild, end > idx ? end : idx + 30);
+      range.setStart(pre.firstChild, start);
+      range.setEnd(pre.firstChild, start + m[0].length);
       screen.scrollTop += range.getBoundingClientRect().top - screen.getBoundingClientRect().top - 120;
       const r = range.getBoundingClientRect();
       const sr = screen.getBoundingClientRect();
       const y = r.y + r.height / 2;
       if (y < sr.top + 4 || y > sr.bottom - 4) return { clipped: true };
-      return { x: r.x, y, w: r.width };
+      return { x: r.x + r.width / 2, y };
     });
     if (!rect || rect.clipped) throw new Error('answer text not visible in wizard screen');
-    await d.cursorToPoint(rect.x + 1, rect.y);
+    await d.cursorToPoint(rect.x, rect.y);
     await page.mouse.down();
-    await d.cursorToPoint(rect.x + rect.w - 1, rect.y);
     await page.mouse.up();
-    await d.pause(1000);
+    await d.pause(1200);
     if (!(await page.locator('.wizard-modal-content').isVisible().catch(() => false))) {
-      throw new Error('wizard closed during the answer drag');
+      throw new Error('wizard closed while the answer was being marked');
     }
+    if (!(await page.locator('[data-wizard-stage="answer"] .wizard-card').count())) {
+      throw new Error('the click marked nothing on the final screen');
+    }
+
+    await d.caption('Review', 'The server checks it and reads the answer back before anything is saved.', 1800);
+    await d.click('.wizard-step >> nth=4');
+    await page.waitForSelector('[data-wizard-stage="review"]', { timeout: 8000 });
+    await d.pause(2200);
 
     await d.caption('Step 3', 'Save it. The task now lives in the Tasks menu, for anyone.', 900);
     await d.click('.wizard-modal-content button:has-text("Save task")');

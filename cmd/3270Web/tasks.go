@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/session"
 	"github.com/jnnngs/3270Web/internal/task"
 )
 
@@ -305,6 +306,16 @@ func (app *App) TasksDraftHandler(c *gin.Context) {
 		return
 	}
 
+	// Reopening a saved task goes through the same wizard as building a new
+	// one. Anything else means every correction — a mislabelled input, a
+	// region a character too short, a guard that turned out to be the date —
+	// costs a re-recording of the whole flow, which is how a catalogue ends
+	// up full of tasks nobody dares touch.
+	if from := strings.TrimSpace(c.Query("from")); from != "" {
+		app.draftFromSavedTask(c, s, from)
+		return
+	}
+
 	var steps []task.RecordedStep
 	var screens []task.RecordedScreen
 	var recordingActive bool
@@ -360,6 +371,176 @@ func (app *App) TasksDraftHandler(c *gin.Context) {
 			"Recording is still running, so this draft covers only what has been done so far. Stop the recording for the complete flow.")
 	}
 	c.JSON(http.StatusOK, draft)
+}
+
+// draftFromSavedTask reopens a task from the catalogue as a draft.
+//
+// The screen offered for marking outputs is whatever the terminal is showing
+// now, and the draft says so: a saved task carries its output positions but
+// not the screen they were read from, and presenting the current screen as
+// "the screen this task ends on" would be a lie whenever it is not. The
+// positions are editable as numbers regardless, so a correction never depends
+// on the terminal being in the right place.
+func (app *App) draftFromSavedTask(c *gin.Context, s *session.Session, name string) {
+	t, ok := app.findTask(c, name)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("there is no task called %q", name)})
+		return
+	}
+	draft := &task.Draft{Task: t.Clone(), Origin: "task", OriginalName: t.Name}
+	if app.isExtensionTask(c, t.Name) {
+		draft.Notes = append(draft.Notes, fmt.Sprintf(
+			"%q came from an installed extension. Saving stores your version in this deployment's catalogue, which then takes precedence over the extension's.", t.Name))
+	}
+
+	if h := app.sessionHost(s); h != nil {
+		if screen := h.GetScreenSnapshot(); screen != nil {
+			draft.FinalScreen = screen.Text()
+		}
+	}
+	if draft.FinalScreen == "" {
+		draft.Notes = append(draft.Notes,
+			"The terminal has no screen to show, so the answer regions can only be edited as row, column and length.")
+	} else {
+		draft.Notes = append(draft.Notes,
+			"The screen shown for the answer is what this terminal is displaying now — not necessarily the screen this task ends on. Run the task first if you want to re-mark a region by eye.")
+	}
+
+	// A guard is editable against the screen it runs on where there is one;
+	// a saved task has never carried its screens, so the wizard falls back to
+	// editing the guard text itself. Reporting an unguarded step is still
+	// worth doing — it is the one defect that makes a task dangerous rather
+	// than merely wrong.
+	for i, step := range draft.Task.Steps {
+		if len(step.Expect) == 0 {
+			draft.Notes = append(draft.Notes, fmt.Sprintf(
+				"Step %d has no guard, so it will act on whatever screen it finds. Give it one.", i+1))
+		}
+	}
+	c.JSON(http.StatusOK, draft)
+}
+
+// TasksPreviewHandler answers "what would this actually do?" for a task that
+// has not been saved yet.
+//
+// It is the check the authoring wizard runs before the Save button, and it
+// exists because everything that makes a task wrong is invisible on the form:
+// a region a character too short reads "GRA" instead of "GRACE", a pattern
+// that matches nothing reports the answer as missing, and both look perfectly
+// fine until somebody runs the task for a customer. The preview runs the
+// task's own validation and its own extraction code — not a second
+// implementation of either — so what it shows is what the runner will do.
+func (app *App) TasksPreviewHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var payload struct {
+		Task task.Task `json:"task"`
+		// Screen is the screen to read the answer from. The wizard sends the
+		// one it is showing, so the preview matches what the person is
+		// looking at; omitting it falls back to the live terminal.
+		Screen string `json:"screen"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+
+	t := payload.Task
+	if err := t.Validate(); err != nil {
+		// 200, not 400: an incomplete task is the expected state of something
+		// being authored, and the wizard wants the complaint to show beside
+		// the field rather than as a failed request.
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	screen := payload.Screen
+	if strings.TrimSpace(screen) == "" {
+		if h := app.sessionHost(s); h != nil {
+			if snapshot := h.GetScreenSnapshot(); snapshot != nil {
+				screen = snapshot.Text()
+			}
+		}
+	}
+
+	outputs, missing := task.PreviewOutputs(screen, t.Outputs)
+	body := gin.H{"ok": true, "outputs": outputs}
+	if len(missing) > 0 {
+		body["missing"] = missing
+	}
+	if warnings := previewWarnings(t); len(warnings) > 0 {
+		body["warnings"] = warnings
+	}
+	// Saving over an existing task is a replacement, and the only moment it
+	// can be mentioned usefully is before it happens.
+	if existing, ok := app.findTask(c, t.Name); ok {
+		body["replaces"] = existing.Name
+	}
+
+	// What this task is called everywhere that is not the Tasks menu. A task
+	// is also an MCP tool and an API operation the moment it is saved, and
+	// the person who just authored it is the one who needs to know the name
+	// to hand to a colleague, a script or an assistant — so it is answered
+	// here rather than left to be discovered.
+	if tool := task.ToolName(t.Name); tool != task.ToolNamePrefix {
+		body["toolName"] = tool
+		if clash, ok := app.toolNameClash(c, t.Name, tool); ok {
+			body["toolNameClash"] = clash
+		}
+	}
+	c.JSON(http.StatusOK, body)
+}
+
+// toolNameClash reports another task that would generate the same tool name.
+//
+// Tool names are lossy — "Check balance", "check-balance" and "Check Balance"
+// all land on task_check_balance — and the catalogue resolves a collision by
+// dropping one of them. A task that is in the menu and missing from a model's
+// tool list is the kind of gap nobody notices until somebody asks the model to
+// run it and is told it does not exist.
+func (app *App) toolNameClash(c *gin.Context, name, tool string) (string, bool) {
+	tasks, err := app.allTasks(c)
+	if err != nil {
+		return "", false
+	}
+	want := task.NormalizeName(name)
+	for _, other := range tasks {
+		if task.NormalizeName(other.Name) == want {
+			continue
+		}
+		if task.ToolName(other.Name) == tool {
+			return other.Name, true
+		}
+	}
+	return "", false
+}
+
+// previewWarnings lists what is legal but probably not intended. These are
+// warnings rather than errors on purpose: an unguarded step is a real task
+// somebody may have meant to write, and refusing to save it would be the
+// wizard overruling the person who knows the application.
+func previewWarnings(t task.Task) []string {
+	var warnings []string
+	for i, step := range t.Steps {
+		if len(step.Expect) == 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"Step %d has no guard: it will type into whatever screen the terminal happens to be showing.", i+1))
+		}
+	}
+	if len(t.Outputs) == 0 {
+		warnings = append(warnings,
+			"This task reports nothing back, so running it can only be judged by looking at the terminal.")
+	}
+	for _, p := range t.Parameters {
+		if p.Sensitive && strings.TrimSpace(p.Example) != "" {
+			warnings = append(warnings, fmt.Sprintf(
+				"%s is marked as a secret but carries an example value, which is stored in the catalogue in clear text.", p.DisplayLabel()))
+		}
+	}
+	return warnings
 }
 
 /* ---------------------------------------------------------------- */

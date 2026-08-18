@@ -1619,16 +1619,72 @@ body[data-focus="on"] .sample-status {
 .wizard-notes ul { margin: 8px 0 0; padding-left: 18px; }
 .wizard-notes li { font-size: 0.74rem; line-height: 1.5; margin-bottom: 4px; }
 
-.wizard-param,
-.wizard-output {
-  display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(110px, auto) minmax(90px, 1fr) auto;
-  align-items: center;
+/* The stage bar. The wizard is five stages rather than one long scroll
+   because the questions it asks are different in kind — what the task is
+   called, what it asks for, what it checks, what it answers with — and a
+   single form makes all four look like the same routine detail. */
+.wizard-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+
+.wizard-step {
+  font-size: 0.74rem;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wizard-step:hover { color: var(--fg); background: color-mix(in srgb, var(--panel-2) 50%, transparent); }
+.wizard-step.is-done { color: var(--fg); }
+
+.wizard-step.is-active {
+  color: var(--fg);
+  font-weight: 600;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.wizard-card {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 10px 12px;
   border: 1px solid var(--hairline-soft);
   border-radius: var(--r-sm);
   background: color-mix(in srgb, var(--panel-2) 30%, transparent);
+}
+
+/* An unguarded step is the one defect that makes a task dangerous rather
+   than merely wrong, so it is marked on the card itself. */
+.wizard-card.is-unguarded { border-left: 3px solid var(--danger, #d9534f); }
+
+.wizard-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-card-head strong { font-size: 0.8rem; }
+.wizard-card-head .subtle { font-size: 0.72rem; }
+.wizard-card-head .wizard-output-label { flex: 1 1 160px; }
+
+.wizard-facts { margin: 0; padding-left: 18px; }
+.wizard-facts li { font-size: 0.76rem; line-height: 1.6; }
+
+.wizard-param {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(140px, auto) minmax(90px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .wizard-param input,
@@ -1638,14 +1694,104 @@ body[data-focus="on"] .sample-status {
 .wizard-param-where,
 .wizard-output .subtle { font-size: 0.7rem; white-space: nowrap; }
 
-.wizard-output-sample {
-  font-family: var(--mono, monospace);
-  font-size: 0.74rem;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--panel-2);
-  overflow-wrap: anywhere;
+.wizard-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: var(--fg-muted);
 }
+
+.wizard-check input { width: auto; }
+.wizard-check.is-disabled { opacity: 0.45; }
+
+.wizard-warning {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}
+
+.wizard-warning.is-error {
+  color: var(--danger, #d9534f);
+  border-left-color: var(--danger, #d9534f);
+}
+
+.wizard-advanced { font-size: 0.74rem; }
+.wizard-advanced summary { cursor: pointer; color: var(--fg-muted); }
+
+.wizard-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wizard-advanced-grid input { width: 100%; box-sizing: border-box; font-size: 0.78rem; }
+.wizard-advanced .subtle { margin: 8px 0 0; font-size: 0.7rem; line-height: 1.5; }
+
+/* Guards ------------------------------------------------------------ */
+.wizard-guards { display: flex; flex-direction: column; gap: 6px; }
+
+.wizard-guard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-guard > input[type="text"] {
+  flex: 1 1 180px;
+  min-width: 120px;
+  font-family: var(--mono, monospace);
+  font-size: 0.76rem;
+}
+
+.wizard-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+}
+
+.wizard-number input { width: 68px; font-size: 0.76rem; }
+
+.wizard-candidates {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wizard-candidates .subtle { font-size: 0.7rem; }
+
+.wizard-candidate {
+  font-family: var(--mono, monospace);
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+}
+
+.wizard-add { font-size: 0.72rem; align-self: flex-start; }
+
+.wizard-input-param {
+  flex: 1 1 180px;
+  font-family: var(--mono, monospace);
+  font-size: 0.76rem;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--fg-muted);
+}
+
+.wizard-inline-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.wizard-screen-wrap { display: flex; flex-direction: column; gap: 6px; }
+.wizard-screen-wrap .subtle { margin: 0; font-size: 0.72rem; }
 
 /* The screen the flow ended on, as a static picking surface. Rendered as a
    plain <pre> so the same cell arithmetic the live terminal uses applies
@@ -1667,6 +1813,13 @@ body[data-focus="on"] .sample-status {
 
 .wizard-screen pre {
   margin: 0;
+  /* Hugging its own text, not the panel. A block-level <pre> is as wide as
+     the container, and the cell geometry is that box divided by the column
+     count — so a screen narrower than the panel put every cell about 50%
+     too far right, and a click on a value marked whatever sat well to the
+     left of it. */
+  display: inline-block;
+  min-width: max-content;
   font-family: var(--term-font, monospace);
   font-size: 0.68rem;
   line-height: 1.25;
@@ -1684,8 +1837,136 @@ body[data-focus="on"] .sample-status {
 
 .wizard-marquee[hidden] { display: none; }
 
-.wizard-outputs { display: flex; flex-direction: column; gap: 6px; }
-.wizard-outputs > .subtle { margin: 0; font-size: 0.76rem; }
+/* Everything already marked stays drawn on the screen, numbered to match its
+   card. Marking four values on a dense screen without that is guesswork about
+   which one you already have. */
+.wizard-regions { position: absolute; inset: 0; pointer-events: none; }
+
+.wizard-region {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 2px;
+}
+
+.wizard-region.is-absent {
+  border-color: var(--danger, #d9534f);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--danger, #d9534f) 14%, transparent);
+}
+
+.wizard-region-badge {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.6rem;
+  line-height: 14px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.wizard-card-head .wizard-region-badge { position: static; }
+
+/* Outputs ----------------------------------------------------------- */
+.wizard-outputs { display: flex; flex-direction: column; gap: 8px; }
+.wizard-outputs > .subtle { margin: 0; font-size: 0.74rem; line-height: 1.5; }
+
+.wizard-output-region {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wizard-output-reads {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+}
+
+.wizard-output-sample {
+  font-family: var(--mono, monospace);
+  font-size: 0.74rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+
+.wizard-output-sample.is-missing { color: var(--danger, #d9534f); }
+.wizard-output-pattern input { font-family: var(--mono, monospace); }
+
+/* Review ------------------------------------------------------------ */
+.wizard-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--panel-2) 30%, transparent);
+}
+
+.wizard-review-head { display: flex; flex-direction: column; gap: 3px; }
+.wizard-review-head strong { font-size: 0.9rem; }
+.wizard-review-head .subtle { font-size: 0.76rem; }
+.wizard-review .task-result-values { margin: 0; }
+
+/* Where the task can be run from once it is saved. A task is a menu entry,
+   an MCP tool and an API operation from the moment it exists; saying so here
+   is the only place the person who built it is looking. */
+.wizard-uses {
+  border: 1px solid var(--hairline-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--panel-2) 40%, transparent);
+}
+
+.wizard-uses summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.wizard-uses-list { margin: 8px 0 0; font-size: 0.74rem; line-height: 1.55; }
+.wizard-uses-list dt { font-weight: 600; margin-top: 8px; }
+.wizard-uses-list dd { margin: 2px 0 0; color: var(--fg-muted); }
+
+.wizard-copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono, monospace);
+  padding: 1px 4px 1px 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.wizard-snippet {
+  position: relative;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: var(--mono, monospace);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre;
+  background: var(--panel-2);
+  border-radius: var(--r-sm);
+}
+
+.wizard-snippet .wizard-copy { position: absolute; top: 6px; right: 6px; }
+.wizard-copy { font-size: 0.64rem; padding: 1px 6px; }
 
 .wizard-actions {
   display: flex;
@@ -1694,9 +1975,12 @@ body[data-focus="on"] .sample-status {
   justify-content: flex-end;
 }
 
+.wizard-actions .task-form-status { margin-right: auto; }
+.wizard-nav { display: inline-flex; gap: 8px; }
+
 @media (max-width: 620px) {
-  .wizard-param,
-  .wizard-output { grid-template-columns: 1fr 1fr; }
+  .wizard-param { grid-template-columns: 1fr 1fr; }
+  .wizard-stepper { font-size: 0.7rem; }
 }
 
 /* ---------------------------------------------------------------- */

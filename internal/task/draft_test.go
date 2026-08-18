@@ -3,6 +3,7 @@
 package task
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -354,4 +355,120 @@ func TestDraftUsesTheCallerSuppliedFinalScreen(t *testing.T) {
 	if !noteMatching(without.Notes, "was not available") {
 		t.Errorf("expected a note about the fallback, got %v", without.Notes)
 	}
+}
+
+// A recorded sign-on carries the password that was typed. Storing it as the
+// parameter's example would write a plain-text password into the catalogue
+// file and show it as the placeholder on the form every operator sees.
+func TestDraftTreatsAPasswordFieldAsASecretAndKeepsTheValue(t *testing.T) {
+	signon := draftScreen(
+		"                            SIGN ON",
+		"",
+		" Userid . . . . . . .",
+		" Password . . . . . .",
+	)
+	steps := []RecordedStep{
+		{Type: "FillString", Row: 3, Column: 25, Length: 8, Text: "GHOPPER"},
+		{Type: "FillString", Row: 4, Column: 25, Length: 8, Text: "hunter2"},
+		{Type: "PressEnter"},
+	}
+	draft, err := DraftFromRecording("Sign on", steps, []RecordedScreen{{StepIndex: 0, Text: signon}}, resultScreen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(draft.Task.Parameters) != 2 {
+		t.Fatalf("parameters = %d, want 2", len(draft.Task.Parameters))
+	}
+	userid, password := draft.Task.Parameters[0], draft.Task.Parameters[1]
+	if userid.Sensitive {
+		t.Errorf("the userid was marked sensitive")
+	}
+	if userid.Example != "GHOPPER" {
+		t.Errorf("userid example = %q, want the recorded value", userid.Example)
+	}
+	if !password.Sensitive {
+		t.Fatalf("the password field was not marked sensitive")
+	}
+	if password.Example != "" {
+		t.Errorf("password example = %q, want the recorded secret to be dropped", password.Example)
+	}
+	if strings.Contains(mustJSON(t, draft), "hunter2") {
+		t.Errorf("the recorded password survived somewhere in the draft")
+	}
+	if !noteMatching(draft.Notes, "treated as a secret") {
+		t.Errorf("nothing told the person that the field was treated as a secret: %v", draft.Notes)
+	}
+}
+
+func TestLooksSensitiveCoversTheLabelsThatMatter(t *testing.T) {
+	for _, label := range []string{"Password", "PASSWORD", "New password", "Passwd", "PIN", "Pass phrase", "API key", "Secret"} {
+		if !looksSensitive(label) {
+			t.Errorf("looksSensitive(%q) = false, want true", label)
+		}
+	}
+	for _, label := range []string{"Account number", "Branch code", "Passenger name", "Description"} {
+		if looksSensitive(label) {
+			t.Errorf("looksSensitive(%q) = true, want false", label)
+		}
+	}
+}
+
+// A note saying "step 3 has no guard, add one" is advice with nowhere to go
+// unless the wizard can show the screen that step runs against.
+func TestDraftCarriesEachStepsScreenAndItsGuardShortlist(t *testing.T) {
+	steps := []RecordedStep{
+		{Type: "FillString", Row: 5, Column: 25, Length: 8, Text: "40218855"},
+		{Type: "PressEnter"},
+		{Type: "PressPF3"},
+	}
+	screens := []RecordedScreen{
+		{StepIndex: 0, Text: entryScreen()},
+		{StepIndex: 2, Text: resultScreen()},
+	}
+	draft, err := DraftFromRecording("Balance", steps, screens, resultScreen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(draft.StepScreens) != len(draft.Task.Steps) {
+		t.Fatalf("stepScreens = %d, steps = %d — they must line up", len(draft.StepScreens), len(draft.Task.Steps))
+	}
+	if !strings.Contains(draft.StepScreens[0].Screen, "ACCOUNT ENQUIRY") {
+		t.Errorf("step 1 carries the wrong screen")
+	}
+	if !strings.Contains(draft.StepScreens[1].Screen, "ACCOUNT DETAIL") {
+		t.Errorf("step 2 carries the wrong screen")
+	}
+	// The shortlist and the chosen guard cannot disagree: the first candidate
+	// IS the guard the draft picked, or the wizard would offer to "change" a
+	// guard to the one it already has.
+	chosen := draft.Task.Steps[0].Expect[0]
+	first := draft.StepScreens[0].GuardCandidates[0]
+	if chosen != first {
+		t.Errorf("first candidate = %+v, chosen guard = %+v", first, chosen)
+	}
+	if len(draft.StepScreens[0].GuardCandidates) < 2 {
+		t.Errorf("only %d candidate(s) offered for a screen with several runs of text",
+			len(draft.StepScreens[0].GuardCandidates))
+	}
+	for _, c := range draft.StepScreens[0].GuardCandidates {
+		if c.Row <= 0 || c.Column <= 0 || strings.TrimSpace(c.Text) == "" {
+			t.Errorf("candidate %+v is not usable as a guard", c)
+		}
+	}
+}
+
+func TestGuardCandidatesRespectsItsLimit(t *testing.T) {
+	got := GuardCandidates(entryScreen(), 2)
+	if len(got) != 2 {
+		t.Fatalf("candidates = %d, want 2", len(got))
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

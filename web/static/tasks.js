@@ -186,6 +186,25 @@
     back.addEventListener("click", showChooser);
     actions.appendChild(back);
 
+    // Editing lives here rather than on the catalogue row, because this is
+    // where somebody is when they notice the thing that needs changing: a
+    // label that reads wrong, an input that should have been fixed, an
+    // answer that comes back one character short. Without it the only way to
+    // correct a task is to record the whole flow again.
+    var edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "Edit";
+    edit.title = "Open this task in the authoring wizard";
+    edit.addEventListener("click", function () {
+      var wizard = window.ThreeSeventyWeb && window.ThreeSeventyWeb.taskWizard;
+      if (!wizard || typeof wizard.openTask !== "function") {
+        return;
+      }
+      close();
+      wizard.openTask(task.name);
+    });
+    actions.appendChild(edit);
+
     var run = document.createElement("button");
     run.type = "submit";
     run.className = "task-run-btn";

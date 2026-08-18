@@ -70,8 +70,9 @@ Manager](session-manager.md).
 ## How To: Turn a Flow into a Business Task
 
 The full life of a [guided business task](business-tasks.md): record a
-flow, let the wizard name its inputs, drag out the answer, then run it
-from a form and read the result — no terminal knowledge needed.
+flow, let the wizard name its inputs, check the guard on each step, mark
+the answer on the final screen, review what the server reads back, then run
+it from a form — no terminal knowledge needed.
 
 ![type:video](videos/howto-business-tasks.webm)
 

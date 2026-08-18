@@ -38,6 +38,13 @@ in the Workflow Status widget.
 4. Click **Stop recording**.
 5. Optional: click **Download** to save the generated JSON file.
 
+A finished recording can be turned into a
+[Guided Business Task](business-tasks.md) — named inputs, guarded steps and a
+named answer — with **Save recording as a task**. The wizard reads the
+recording, proposes what it can, and asks for the rest. A recorded field whose
+label names a secret arrives marked as one, so the password that was typed
+during the recording is not carried into the saved task.
+
 ## Load a Recording
 
 1. Click **Load recording**.
