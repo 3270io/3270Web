@@ -105,11 +105,30 @@ func TestScreenDimensionsFromStatusEnforcesLimits(t *testing.T) {
 			expectedOk:   true,
 		},
 		{
-			name:         "Model 2 with dimensions exceeding limit",
+			// An oversize display keeps its model number and reports the
+			// larger screen it is actually showing. The terminal is the
+			// authority on its own size.
+			name:         "Model 2 running oversize",
 			status:       "U F P C(localhost) I 2 30 90 0 0 0x0 0.000",
-			expectedRows: 24, // Enforced to model 2 limit
-			expectedCols: 80, // Enforced to model 2 limit
+			expectedRows: 30,
+			expectedCols: 90,
 			expectedOk:   true,
+		},
+		{
+			// A screen too large for a 3270 buffer address is a misread
+			// status line, and the model is the better answer.
+			name:         "Dimensions beyond any 3270 buffer fall back to the model",
+			status:       "U F P C(localhost) I 2 400 400 0 0 0x0 0.000",
+			expectedRows: 24,
+			expectedCols: 80,
+			expectedOk:   true,
+		},
+		{
+			name:         "Impossible dimensions on an unknown model are refused",
+			status:       "U F P C(localhost) I 1 400 400 0 0 0x0 0.000",
+			expectedRows: 0,
+			expectedCols: 0,
+			expectedOk:   false,
 		},
 		{
 			name:         "Model 2 with dimensions below limit (should be preserved)",
@@ -217,8 +236,8 @@ func TestParseHexByte(t *testing.T) {
 	}
 }
 
-// TestScreenWidthTruncation verifies that the screen width is properly truncated
-// to the model-specific dimension limits, even when the buffer contains more data.
+// TestScreenWidthTruncation verifies that the screen width follows the size the
+// terminal reports, even when the buffer read back contains more data than that.
 func TestScreenWidthTruncation(t *testing.T) {
 	// Create a status line for model 2 (24x80) with matching backend dimensions
 	status := "U F P C(localhost) I 2 24 80 0 0 0x0 0.000"
@@ -241,9 +260,9 @@ func TestScreenWidthTruncation(t *testing.T) {
 		t.Errorf("expected screen width to be 80 for model 2, got %d", screen.Width)
 	}
 
-	// Now test with a wider buffer (simulating what happens when s3270 reports
-	// dimensions exceeding model limits, e.g., due to -oversize option)
-	// Create status for model 2, but with buffer containing data beyond 80 columns
+	// Now test with a buffer wider than the screen the terminal says it is
+	// showing. The status line is the authority on the display's size, so the
+	// extra columns are trimmed to it.
 	wideTokens := make([]string, 100)
 	for i := 0; i < 100; i++ {
 		wideTokens[i] = "42" // Character 'B'
@@ -262,14 +281,14 @@ func TestScreenWidthTruncation(t *testing.T) {
 	}
 }
 
-// TestOversizeScreenTruncation verifies that screens with oversize dimensions
-// are properly truncated to the model limits.
-func TestOversizeScreenTruncation(t *testing.T) {
-	// Simulate model 2 (24x80 limit) with oversize reporting 30x100
-	// s3270 might report these larger dimensions when using -oversize flag
+// TestOversizeScreenKeepsTheDisplayTheHostDrew covers the display configured
+// larger than its model. The terminal reports the larger screen with the model
+// number unchanged, and every row and column of it belongs to the operator —
+// cropping back to the model's size would throw away the part of the screen the
+// oversize setting was switched on for.
+func TestOversizeScreenKeepsTheDisplayTheHostDrew(t *testing.T) {
 	status := "U F P C(localhost) I 2 30 100 0 0 0x0 0.000"
 
-	// Create a data line with 100 columns of data (exceeds model 2's 80 column limit)
 	tokens := make([]string, 100)
 	for i := 0; i < 100; i++ {
 		tokens[i] = "41" // Character 'A'
@@ -282,13 +301,14 @@ func TestOversizeScreenTruncation(t *testing.T) {
 		t.Fatalf("Update failed: %v", err)
 	}
 
-	// Screen should preserve the model 2 viewport dimensions (24x80), even when
-	// only one row currently contains non-blank data.
-	if screen.Width != 80 {
-		t.Errorf("expected width to be truncated to 80 for model 2, got %d", screen.Width)
+	if screen.Width != 100 {
+		t.Errorf("expected width 100 on an oversize display, got %d", screen.Width)
 	}
-	if screen.Height != 24 {
-		t.Errorf("expected height to be 24 (model 2 viewport), got %d", screen.Height)
+	if screen.Height != 30 {
+		t.Errorf("expected height 30 on an oversize display, got %d", screen.Height)
+	}
+	if got := screen.CharAt(99, 0); got != 'A' {
+		t.Errorf("expected the last column of the first row to survive, got %q", got)
 	}
 }
 

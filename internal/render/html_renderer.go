@@ -119,19 +119,28 @@ func (r *HtmlRenderer) renderFormatted(s *host.Screen, id string, sb *strings.Bu
 		} else if !f.IsProtected() {
 			r.renderInputField(sb, f, id, rowLabels[f.StartY], nextIsAutoSkip(s, i))
 		} else {
-			needSpan := r.needSpan(f)
-			if needSpan {
-				sb.WriteString(`<span class="`)
-				r.writeProtectedFieldClass(sb, f)
-				sb.WriteString(`"`)
-				r.writeFieldDebugDataAttrs(sb, f)
-				sb.WriteString(`>`)
-			}
+			// A protected field is written as one span per stretch of
+			// like-attributed text rather than one span for the field. Where
+			// the host set no character attributes — which is most fields —
+			// that is a single run and the output is what it always was; where
+			// it did, the run it coloured is the run that gets the colour,
+			// instead of the whole field taking the attribute of its first
+			// character or none of it taking any.
+			for _, run := range f.AttrRuns() {
+				needSpan := r.needSpanRun(f, run)
+				if needSpan {
+					sb.WriteString(`<span class="`)
+					r.writeProtectedFieldClass(sb, f, run)
+					sb.WriteString(`"`)
+					r.writeFieldDebugDataAttrs(sb, f)
+					sb.WriteString(`>`)
+				}
 
-			r.writeEscaped(sb, f.GetValue())
+				r.writeEscaped(sb, run.Text)
 
-			if needSpan {
-				sb.WriteString("</span>")
+				if needSpan {
+					sb.WriteString("</span>")
+				}
 			}
 
 			if label := strings.TrimSpace(f.GetValue()); label != "" {
@@ -357,63 +366,97 @@ func (r *HtmlRenderer) writeEscapedAttrLines(sb *strings.Builder, s string) {
 	}
 }
 
-func (r *HtmlRenderer) needSpan(f *host.Field) bool {
-	// Hidden styling is only applied to input fields; protected text remains visible even if
-	// a host screen advertises a hidden FA, which avoids hiding labels when FA decoding is off.
-	return f.IsIntensified() || f.Color != host.AttrColDefault || f.ExtendedHighlight != host.AttrEhDefault
+// needSpanRun reports whether a run of protected text carries anything worth
+// wrapping in an element. Hidden styling is only applied to input fields;
+// protected text remains visible even if a host screen advertises a hidden FA,
+// which avoids hiding labels when FA decoding is off.
+func (r *HtmlRenderer) needSpanRun(f *host.Field, run host.AttrRun) bool {
+	return f.IsIntensified() ||
+		foregroundClass(run.Color) != "" ||
+		backgroundClass(run.Background) != "" ||
+		highlightClass(run.Highlight) != ""
 }
 
-func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Field) {
+// foregroundClass names the style for a colour attribute, or "" for one that
+// asks for nothing. AttrColNeutral is deliberately absent: as a foreground it
+// is the screen's own ground colour, and painting text in it would erase it.
+func foregroundClass(color int) string {
+	switch color {
+	case host.AttrColBlue:
+		return "color-blue"
+	case host.AttrColRed:
+		return "color-red"
+	case host.AttrColPink:
+		return "color-pink"
+	case host.AttrColGreen:
+		return "color-green"
+	case host.AttrColTurquoise:
+		return "color-turquoise"
+	case host.AttrColYellow:
+		return "color-yellow"
+	case host.AttrColWhite:
+		return "color-white"
+	}
+	return ""
+}
+
+// backgroundClass names the style for a background colour attribute. Unlike the
+// foreground, the neutral value is meaningful here — it is how a host paints a
+// panel back to the screen's own ground behind text that is otherwise coloured.
+func backgroundClass(color int) string {
+	switch color {
+	case host.AttrColNeutral:
+		return "bg-neutral"
+	case host.AttrColBlue:
+		return "bg-blue"
+	case host.AttrColRed:
+		return "bg-red"
+	case host.AttrColPink:
+		return "bg-pink"
+	case host.AttrColGreen:
+		return "bg-green"
+	case host.AttrColTurquoise:
+		return "bg-turquoise"
+	case host.AttrColYellow:
+		return "bg-yellow"
+	case host.AttrColWhite:
+		return "bg-white"
+	}
+	return ""
+}
+
+// highlightClass names the style for an extended highlighting attribute.
+func highlightClass(highlight int) string {
+	switch highlight {
+	case host.AttrEhBlink:
+		return "highlight-blink"
+	case host.AttrEhRevVideo:
+		return "highlight-rev-video"
+	case host.AttrEhUnderscore:
+		return "highlight-underscore"
+	}
+	return ""
+}
+
+func (r *HtmlRenderer) writeProtectedFieldClass(sb *strings.Builder, f *host.Field, run host.AttrRun) {
 	first := true
-	if f.IsIntensified() {
-		sb.WriteString("color-intensified")
+	write := func(class string) {
+		if class == "" {
+			return
+		}
+		if !first {
+			sb.WriteString(" ")
+		}
+		sb.WriteString(class)
 		first = false
 	}
 
-	if f.Color != host.AttrColDefault {
-		c := ""
-		switch f.Color {
-		case host.AttrColBlue:
-			c = "color-blue"
-		case host.AttrColRed:
-			c = "color-red"
-		case host.AttrColPink:
-			c = "color-pink"
-		case host.AttrColGreen:
-			c = "color-green"
-		case host.AttrColTurquoise:
-			c = "color-turquoise"
-		case host.AttrColYellow:
-			c = "color-yellow"
-		case host.AttrColWhite:
-			c = "color-white"
-		}
-		if c != "" {
-			if !first {
-				sb.WriteString(" ")
-			}
-			sb.WriteString(c)
-			first = false
-		}
+	if f.IsIntensified() {
+		write("color-intensified")
 	}
-
-	if f.ExtendedHighlight != host.AttrEhDefault {
-		h := ""
-		switch f.ExtendedHighlight {
-		case host.AttrEhBlink:
-			h = "highlight-blink"
-		case host.AttrEhRevVideo:
-			h = "highlight-rev-video"
-		case host.AttrEhUnderscore:
-			h = "highlight-underscore"
-		}
-		if h != "" {
-			if !first {
-				sb.WriteString(" ")
-			}
-			sb.WriteString(h)
-		}
-	}
+	write(foregroundClass(run.Color))
+	write(backgroundClass(run.Background))
+	write(highlightClass(run.Highlight))
 }
 
 func (r *HtmlRenderer) writeFieldDebugDataAttrs(sb *strings.Builder, f *host.Field) {
@@ -461,46 +504,27 @@ func (r *HtmlRenderer) displayModeName(f *host.Field) string {
 	}
 }
 
+// writeFieldColorAndHighlightClasses styles an input box. An input is one
+// element whatever the host did inside it, so it takes the attributes in force
+// at its first position — the field's own, unless a character attribute
+// overrides them there.
 func (r *HtmlRenderer) writeFieldColorAndHighlightClasses(sb *strings.Builder, f *host.Field) {
 	if f == nil {
 		return
 	}
-	if f.Color != host.AttrColDefault {
-		c := ""
-		switch f.Color {
-		case host.AttrColBlue:
-			c = "color-blue"
-		case host.AttrColRed:
-			c = "color-red"
-		case host.AttrColPink:
-			c = "color-pink"
-		case host.AttrColGreen:
-			c = "color-green"
-		case host.AttrColTurquoise:
-			c = "color-turquoise"
-		case host.AttrColYellow:
-			c = "color-yellow"
-		case host.AttrColWhite:
-			c = "color-white"
-		}
-		if c != "" {
-			sb.WriteString(" ")
-			sb.WriteString(c)
-		}
+	runs := f.AttrRuns()
+	run := host.AttrRun{Color: f.Color, Highlight: f.ExtendedHighlight, Background: f.Background}
+	if len(runs) > 0 {
+		run = runs[0]
 	}
-	if f.ExtendedHighlight != host.AttrEhDefault {
-		h := ""
-		switch f.ExtendedHighlight {
-		case host.AttrEhBlink:
-			h = "highlight-blink"
-		case host.AttrEhRevVideo:
-			h = "highlight-rev-video"
-		case host.AttrEhUnderscore:
-			h = "highlight-underscore"
-		}
-		if h != "" {
+	for _, class := range []string{
+		foregroundClass(run.Color),
+		backgroundClass(run.Background),
+		highlightClass(run.Highlight),
+	} {
+		if class != "" {
 			sb.WriteString(" ")
-			sb.WriteString(h)
+			sb.WriteString(class)
 		}
 	}
 }
