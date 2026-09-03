@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -613,11 +615,39 @@ func TestResetSessionHostRejectsRestrictedHostname(t *testing.T) {
 	}
 	sess := app.SessionManager.CreateSession(mh)
 
-	if err := app.resetSessionHost(sess, "127.0.0.1:23"); err == nil {
+	if err := app.resetSessionHost(context.Background(), sess, "127.0.0.1:23"); err == nil {
 		t.Fatal("expected resetSessionHost to reject a loopback hostname")
 	}
-	if err := app.resetSessionHost(sess, "169.254.169.254:80"); err == nil {
+	if err := app.resetSessionHost(context.Background(), sess, "169.254.169.254:80"); err == nil {
 		t.Fatal("expected resetSessionHost to reject a link-local hostname")
+	}
+}
+
+// TestResetSessionHostRejectsNameResolvingToRestricted guards the resolution
+// half of the reconnect path. isValidHostname refuses IP literals in the
+// forbidden ranges, but "localhost" and any name a caller controls in their
+// own DNS zone are not literals — they walk straight past a syntax check and
+// s3270 resolves them for real. Without this check a crafted workflow file
+// or a Copilot connect_session call could still send a live session at
+// loopback, at 169.254.169.254, or at whatever else sits inside this
+// container's network.
+func TestResetSessionHostRejectsNameResolvingToRestricted(t *testing.T) {
+	app := &App{SessionManager: session.NewManager()}
+	mh, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := app.SessionManager.CreateSession(mh)
+
+	if !isValidHostname("localhost:3270") {
+		t.Skip("the literal check already refuses this name; nothing left for the resolution check to catch")
+	}
+	err = app.resetSessionHost(context.Background(), sess, "localhost:3270")
+	if err == nil {
+		t.Fatal("resetSessionHost accepted a name that resolves to loopback")
+	}
+	if !errors.Is(err, errHostNotAllowed) {
+		t.Errorf("error = %v, want it to carry errHostNotAllowed so the caller learns this is a policy refusal, not a dial failure", err)
 	}
 }
 

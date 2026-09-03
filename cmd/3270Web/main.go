@@ -2197,7 +2197,7 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
 		return
 	}
-	if err := app.resetSessionHost(s, hostname); err != nil {
+	if err := app.resetSessionHost(requestContext(c), s, hostname); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
@@ -2236,7 +2236,7 @@ func (app *App) DebugWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
 		return
 	}
-	if err := app.resetSessionHost(s, hostname); err != nil {
+	if err := app.resetSessionHost(requestContext(c), s, hostname); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
@@ -4200,7 +4200,7 @@ func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, e
 	return "", errors.New("workflow host not provided")
 }
 
-func (app *App) resetSessionHost(s *session.Session, hostname string) error {
+func (app *App) resetSessionHost(ctx context.Context, s *session.Session, hostname string) error {
 	if s == nil {
 		return errors.New("missing session")
 	}
@@ -4219,6 +4219,19 @@ func (app *App) resetSessionHost(s *session.Session, hostname string) error {
 	// the allowlist has to be checked here as well as at creation — a fence
 	// with one gate open is not a fence.
 	if err := checkHostAllowed(hostname); err != nil {
+		return err
+	}
+	// And the resolution check too — isValidHostname only sees literals, so
+	// "localhost" and any name a caller controls in their own DNS zone walk
+	// straight past it and s3270 resolves them for real a moment later. Every
+	// creation path already does this via startHostSession; a reconnect that
+	// swaps the host without doing the same would be a second gate to walk
+	// around, which is precisely what a crafted workflow file or a Copilot
+	// connect_session call would use.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := checkHostResolves(ctx, hostname); err != nil {
 		return err
 	}
 	var existing host.Host
