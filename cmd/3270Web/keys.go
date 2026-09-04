@@ -120,27 +120,75 @@ func normalizeKey(key string) (normalized string, ok bool) {
 	return "", false
 }
 
+// workflowStepForKey turns a key an operator pressed into the recording step
+// that reproduces it. It goes through normalizeKey first and then covers
+// every key that produces, which is also every key workflowKeyForStepType
+// can turn back into a SendKey call — the pair round-trip each other.
+//
+// This used to recognise only Enter, Tab and PF(n), and recordActionKey
+// treats a nil here as "there is nothing to record". Recording therefore
+// pressed PA1, Clear, SysReq, Attn, and every other key on the keypad
+// exactly as the operator did — the host received it and the screen
+// changed — while the recording silently gained no step for it. Replaying
+// the recording later left that keypress out with no error anywhere, and
+// the only sign was a step missing from a list nobody was counting.
 func workflowStepForKey(key string) *session.WorkflowStep {
-	upper := strings.ToUpper(strings.TrimSpace(key))
-	if upper == "" {
+	normalized, ok := normalizeKey(key)
+	if !ok {
 		return nil
 	}
-	if upper == "ENTER" {
+	switch normalized {
+	case "Enter":
 		return &session.WorkflowStep{Type: "PressEnter"}
-	}
-	if upper == "TAB" {
+	case "Tab":
 		return &session.WorkflowStep{Type: "PressTab"}
+	case "BackTab":
+		return &session.WorkflowStep{Type: "PressBackTab"}
+	case "Clear":
+		return &session.WorkflowStep{Type: "PressClear"}
+	case "Reset":
+		return &session.WorkflowStep{Type: "PressReset"}
+	case "EraseEOF":
+		return &session.WorkflowStep{Type: "PressEraseEOF"}
+	case "EraseInput":
+		return &session.WorkflowStep{Type: "PressEraseInput"}
+	case "Dup":
+		return &session.WorkflowStep{Type: "PressDup"}
+	case "FieldMark":
+		return &session.WorkflowStep{Type: "PressFieldMark"}
+	case "SysReq":
+		return &session.WorkflowStep{Type: "PressSysReq"}
+	case "Attn":
+		return &session.WorkflowStep{Type: "PressAttn"}
+	case "Newline":
+		return &session.WorkflowStep{Type: "PressNewline"}
+	case "BackSpace":
+		return &session.WorkflowStep{Type: "PressBackspace"}
+	case "Delete":
+		return &session.WorkflowStep{Type: "PressDelete"}
+	case "Insert":
+		return &session.WorkflowStep{Type: "PressInsert"}
+	case "Home":
+		return &session.WorkflowStep{Type: "PressHome"}
+	case "Up":
+		return &session.WorkflowStep{Type: "PressUp"}
+	case "Down":
+		return &session.WorkflowStep{Type: "PressDown"}
+	case "Left":
+		return &session.WorkflowStep{Type: "PressLeft"}
+	case "Right":
+		return &session.WorkflowStep{Type: "PressRight"}
 	}
-	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
+	if strings.HasPrefix(normalized, "PF(") && strings.HasSuffix(normalized, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(normalized, "PF("), ")")
 		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
 			return &session.WorkflowStep{Type: fmt.Sprintf("PressPF%d", n)}
 		}
 	}
-	if strings.HasPrefix(upper, "PF") {
-		inner := strings.TrimPrefix(upper, "PF")
-		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
-			return &session.WorkflowStep{Type: fmt.Sprintf("PressPF%d", n)}
+	if strings.HasPrefix(normalized, "PA(") && strings.HasSuffix(normalized, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(normalized, "PA("), ")")
+		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 3 {
+			return &session.WorkflowStep{Type: fmt.Sprintf("PressPA%d", n)}
 		}
 	}
 	return nil
