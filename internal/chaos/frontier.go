@@ -2,7 +2,10 @@
 
 package chaos
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // noveltyKeyBoost is the flat boost applied to a candidate AID key that has
 // never been pressed from the current area. It is deliberately smaller than
@@ -96,6 +99,30 @@ func (e *Engine) untriedCandidateKeyCountLocked(area *MindMapArea) int {
 	return count
 }
 
+// hasUntriedCandidateKeyLocked reports whether the area has at least one
+// untried, unblocked candidate key, without allocating the list
+// untriedCandidateKeyCountLocked builds to then just compare against zero.
+// frontierKeyBoostsLocked calls this once per discovered area on every
+// step, so on a long run with many discovered areas the allocation-free
+// short-circuit here is what keeps that scan cheap. Caller must hold e.mu.
+func (e *Engine) hasUntriedCandidateKeyLocked(area *MindMapArea) bool {
+	for _, k := range e.candidateKeys {
+		if area != nil {
+			if kp, ok := area.KeyPresses[k]; ok && kp != nil && kp.Presses > 0 {
+				continue
+			}
+			if slices.Contains(area.AutoBlockedKeys, k) {
+				continue
+			}
+		}
+		if isBlacklistedKeyInSet(e.blacklistedKeys, k) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // noveltyKeyBoostsLocked returns boosts for candidate keys that have never
 // been pressed from the given area. A brand-new area (no presses recorded at
 // all) returns nil: with nothing learned yet the configured weights are
@@ -137,7 +164,7 @@ func (e *Engine) frontierKeyBoostsLocked(currentHash string) map[string]int {
 	}
 	// Local exploration first: while this screen still has untried keys, the
 	// novelty boost is the right steering, not a trip elsewhere.
-	if e.untriedCandidateKeyCountLocked(current) > 0 {
+	if e.hasUntriedCandidateKeyLocked(current) {
 		return nil
 	}
 
@@ -147,7 +174,7 @@ func (e *Engine) frontierKeyBoostsLocked(currentHash string) map[string]int {
 		if hash == currentHash || area == nil {
 			continue
 		}
-		if e.untriedCandidateKeyCountLocked(area) > 0 {
+		if e.hasUntriedCandidateKeyLocked(area) {
 			frontier[hash] = true
 		}
 	}
