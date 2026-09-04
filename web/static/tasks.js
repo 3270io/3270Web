@@ -249,6 +249,18 @@
     }
     var params = collectParams();
     formStatus("Starting…");
+    // This form's own submit handler already called preventDefault(), so
+    // ui.js's document-level submit listener skips it — the Run button gets
+    // none of the usual automatic spinner treatment. Without this, the
+    // button stayed clickable for the whole round trip to /tasks/run, with
+    // nothing on the control itself to say a click had landed.
+    var run = formEl.querySelector(".task-run-btn");
+    var runOriginalHtml = run ? run.innerHTML : "";
+    if (run) {
+      run.disabled = true;
+      run.setAttribute("aria-busy", "true");
+      run.innerHTML = '<span class="spinner" aria-hidden="true"></span> Starting…';
+    }
     api("/tasks/run", { name: current.name, parameters: params }).then(
       function () {
         // Remember non-sensitive values so "Run again" is one click.
@@ -265,6 +277,11 @@
       function (err) {
         // A rejected parameter belongs beside the form, not in a toast that
         // disappears while the operator is still reading it.
+        if (run) {
+          run.disabled = false;
+          run.removeAttribute("aria-busy");
+          run.innerHTML = runOriginalHtml;
+        }
         formStatus((err && err.message) || "The task could not be started.", true);
       }
     );
