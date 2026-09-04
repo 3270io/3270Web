@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -89,7 +90,7 @@ func TestEveryConnectionPathHonoursTheAllowlist(t *testing.T) {
 	// with no allowlist check at all — as it did, the first time this was
 	// written.
 	s := app.SessionManager.CreateSessionFor(alice.ID, mustMockHost(t))
-	err := app.resetSessionHost(s, forbidden)
+	err := app.resetSessionHost(context.Background(), s, forbidden)
 	if err == nil {
 		t.Error("an existing session was re-pointed at a host outside the allowlist")
 	} else if !strings.Contains(err.Error(), allowedHostsEnv) {
@@ -99,7 +100,7 @@ func TestEveryConnectionPathHonoursTheAllowlist(t *testing.T) {
 	// A permitted host gets past the allowlist. It will still fail to dial —
 	// nothing is listening — so this asserts only that the refusal is not the
 	// allowlist's.
-	if err := app.resetSessionHost(s, "tso.allowed.test:992"); err != nil &&
+	if err := app.resetSessionHost(context.Background(), s, "tso.allowed.test:992"); err != nil &&
 		strings.Contains(err.Error(), allowedHostsEnv) {
 		t.Errorf("a permitted host was refused by the allowlist: %v", err)
 	}

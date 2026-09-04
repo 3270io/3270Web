@@ -178,7 +178,7 @@ func (app *App) ScreenConnectHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "hostname is required"})
 		return
 	}
-	if err := app.resetSessionHost(s, hostname); err != nil {
+	if err := app.resetSessionHost(requestContext(c), s, hostname); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
