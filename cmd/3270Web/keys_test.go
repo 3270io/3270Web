@@ -5,6 +5,9 @@ package main
 import (
 	"fmt"
 	"testing"
+
+	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 func TestNormalizeKey(t *testing.T) {
@@ -99,13 +102,39 @@ func TestWorkflowStepForKey(t *testing.T) {
 		{"PF(1)", "PressPF1", false},
 		{"PF24", "PressPF24", false},
 
+		// Every other key normalizeKey recognises must also produce a step —
+		// recordActionKey treats a nil return as "nothing happened", so a key
+		// missing here is a keypress silently dropped from a recording.
+		{"PA1", "PressPA1", false},
+		{"pa1", "PressPA1", false},
+		{"PA(2)", "PressPA2", false},
+		{"PA3", "PressPA3", false},
+		{"BackTab", "PressBackTab", false},
+		{"Clear", "PressClear", false},
+		{"Reset", "PressReset", false},
+		{"EraseEOF", "PressEraseEOF", false},
+		{"EraseInput", "PressEraseInput", false},
+		{"Dup", "PressDup", false},
+		{"FieldMark", "PressFieldMark", false},
+		{"SysReq", "PressSysReq", false},
+		{"Attn", "PressAttn", false},
+		{"Newline", "PressNewline", false},
+		{"BackSpace", "PressBackspace", false},
+		{"Delete", "PressDelete", false},
+		{"Insert", "PressInsert", false},
+		{"Home", "PressHome", false},
+		{"Up", "PressUp", false},
+		{"Down", "PressDown", false},
+		{"Left", "PressLeft", false},
+		{"Right", "PressRight", false},
+
 		// Invalid inputs
 		{"", "", true},
 		{"   ", "", true},
 		{"Unknown", "", true},
 		{"PF0", "", true},
 		{"PF25", "", true},
-		{"PA1", "", true}, // Currently workflowStepForKey only handles Enter, Tab, PF
+		{"PA4", "", true},
 	}
 
 	for _, tt := range tests {
@@ -124,6 +153,42 @@ func TestWorkflowStepForKey(t *testing.T) {
 				t.Errorf("workflowStepForKey(%q).Type = %q, want %q", tt.input, step.Type, tt.wantType)
 			}
 		})
+	}
+}
+
+// TestRecordActionKey_NonPFKeysAreRecorded is a regression test for a
+// recording that silently lost a step: recordActionKey used to treat any
+// key workflowStepForKey did not recognise as nothing having happened,
+// which for PA1, Clear, and the rest of the keypad was true of every key
+// except Enter, Tab and PF(n). The keypress still reached the host — only
+// the recording lost track of it, with no error anywhere.
+func TestRecordActionKey_NonPFKeysAreRecorded(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("mock host: %v", err)
+	}
+	mgr := session.NewManager()
+	sess := mgr.CreateSession(mockHost)
+	withSessionLock(sess, func() {
+		sess.Recording = &session.WorkflowRecording{Active: true}
+	})
+
+	for _, key := range []string{"PA(1)", "Clear", "SysReq", "Attn", "BackTab", "EraseEOF"} {
+		recordActionKey(sess, key)
+	}
+
+	var steps []session.WorkflowStep
+	withSessionLock(sess, func() {
+		steps = sess.Recording.Steps
+	})
+	want := []string{"PressPA1", "PressClear", "PressSysReq", "PressAttn", "PressBackTab", "PressEraseEOF"}
+	if len(steps) != len(want) {
+		t.Fatalf("recorded %d steps, want %d: %+v", len(steps), len(want), steps)
+	}
+	for i, w := range want {
+		if steps[i].Type != w {
+			t.Errorf("step %d = %q, want %q", i, steps[i].Type, w)
+		}
 	}
 }
 
