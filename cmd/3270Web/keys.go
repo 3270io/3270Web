@@ -11,6 +11,36 @@ import (
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
+// numberedFnKeyMax and numberedPAKeyMax are the highest key numbers a 3270
+// keyboard defines, replacing the "24" and "3" that used to be repeated at
+// every PF/PA prefix check in normalizeKey below.
+const (
+	numberedFnKeyMax = 24
+	numberedPAKeyMax = 3
+)
+
+// numberedKey matches upper against one PF/PA-style prefix — the bare form
+// ("PF12") or, when allowParen, the parenthesized one ("PF(12)") — and
+// reports it in canonical "canon(N)" form when N falls within [1, max].
+// normalizeKey used to repeat this match inline once per prefix; unifying it
+// also means the range bound is named once instead of copied at each site.
+func numberedKey(upper, prefix, canon string, max int, allowParen bool) (string, bool) {
+	body, matched := "", false
+	if allowParen && strings.HasPrefix(upper, prefix+"(") && strings.HasSuffix(upper, ")") {
+		body, matched = strings.TrimSuffix(strings.TrimPrefix(upper, prefix+"("), ")"), true
+	} else if strings.HasPrefix(upper, prefix) {
+		body, matched = strings.TrimPrefix(upper, prefix), true
+	}
+	if !matched {
+		return "", false
+	}
+	n, err := strconv.Atoi(body)
+	if err != nil || n < 1 || n > max {
+		return "", false
+	}
+	return fmt.Sprintf("%s(%d)", canon, n), true
+}
+
 // normalizeKey canonicalizes a caller-supplied AID/navigation key name (e.g.
 // "pf3", "PF(3)", "enter") to the exact form host.Host.SendKey expects. It
 // returns ok=false for empty, malformed, or unrecognized input — callers
@@ -36,42 +66,18 @@ func normalizeKey(key string) (normalized string, ok bool) {
 	upper := strings.ToUpper(trimmed)
 	lower := strings.ToLower(trimmed)
 
-	if strings.HasPrefix(upper, "PF(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PF("), ")")
-		if n, err := strconv.Atoi(inner); err == nil {
-			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n), true
-			}
-		}
+	if k, ok := numberedKey(upper, "PF", "PF", numberedFnKeyMax, true); ok {
+		return k, true
 	}
-	if strings.HasPrefix(upper, "PA(") && strings.HasSuffix(upper, ")") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(upper, "PA("), ")")
-		if n, err := strconv.Atoi(inner); err == nil {
-			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA(%d)", n), true
-			}
-		}
+	if k, ok := numberedKey(upper, "PA", "PA", numberedPAKeyMax, true); ok {
+		return k, true
 	}
-	if strings.HasPrefix(upper, "PF") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PF")); err == nil {
-			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n), true
-			}
-		}
-	}
-	if strings.HasPrefix(upper, "PA") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "PA")); err == nil {
-			if n >= 1 && n <= 3 {
-				return fmt.Sprintf("PA(%d)", n), true
-			}
-		}
-	}
-	if strings.HasPrefix(upper, "F") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(upper, "F")); err == nil {
-			if n >= 1 && n <= 24 {
-				return fmt.Sprintf("PF(%d)", n), true
-			}
-		}
+	// "F" is a bare alias for "PF" (e.g. "F1" means PF(1)); unlike PF/PA it
+	// never had a parenthesized spelling, so allowParen stays false here —
+	// "F(1)" is rejected exactly as it always was, not accepted as a second
+	// way to spell PF(1).
+	if k, ok := numberedKey(upper, "F", "PF", numberedFnKeyMax, false); ok {
+		return k, true
 	}
 
 	switch lower {
