@@ -3,6 +3,8 @@
   <img alt="3270Web" src="brand/3270web-lockup-light-600.png" width="320">
 </picture>
 
+[![CI has the Zoomies](https://zoomies.sh/badge.svg)](https://zoomies.sh)
+
 **An enterprise-grade IBM 3270 terminal that runs in the browser — and understands
 the application behind it.**
 
