@@ -155,7 +155,7 @@
 
     function load() {
       setStatus("Loading…", false);
-      fetchQuery("")
+      return fetchQuery("")
         .then(render)
         .catch(function (err) {
           summaryEl.textContent = "";
@@ -210,7 +210,15 @@
       closeButtons[k].addEventListener("click", closeModal);
     }
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", load);
+      refreshBtn.addEventListener("click", function () {
+        var originalHtml = refreshBtn.innerHTML;
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Refreshing…';
+        load().finally(function () {
+          refreshBtn.innerHTML = originalHtml;
+          refreshBtn.disabled = false;
+        });
+      });
     }
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {

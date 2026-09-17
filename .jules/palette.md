@@ -1,3 +1,7 @@
 ## 2026-02-05 - Consistent Loading States
 **Learning:** Inconsistent loading states between global form submissions (`ui.js`) and manual fetch interactions (like `logs.js`) can create a jarring user experience. The "Clear Logs" action lacked feedback compared to the "Refresh" action or form submissions, making the application feel unresponsive during server delays.
 **Action:** When implementing manual fetch requests triggered by buttons, explicitly apply the existing spinner pattern: disabled state, `aria-busy="true"`, and the `.spinner` class. Ensure the state is restored in a `finally` block.
+
+## 2026-09-17 - The spinner pattern isn't everywhere it should be
+**Learning:** This gap recurs one modal at a time, not once. `host-details.js`'s "Refresh" button had the same silent-during-fetch problem the 2026-02-05 entry fixed in `logs.js` — a manual click handler wired straight to a fetch-and-render function, no feedback while the request is in flight. The same file already had the correct pattern on its per-field "Show" buttons, so the inconsistency was *within* one file, not just across files.
+**Action:** When a manual (non-form) button triggers a fetch, don't assume a neighbouring file already covers it. Grep for the click-handler's target function and check whether it disables the button / swaps in `.spinner` + "…ing" text / restores in `.finally()` — worth checking `data-*-refresh`, `data-*-load`, `data-*-copy` style utility buttons specifically, since they're least likely to route through `ui.js`'s automatic form-submit handling.
