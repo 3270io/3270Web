@@ -3,7 +3,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -90,7 +89,7 @@ func TestEveryConnectionPathHonoursTheAllowlist(t *testing.T) {
 	// with no allowlist check at all — as it did, the first time this was
 	// written.
 	s := app.SessionManager.CreateSessionFor(alice.ID, mustMockHost(t))
-	err := app.resetSessionHost(context.Background(), s, forbidden)
+	err := app.resetSessionHost(nil, s, forbidden)
 	if err == nil {
 		t.Error("an existing session was re-pointed at a host outside the allowlist")
 	} else if !strings.Contains(err.Error(), allowedHostsEnv) {
@@ -100,9 +99,32 @@ func TestEveryConnectionPathHonoursTheAllowlist(t *testing.T) {
 	// A permitted host gets past the allowlist. It will still fail to dial —
 	// nothing is listening — so this asserts only that the refusal is not the
 	// allowlist's.
-	if err := app.resetSessionHost(context.Background(), s, "tso.allowed.test:992"); err != nil &&
+	if err := app.resetSessionHost(nil, s, "tso.allowed.test:992"); err != nil &&
 		strings.Contains(err.Error(), allowedHostsEnv) {
 		t.Errorf("a permitted host was refused by the allowlist: %v", err)
+	}
+}
+
+// The workflow-driven reconnect and Copilot connect_session paths reach a
+// host through resetSessionHost. A refusal there is worth a line in the
+// trail for the same reason the creation path's is: a crafted workflow file
+// or a tool call naming forbidden hosts is what somebody probing the network
+// from inside a live session looks like.
+func TestResetSessionHostAuditsRefusal(t *testing.T) {
+	t.Setenv(allowedHostsEnv, fencedTo)
+	app, _ := newAuthTestApp(t, "local")
+	alice := addUser(t, app, "alice", authz.RoleUser, false)
+	s := app.SessionManager.CreateSessionFor(alice.ID, mustMockHost(t))
+
+	if err := app.resetSessionHost(nil, s, "intranet.corp.test:23"); err == nil {
+		t.Fatal("a forbidden host was accepted on the reconnect path")
+	}
+	entry := mustFind(t, app, audit.EventSessionDenied)
+	if entry.Detail["reason"] != "host not allowed" {
+		t.Errorf("reason = %q, want the allowlist refusal", entry.Detail["reason"])
+	}
+	if entry.Target != "intranet.corp.test:23" {
+		t.Errorf("target = %q, want the host that was asked for", entry.Target)
 	}
 }
 
