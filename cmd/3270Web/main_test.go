@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"mime/multipart"
@@ -615,10 +614,10 @@ func TestResetSessionHostRejectsRestrictedHostname(t *testing.T) {
 	}
 	sess := app.SessionManager.CreateSession(mh)
 
-	if err := app.resetSessionHost(context.Background(), sess, "127.0.0.1:23"); err == nil {
+	if err := app.resetSessionHost(nil, sess, "127.0.0.1:23"); err == nil {
 		t.Fatal("expected resetSessionHost to reject a loopback hostname")
 	}
-	if err := app.resetSessionHost(context.Background(), sess, "169.254.169.254:80"); err == nil {
+	if err := app.resetSessionHost(nil, sess, "169.254.169.254:80"); err == nil {
 		t.Fatal("expected resetSessionHost to reject a link-local hostname")
 	}
 }
@@ -642,7 +641,7 @@ func TestResetSessionHostRejectsNameResolvingToRestricted(t *testing.T) {
 	if !isValidHostname("localhost:3270") {
 		t.Skip("the literal check already refuses this name; nothing left for the resolution check to catch")
 	}
-	err = app.resetSessionHost(context.Background(), sess, "localhost:3270")
+	err = app.resetSessionHost(nil, sess, "localhost:3270")
 	if err == nil {
 		t.Fatal("resetSessionHost accepted a name that resolves to loopback")
 	}

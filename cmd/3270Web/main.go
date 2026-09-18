@@ -2197,7 +2197,7 @@ func (app *App) PlayWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
 		return
 	}
-	if err := app.resetSessionHost(requestContext(c), s, hostname); err != nil {
+	if err := app.resetSessionHost(c, s, hostname); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
@@ -2236,7 +2236,7 @@ func (app *App) DebugWorkflowHandler(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{"Error": fmt.Sprintf("Load workflow failed: %v", err)})
 		return
 	}
-	if err := app.resetSessionHost(requestContext(c), s, hostname); err != nil {
+	if err := app.resetSessionHost(c, s, hostname); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Workflow connection failed: %v", err)})
 		return
 	}
@@ -4207,7 +4207,7 @@ func workflowTargetHost(s *session.Session, workflow *WorkflowConfig) (string, e
 	return "", errors.New("workflow host not provided")
 }
 
-func (app *App) resetSessionHost(ctx context.Context, s *session.Session, hostname string) error {
+func (app *App) resetSessionHost(c *gin.Context, s *session.Session, hostname string) error {
 	if s == nil {
 		return errors.New("missing session")
 	}
@@ -4218,7 +4218,15 @@ func (app *App) resetSessionHost(ctx context.Context, s *session.Session, hostna
 	// split, no IP restriction at all), so a crafted workflow file could
 	// target loopback/link-local/unspecified addresses that isValidHostname
 	// exists specifically to block.
+	//
+	// A refusal here is worth a line in the trail for the same reason it is
+	// on the creation path: a crafted workflow file or a Copilot
+	// connect_session call naming forbidden hosts is what somebody probing
+	// the network from a session looks like, and the resolution check would
+	// otherwise catch nothing anybody could see.
 	if !isValidHostname(hostname) {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "invalid hostname"})
 		return fmt.Errorf("invalid hostname format: %q", hostname)
 	}
 	// The other way to reach a host: keep the session and re-point it. A
@@ -4226,6 +4234,8 @@ func (app *App) resetSessionHost(ctx context.Context, s *session.Session, hostna
 	// the allowlist has to be checked here as well as at creation — a fence
 	// with one gate open is not a fence.
 	if err := checkHostAllowed(hostname); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "host not allowed"})
 		return err
 	}
 	// And the resolution check too — isValidHostname only sees literals, so
@@ -4235,10 +4245,9 @@ func (app *App) resetSessionHost(ctx context.Context, s *session.Session, hostna
 	// swaps the host without doing the same would be a second gate to walk
 	// around, which is precisely what a crafted workflow file or a Copilot
 	// connect_session call would use.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := checkHostResolves(ctx, hostname); err != nil {
+	if err := checkHostResolves(requestContext(c), hostname); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, hostname,
+			map[string]string{"reason": "host resolves to a restricted address"})
 		return err
 	}
 	var existing host.Host
