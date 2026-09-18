@@ -2850,6 +2850,13 @@ func (app *App) updateSettings(c *gin.Context) {
 	app.writeSettingsResponse(c)
 }
 
+// restartResponseFlushDelay is how long RestartHandler waits after writing its
+// JSON response before tearing the process down. Without it, shutdown can win
+// the race against the response actually reaching the client, so the browser
+// sees a dropped connection instead of the "restarting" acknowledgement it
+// was just sent.
+const restartResponseFlushDelay = 250 * time.Millisecond
+
 func (app *App) RestartHandler(c *gin.Context) {
 	// Saving settings from the connect page offers to restart, so this is the
 	// second half of that flow and has to admit the same caller — otherwise the
@@ -2869,7 +2876,7 @@ func (app *App) RestartHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"restarting": true})
 
 	go func() {
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(restartResponseFlushDelay)
 		if app.shutdown != nil {
 			app.shutdown()
 			return
