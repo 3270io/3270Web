@@ -20,6 +20,16 @@
   var statusEl = null;
   var mode = "manage"; // or "pick"
   var onPick = null;
+  // Deleting a profile removes it for good — and, for a published one, out
+  // from under everyone it was shared with — so it goes through the same
+  // in-panel confirm dialog every other destructive action here uses rather
+  // than window.confirm(), which is unbranded, blocks the tab, and (like
+  // every native dialog) never appears at all inside the sandboxed frame an
+  // embedded terminal runs in.
+  var deleteConfirmEl = null;
+  var deleteConfirmDesc = null;
+  var deleteConfirmAccept = null;
+  var pendingDelete = null;
 
   function notify(message, type, options) {
     if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
@@ -417,9 +427,41 @@
   }
 
   function remove(p) {
-    if (!window.confirm("Delete the connection profile “" + p.name + "”?")) {
+    openDeleteConfirm(p);
+  }
+
+  function openDeleteConfirm(p) {
+    pendingDelete = p;
+    if (!deleteConfirmEl) {
+      // build() always runs before a delete button exists to click, so this
+      // is unreachable in practice — kept only so a missing dialog fails
+      // open rather than leaving the button dead.
+      performDelete(p);
       return;
     }
+    if (deleteConfirmDesc) {
+      deleteConfirmDesc.textContent = "Delete the connection profile “" + p.name + "”? This cannot be undone.";
+    }
+    deleteConfirmEl.hidden = false;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(deleteConfirmEl, closeDeleteConfirm, { initialFocus: deleteConfirmAccept });
+    } else if (deleteConfirmAccept) {
+      deleteConfirmAccept.focus();
+    }
+  }
+
+  function closeDeleteConfirm() {
+    pendingDelete = null;
+    if (!deleteConfirmEl || deleteConfirmEl.hidden) {
+      return;
+    }
+    deleteConfirmEl.hidden = true;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+      window.ThreeSeventyWeb.popModal(deleteConfirmEl);
+    }
+  }
+
+  function performDelete(p) {
     api("/api/profiles/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -573,6 +615,21 @@
       '      <button type="submit">Save profile</button>',
       "    </div>",
       "  </form>",
+      // Reuses the .settings-confirm-* classes every other in-panel confirm
+      // in the app (saved hosts, restart, chaos runs) is built from, so this
+      // one more delete looks like the ones beside it instead of like a
+      // browser dialog dropped into a branded page.
+      '  <div class="settings-confirm-modal" data-profiles-delete-confirm hidden>',
+      '    <div class="settings-confirm-backdrop" data-profiles-delete-cancel></div>',
+      '    <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="profiles-delete-title" aria-describedby="profiles-delete-desc">',
+      '      <h4 id="profiles-delete-title">Delete connection profile?</h4>',
+      '      <p id="profiles-delete-desc" data-profiles-delete-desc></p>',
+      '      <div class="settings-confirm-actions">',
+      '        <button type="button" data-profiles-delete-cancel>Cancel</button>',
+      '        <button type="button" class="danger" data-profiles-delete-accept>Delete profile</button>',
+      "      </div>",
+      "    </div>",
+      "  </div>",
       "</div>"
     ].join("");
     document.body.appendChild(modal);
@@ -581,6 +638,25 @@
     formEl = modal.querySelector("[data-profiles-form]");
     statusEl = modal.querySelector("[data-profiles-status]");
     samplesEl = modal.querySelector("[data-profiles-sample-list]");
+    deleteConfirmEl = modal.querySelector("[data-profiles-delete-confirm]");
+    deleteConfirmDesc = modal.querySelector("[data-profiles-delete-desc]");
+    deleteConfirmAccept = modal.querySelector("[data-profiles-delete-accept]");
+
+    if (deleteConfirmEl) {
+      var deleteCancelers = deleteConfirmEl.querySelectorAll("[data-profiles-delete-cancel]");
+      for (var d = 0; d < deleteCancelers.length; d++) {
+        deleteCancelers[d].addEventListener("click", closeDeleteConfirm);
+      }
+      if (deleteConfirmAccept) {
+        deleteConfirmAccept.addEventListener("click", function () {
+          var target = pendingDelete;
+          closeDeleteConfirm();
+          if (target) {
+            performDelete(target);
+          }
+        });
+      }
+    }
 
     var directForm = modal.querySelector("[data-profiles-direct]");
     if (directForm) {
