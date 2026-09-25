@@ -41,3 +41,7 @@
 ## 2025-05-26 - [Slice Pre-allocation in Hot Loops]
 **Learning:** Appending to a slice without pre-allocation causes multiple re-allocations and copying. If the size is known or can be estimated (e.g. 1-to-1 mapping), pre-allocating using `make([]T, 0, cap)` is a huge win.
 **Action:** Always pre-allocate slices in hot loops if the upper bound is known. This reduced execution time by ~40% in `decodeLineTokens`.
+
+## 2025-09-25 - [Reuse DP Buffers Across a Loop of Comparisons, Not Just Within One]
+**Learning:** A helper that already minimizes its own per-call allocations (e.g. a two-row edit-distance DP) can still be the dominant allocator if its *caller* invokes it many times per outer call — one comparison against every candidate in a growing collection. The buffers were already row-minimal, but still fresh `make()`s on every single call.
+**Action:** When a hot loop calls the same DP/scratch-buffer helper repeatedly, add a `*Buf` variant taking `*[]int` (or similar) buffer pointers, grow-or-reslice them once, and thread the same pointers through the whole loop instead of letting each call allocate its own. In `chaos.canonicalizeObservedScreenHashLocked` (scores one observed screen against every known mind-map area) this cut `similarityRatio`'s allocations by ~49% and bytes/op by ~66% for a 40-area comparison set, with no behavior change.

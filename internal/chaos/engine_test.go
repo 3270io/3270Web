@@ -4,6 +4,7 @@ package chaos
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -2351,6 +2352,37 @@ func TestLevenshteinDistance(t *testing.T) {
 			t.Errorf("levenshteinDistance(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
 		}
 	}
+}
+
+// BenchmarkSimilarityRatioAgainstManyAreas mirrors what
+// canonicalizeObservedScreenHashLocked does on every observed screen: score
+// one candidate signature against a whole set of known areas. It's here to
+// show the buffer-reuse win — run with -benchmem and compare
+// similarityRatio (fresh slices per call) against similarityRatioBuf with
+// one shared pair of row buffers for the whole loop.
+func BenchmarkSimilarityRatioAgainstManyAreas(b *testing.B) {
+	candidate := "JOB12345 STATUS=RUNNING STEP=COMPILE ELAPSED=00:01:23 RC=0000"
+	areas := make([]string, 40)
+	for i := range areas {
+		areas[i] = fmt.Sprintf("JOB%05d STATUS=RUNNING STEP=LINK%02d ELAPSED=00:0%d:%02d RC=%04d", i, i%9, i%6, i, i*3)
+	}
+	b.Run("PerCallAlloc", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			for _, a := range areas {
+				similarityRatio(candidate, a)
+			}
+		}
+	})
+	b.Run("SharedBuffers", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			var prevRow, currRow []int
+			for _, a := range areas {
+				similarityRatioBuf(candidate, a, &prevRow, &currRow)
+			}
+		}
+	})
 }
 
 // TestTransitionsAreDedupedByTuple guards against unbounded memory growth on

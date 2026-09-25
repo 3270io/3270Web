@@ -1554,6 +1554,10 @@ func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *ho
 	bestScore := 0.0
 	cw, ch := screenDimensions(screen)
 	candidateFields := len(screen.Fields)
+	// Shared across every candidate area this call scores: the DP row
+	// buffers grow once to the widest signature seen and are reused for
+	// every remaining comparison, instead of two fresh slices per area.
+	var prevRow, currRow []int
 	for areaHash, area := range e.mindMap.Areas {
 		if area == nil || strings.TrimSpace(areaHash) == "" {
 			continue
@@ -1574,12 +1578,12 @@ func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *ho
 				continue
 			}
 		}
-		bodyScore := similarityRatio(candidateSig, area.DedupSignature)
+		bodyScore := similarityRatioBuf(candidateSig, area.DedupSignature, &prevRow, &currRow)
 		score := bodyScore
 		if candidateTitleSig != "" {
 			areaTitleSig := normalizeAreaTitleDedupSignature(area.Label)
 			if areaTitleSig != "" {
-				titleScore := similarityRatio(candidateTitleSig, areaTitleSig)
+				titleScore := similarityRatioBuf(candidateTitleSig, areaTitleSig, &prevRow, &currRow)
 				// Use the captured title as a light discriminator so screens with
 				// nearly identical layouts but different headings are less likely
 				// to collapse into one "unique screen".
@@ -1633,6 +1637,17 @@ func signatureCanonicalKey(sig string) string {
 // which made a true near-duplicate (e.g. one extra digit in a counter field)
 // score as almost entirely different instead of one edit away.
 func similarityRatio(a, b string) float64 {
+	var prevRow, currRow []int
+	return similarityRatioBuf(a, b, &prevRow, &currRow)
+}
+
+// similarityRatioBuf is similarityRatio with caller-supplied DP row buffers
+// (see levenshteinDistanceBuf). The mind-map dedup loop that canonicalizes
+// every observed screen compares one candidate against every known area, so
+// it calls this once or twice per area; passing the same two buffers down
+// the whole loop lets them grow once and be reused, instead of the two
+// fresh slice allocations levenshteinDistance made per comparison.
+func similarityRatioBuf(a, b string, prevRow, currRow *[]int) float64 {
 	if a == "" || b == "" {
 		return 0
 	}
@@ -1648,7 +1663,7 @@ func similarityRatio(a, b string) float64 {
 	if maxLen == 0 {
 		return 1
 	}
-	dist := levenshteinDistance(ar, br)
+	dist := levenshteinDistanceBuf(ar, br, prevRow, currRow)
 	ratio := 1 - float64(dist)/float64(maxLen)
 	if ratio < 0 {
 		ratio = 0
@@ -1661,6 +1676,16 @@ func similarityRatio(a, b string) float64 {
 // two-row DP to keep memory at O(min(len(a), len(b))) instead of O(len(a) *
 // len(b)).
 func levenshteinDistance(a, b []rune) int {
+	var prevRow, currRow []int
+	return levenshteinDistanceBuf(a, b, &prevRow, &currRow)
+}
+
+// levenshteinDistanceBuf is levenshteinDistance with the two DP row slices
+// passed in by the caller instead of allocated fresh each call. A slice
+// that already has enough capacity is reused (just re-sliced to length);
+// only the first call at a given size class grows it. levenshteinDistance
+// keeps the old single-call signature for its other callers and tests.
+func levenshteinDistanceBuf(a, b []rune, prevRow, currRow *[]int) int {
 	if len(a) == 0 {
 		return len(b)
 	}
@@ -1671,21 +1696,31 @@ func levenshteinDistance(a, b []rune) int {
 	if len(a) < len(b) {
 		a, b = b, a
 	}
-	prevRow := make([]int, len(b)+1)
-	for j := range prevRow {
-		prevRow[j] = j
+	need := len(b) + 1
+	if cap(*prevRow) < need {
+		*prevRow = make([]int, need)
+	} else {
+		*prevRow = (*prevRow)[:need]
 	}
-	currRow := make([]int, len(b)+1)
+	if cap(*currRow) < need {
+		*currRow = make([]int, need)
+	} else {
+		*currRow = (*currRow)[:need]
+	}
+	pr, cr := *prevRow, *currRow
+	for j := range pr {
+		pr[j] = j
+	}
 	for i := 1; i <= len(a); i++ {
-		currRow[0] = i
+		cr[0] = i
 		for j := 1; j <= len(b); j++ {
 			cost := 1
 			if a[i-1] == b[j-1] {
 				cost = 0
 			}
-			del := prevRow[j] + 1
-			ins := currRow[j-1] + 1
-			sub := prevRow[j-1] + cost
+			del := pr[j] + 1
+			ins := cr[j-1] + 1
+			sub := pr[j-1] + cost
 			min := del
 			if ins < min {
 				min = ins
@@ -1693,11 +1728,12 @@ func levenshteinDistance(a, b []rune) int {
 			if sub < min {
 				min = sub
 			}
-			currRow[j] = min
+			cr[j] = min
 		}
-		prevRow, currRow = currRow, prevRow
+		pr, cr = cr, pr
 	}
-	return prevRow[len(b)]
+	*prevRow, *currRow = pr, cr
+	return pr[len(b)]
 }
 
 func (e *Engine) recordMindMapAttemptLocked(attempt Attempt) {
