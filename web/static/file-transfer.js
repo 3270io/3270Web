@@ -31,6 +31,27 @@
     statusEl.classList.toggle("is-busy", kind === "busy");
   }
 
+  // A transfer is slow enough that the live-region status alone is easy to
+  // miss; the submit button itself needs to say it is working, the same
+  // disabled+spinner treatment the other manual-fetch controls use.
+  function setSubmitBusy(isBusy) {
+    var submitBtn = modal && modal.querySelector("[data-transfer-submit]");
+    if (!submitBtn) {
+      return;
+    }
+    submitBtn.disabled = isBusy;
+    if (isBusy) {
+      submitBtn.setAttribute("aria-busy", "true");
+      submitBtn.dataset.label = submitBtn.textContent;
+      submitBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + submitBtn.dataset.label;
+    } else {
+      submitBtn.removeAttribute("aria-busy");
+      if (submitBtn.dataset.label) {
+        submitBtn.textContent = submitBtn.dataset.label;
+      }
+    }
+  }
+
   function direction() {
     var checked = formEl.querySelector('input[name="direction"]:checked');
     return checked ? checked.value : "receive";
@@ -81,6 +102,7 @@
     data.append("file", file);
 
     busy = true;
+    setSubmitBusy(true);
     // A transfer runs at 3270 data-stream speed, which is slow enough that
     // saying nothing would look like a hang.
     setStatus("Sending " + file.name + " — this can take a while…", "busy");
@@ -96,11 +118,13 @@
       .then(
         function (payload) {
           busy = false;
+          setSubmitBusy(false);
           setStatus("Sent " + file.name + " (" + payload.bytes + " bytes).");
           notify("File sent to the host.", "success");
         },
         function (err) {
           busy = false;
+          setSubmitBusy(false);
           setStatus((err && err.message) || "The transfer failed.", "error");
         }
       );
@@ -118,6 +142,7 @@
     }
 
     busy = true;
+    setSubmitBusy(true);
     setStatus("Receiving " + hostFile + " — this can take a while…", "busy");
     fetch("/transfer/receive", { method: "POST", credentials: "same-origin", body: collect() })
       .then(function (response) {
@@ -140,6 +165,7 @@
       .then(
         function (result) {
           busy = false;
+          setSubmitBusy(false);
           var url = URL.createObjectURL(result.blob);
           var link = document.createElement("a");
           link.href = url;
@@ -156,6 +182,7 @@
         },
         function (err) {
           busy = false;
+          setSubmitBusy(false);
           setStatus((err && err.message) || "The transfer failed.", "error");
         }
       );
