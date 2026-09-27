@@ -12,6 +12,12 @@ import (
 // minor when adding fields; bump the major for breaking changes.
 const CompareSchemaVersion = "1.0.0"
 
+// areaRefPreviewLimit bounds how much of a screen's preview text rides along
+// in an AreaRef. Enough to recognise the screen at a glance; short enough
+// that a diff between two large mind maps doesn't balloon with full-screen
+// text repeated once per only-in-baseline/only-in-candidate entry.
+const areaRefPreviewLimit = 240
+
 // MindMapDiff is the result of comparing two chaos mind maps captured against
 // different hosts (typically an IBM z/OS mainframe and a Rocket Enterprise
 // Server, or two versions of the same host).
@@ -177,7 +183,7 @@ func areaRef(a *MindMapArea, sig string) AreaRef {
 		Hash:      a.Hash,
 		Signature: sig,
 		Label:     a.Label,
-		Preview:   truncatePreview(a.PreviewText, 240),
+		Preview:   truncatePreview(a.PreviewText, areaRefPreviewLimit),
 	}
 }
 
