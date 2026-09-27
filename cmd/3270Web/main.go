@@ -4801,6 +4801,15 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Content-Security-Policy", baseCSP+" "+frameAncestors())
 		c.Header("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
+		// Cross-Origin-Opener-Policy severs the browsing-context group when a
+		// third-party page opens the terminal in a new window: they lose their
+		// window.opener handle to us, so they cannot read our location, poke at
+		// our globals, or use us as a side channel. -allow-popups keeps the
+		// popups we open ourselves (print preview, workflow JSON editor) sharing
+		// our group, so window.opener between us and our own child windows still
+		// works. Only applies when the document is top-level, so an embedded
+		// frame keeps behaving the same way.
+		c.Header("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		c.Next()
 	}
 }

@@ -737,6 +737,10 @@ func TestSecurityHeaders(t *testing.T) {
 		// its own pages, exactly as before embedding was configurable.
 		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';",
 		"Permissions-Policy":      "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+		// -allow-popups so the print-preview and workflow-editor windows we
+		// open ourselves keep their window.opener handle back to us, while a
+		// third-party page that opens the terminal in a new window loses theirs.
+		"Cross-Origin-Opener-Policy": "same-origin-allow-popups",
 	}
 
 	for k, v := range headers {
