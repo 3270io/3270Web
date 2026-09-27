@@ -4810,6 +4810,15 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		// works. Only applies when the document is top-level, so an embedded
 		// frame keeps behaving the same way.
 		c.Header("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+		// Cross-Origin-Resource-Policy: same-origin refuses no-cors cross-origin
+		// subresource loads of our responses — a third-party page cannot pull
+		// our static assets in through <img>, <script> or the like and use the
+		// load-timing side channel to probe them. Navigations (an iframe on an
+		// allowlisted embedder) are exempt from the check per the fetch spec, so
+		// framing keeps working, and the /api/v1 surface is fetched in CORS
+		// mode which is also exempt — the CORS allowlist in EmbedCORSMiddleware
+		// stays the single gate for that.
+		c.Header("Cross-Origin-Resource-Policy", "same-origin")
 		c.Next()
 	}
 }

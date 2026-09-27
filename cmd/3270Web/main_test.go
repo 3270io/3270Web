@@ -741,6 +741,11 @@ func TestSecurityHeaders(t *testing.T) {
 		// open ourselves keep their window.opener handle back to us, while a
 		// third-party page that opens the terminal in a new window loses theirs.
 		"Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+		// same-origin refuses no-cors cross-origin subresource loads of our
+		// responses (an evil.com <img src="..."> against our static assets);
+		// iframe navigations and CORS-mode /api/v1 requests are exempt per the
+		// fetch spec, so embedding and the JSON surface both keep working.
+		"Cross-Origin-Resource-Policy": "same-origin",
 	}
 
 	for k, v := range headers {
