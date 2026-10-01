@@ -263,6 +263,15 @@ func (app *App) swapSessionHost(c *gin.Context, s *session.Session, profile Conn
 			map[string]string{"reason": "host not allowed", "via": "selection screen"})
 		return err
 	}
+	// A literal check sees literals; a name a caller controls walks past it and
+	// s3270 resolves it for real a moment later. Every other connecting path
+	// (startHostSessionWithProfile, resetSessionHost) runs this check, so this
+	// one has to as well — a fence with one gate open is not a fence.
+	if err := checkHostResolves(requestContext(c), profile.Host); err != nil {
+		app.auditRequest(c, audit.EventSessionDenied, audit.Denied, target,
+			map[string]string{"reason": "host resolves to a restricted address", "via": "selection screen"})
+		return err
+	}
 
 	// Built the same way every other connecting path builds it, which is what
 	// makes a preset naming a bundled sample app work here. This used to

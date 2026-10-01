@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -410,4 +411,30 @@ func routableAddress(t *testing.T) string {
 // is deliberately loopback-only.
 func startSampleHostOn(addr string) (*sampleapps.Server, error) {
 	return sampleapps.StartServerOn("app1", addr)
+}
+
+// Pointing the selection screen at a profile whose host resolves to loopback,
+// link-local, or the unspecified address goes through the same resolution
+// gate every other connecting path does. The literal check sees "localhost"
+// is syntactically fine; only the resolution check sees where the name
+// actually points — which is this process on this machine, by way of a
+// preset any logged-in account can save for themselves.
+func TestSwapSessionHostRefusesNamesResolvingToLoopback(t *testing.T) {
+	if !isValidHostname("localhost") {
+		t.Skip("the literal check already refuses this name; nothing left for the resolution check to catch")
+	}
+	mh, _ := host.NewMockHost("")
+	app, sess := newTestAppWithSession(t, mh)
+	app.baseDir = t.TempDir()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	err := app.swapSessionHost(c, sess, ConnectionProfile{Name: "LOCAL", Host: "localhost", Port: 3270})
+	if err == nil {
+		t.Fatal("swapSessionHost accepted a profile whose host resolves to loopback")
+	}
+	if !errors.Is(err, errHostNotAllowed) {
+		t.Errorf("error = %v, want it to carry errHostNotAllowed so the caller gets 403 rather than a retryable 502", err)
+	}
 }
