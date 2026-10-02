@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
@@ -3348,29 +3349,49 @@ func hashScreen(s *host.Screen) string {
 		}
 	}
 
-	h := sha256.New()
-	fmt.Fprintf(h, "%dx%d|", width, height)
+	// Build the hashed text in one buffer and hash it once. This runs on every
+	// chaos step, and a Fprintf per cell (width*height calls through the
+	// io.Writer interface) dominated its cost. utf8.AppendRune writes the same
+	// bytes %c does, including U+FFFD for an invalid rune, so hashes are
+	// unchanged.
+	buf := make([]byte, 0, (width+1)*height+32+len(s.Fields)*24)
+	buf = strconv.AppendInt(buf, int64(width), 10)
+	buf = append(buf, 'x')
+	buf = strconv.AppendInt(buf, int64(height), 10)
+	buf = append(buf, '|')
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			ch := s.CharAt(x, y)
-			if ch == 0 {
+			if ch == 0 || maskedInputCells[(y*width)+x] {
 				ch = ' '
 			}
-			if maskedInputCells[(y*width)+x] {
-				ch = ' '
+			if ch >= 0 && ch < utf8.RuneSelf {
+				buf = append(buf, byte(ch))
+			} else {
+				buf = utf8.AppendRune(buf, ch)
 			}
-			fmt.Fprintf(h, "%c", ch)
 		}
-		fmt.Fprint(h, "\n")
+		buf = append(buf, '\n')
 	}
-	fmt.Fprintf(h, "|%d", len(s.Fields))
+	buf = append(buf, '|')
+	buf = strconv.AppendInt(buf, int64(len(s.Fields)), 10)
 	for _, f := range s.Fields {
 		if f == nil {
 			continue
 		}
-		fmt.Fprintf(h, "|%d,%d,%d,%d,%d", f.StartY, f.StartX, f.EndY, f.EndX, f.FieldCode)
+		buf = append(buf, '|')
+		buf = strconv.AppendInt(buf, int64(f.StartY), 10)
+		buf = append(buf, ',')
+		buf = strconv.AppendInt(buf, int64(f.StartX), 10)
+		buf = append(buf, ',')
+		buf = strconv.AppendInt(buf, int64(f.EndY), 10)
+		buf = append(buf, ',')
+		buf = strconv.AppendInt(buf, int64(f.EndX), 10)
+		buf = append(buf, ',')
+		buf = strconv.AppendInt(buf, int64(f.FieldCode), 10)
 	}
-	return hex.EncodeToString(h.Sum(nil))[:16]
+	sum := sha256.Sum256(buf)
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // unprotectedFields returns all input (non-protected) fields from the screen.
