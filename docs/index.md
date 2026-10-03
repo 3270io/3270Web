@@ -221,3 +221,9 @@ several hosts at once — live on the
 | [Feature Roadmap](feature-roadmap.md) | Planned and in-progress features |
 | [Acknowledgements](acknowledgements.md) | s3270 and the x3270 family, whose protocol work 3270Web is built on |
 | [Licence](licence.md) | What the AGPL asks of a deployment — and what it does not |
+
+## Practical guides
+
+- [Choose a browser terminal](browser-terminal.md)
+- [Browser vs desktop workflows](browser-vs-desktop.md)
+- [Migration screen-flow checks](migration-testing.md)
