@@ -467,3 +467,7 @@ Use Chaos mode when you need to discover unknown screen paths or generate new wo
 - Export the generated JSON and load it back as a standard workflow
 
 See [Chaos Mode](chaos-mode.md) for full details.
+
+## Run the same flow in CI
+
+Export a reviewed recording to [3270Connect and run it in GitHub Actions](https://3270connect.3270.io/github-actions/), with explicit assertions and a saved-result gate.

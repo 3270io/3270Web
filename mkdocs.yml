@@ -70,6 +70,10 @@ theme:
 
 nav:
   - Home: index.md
+  - Practical Guides:
+      - Choose a Browser Terminal: browser-terminal.md
+      - Browser vs Desktop: browser-vs-desktop.md
+      - Migration Testing: migration-testing.md
   - Demonstration Videos: demo-videos.md
   - Install and Run: installation.md
   - Connect and Use 3270Web: configuration.md

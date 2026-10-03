@@ -112,3 +112,7 @@ Use them together for full migration-readiness coverage:
 3. Repeat against the candidate host.
 4. Diff both layers — wire compatibility via the profile, application
    compatibility via this endpoint.
+
+## Use the diff in a migration review
+
+Follow [Migration Testing](migration-testing.md) to align accounts and terminal settings, capture comparable maps, investigate deltas and replay representative business outcomes.
