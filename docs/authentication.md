@@ -432,3 +432,11 @@ needs more than that: what each account can see, what an automated client may
 do, which hosts the terminal may be pointed at, and what is recorded.
 
 **→ [Running a shared instance](multi-user.md)**
+
+## Access and password recovery
+
+Local accounts are created and reset by an administrator under **Admin → Accounts**. There is no public registration. If you forget your password, open **Need access or forgot your password?** on the sign-in page. For organisation accounts, use your identity provider's recovery service.
+
+Set `AUTH_HELP_URL=https://helpdesk.example.com/3270` (or a `mailto:` contact) to link the sign-in guidance to your own helpdesk. Other URL schemes are rejected.
+
+Workspace mode, terminal view and quick-start dismissal are saved to each authenticated account and follow it across devices. Single-operator instances save these choices in the current browser.

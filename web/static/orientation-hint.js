@@ -75,6 +75,7 @@
   }
 
   function shouldOffer() {
+    if (document.body.dataset.terminalView === "readable") return false;
     if (retiredForThisPage || dismissedForGood()) {
       return false;
     }

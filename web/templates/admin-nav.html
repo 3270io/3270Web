@@ -3,9 +3,7 @@
   The administration area's shared navigation. Every admin page shows the same
   sections in the same order, so moving between them is one click and the
   answer to "where am I" is the underlined tab. The dot is the active section's
-  key: "overview", "accounts", "groups", "session-screen" or "audit". Logs is
-  an older page with its own chrome; it is linked from here but does not render
-  this strip.
+  key: "overview", "accounts", "groups", "session-screen", "audit" or "logs".
 
   Groups sits between the people and the hosts because that is what it joins:
   an account is put in a team on one side, a team is offered a mainframe on the
@@ -17,6 +15,6 @@
     <a href="/admin/groups" {{ if eq . "groups" }}aria-current="page"{{ end }}>Groups</a>
     <a href="/admin/session-screen" {{ if eq . "session-screen" }}aria-current="page"{{ end }}>Session screen</a>
     <a href="/admin/audit" {{ if eq . "audit" }}aria-current="page"{{ end }}>Audit trail</a>
-    <a href="/logs">Logs</a>
+    <a href="/admin/logs" {{ if eq . "logs" }}aria-current="page"{{ end }}>Logs</a>
 </nav>
 {{ end }}

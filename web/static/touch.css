@@ -49,7 +49,7 @@
   /* Smaller than the 44px the keys use. It is a chrome control rather than
    * something pressed mid-transaction, and the keys it sits above are what the
    * space at the bottom of the screen is for. */
-  min-height: 32px;
+  min-height: 44px;
   padding: 4px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.18));

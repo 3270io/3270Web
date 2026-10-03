@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -79,9 +80,9 @@ func TestLogAccessAllowedWithEnv(t *testing.T) {
 	defer os.Unsetenv("ALLOW_LOG_ACCESS")
 
 	gin.SetMode(gin.TestMode)
-	app := &App{}
-	// Note: these will fail with 401 or redirect because session is missing,
-	// but that proves they passed the security check.
+	app := &App{logFilePath: filepath.Join(t.TempDir(), "3270Web.log")}
+	// Read/download/clear are instance-wide admin operations; no host session is required.
+	// The router's admin-only gate is covered by adminroutes_test.go.
 
 	tests := []struct {
 		name       string
@@ -89,10 +90,10 @@ func TestLogAccessAllowedWithEnv(t *testing.T) {
 		path       string
 		wantStatus int // 401 or 302
 	}{
-		{"LogsHandler", app.LogsHandler, "/logs", http.StatusUnauthorized},
-		// LogsDownloadHandler redirects to / if no session
-		{"LogsDownloadHandler", app.LogsDownloadHandler, "/logs/download", http.StatusFound},
-		{"LogsClearHandler", app.LogsClearHandler, "/logs/clear", http.StatusUnauthorized},
+		{"LogsHandler", app.LogsHandler, "/logs", http.StatusOK},
+		// Downloading logs does not create or end a terminal session.
+		{"LogsDownloadHandler", app.LogsDownloadHandler, "/logs/download", http.StatusOK},
+		{"LogsClearHandler", app.LogsClearHandler, "/logs/clear", http.StatusOK},
 		{"LogsToggleHandler", app.LogsToggleHandler, "/logs/toggle", http.StatusUnauthorized},
 	}
 

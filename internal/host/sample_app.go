@@ -4,6 +4,8 @@ package host
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/jnnngs/3270Web/internal/sampleapps"
 )
@@ -15,6 +17,7 @@ type GoSampleAppHost struct {
 	ExecPath string
 	Args     []string
 	Target   string
+	AutoPort bool
 
 	server         *sampleapps.Server
 	client         *S3270
@@ -27,7 +30,7 @@ func NewGoSampleAppHost(appID string, port int, execPath string, args []string, 
 	if appID == "" {
 		return nil, fmt.Errorf("missing sample app id")
 	}
-	if port <= 0 {
+	if port < 0 {
 		return nil, fmt.Errorf("invalid sample app port %d", port)
 	}
 	if execPath == "" {
@@ -42,6 +45,7 @@ func NewGoSampleAppHost(appID string, port int, execPath string, args []string, 
 		ExecPath: execPath,
 		Args:     args,
 		Target:   target,
+		AutoPort: port == 0,
 	}, nil
 }
 
@@ -58,6 +62,15 @@ func (h *GoSampleAppHost) Start() error {
 			return err
 		}
 		h.server = server
+		if h.Port == 0 {
+			_, text, err := net.SplitHostPort(server.Addr())
+			if err != nil {
+				_ = server.Stop()
+				return err
+			}
+			h.Port, _ = strconv.Atoi(text)
+			h.Target = server.Addr()
+		}
 	}
 	h.client = NewS3270(h.ExecPath, h.Args...)
 	h.client.TargetHost = h.Target

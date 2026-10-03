@@ -72,6 +72,10 @@
             return {};
           })
           .then(function (payload) {
+            if (payload.code === "authentication_required" || payload.code === "password_change_required" || response.status === 403) {
+              handleAccessFailure(response.status, payload);
+              recovering = false;
+            }
             throw new Error(payload.error || "reconnect failed");
           });
       }
@@ -93,7 +97,7 @@
           window.location.reload();
         },
         function () {
-          scheduleRetry();
+          if (recovering) scheduleRetry();
         }
       );
     }, delay);
@@ -134,7 +138,7 @@
     );
   }
 
-  function notifySessionExpired() {
+  function beginRecovery() {
     if (recovering) {
       return;
     }
@@ -144,6 +148,42 @@
     attempt = 0;
     scheduleRetry();
   }
+
+  var accessBanner = false;
+  var permissionBanner = false;
+  function handleAccessFailure(status, payload) {
+    var code = payload && payload.code;
+    if (code === "authentication_required" || code === "password_change_required") {
+      if (accessBanner) return;
+      accessBanner = true;
+      if (timer) window.clearTimeout(timer);
+      notify(code === "password_change_required" ? "Change your password to continue. Your work remains open." : "Your sign-in expired. Sign in again to continue; your work remains open.", "warning", {
+        duration: 0,
+        action: { label: code === "password_change_required" ? "Change password" : "Sign in", onClick: function () {
+          window.open(code === "password_change_required" ? "/account/password" : "/login", "_blank", "noopener");
+        } }
+      });
+      return;
+    }
+    if (status === 403) {
+      if (!permissionBanner) { permissionBanner = true; notify((payload && payload.error) || "Your account is not permitted to perform this action. Contact your administrator.", "warning", { duration: 0 }); }
+      return;
+    }
+    if (code === "host_session_missing") { beginRecovery(); return; }
+    // Older endpoints may lack a code. Check web authentication before host recovery.
+    return fetch("/api/whoami", { headers: { Accept: "application/json" } }).then(function (response) {
+      if (response.status === 401) return handleAccessFailure(401, { code: "authentication_required" });
+      if (response.status === 403) return handleAccessFailure(403, { code: "password_change_required" });
+      if (response.ok) beginRecovery();
+    }).catch(function () { notify("Connection check failed. Check your network and retry.", "warning"); });
+  }
+
+  window.addEventListener("focus", function () {
+    if (!accessBanner) return;
+    fetch("/api/whoami", { headers: { Accept: "application/json" } }).then(function (response) {
+      if (response.ok) { accessBanner = false; notify("Signed in again. You can retry your action in this terminal.", "success"); }
+    }).catch(function () {});
+  });
 
   // A drop noticed while the tab was in the background has usually already
   // resolved by the time the operator looks at it, so retry immediately on
@@ -170,6 +210,7 @@
   });
 
   window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
-  window.ThreeSeventyWeb.notifySessionExpired = notifySessionExpired;
+  window.ThreeSeventyWeb.notifySessionExpired = function () { return handleAccessFailure(401, {}); };
+  window.ThreeSeventyWeb.handleAccessFailure = handleAccessFailure;
   window.ThreeSeventyWeb.reconnect = manualReconnect;
 })();

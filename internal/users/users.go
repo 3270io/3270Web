@@ -87,9 +87,10 @@ type User struct {
 	Disabled bool     `json:"disabled,omitempty"`
 	// MustChangePassword marks an account whose password was issued by the
 	// system rather than chosen by its owner.
-	MustChangePassword bool      `json:"mustChangePassword,omitempty"`
-	CreatedAt          time.Time `json:"createdAt"`
-	PasswordChangedAt  time.Time `json:"passwordChangedAt"`
+	MustChangePassword bool          `json:"mustChangePassword,omitempty"`
+	UIPreferences      UIPreferences `json:"uiPreferences,omitempty"`
+	CreatedAt          time.Time     `json:"createdAt"`
+	PasswordChangedAt  time.Time     `json:"passwordChangedAt"`
 }
 
 // Redacted returns a copy with the hash removed, for logging or serving.

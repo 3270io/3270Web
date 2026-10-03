@@ -8,6 +8,17 @@ description: >-
 
 # Install and Run
 
+## Your first terminal
+
+Run the installer below, then open `http://localhost:3270` and choose **Try the sample terminal**. No mainframe or AI account is needed. The sample chooses its local port automatically.
+
+If you select local accounts during installation, the first browser visit is **Set up 3270Web**. Create the administrator using the code printed in the server log:
+
+- **Docker / Compose:** run `docker compose logs 3270Web` from the stack directory.
+- **Native binary / Windows:** read the startup console or the log path shown on the setup page; find the line starting `auth: setup code:`.
+
+After setup, connect to the sample or an assigned mainframe. On an existing shared instance, ask the administrator for an account or use organisation sign-in. First-run setup is for the instance owner, not public registration.
+
 ## One-line install
 
 ```bash

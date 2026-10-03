@@ -54,7 +54,7 @@ func TestConnectErrorMessage_CarriesARefusalThrough(t *testing.T) {
 // A connection that genuinely did not work still gets the advice, because
 // there the address and the service really are the things worth checking.
 func TestConnectErrorMessage_UnexplainedFailureKeepsTheAdvice(t *testing.T) {
-	got := connectErrorMessage("mainframe.example:23", errors.New("dial tcp: connection refused"))
+	got := connectErrorMessage("mainframe.example:23", errors.New("unexplained backend failure"))
 	if !strings.Contains(got, "verify the address") {
 		t.Errorf("connectErrorMessage() = %q, want the address advice", got)
 	}
@@ -106,5 +106,20 @@ func TestSessionCountReadsAsEnglish(t *testing.T) {
 	}
 	if got := sessionCount(6); got != "6 sessions" {
 		t.Errorf("sessionCount(6) = %q, want %q", got, "6 sessions")
+	}
+}
+
+func TestConnectionErrorsOfferSpecificRecovery(t *testing.T) {
+	for _, tc := range []struct{ message, want string }{
+		{"dial tcp: connection refused", "Check the port"},
+		{"lookup host: no such host", "DNS"},
+		{"TLS certificate invalid", "certificate"},
+		{"connection timed out", "VPN"},
+		{"exec: executable file not found", "s3270"},
+	} {
+		got := connectErrorMessage("mainframe.example:992", errors.New(tc.message))
+		if !strings.Contains(got, tc.want) {
+			t.Errorf("%q: got %q, want %q", tc.message, got, tc.want)
+		}
 	}
 }

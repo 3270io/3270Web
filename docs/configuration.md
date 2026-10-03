@@ -300,3 +300,9 @@ field.
 - Keep one known-good model/code page profile per host environment.
 - Apply TLS changes carefully and verify certificate paths.
 - Prefer debug playback for new recordings before running full play mode.
+
+## Connection choices
+
+**Connect** opens an unsaved connection. **Connection options** enables TLS and per-connection LU, model and code page overrides. **Save this connection** opens the named personal connection editor. **Saved connections** distinguishes personal hosts from shared presets and can import/export connections. Importing old browser-saved hosts keeps the original list and does not publish hosts to other users.
+
+If `TargetHost.Value` is configured, the raw address is read-only and identifies the enforced destination. Saved profile permissions continue to apply independently; arbitrary raw addresses and the quick sample are not offered in that form.

@@ -134,10 +134,19 @@
     state.colors = readColors();
   }
 
+  function syncBackgroundControl() {
+    var button = document.querySelector("[data-background-toggle]");
+    if (button) { button.setAttribute("aria-checked", String(state.running)); button.setAttribute("aria-pressed", String(state.running)); }
+    if (overlay && document.body.hasAttribute("data-session-id")) {
+      overlay.setAttribute("aria-hidden", "true"); overlay.removeAttribute("role"); overlay.removeAttribute("tabindex");
+    }
+  }
+
   function toggleBackgroundAnimation() {
     state.running = !state.running;
     document.body.classList.toggle("bg-paused", !state.running);
-    localStorage.setItem(storageKey, state.running ? "on" : "off");
+    syncBackgroundControl();
+    try { localStorage.setItem(storageKey, state.running ? "on" : "off"); } catch (_) {}
     if (overlay) {
       overlay.setAttribute("aria-pressed", state.running ? "true" : "false");
     }
@@ -443,17 +452,19 @@
   function init() {
     setCanvasSize();
     applyThemeConfig(getCurrentTheme());
-    var storedPreference = localStorage.getItem(storageKey);
+    var storedPreference = null;
+    try { storedPreference = localStorage.getItem(storageKey); } catch (_) {}
     // Respect an explicit user choice (they clicked the toggle) either way;
     // otherwise default off for prefers-reduced-motion instead of always
     // starting the animation regardless of that OS-level accessibility
     // setting.
     if (storedPreference === null) {
-      state.running = !prefersReducedMotion();
+      state.running = !document.body.hasAttribute("data-session-id") && !prefersReducedMotion();
     } else {
       state.running = storedPreference !== "off";
     }
     document.body.classList.toggle("bg-paused", !state.running);
+    syncBackgroundControl();
     if (overlay) {
       overlay.setAttribute("aria-pressed", state.running ? "true" : "false");
     }
@@ -461,6 +472,9 @@
   }
 
   window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+  var backgroundButton = document.querySelector("[data-background-toggle]");
+  if (backgroundButton) backgroundButton.addEventListener("click", toggleBackgroundAnimation);
+
   window.ThreeSeventyWeb.updateBackgroundTheme = applyThemeConfig;
 
   if (overlay) {

@@ -379,6 +379,8 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET(changePasswordPath, app.ChangePasswordPageHandler)
 	r.POST(changePasswordPath, app.ChangePasswordHandler)
 	r.GET("/api/whoami", app.WhoAmIHandler)
+	r.GET("/api/preferences", app.UIPreferencesHandler)
+	r.PATCH("/api/preferences", app.UIPreferencesHandler)
 	r.GET(setupPath, app.SetupPageHandler)
 	r.POST(setupPath, app.SetupHandler)
 
@@ -398,6 +400,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	// the live terminal sessions with the power to end one. See
 	// adminoverview.go and adminsessions.go.
 	admin.GET("/admin", app.AdminOverviewPageHandler)
+	admin.GET("/admin/logs", app.AdminLogsPageHandler)
 	admin.GET("/api/admin/overview", app.AdminOverviewHandler)
 	admin.GET("/api/admin/sessions", app.AdminListSessionsHandler)
 	admin.DELETE("/api/admin/sessions/:id", app.AdminCloseSessionHandler)
@@ -1293,13 +1296,18 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 	}
 	rememberEmbedMode(c)
 	c.HTML(status, "connect.html", gin.H{
-		"Embedded":     embedRequested(c),
-		"EmbedOrigins": embedOriginsAttr(),
-		"DefaultHost":  defaultHost,
-		"SampleApps":   availableSampleApps(),
-		"SamplePorts":  samplePorts,
-		"ConnectError": connectError,
-		"Version":      appVersion,
+		"Embedded":       embedRequested(c),
+		"EmbedOrigins":   embedOriginsAttr(),
+		"DefaultHost":    defaultHost,
+		"EnforcedTarget": strings.TrimSpace(app.Config.TargetHost.Value),
+		"Advanced":       c.PostForm("advanced") == "on",
+		"TLS":            c.PostForm("tls") == "on",
+		"LUName":         c.PostForm("luName"), "Model": c.PostForm("model"), "CodePage": c.PostForm("codePage"),
+		"SampleApps":     availableSampleApps(),
+		"SamplePorts":    samplePorts,
+		"ConnectError":   connectError,
+		"ConnectDetails": c.GetString("connectionDetails"),
+		"Version":        appVersion,
 		// Passed as a plain string into an attribute, not template.JS into a
 		// <script>: theme names come from files on disk and html/template
 		// escapes attribute values for us, so a name containing markup
@@ -1386,6 +1394,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 		}
 		if err := app.connectWithProfile(c, profile); err != nil {
 			log.Printf("Connect failed for profile %q: %v", name, err)
+			c.Set("connectionDetails", err.Error())
 			app.renderConnectPage(c, http.StatusServiceUnavailable, profile.displayTarget(),
 				connectErrorMessage(profile.displayTarget(), err))
 			return
@@ -1405,8 +1414,23 @@ func (app *App) ConnectHandler(c *gin.Context) {
 		return
 	}
 
-	if err := app.connectToHost(c, hostname); err != nil {
+	var connectErr error
+	if strings.TrimSpace(app.Config.TargetHost.Value) == "" && c.PostForm("advanced") == "on" {
+		hostName, port := parseHostPort(hostname)
+		profile := ConnectionProfile{Name: "Unsaved connection", Host: hostName, Port: port,
+			TLS: c.PostForm("tls") == "on", LUName: strings.TrimSpace(c.PostForm("luName")),
+			Model: strings.TrimSpace(c.PostForm("model")), CodePage: strings.TrimSpace(c.PostForm("codePage"))}
+		if err := validateProfile(&profile); err != nil {
+			connectErr = err
+		} else {
+			connectErr = app.connectWithProfile(c, profile)
+		}
+	} else {
+		connectErr = app.connectToHost(c, hostname)
+	}
+	if err := connectErr; err != nil {
 		log.Printf("Connect failed for %q: %v", hostname, err)
+		c.Set("connectionDetails", err.Error())
 		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname, err))
 		return
 	}
@@ -1431,6 +1455,21 @@ func connectErrorMessage(hostname string, err error) string {
 	if id, port, ok := parseSampleAppHost(hostname); ok && err != nil {
 		return fmt.Sprintf("We couldn't start %s. %s.",
 			sampleAppDescription(id, port), capitaliseFirst(err.Error()))
+	}
+	if err != nil {
+		text := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(text, "no such host"), strings.Contains(text, "name or service not known"):
+			return fmt.Sprintf("We couldn't resolve %s. Check the hostname, DNS and VPN connection.", hostname)
+		case strings.Contains(text, "certificate"), strings.Contains(text, "tls"), strings.Contains(text, "ssl"):
+			return fmt.Sprintf("The secure connection to %s failed. Check the TLS port and certificate with your administrator.", hostname)
+		case strings.Contains(text, "timeout"), strings.Contains(text, "timed out"):
+			return fmt.Sprintf("%s did not respond in time. Check your VPN, firewall and the TN3270 service, then retry.", hostname)
+		case strings.Contains(text, "connection refused"):
+			return fmt.Sprintf("%s refused the connection. Check the port and that the TN3270 service is running.", hostname)
+		case strings.Contains(text, "executable file not found"), strings.Contains(text, "no such file or directory"):
+			return "The terminal emulator could not start. Ask the administrator to check the s3270 installation and executable path."
+		}
 	}
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
 }
@@ -1560,7 +1599,7 @@ func recordScreenHistory(s *session.Session, screen *host.Screen) {
 func (app *App) ScreenHistoryHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 	entries := s.ScreenHistorySnapshot()
@@ -1638,6 +1677,9 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		if cfg, ok := sampleAppConfig(id); ok {
 			sampleAppName = cfg.Name
 			sampleAppPort = snap.TargetPort
+			if sample, ok := h.(*host.GoSampleAppHost); ok {
+				sampleAppPort = sample.Port
+			}
 			if sampleAppPort == 0 {
 				sampleAppPort = 3270
 			}
@@ -1649,6 +1691,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"EmbedOrigins":            embedOriginsAttr(),
 		"ScreenContent":           template.HTML(rendered),
 		"SessionID":               s.ID,
+		"UIPreferences":           app.uiPreferences(c),
 		"Auth":                    app.authView(c),
 		"ColorSchemes":            app.Config.ColorSchemes.Schemes,
 		"Fonts":                   app.Config.Fonts.Fonts,
@@ -1698,7 +1741,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 func (app *App) ScreenContentHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 	// The choice made on the selection screen is settled here as well as on a
@@ -1716,7 +1759,7 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 	if h == nil {
 		// PF3 on the menu ended it. Answered the way a session that is gone is
 		// answered, which the terminal already knows how to act on.
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 	if err := h.UpdateScreen(); err != nil {
@@ -1840,7 +1883,7 @@ func (app *App) SubmitHandler(c *gin.Context) {
 func (app *App) SubmitAsyncHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
@@ -2006,14 +2049,17 @@ func (app *App) RecordStartHandler(c *gin.Context) {
 			blocked = true
 			return
 		}
-		host := s.TargetHost
+		targetHost := s.TargetHost
 		port := s.TargetPort
-		if port == 0 {
+		if sample, ok := s.Host.(*host.GoSampleAppHost); ok && sample.AutoPort {
+			targetHost = "sampleapp:" + sample.AppID
+			port = 0
+		} else if port == 0 {
 			port = 3270
 		}
 		s.Recording = &session.WorkflowRecording{
 			Active:         true,
-			Host:           host,
+			Host:           targetHost,
 			Port:           port,
 			OutputFilePath: "output.html",
 			Steps:          []session.WorkflowStep{{Type: "Connect"}},
@@ -2114,7 +2160,7 @@ func (app *App) LoadWorkflowHandler(c *gin.Context) {
 func (app *App) LoadWorkflowJSONHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 	playing := false
@@ -2351,7 +2397,7 @@ func (app *App) RemoveWorkflowHandler(c *gin.Context) {
 func (app *App) WorkflowStatusHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 	recStatus := recordingStatusSnapshot(s)
@@ -2592,7 +2638,7 @@ func (app *App) SettingsHandler(c *gin.Context) {
 	// the deployment, a session belongs to one connection, and the two are
 	// unrelated. See administersInstance.
 	if !app.administersInstance(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 	switch c.Request.Method {
@@ -2863,7 +2909,7 @@ func (app *App) RestartHandler(c *gin.Context) {
 	// save succeeds and the restart it just offered fails. See
 	// administersInstance.
 	if !app.administersInstance(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 	if err := scheduleSelfRestart(); err != nil {
@@ -2887,7 +2933,7 @@ func (app *App) RestartHandler(c *gin.Context) {
 
 func (app *App) ThemeSaveHandler(c *gin.Context) {
 	if !app.hasKnownCaller(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 	var payload themeSavePayload
@@ -3058,7 +3104,7 @@ func (app *App) ThemeListHandler(c *gin.Context) {
 	// picker showing the built-in themes only, with the operator's own saved
 	// themes silently missing from a list that offers to save more.
 	if !app.hasKnownCaller(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 	items, err := app.listFileThemes(c)
@@ -3442,7 +3488,7 @@ func (app *App) PrefsHandler(c *gin.Context) {
 func (app *App) KeypadPrefHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found", "code": "host_session_missing"})
 		return
 	}
 
@@ -3470,7 +3516,7 @@ func (app *App) KeypadPrefHandler(c *gin.Context) {
 func (app *App) LogsAccessHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 
@@ -3500,9 +3546,9 @@ func (app *App) LogsHandler(c *gin.Context) {
 	}
 
 	s := app.getSession(c)
-	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
-		return
+	verbose := false
+	if s != nil {
+		withSessionLock(s, func() { verbose = s.Prefs.VerboseLogging })
 	}
 
 	content, err := os.ReadFile(app.logFilePath)
@@ -3510,7 +3556,7 @@ func (app *App) LogsHandler(c *gin.Context) {
 		if os.IsNotExist(err) {
 			c.JSON(http.StatusOK, gin.H{
 				"content": "",
-				"enabled": s.Prefs.VerboseLogging,
+				"enabled": verbose,
 			})
 			return
 		}
@@ -3520,7 +3566,7 @@ func (app *App) LogsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"content": string(content),
-		"enabled": s.Prefs.VerboseLogging,
+		"enabled": verbose,
 	})
 }
 
@@ -3532,7 +3578,7 @@ func (app *App) LogsToggleHandler(c *gin.Context) {
 
 	s := app.getSession(c)
 	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session", "code": "host_session_missing"})
 		return
 	}
 
@@ -3554,12 +3600,6 @@ func (app *App) LogsClearHandler(c *gin.Context) {
 		return
 	}
 
-	s := app.getSession(c)
-	if s == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no session"})
-		return
-	}
-
 	// Clear the log file
 	err := os.WriteFile(app.logFilePath, []byte(""), 0644)
 	if err != nil {
@@ -3574,12 +3614,6 @@ func (app *App) LogsClearHandler(c *gin.Context) {
 func (app *App) LogsDownloadHandler(c *gin.Context) {
 	if os.Getenv("ALLOW_LOG_ACCESS") != "true" {
 		c.String(http.StatusForbidden, "Log access is disabled by administrator")
-		return
-	}
-
-	s := app.getSession(c)
-	if s == nil {
-		c.Redirect(http.StatusFound, "/")
 		return
 	}
 
@@ -3785,11 +3819,13 @@ func buildWorkflowConfig(s *session.Session) *WorkflowConfig {
 	if host == "" {
 		host = s.TargetHost
 	}
-	if port == 0 {
-		port = s.TargetPort
-	}
-	if port == 0 {
-		port = 3270
+	if host != "sampleapp:petstore" || port != 0 {
+		if port == 0 {
+			port = s.TargetPort
+		}
+		if port == 0 {
+			port = 3270
+		}
 	}
 	everyStepDelay := &session.WorkflowDelayRange{Min: 0.1, Max: 0.3}
 	if s.Recording.DelaySamples > 0 {
@@ -4261,22 +4297,7 @@ func (app *App) resetSessionHost(c *gin.Context, s *session.Session, hostname st
 	if hostName == "" {
 		return errors.New("invalid host")
 	}
-	var h host.Host
-	var err error
-	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
-		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
-			return fmt.Errorf("invalid sample app port %d", samplePort)
-		}
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost(sampleID, samplePort, execPath, app.Config.S3270Options)
-	} else if hostname == "mock" || hostname == "demo" {
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		h, err = newSampleAppHost(defaultSampleAppID, defaultSampleAppPort, execPath, app.Config.S3270Options)
-	} else {
-		execPath := resolveS3270Path(app.Config.ExecPath)
-		args := buildS3270Args(app.Config.S3270Options, hostname)
-		h = host.NewS3270(execPath, args...)
-	}
+	h, err := app.newHostFor(hostname, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create host: %w", err)
 	}
@@ -4531,6 +4552,9 @@ func sampleAppPort(port int) int {
 func (app *App) newHostFor(hostname string, profile *ConnectionProfile) (host.Host, error) {
 	execPath := resolveS3270Path(app.Config.ExecPath)
 
+	if hostname == "sampleapp:petstore" {
+		return host.NewGoSampleAppHost("petstore", 0, execPath, buildS3270Args(app.Config.S3270Options, ""), "127.0.0.1:0")
+	}
 	if sampleID, samplePort, ok := parseSampleAppHost(hostname); ok {
 		if samplePort > 0 && !isAllowedSampleAppPort(samplePort) {
 			return nil, fmt.Errorf("invalid sample app port %d", samplePort)
@@ -4605,6 +4629,10 @@ func formatSessionTarget(s *session.Session) string {
 	}
 	target := ""
 	withSessionLock(s, func() {
+		if sample, ok := s.Host.(*host.GoSampleAppHost); ok && sample.AutoPort {
+			target = "sampleapp:" + sample.AppID
+			return
+		}
 		host := strings.TrimSpace(s.TargetHost)
 		if host == "" {
 			return

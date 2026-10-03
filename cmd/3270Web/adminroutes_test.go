@@ -34,6 +34,7 @@ var adminOnlyRoutes = map[string]bool{
 	"POST /logs/clear":                true,
 	"GET /logs/download":              true,
 	"GET /admin":                      true,
+	"GET /admin/logs":                 true,
 	"GET /api/admin/overview":         true,
 	"GET /api/admin/sessions":         true,
 	"DELETE /api/admin/sessions/:id":  true,
