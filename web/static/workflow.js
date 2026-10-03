@@ -1116,10 +1116,10 @@
     })
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
-          if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
-            window.ThreeSeventyWeb.notifySessionExpired();
-          }
-          return null;
+          return res.json().catch(() => ({})).then(payload => {
+            window.ThreeSeventyWeb?.handleAccessFailure?.(res.status, payload);
+            return null;
+          });
         }
         if (!res.ok) {
           return null;

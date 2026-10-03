@@ -56,17 +56,18 @@
          bar here; what it does do is mark the body, which is what gives the
          connect form thumb-sized controls. Without the pair loaded, the first
          page an operator meets on a phone was the one page with none of it. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=6">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=7">
     <link rel="stylesheet" href="/static/lib/tippy.css">
     <script src="/static/lib/popper.min.js" defer></script>
     <script src="/static/lib/tippy-bundle.umd.min.js" defer></script>
     <script src="/static/touch.js?v=4" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
-    <script src="/static/background.js" defer></script>
+    <script src="/static/background.js?v=2" defer></script>
     <script src="/static/ui.js?v=22" defer></script>
-    <script src="/static/connection-profiles.js" defer></script>
+    <script src="/static/connection-profiles.js?v=2" defer></script>
+    <link rel="stylesheet" href="/static/activation.css?v=1">
 </head>
-<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-embed-origins="{{ .EmbedOrigins }}">
+<body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-embed-origins="{{ .EmbedOrigins }}" data-account="{{ .Auth.UserID }}" data-enforced-target="{{ .EnforcedTarget }}">
     <script src="/static/early-theme-init.js"></script>
     <!-- Custom themes, inlined because /api/themes needs a session and this
          page runs before one exists. See renderConnectPage. -->
@@ -85,13 +86,11 @@
                     {{ template "brand-mark" }}
                     <div>
                         <h1>3270Web</h1>
-                        <div class="subtle">Connect to a TN3270 host</div>
+                        <div class="subtle">Connect to your mainframe</div>
                     </div>
                 </div>
                 <div class="toolbar">
-                    {{ if .SampleApps }}
-                    <button type="button" data-open-sample-modal>Start sample app</button>
-                    {{ end }}
+
                     {{ if .Auth.Enabled }}
                     <span class="user-chip">
                         <span class="admin-avatar" aria-hidden="true">{{ slice .Auth.Username 0 1 }}</span>
@@ -111,65 +110,44 @@
                 </div>
             </div>
             {{ if .ConnectError }}
-            <div class="alert">
+            <div class="alert" role="alert" tabindex="-1" data-connect-error>
                 <strong>Connection error</strong>
                 <span>{{ .ConnectError }}</span>
+                {{ if .ConnectDetails }}<details><summary>Technical details</summary><pre data-connection-diagnostic>{{ .ConnectDetails }}</pre><button type="button" data-copy-diagnostic>Copy details</button></details>{{ end }}
             </div>
             {{ end }}
             <form action="/connect" method="post" id="connect-form">
                 <fieldset class="connect-row">
-                    <label for="hostname-input">Hostname / IP<span class="required-mark" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span></label>
-                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required aria-required="true" autofocus placeholder="hostname:port">
-                    <button type="button" data-profiles-connect>Profiles</button>
-                    <button type="button" data-host-save>Save host</button>
-                    <button type="button" data-host-load>Load host</button>
-                    <button type="submit" id="connect-btn">Connect</button>
+                    <label for="hostname-input">Mainframe address<span class="required-mark" aria-hidden="true">*</span></label>
+                    <input id="hostname-input" type="text" name="hostname" value="{{ .DefaultHost }}" data-host-input required autofocus placeholder="mainframe.example.com:992" aria-describedby="connect-hint" {{ if .EnforcedTarget }}readonly{{ end }}>
+                    <button type="submit" id="connect-btn" class="primary-action">Connect</button>
                 </fieldset>
-            </form>
-        </div>
-    </div>
-    <div class="modal-backdrop" data-hosts-modal hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hosts-modal-title">
-            <div class="modal-header">
-                <h3 id="hosts-modal-title">Saved hosts</h3>
-                <button type="button" class="modal-close" data-hosts-close>Close</button>
-            </div>
-            <div class="stack">
-                <div class="saved-hosts-row">
-                    <label for="saved-host-select">Saved host profiles</label>
-                    <select id="saved-host-select" data-saved-host-select></select>
-                </div>
-                <div class="saved-hosts-row">
-                    <label for="saved-host-name">Profile name</label>
-                    <input id="saved-host-name" type="text" data-saved-host-name placeholder="Optional display name">
-                </div>
-                <div class="saved-hosts-row">
-                    <label for="saved-host-value">Host</label>
-                    <input id="saved-host-value" type="text" data-saved-host-value placeholder="hostname:port">
-                </div>
-                <div class="modal-actions saved-host-actions">
-                    <button type="button" data-hosts-apply>Use host</button>
-                    <button type="button" data-hosts-connect>Use &amp; connect</button>
-                    <button type="button" class="danger" data-hosts-delete>Delete</button>
-                </div>
-                <div class="modal-actions saved-host-actions">
-                    <button type="button" data-hosts-export>Export hosts</button>
-                    <button type="button" data-hosts-import>Import hosts</button>
-                    <input type="file" accept="application/json,.json" data-hosts-import-file hidden>
-                </div>
-                <div class="subtle" data-hosts-status aria-live="polite"></div>
-            </div>
-            <div class="settings-confirm-modal" data-hosts-delete-confirm hidden>
-                <div class="settings-confirm-backdrop" data-hosts-delete-cancel></div>
-                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="hosts-delete-title" aria-describedby="hosts-delete-desc">
-                    <h4 id="hosts-delete-title">Delete host profile?</h4>
-                    <p id="hosts-delete-desc">This removes the saved profile from this browser. It cannot be undone.</p>
-                    <div class="settings-confirm-actions">
-                        <button type="button" data-hosts-delete-cancel>Cancel</button>
-                        <button type="button" class="danger" data-hosts-delete-accept>Delete profile</button>
+                <p class="subtle" id="connect-hint">{{ if .EnforcedTarget }}This instance connects to <strong>{{ .EnforcedTarget }}</strong>. The address is set by your administrator.{{ else }}Enter the TN3270 hostname and port supplied by your administrator. Need TLS or a specific terminal model? Open connection options below.{{ end }}</p>
+                {{ if not .EnforcedTarget }}
+                <details class="connection-options" data-connection-options {{ if .Advanced }}open{{ end }}>
+                    <summary>Connection options</summary>
+                    <label class="profiles-check"><input type="checkbox" name="advanced" data-advanced-enabled {{ if .Advanced }}checked{{ end }}> Use these options for this connection</label>
+                    <label class="profiles-check"><input type="checkbox" name="tls" {{ if .TLS }}checked{{ end }}> Use TLS (encrypted connection)</label>
+                    <div class="profiles-form-grid">
+                        <label>LU name <span class="subtle">optional</span><input name="luName" value="{{ .LUName }}" placeholder="TCP00042"></label>
+                        <label>Terminal model<input name="model" value="{{ .Model }}" list="connect-models" placeholder="Server default"></label>
+                        <label>Code page<input name="codePage" value="{{ .CodePage }}" list="connect-codepages" placeholder="Server default"></label>
                     </div>
-                </div>
+                    <datalist id="connect-models"><option value="3279-2-E"><option value="3279-3-E"><option value="3279-4-E"><option value="3279-5-E"></datalist>
+                    <datalist id="connect-codepages"><option value="cp037"><option value="cp1140"><option value="cp285"></datalist>
+                    <button type="button" data-save-connection>Save this connection…</button>
+                </details>
+                {{ end }}
+            </form>
+            <div class="connect-secondary">
+                <button type="button" data-profiles-connect>Saved connections</button>
+                {{ if not .EnforcedTarget }}{{ if .SampleApps }}
+                <button type="button" data-try-sample>Try the sample terminal</button>
+                <button type="button" class="quiet-action" data-open-sample-modal>Other samples</button>
+                {{ else }}<p class="subtle">Samples are unavailable on this instance. Ask your administrator for a mainframe address.</p>{{ end }}{{ end }}
             </div>
+            {{ if not .EnforcedTarget }}<p class="subtle">No mainframe needed for the sample. Terminal and workflow recording work without an AI account.</p>{{ end }}
+
         </div>
     </div>
     <div class="settings-modal" data-settings-modal hidden>
@@ -226,12 +204,12 @@
                     <option value="{{ .ID }}">{{ .Name }}</option>
                     {{ end }}
                 </select>
-                <label for="sample-app-port">Port</label>
+                <details><summary>Advanced: sample port</summary><label for="sample-app-port">Port</label>
                 <select id="sample-app-port">
                     {{ range .SamplePorts }}
                     <option value="{{ . }}">{{ . }}</option>
                     {{ end }}
-                </select>
+                </select></details>
                 <button type="button" data-sample-start>Start sample app</button>
             </div>
         </div>
@@ -258,6 +236,6 @@
     <script src="/static/modal-utils.js?v=2" defer></script>
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/notifications.js" defer></script>
-    <script src="/static/connect-page.js"></script>
+    <script src="/static/connect-page.js?v=2"></script>
 </body>
 </html>

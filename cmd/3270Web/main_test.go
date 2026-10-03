@@ -795,3 +795,13 @@ func TestMaxBodySizeMiddleware(t *testing.T) {
 		}
 	})
 }
+
+func TestAutomaticSampleRecordingRetainsPortableTarget(t *testing.T) {
+	s := &session.Session{TargetHost: "sampleapp:petstore", TargetPort: 3270,
+		Recording: &session.WorkflowRecording{Host: "sampleapp:petstore", Port: 0}}
+	workflow := buildWorkflowConfig(s)
+	target, err := workflowTargetHost(s, workflow)
+	if err != nil || target != "sampleapp:petstore" || workflow.Port != 0 {
+		t.Fatalf("automatic sample must retain a portable target: target=%q port=%d err=%v", target, workflow.Port, err)
+	}
+}

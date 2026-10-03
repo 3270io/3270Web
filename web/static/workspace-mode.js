@@ -13,6 +13,7 @@
   "use strict";
 
   var STORAGE_KEY = "3270Web.workspaceMode.v1";
+  function preferences() { return window.ThreeSeventyWeb && window.ThreeSeventyWeb.preferences; }
   var BUSINESS = "business";
   var ENGINEERING = "engineering";
 
@@ -32,7 +33,7 @@
 
   function readMode() {
     try {
-      var stored = localStorage.getItem(STORAGE_KEY);
+      var stored = preferences() ? preferences().get("workspaceMode") : localStorage.getItem(STORAGE_KEY);
       if (stored === BUSINESS || stored === ENGINEERING) {
         return stored;
       }
@@ -42,7 +43,8 @@
 
   function writeMode(mode) {
     try {
-      localStorage.setItem(STORAGE_KEY, mode);
+      if (preferences()) preferences().save({ workspaceMode: mode });
+      else localStorage.setItem(STORAGE_KEY, mode);
     } catch (_) { /* nothing we can do, the session still works */ }
   }
 
@@ -61,8 +63,8 @@
     if (toggle) {
       toggle.setAttribute("aria-pressed", String(automationVisible));
       var label = automationVisible
-        ? "Engineering — recording and chaos shown"
-        : "Business — terminal only";
+        ? "Engineering"
+        : "Business";
       var labelEl = toggle.querySelector("[data-workspace-label]");
       if (labelEl) {
         labelEl.textContent = label;

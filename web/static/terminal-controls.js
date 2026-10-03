@@ -228,7 +228,7 @@
   }
 
   function persistSize(current) {
-    localStorage.setItem(storageSizeKey, String(current));
+    try { localStorage.setItem(storageSizeKey, String(current)); } catch (_) {}
   }
 
   function init() {
@@ -310,6 +310,7 @@
     }
 
     function fitForCurrentLayout(allowGrow) {
+      if (readable()) { updatePosition(); return; }
       stopAnimation();
       var canGrow = allowGrow === true;
       var previous = current;
@@ -350,8 +351,51 @@
     elements.slider.max = String(maxCellSizePx);
 
     var baseline = readCellSizeFromRoot();
-    var stored = Number.parseFloat(localStorage.getItem(storageSizeKey) || "");
+    var stored = NaN;
+    try { stored = Number.parseFloat(localStorage.getItem(storageSizeKey) || ""); } catch (_) {}
     var current = Number.isFinite(stored) && stored > 0 ? writeCellSize(stored) : writeCellSize(baseline);
+    var preferences = window.ThreeSeventyWeb && window.ThreeSeventyWeb.preferences;
+    var view = preferences && preferences.get("terminalView");
+    if (view !== "readable" && view !== "overview") view = layoutViewportWidth() <= 640 ? "readable" : "overview";
+    document.body.dataset.terminalView = view;
+    if (view === "readable") current = writeCellSize(Math.max(16, current));
+    function readable() { return document.body.dataset.terminalView === "readable"; }
+    function updateViewButtons() {
+      document.querySelectorAll("[data-terminal-view-choice]").forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.dataset.terminalViewChoice === document.body.dataset.terminalView));
+      });
+    }
+    function updatePosition() {
+      var output = document.querySelector("[data-terminal-position]");
+      if (!output) return;
+      var form = elements.container.querySelector(".renderer-form");
+      var cols = form ? Number(form.dataset.cols || 80) : 80;
+      var width = elements.container.getBoundingClientRect().width;
+      var visible = Math.min(cols, Math.max(1, Math.floor(elements.shell.clientWidth / (width / cols))));
+      var first = Math.min(cols, Math.floor(elements.shell.scrollLeft / (width / cols)) + 1);
+      output.textContent = readable() && width > elements.shell.clientWidth ? "Columns " + first + "–" + Math.min(cols, first + visible - 1) + " of " + cols + " · swipe to pan" : "";
+    }
+    document.querySelectorAll("[data-terminal-view-choice]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        document.body.dataset.terminalView = button.dataset.terminalViewChoice;
+        if (preferences) preferences.save({ terminalView: button.dataset.terminalViewChoice });
+        current = writeCellSize(Math.max(16, baseline));
+        if (!readable()) enforceWidthFit();
+        updateViewButtons(); updatePosition();
+        updateSlider(elements.slider, current); updateSizeLabel(elements.label, current, baseline);
+      });
+    });
+    elements.shell.addEventListener("scroll", updatePosition, { passive: true });
+    elements.container.addEventListener("focusin", function (event) {
+      if (!readable() || !event.target.matches("input, textarea")) return;
+      window.requestAnimationFrame(function () {
+        var field = event.target.getBoundingClientRect(), shell = elements.shell.getBoundingClientRect();
+        if (field.left < shell.left + 12) elements.shell.scrollLeft += field.left - shell.left - 12;
+        else if (field.right > shell.right - 12) elements.shell.scrollLeft += field.right - shell.right + 12;
+        updatePosition();
+      });
+    });
+    updateViewButtons();
     var enforcingWidthFit = false;
     var enforcingViewportFit = false;
     // Whether the size on screen was derived by shrinking to fit rather than
@@ -369,6 +413,7 @@
     // trivially "fits", and it only reaches its true width once the first
     // screen is painted into it.
     function enforceWidthFit() {
+      if (readable()) { updatePosition(); return; }
       if (enforcingWidthFit || fitsWidth(elements)) {
         return;
       }
@@ -395,6 +440,7 @@
     // scroll. Everywhere else a terminal taller than the viewport is normal
     // and the comfortable floor is the right answer.
     function enforceViewportFit() {
+      if (readable()) return;
       if (enforcingWidthFit || enforcingViewportFit) {
         return;
       }
@@ -448,6 +494,11 @@
     });
 
     elements.fit.addEventListener("click", function (event) {
+      if (event.isTrusted) {
+        document.body.dataset.terminalView = "overview";
+        if (preferences) preferences.save({ terminalView: "overview" });
+        updateViewButtons();
+      }
       stopAnimation();
       fitForCurrentLayout(true);
       // Pressing Fit is a deliberate choice of size, even though the number

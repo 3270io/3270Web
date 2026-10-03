@@ -148,6 +148,10 @@
         });
       })(p);
       row.appendChild(main);
+      var scope = document.createElement("span");
+      scope.className = "profile-row-scope";
+      scope.textContent = p.shared ? "Shared" : "Personal";
+      row.appendChild(scope);
 
       if (p.tls) {
         var lock = document.createElement("span");
@@ -209,7 +213,7 @@
     if (!wrap) {
       return;
     }
-    wrap.hidden = mode !== "pick" || !sampleApps.length;
+    wrap.hidden = mode !== "pick" || !sampleApps.length || !!document.body.dataset.enforcedTarget;
     samplesEl.innerHTML = "";
     if (wrap.hidden) {
       return;
@@ -419,6 +423,7 @@
         renderList();
         clearForm();
         setStatus("Saved “" + payload.name + "”.");
+        notify("Connection saved: " + payload.name, "success");
       },
       function (err) {
         setStatus((err && err.message) || "Could not save the profile.", true);
@@ -505,14 +510,15 @@
       return;
     }
     modal.hidden = false;
+    showBrowserImport();
     modal.setAttribute("data-profile-mode", mode);
     var title = modal.querySelector("[data-profiles-title]");
     if (title) {
-      title.textContent = mode === "pick" ? "Open a session" : "Connection profiles";
+      title.textContent = mode === "pick" ? "Open a saved connection" : "Saved connections";
     }
     var direct = modal.querySelector("[data-profiles-direct]");
     if (direct) {
-      direct.hidden = mode !== "pick";
+      direct.hidden = mode !== "pick" || !!document.body.dataset.enforcedTarget;
       direct.reset();
     }
     renderSamples();
@@ -540,6 +546,64 @@
     return !!modal && !modal.hidden;
   }
 
+  function parseTarget(raw) {
+    var value = String(raw || "").trim();
+    var tls = false, skipVerify = false, luName = "";
+    if (value.startsWith("L:")) { tls = true; value = value.slice(2); }
+    if (value.startsWith("Y:")) { skipVerify = true; value = value.slice(2); }
+    if (value.includes("@")) { var parts = value.split("@"); luName = parts.shift(); value = parts.join("@"); }
+    var host = value, port = 3270;
+    var ipv6 = value.match(/^\[([^\]]+)\](?::(\d+))?$/);
+    var regular = value.match(/^([^:]+):(\d+)$/);
+    var sample = value.match(/^(sampleapp:[^:]+):(\d+)$/);
+    var match = ipv6 || sample || regular;
+    if (match) { host = match[1]; port = Number(match[2] || 3270); }
+    return { host: host, port: port, tls: tls, skipVerify: skipVerify, luName: luName };
+  }
+
+  function showBrowserImport() {
+    var box = modal && modal.querySelector("[data-legacy-import]");
+    if (!box) return;
+    try {
+      var items = JSON.parse(localStorage.getItem("3270Web.savedHosts.v1") || "[]");
+      var done = localStorage.getItem("3270Web.hostsImported." + (document.body.dataset.account || "local"));
+      box.hidden = !Array.isArray(items) || !items.length || done === "true";
+    } catch (_) { box.hidden = true; }
+  }
+
+  async function importConnections(items) {
+    if (!Array.isArray(items) || items.length > 100) throw new Error("Choose a connection file containing up to 100 entries.");
+    var imported = 0;
+    for (var entry of items) {
+      var raw = typeof entry === "string" ? entry : entry.hostname;
+      var payload = raw ? Object.assign(parseTarget(raw), { name: typeof entry === "string" ? entry : (entry.name || raw) }) : Object.assign({}, entry);
+      // Never promote an import into shared hosts or carry another user's audience.
+      payload.publish = false; payload.shared = false; payload.users = []; payload.groups = []; payload.roles = []; payload.notOffered = false;
+      var base = String(payload.name || payload.host || "Imported connection").slice(0, 55);
+      payload.name = base;
+      var suffix = 2;
+      while (profiles.some(function (p) { return p.name.toLowerCase() === payload.name.toLowerCase(); })) payload.name = base + " (" + suffix++ + ")";
+      if (!payload.host) throw new Error("An entry has no host. " + imported + " connection(s) were imported; originals were kept.");
+      var result = await api("/api/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      profiles = result.profiles || []; imported++;
+    }
+    renderList(); setStatus("Imported " + imported + " personal connection(s). Originals were kept.");
+    return imported;
+  }
+
+  function saveCurrent(connectForm) {
+    open("manage", null);
+    var target = parseTarget(connectForm.elements.hostname.value);
+    fill(Object.assign(target, {
+      name: "", tls: connectForm.elements.tls.checked || target.tls,
+      luName: connectForm.elements.luName.value || target.luName,
+      model: connectForm.elements.model.value,
+      codePage: connectForm.elements.codePage.value
+    }));
+    setStatus("Name this connection and save it to your personal list.");
+    formEl.elements.name.focus();
+  }
+
   function build() {
     modal = document.createElement("div");
     modal.className = "profiles-modal";
@@ -549,7 +613,7 @@
       '<div class="profiles-modal-backdrop" data-profiles-close></div>',
       '<div class="profiles-modal-content" role="dialog" aria-modal="true" aria-labelledby="profiles-title">',
       '  <div class="profiles-modal-header">',
-      '    <h3 id="profiles-title" data-profiles-title>Connection profiles</h3>',
+      '    <h3 id="profiles-title" data-profiles-title>Saved connections</h3>',
       '    <button type="button" data-profiles-close>Close</button>',
       "  </div>",
       '  <div class="profiles-list" data-profiles-list></div>',
@@ -588,12 +652,15 @@
       '      <label>Name<input name="name" type="text" required maxlength="64" placeholder="CICS Production"></label>',
       '      <label>Host<input name="host" type="text" required placeholder="mainframe.example.com"></label>',
       '      <label>Port<input name="port" type="number" min="1" max="65535" value="3270"></label>',
-      '      <label>LU name <span class="subtle">optional</span><input name="luName" type="text" placeholder="TCP00042"></label>',
-      '      <label>Model <span class="subtle">optional</span><input name="model" type="text" placeholder="3279-4-E"></label>',
-      '      <label>Code page <span class="subtle">optional</span><input name="codePage" type="text" placeholder="cp037"></label>',
       "    </div>",
       '    <label class="profiles-check"><input name="tls" type="checkbox"> Use TLS</label>',
+      '    <details class="profiles-advanced"><summary>Terminal options</summary><div class="profiles-form-grid">',
+      '      <label>LU name <span class="subtle">optional</span><input name="luName" type="text" placeholder="TCP00042"></label>',
+      '      <label>Model <span class="subtle">optional</span><input name="model" type="text" list="profile-models" placeholder="3279-4-E"></label>',
+      '      <label>Code page <span class="subtle">optional</span><input name="codePage" type="text" list="profile-codepages" placeholder="cp037"></label>',
+      "    </div>",
       '    <label class="profiles-check"><input name="skipVerify" type="checkbox" disabled> Skip certificate verification <span class="subtle">weaker — only for self-signed test hosts</span></label>',
+      '    </details>',
       '    <label>Description <span class="subtle">optional</span><input name="description" type="text" maxlength="200"></label>',
       // Publishing and its audience are one block, shown only to an
       // administrator: on an instance with one operator there is nobody to
@@ -614,7 +681,11 @@
       '      <button type="button" data-profiles-clear>Clear</button>',
       '      <button type="submit">Save profile</button>',
       "    </div>",
+      '    <datalist id="profile-models"><option value="3279-2-E"><option value="3279-3-E"><option value="3279-4-E"><option value="3279-5-E"></datalist>',
+      '    <datalist id="profile-codepages"><option value="cp037"><option value="cp1140"><option value="cp285"></datalist>',
       "  </form>",
+      '<section class="legacy-import" data-legacy-import hidden><p>Connections saved in this browser can be imported into your personal saved connections. The original browser list will be kept.</p><button type="button" data-import-browser>Import browser connections</button></section>',
+      '<div class="modal-actions"><button type="button" data-import-connections>Import connections</button><button type="button" data-export-connections>Export connections</button><input type="file" data-import-connections-file accept="application/json,.json" hidden></div>',
       // Reuses the .settings-confirm-* classes every other in-panel confirm
       // in the app (saved hosts, restart, chaos runs) is built from, so this
       // one more delete looks like the ones beside it instead of like a
@@ -634,6 +705,32 @@
     ].join("");
     document.body.appendChild(modal);
 
+    modal.querySelector("[data-import-browser]").addEventListener("click", async function (event) {
+      var button = event.currentTarget; button.disabled = true;
+      try {
+        await importConnections(JSON.parse(localStorage.getItem("3270Web.savedHosts.v1") || "[]"));
+        try { localStorage.setItem("3270Web.hostsImported." + (document.body.dataset.account || "local"), "true"); } catch (_) {}
+        showBrowserImport();
+      } catch (err) { setStatus(err.message || "Import failed. Originals were kept.", true); }
+      finally { button.disabled = false; }
+    });
+    var importFile = modal.querySelector("[data-import-connections-file]");
+    modal.querySelector("[data-import-connections]").addEventListener("click", function () { importFile.click(); });
+    importFile.addEventListener("change", async function () {
+      var file = importFile.files[0]; if (!file) return;
+      try {
+        if (file.size > 1024 * 1024) throw new Error("Choose a file under 1 MB.");
+        var payload = JSON.parse(await file.text());
+        await importConnections(Array.isArray(payload) ? payload : (payload.profiles || payload.hosts));
+      } catch (err) { setStatus(err.message || "Could not import that file.", true); }
+      finally { importFile.value = ""; }
+    });
+    modal.querySelector("[data-export-connections]").addEventListener("click", function () {
+      var url = URL.createObjectURL(new Blob([JSON.stringify({ profiles: profiles }, null, 2)], { type: "application/json" }));
+      var link = document.createElement("a"); link.href = url; link.download = "3270web-connections.json"; link.click();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      setStatus("Connections exported.");
+    });
     listEl = modal.querySelector("[data-profiles-list]");
     formEl = modal.querySelector("[data-profiles-form]");
     statusEl = modal.querySelector("[data-profiles-status]");
@@ -718,7 +815,8 @@
           if (hostInput) {
             hostInput.value = choice.target;
           }
-          connectForm.submit();
+          if (connectForm.elements.advanced) connectForm.elements.advanced.checked = false;
+          connectForm.requestSubmit();
         });
       });
     }
@@ -726,6 +824,7 @@
 
   window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
   window.ThreeSeventyWeb.connectionProfiles = {
+    saveCurrent: saveCurrent,
     open: open,
     close: close,
     isOpen: isOpen,

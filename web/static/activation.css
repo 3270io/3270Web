@@ -1,0 +1,61 @@
+/* Activation and operator surfaces. Keep terminal geometry on its own shell. */
+.primary-action {
+  background: var(--accent) !important;
+  color: var(--accent-contrast, #000) !important;
+  font-weight: 650;
+  border-color: var(--accent) !important;
+}
+.primary-action:hover { filter: brightness(1.08); }
+.connect-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+.connect-secondary, .quick-start-actions, .terminal-view-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+}
+.connect-secondary { margin-top: 18px; }
+.connection-options, .access-help { margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+.connection-options summary, .access-help summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.connection-options .profiles-form-grid { margin: 12px 0; }
+.quiet-action { background: transparent; box-shadow: none; }
+.quick-start { padding: 14px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.quick-start p { margin: 6px 0 12px; color: var(--fg-muted); font-size: .9rem; }
+.terminal-view-bar { margin: 8px 0; }
+.terminal-view-bar button[aria-pressed="true"] { border-color: var(--accent); font-weight: 650; }
+.terminal-width-column { min-width: 0; max-width: 100%; }
+body[data-terminal-view="readable"] .terminal-shell {
+  max-width: 100%; min-width: 0; overflow: auto; justify-content: flex-start;
+  overscroll-behavior-x: contain;
+}
+body[data-terminal-view="readable"] .screen-container { flex-shrink: 0; max-width: none; overflow: visible; }
+body[data-terminal-view="readable"][data-focus="on"] .terminal-shell { max-height: calc(100dvh - 120px); }
+body[data-session-id] .card { box-shadow: var(--elev-1); background: var(--panel); }
+body[data-session-id] .appbar { box-shadow: none; }
+body[data-session-id] .brand-mark { filter: none; }
+body.bg-paused .bg-overlay { pointer-events: none; }
+body.bg-paused .bg-overlay canvas, body.bg-paused .bg-overlay::before, body.bg-paused .bg-overlay::after { opacity: 0; }
+.ai-prerequisites { padding-left: 20px; font-size: .85rem; }
+.profile-row-scope { color: var(--fg-muted); font-size: .8rem; }
+.profiles-advanced { margin: 12px 0; }
+.legacy-import { margin: 10px 0; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+.error-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+@media (max-width: 640px) {
+  .connect-row { grid-template-columns: minmax(0, 1fr); }
+  .connect-row label, .connect-row input, .connect-row button { width: 100%; }
+  .connect-secondary > button { min-height: 44px; }
+  .quick-start-actions button { flex: 1 1 140px; min-height: 44px; }
+  .terminal-view-bar button { min-height: 44px; padding: 8px 10px; font-size: .82rem; }
+  .connection-options input { width: 100%; min-height: 44px; font-size: 16px; }
+  .connection-options input[type="checkbox"] { width: auto; min-height: auto; }
+  .connection-options summary, .access-help summary { min-height: 44px; }
+}
+
+body[data-session-id] .appbar-wordmark { background: none; color: var(--fg); -webkit-text-fill-color: currentColor; }
+body[data-focus="on"] .quick-start, body[data-focus="on"] .terminal-view-bar { display: none; }
+@media (max-width: 640px) {
+ .quick-start { padding: 12px; }
+ .quick-start p { font-size: .82rem; line-height: 1.4; }
+ .quick-start-actions { gap: 6px; }
+ .terminal-view-bar { gap: 6px; }
+ .profiles-sample-row .profile-row-name { white-space: normal; }
+}
+
+[data-connection-diagnostic] { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+body[data-session-id] .terminal-shell { box-shadow: none; }

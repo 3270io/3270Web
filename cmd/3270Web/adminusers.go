@@ -33,6 +33,7 @@ func (app *App) RequireAdmin() gin.HandlerFunc {
 			if wantsJSON(c) {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error": "this action requires an administrator account",
+					"code":  "forbidden",
 				})
 				return
 			}

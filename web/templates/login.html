@@ -9,8 +9,9 @@
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
     <script src="/static/theme.js?v=10" defer></script>
-    <script src="/static/background.js" defer></script>
+    <script src="/static/background.js?v=2" defer></script>
     <script src="/static/auth-form.js?v=2" defer></script>
+    <link rel="stylesheet" href="/static/activation.css?v=1">
 </head>
 <body>
     <script src="/static/early-theme-init.js"></script>
@@ -53,6 +54,13 @@
 
                 <button type="submit" class="auth-submit">Sign in</button>
             </form>
+
+            <details class="access-help"><summary>Need access or forgot your password?</summary>
+                <p>Accounts on this instance are managed by your administrator. Ask them to create an account or reset your local password.</p>
+                {{ if .SSO.Enabled }}<p>For an organisation account, use the sign-in button above and your organisation’s password recovery service.</p>{{ end }}
+                {{ if .AccessHelp }}<p><a href="{{ .AccessHelp }}">Contact your administrator / helpdesk</a></p>{{ end }}
+                <p><a href="https://3270Web.3270.io/authentication/" target="_blank" rel="noopener noreferrer">Sign-in guide</a> · <a href="https://3270Web.3270.io/sample-apps/" target="_blank" rel="noopener noreferrer">Learn with a sample terminal</a></p>
+            </details>
 
             {{ if .ShowNoTLS }}
             <div class="auth-alert auth-alert--warn" style="margin-top:18px;margin-bottom:0">

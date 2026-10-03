@@ -153,6 +153,7 @@ func (app *App) RequireLogin() gin.HandlerFunc {
 			if wantsJSON(c) {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 					"error": "password change required",
+					"code":  "password_change_required",
 				})
 				return
 			}
@@ -169,7 +170,7 @@ func (app *App) RequireLogin() gin.HandlerFunc {
 // for a browser, JSON for anything scripted.
 func (app *App) rejectUnauthenticated(c *gin.Context) {
 	if wantsJSON(c) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required", "code": "authentication_required"})
 		return
 	}
 	c.Redirect(http.StatusFound, loginPath)
@@ -229,6 +230,7 @@ func (app *App) renderLogin(c *gin.Context, status int, errMessage string) {
 		"ProxySaysHTTPS": proxyClaimsHTTPS(c),
 		"CSRFTokenH":     "",
 		"SSO":            app.ssoView(),
+		"AccessHelp":     accessHelpURL(),
 	})
 }
 

@@ -793,3 +793,7 @@ Cursor movement, insert mode and field validation are handled locally
 - Keep browser focus on the terminal area while typing.
 - Use the keypad for less common 3270 keys if your keyboard layout does not expose them.
 - If commands appear out of sync, pause briefly and retry in debug playback mode.
+
+## Readable mobile terminal
+
+On narrow screens, **Readable terminal** keeps legible text and confines horizontal panning to the terminal. The column indicator shows where you are, and focused fields are brought into view. **Fit overview** displays the full fixed-column screen at a smaller size. Your explicit choice is retained; opening the software keyboard does not shrink the terminal. Landscape remains optional.

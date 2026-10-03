@@ -4,6 +4,8 @@ package host
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 
 	"github.com/jnnngs/3270Web/internal/sampleapps"
@@ -49,6 +51,30 @@ func acquireSampleAppServer(appID string, port int) (*sampleapps.Server, error) 
 	sampleAppPoolMu.Lock()
 	defer sampleAppPoolMu.Unlock()
 
+	if port == 0 {
+		for _, lease := range sampleAppPool {
+			if lease.appID == appID {
+				lease.refs++
+				return lease.server, nil
+			}
+		}
+		server, err := sampleapps.StartServer(appID, 0)
+		if err != nil {
+			return nil, err
+		}
+		_, text, err := net.SplitHostPort(server.Addr())
+		if err != nil {
+			_ = server.Stop()
+			return nil, err
+		}
+		chosen, err := strconv.Atoi(text)
+		if err != nil {
+			_ = server.Stop()
+			return nil, err
+		}
+		sampleAppPool[chosen] = &sampleAppLease{appID: appID, server: server, refs: 1}
+		return server, nil
+	}
 	if lease, ok := sampleAppPool[port]; ok {
 		if lease.appID != appID {
 			return nil, fmt.Errorf("port %d is already serving the sample app %q, so %q cannot use it",

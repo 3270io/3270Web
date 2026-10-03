@@ -20,15 +20,14 @@ hide:
 # The mainframe, <span class="grad">in a browser tab</span>
 
 <p class="lede" markdown>
-No emulator install. No thick client. Open a tab, connect to any TN3270 host, and work
-exactly like you would at a real 3270 terminal — then let AI Chat, chaos exploration and
-workflow recording do the heavy lifting.
+Connect to your mainframe in the browser. Record a useful screen flow once, then replay it instead of repeating the same keystrokes.
+Self-hosted and open source. No AI account needed to use the terminal or record workflows.
 </p>
 
 <div class="hero-actions" markdown>
-[Install and run](installation.md){ .md-button .md-button--primary }
+[Run locally and try the sample](installation.md#your-first-terminal){ .md-button .md-button--primary }
 [Watch the videos](#see-it-in-action){ .md-button }
-[Connect a host](configuration.md){ .md-button }
+
 </div>
 
 </div>
@@ -53,13 +52,17 @@ workflow recording do the heavy lifting.
 </div>
 
 <div class="kpi-strip" markdown>
-<div class="kpi"><span class="k">Install steps</span><span class="v">1</span><span class="n">binary, Docker or Compose</span></div>
+<div class="kpi"><span class="k">Run it your way</span><span class="v">Self-hosted</span><span class="n">binary, Docker or Compose</span></div>
 <div class="kpi"><span class="k">Client software</span><span class="v">0</span><span class="n">any modern browser</span></div>
-<div class="kpi"><span class="k">Bundled fonts</span><span class="v">3</span><span class="n">IBM 3270 web faces</span></div>
+<div class="kpi"><span class="k">Repeat work</span><span class="v">Record → replay</span><span class="n">portable screen workflows</span></div>
 <div class="kpi"><span class="k">Export target</span><span class="v">JSON</span><span class="n">replayable by 3270Connect</span></div>
 </div>
 
 </div>
+
+## No mainframe? Start here
+
+[Run locally](installation.md#your-first-terminal), open the app and choose **Try the sample terminal**. The bundled Petstore starts without a host address or port decision. Open the catalogue, view a product, then choose **Record a workflow** in the quick-start strip to capture those steps. AI setup is optional.
 
 ## See It in Action
 
@@ -184,14 +187,11 @@ several hosts at once — live on the
 
 ## First Session
 
-1. Get 3270Web running — native Linux binary, Docker, or Docker Compose.
-2. Open 3270Web in your browser (`http://localhost:3270`).
-3. Enter your TN3270 host and port on the connect screen. No mainframe? Enter
-   `sampleapp:petstore` for the bundled pet store — a counter, a back office
-   and a command line on every screen. See
-   [Bundled Sample Applications](sample-apps.md).
-4. Use the terminal — keyboard shortcuts, PF keys, and field navigation all work as expected.
-5. Optional: hit **Start recording** to capture the session for replay later.
+1. [Install and run](installation.md#your-first-terminal) the native binary, Docker image or Compose stack.
+2. Open `http://localhost:3270`. If accounts are enabled and this is a fresh instance, use the setup code from the server log to create your first administrator. Existing shared instances require an account from your administrator or organisation SSO.
+3. Choose **Try the sample terminal**, or enter your mainframe hostname and port. Open **Connection options** for TLS, LU, model or code page; **Saved connections** opens your personal and shared hosts.
+4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. On a phone, **Readable terminal** lets you pan without shrinking text; **Fit overview** shows all columns.
+5. Choose **Record a workflow** in the first-session strip, or **Show automation**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
 
 [:octicons-arrow-right-24: Install and Run](installation.md)
 &nbsp;&nbsp;[:octicons-arrow-right-24: Full setup guide](configuration.md)
