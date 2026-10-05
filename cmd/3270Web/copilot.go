@@ -179,7 +179,9 @@ func (app *App) ScreenConnectHandler(c *gin.Context) {
 		return
 	}
 	if err := app.resetSessionHost(c, s, hostname); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		// A policy refusal is not a retryable upstream failure; the REST
+		// session-creation path already answers it with 403 the same way.
+		c.JSON(connectFailureStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	snap := app.snapshotSession(s)
