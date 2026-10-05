@@ -34,6 +34,11 @@ const (
 // redeemable by the time anybody reads it.
 const pendingLoginTTL = 10 * time.Minute
 
+// ssoExchangeTimeout bounds the back-channel call that trades the
+// authorization code for tokens, so a slow or unreachable identity provider
+// cannot hold a request handler open indefinitely.
+const ssoExchangeTimeout = 30 * time.Second
+
 // maxPendingLogins bounds what an unauthenticated caller can make this server
 // remember. /auth/sso is reachable without credentials by design, so without a
 // ceiling it is a way to fill memory one redirect at a time.
@@ -264,7 +269,7 @@ func (app *App) SSOCallbackHandler(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), ssoExchangeTimeout)
 	defer cancel()
 	token, err := app.oidcProvider.Exchange(ctx, code, pending.Verifier, pending.Nonce)
 	if err != nil {

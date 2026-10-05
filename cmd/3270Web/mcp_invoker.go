@@ -35,16 +35,20 @@ type httpInvoker struct {
 // or spending a context window on one call.
 const maxToolResponseBytes = 256 * 1024
 
+// toolCallTimeout is the overall deadline for one tool call to this server.
+//
+// Generous, because a host transaction behind wait_for_unlock can
+// legitimately take a while; bounded, because a wedged request would
+// otherwise hang the conversation with no explanation.
+const toolCallTimeout = 120 * time.Second
+
 func newHTTPInvoker(baseURL, token, conversation string) *httpInvoker {
 	return &httpInvoker{
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		token:        token,
 		conversation: conversation,
 		client: &http.Client{
-			// Generous, because a host transaction behind wait_for_unlock can
-			// legitimately take a while; bounded, because a wedged request
-			// would otherwise hang the conversation with no explanation.
-			Timeout: 120 * time.Second,
+			Timeout: toolCallTimeout,
 		},
 	}
 }
