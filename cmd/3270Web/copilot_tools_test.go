@@ -69,6 +69,21 @@ func TestScreenConnectHandlerRejectsRestrictedHostname(t *testing.T) {
 	}
 }
 
+// A host outside the operator's allowlist is a policy refusal, not an
+// upstream failure: it must answer 403 like the REST creation path, not a
+// 502 that invites the caller (often a model) to retry.
+func TestScreenConnectHandlerAnswers403ForHostOutsideAllowlist(t *testing.T) {
+	t.Setenv(allowedHostsEnv, fencedTo)
+	app, _, sess := newCopilotToolTestApp(t)
+	r := gin.New()
+	r.POST("/screen/connect", app.ScreenConnectHandler)
+
+	w := doJSON(r, http.MethodPost, "/screen/connect", sess.ID, map[string]string{"hostname": "intranet.corp.test:23"})
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d, body=%s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+}
+
 // TestScreenCursorHandlerMovesCursor guards the Copilot move_cursor tool —
 // MoveCursor already existed on host.Host but was never reachable from a
 // tool call.
