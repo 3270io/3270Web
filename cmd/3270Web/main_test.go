@@ -735,7 +735,7 @@ func TestSecurityHeaders(t *testing.T) {
 		// header modern browsers actually consult. With no EMBED_ORIGINS
 		// configured it is 'self' — the default deployment frames nowhere but
 		// its own pages, exactly as before embedding was configurable.
-		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self';",
 		"Permissions-Policy":      "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
 		// -allow-popups so the print-preview and workflow-editor windows we
 		// open ourselves keep their window.opener handle back to us, while a
