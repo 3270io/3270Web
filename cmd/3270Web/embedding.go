@@ -40,7 +40,16 @@ const embedOriginsEnv = "EMBED_ORIGINS"
 
 // baseCSP is the policy every response carries. frame-ancestors is appended
 // per request because it is the one directive that depends on configuration.
-const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:;"
+//
+// connect-src is 'self' only: the browser pages make fetch and EventSource
+// calls back to this origin and nothing else. ws:/wss: used to be listed here
+// too, back when a browser WebSocket for screen streaming was on the roadmap;
+// nothing in the shipped code reaches for one, and the API reference says so
+// outright (see docs/rest-api.md § "Out of scope"). Leaving the two schemes
+// in the directive would let a script-execution bug on any of our pages open
+// a WebSocket to any host it liked, which is the one thing a strict CSP is
+// supposed to prevent — so they are not.
+const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self';"
 
 // embedOriginCache memoises the parse of EMBED_ORIGINS. The value is read on
 // every request — the security headers run on every response, including every
