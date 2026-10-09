@@ -28,6 +28,10 @@ const (
 	// loginAttemptTTL forgets a quiet key, so an idle bucket does not hold
 	// somebody's old failures against them forever.
 	loginAttemptTTL = 1 * time.Hour
+	// loginMaxLockoutShift clamps the doubling exponent. loginMaxLockout is
+	// reached long before 2^32 times the base, so the clamp only has to keep
+	// the shift well inside a 64-bit Duration.
+	loginMaxLockoutShift = 32
 )
 
 // loginLimiter throttles failed logins per key.
@@ -107,8 +111,8 @@ func (l *loginLimiter) RecordFailure(keys ...string) {
 			// 63, so clamp before shifting rather than relying on the
 			// overflow landing somewhere the cap below happens to catch.
 			exponent := b.failures - loginFreeAttempts
-			if exponent > 32 {
-				exponent = 32
+			if exponent > loginMaxLockoutShift {
+				exponent = loginMaxLockoutShift
 			}
 			lockout := loginBaseLockout << exponent
 			if lockout > loginMaxLockout || lockout <= 0 {
