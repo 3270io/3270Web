@@ -374,11 +374,13 @@ func splitTokenRows(tokens []string, rows, cols int) [][]string {
 	if rows <= 0 || cols <= 0 {
 		return nil
 	}
+	// Rows are contiguous runs of tokens, so each one is a sub-slice of the
+	// input rather than a fresh copy. The capacity is capped so that an append
+	// by a caller copies instead of overwriting the next row's tokens.
 	out := make([][]string, 0, rows)
-	row := make([]string, 0, cols+8)
+	start := 0
 	filled := 0
-	for _, token := range tokens {
-		row = append(row, token)
+	for i, token := range tokens {
 		if !occupiesPosition(token) {
 			continue
 		}
@@ -386,11 +388,11 @@ func splitTokenRows(tokens []string, rows, cols int) [][]string {
 		if filled < cols {
 			continue
 		}
-		out = append(out, row)
+		out = append(out, tokens[start:i+1:i+1])
 		if len(out) == rows {
 			return out
 		}
-		row = make([]string, 0, cols+8)
+		start = i + 1
 		filled = 0
 	}
 	return out
