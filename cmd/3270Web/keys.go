@@ -34,6 +34,11 @@ func numberedKey(upper, prefix, canon string, max int, allowParen bool) (string,
 	if !matched {
 		return "", false
 	}
+	// Atoi accepts a leading sign, so "PF+3" would otherwise be taken for
+	// PF(3) although it is not a key name anyone typed on purpose.
+	if body == "" || strings.Trim(body, "0123456789") != "" {
+		return "", false
+	}
 	n, err := strconv.Atoi(body)
 	if err != nil || n < 1 || n > max {
 		return "", false

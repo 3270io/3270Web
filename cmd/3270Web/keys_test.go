@@ -46,6 +46,12 @@ func TestNormalizeKey(t *testing.T) {
 		{"PA(1)", "PA(1)", true},
 		{"PA3", "PA(3)", true},
 
+		// A sign is not part of a key number.
+		{"PF+3", "", false},
+		{"PF(+3)", "", false},
+		{"F+1", "", false},
+		{"PA+1", "", false},
+
 		// Named keys
 		{"BackTab", "BackTab", true},
 		{"Clear", "Clear", true},
