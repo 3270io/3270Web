@@ -113,7 +113,10 @@
     function setRevealed(on) {
       if (!reveal) return;
       input.type = on ? 'text' : 'password';
-      reveal.setAttribute('aria-pressed', on ? 'true' : 'false');
+      // The name changes with the state, so it is not also a pressed toggle:
+      // that would announce "Hide password, pressed" and say it twice. The
+      // visible word follows too, so the spoken name always contains it.
+      reveal.textContent = on ? 'Hide' : 'Show';
       reveal.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
     }
 
