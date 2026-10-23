@@ -30,6 +30,15 @@ func (app *App) AdminOverviewPageHandler(c *gin.Context) {
 // to say what has been happening; the audit page is one click away for more.
 const overviewRecentLimit = 12
 
+const (
+	// overviewAuditScanLimit is how many of the newest audit entries the
+	// overview reads. It feeds both the recent list and the counters, and
+	// bounds the scan the same way the audit page bounds its own view.
+	overviewAuditScanLimit = 500
+	// overviewCounterWindow is the look-back for the refused/total tiles.
+	overviewCounterWindow = 24 * time.Hour
+)
+
 // AdminOverviewHandler aggregates the instance's state for the landing page:
 // account counts, live logins, open terminal sessions and the recent trail.
 // One request rather than four, because the page paints as a unit.
@@ -78,17 +87,16 @@ func (app *App) AdminOverviewHandler(c *gin.Context) {
 	}
 
 	// The audit read serves two displays at once: the recent-activity list,
-	// and the last-24-hours counters on the tiles above it. 500 newest entries
-	// bound the scan the same way the audit page bounds its own view.
-	entries, err := app.auditRecorder().Read(500)
+	// and the last-24-hours counters on the tiles above it.
+	entries, err := app.auditRecorder().Read(overviewAuditScanLimit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the audit log"})
 		return
 	}
-	dayAgo := now.Add(-24 * time.Hour)
+	windowStart := now.Add(-overviewCounterWindow)
 	var total24h, refused24h int
 	for _, e := range entries {
-		if e.Time.Before(dayAgo) {
+		if e.Time.Before(windowStart) {
 			continue
 		}
 		total24h++
