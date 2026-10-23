@@ -252,15 +252,21 @@ func workflowKeyForStepType(stepType string) (string, bool) {
 
 	if strings.HasPrefix(trimmed, "PressPF") {
 		inner := strings.TrimPrefix(trimmed, "PressPF")
-		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 24 {
+		if n, err := strconv.Atoi(inner); err == nil && isDigits(inner) && n >= 1 && n <= 24 {
 			return fmt.Sprintf("PF(%d)", n), true
 		}
 	}
 	if strings.HasPrefix(trimmed, "PressPA") {
 		inner := strings.TrimPrefix(trimmed, "PressPA")
-		if n, err := strconv.Atoi(inner); err == nil && n >= 1 && n <= 3 {
+		if n, err := strconv.Atoi(inner); err == nil && isDigits(inner) && n >= 1 && n <= 3 {
 			return fmt.Sprintf("PA(%d)", n), true
 		}
 	}
 	return "", false
+}
+
+// isDigits reports whether s is non-empty and made only of ASCII digits,
+// which strconv.Atoi alone does not guarantee (it accepts a leading sign).
+func isDigits(s string) bool {
+	return s != "" && strings.Trim(s, "0123456789") == ""
 }

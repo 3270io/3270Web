@@ -207,3 +207,16 @@ func TestNormalizeKey_SecurityLogging(t *testing.T) {
 		t.Errorf("normalizeKey(%q) = (%q, %v), want (\"\", false)", input, got, ok)
 	}
 }
+
+// A playback step type names a key; Atoi would also read "PressPF+3" as
+// PF(3), so a signed or padded-with-sign number must be refused.
+func TestWorkflowKeyForStepType_RejectsSignedNumbers(t *testing.T) {
+	for _, stepType := range []string{"PressPF+3", "PressPF-3", "PressPA+1", "PressPF", "PressPA"} {
+		if key, ok := workflowKeyForStepType(stepType); ok {
+			t.Errorf("workflowKeyForStepType(%q) = %q, true; want rejected", stepType, key)
+		}
+	}
+	if key, ok := workflowKeyForStepType("PressPF3"); !ok || key != "PF(3)" {
+		t.Errorf("workflowKeyForStepType(PressPF3) = %q, %v; want PF(3), true", key, ok)
+	}
+}
