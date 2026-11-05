@@ -123,6 +123,20 @@ func TestFrameAncestorsIsSelfWhenEmbeddingIsOff(t *testing.T) {
 	}
 }
 
+// base-uri and form-action do not fall back to default-src, so both have to
+// be set by name. 'self' is the tightest value that still lets every form the
+// server ships (every action is a relative path on this origin) submit and
+// every relative URL resolve against the response's own address.
+func TestCSPPinsBaseURIAndFormActionToSelf(t *testing.T) {
+	t.Setenv(embedOriginsEnv, "")
+	csp := securityHeaderFor(t, "Content-Security-Policy")
+	for _, want := range []string{"base-uri 'self';", "form-action 'self';"} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("CSP = %q, want it to contain %q", csp, want)
+		}
+	}
+}
+
 // X-Frame-Options has SAMEORIGIN and nothing else, so a browser honouring
 // both headers would refuse the frame the allowlist just permitted. It is
 // left off rather than set to something that contradicts frame-ancestors.
