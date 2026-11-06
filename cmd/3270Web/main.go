@@ -719,7 +719,7 @@ func main() {
 
 	go func() {
 		<-shutdownCh
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), httpShutdownGracePeriod)
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Printf("Shutdown failed: %v", err)
@@ -1066,6 +1066,10 @@ func (app *App) sessionHost(s *session.Session) host.Host {
 }
 
 const (
+	// httpShutdownGracePeriod is how long in-flight requests get to finish
+	// when the HTTP server is shut down, before connections are cut. Shared
+	// by the web server and the embedded UI served by the MCP command.
+	httpShutdownGracePeriod = 5 * time.Second
 	// sessionIdleTimeout is how long a session may go without an HTTP
 	// request (LastAccess) before the reaper considers it abandoned. Kept
 	// comfortably longer than the session cookie's 1-hour Max-Age (see
