@@ -195,6 +195,49 @@ func TestUpdateSettings_RejectsUnknownAndDeniedKeys(t *testing.T) {
 	}
 }
 
+// A value is written to .env as one KEY=value line, so a newline inside an
+// allowed key's value starts a second line whose key never went through the
+// denied-key check. "x\nAPI_TOKEN=mine" would have planted the instance-wide
+// credential the denied list exists to keep out.
+func TestUpdateSettings_RejectsLineBreaksInValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(envPath, []byte("APP_USE_KEYPAD=false\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{SessionManager: session.NewManager(), envPath: envPath}
+
+	r := gin.New()
+	r.POST("/api/settings", app.SettingsHandler)
+
+	mh, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := app.SessionManager.CreateSession(mh)
+
+	for _, sep := range []string{`\n`, `\r`} {
+		body := `{"settings":{"S3270_PROXY":"x` + sep + `API_TOKEN=mine"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/settings", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("separator %s: status = %d, want 400 (body=%s)", sep, w.Code, w.Body.String())
+		}
+		stored, err := os.ReadFile(envPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(stored), "API_TOKEN") {
+			t.Errorf("separator %s: API_TOKEN was planted in .env: %s", sep, stored)
+		}
+	}
+}
+
 // The UI persists per-field option lists under an APP_SETTINGS_OPTIONS_ prefix,
 // so the allowlist has to admit those without admitting arbitrary keys.
 func TestUpdateSettings_AllowsKnownKeysAndUIExtras(t *testing.T) {
