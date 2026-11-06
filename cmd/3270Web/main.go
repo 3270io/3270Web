@@ -3344,6 +3344,11 @@ func validateSettingValue(key, value string, specs map[string]config.S3270Option
 	if value == "" {
 		return nil
 	}
+	// Each setting is persisted as one KEY=value line of .env. A line break
+	// would start a second line whose key never met settingsDeniedKeys.
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("must be a single line")
+	}
 
 	if key == "ALLOW_LOG_ACCESS" || key == "APP_USE_KEYPAD" || key == "CHAOS_EXCLUDE_NO_PROGRESS_EVENTS" || key == "CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS" {
 		if !isStrictBool(value) {
