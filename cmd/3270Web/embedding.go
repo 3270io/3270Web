@@ -49,7 +49,17 @@ const embedOriginsEnv = "EMBED_ORIGINS"
 // in the directive would let a script-execution bug on any of our pages open
 // a WebSocket to any host it liked, which is the one thing a strict CSP is
 // supposed to prevent — so they are not.
-const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self';"
+//
+// base-uri and form-action are set explicitly because neither falls back to
+// default-src. Without base-uri an injected <base href> could rewrite every
+// relative URL on the page — the fetch for a script module, the action of a
+// POST form, the href of a link — to a destination the attacker controls,
+// without needing a script-src bypass. Without form-action a smuggled form
+// could post the CSRF-protected pages' hidden fields to another origin on
+// submit. Every form the server ships targets a same-origin path and nothing
+// loads a <base> element, so 'self' is the tightest value that keeps the
+// shipped pages working.
+const baseCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self';"
 
 // embedOriginCache memoises the parse of EMBED_ORIGINS. The value is read on
 // every request — the security headers run on every response, including every
