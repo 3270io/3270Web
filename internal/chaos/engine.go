@@ -1687,6 +1687,16 @@ func levenshteinDistance(a, b []rune) int {
 // only the first call at a given size class grows it. levenshteinDistance
 // keeps the old single-call signature for its other callers and tests.
 func levenshteinDistanceBuf(a, b []rune, prevRow, currRow *[]int) int {
+	// A common prefix and suffix never change the edit distance, so strip
+	// them before the O(len(a)*len(b)) DP. Dedup signatures of the same
+	// layout differ in a few cells out of ~1,900, which turns a ~4M-cell
+	// table into a near-empty one. The result is identical.
+	for len(a) > 0 && len(b) > 0 && a[0] == b[0] {
+		a, b = a[1:], b[1:]
+	}
+	for len(a) > 0 && len(b) > 0 && a[len(a)-1] == b[len(b)-1] {
+		a, b = a[:len(a)-1], b[:len(b)-1]
+	}
 	if len(a) == 0 {
 		return len(b)
 	}
