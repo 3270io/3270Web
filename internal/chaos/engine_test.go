@@ -574,6 +574,16 @@ func TestChooseAIDKeyBoosted_RespectsBlacklistForPressPFAlias(t *testing.T) {
 	}
 }
 
+func TestNormalizeChaosKeyName_RejectsSignedNumbers(t *testing.T) {
+	for _, in := range []string{"PF+3", "PF(+3)", "PressPF+3", "PA+1", "F+3", "PF+0", "PF99"} {
+		// Unrecognised keys pass through untouched; they must not be
+		// rewritten into a canonical PF/PA key.
+		if got := normalizeChaosKeyName(in); got == "PF(3)" || got == "PA(1)" || got == "PF(0)" {
+			t.Fatalf("normalizeChaosKeyName(%q) = %q, want it left unrecognised", in, got)
+		}
+	}
+}
+
 func TestNormalizeChaosKeyName_WorkflowPressAliases(t *testing.T) {
 	cases := []struct {
 		in   string
