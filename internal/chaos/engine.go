@@ -2588,19 +2588,29 @@ func normalizeChaosKeyName(key string) string {
 		compactedLower = strings.TrimPrefix(compactedLower, "press")
 	}
 
+	// Atoi accepts a leading sign, so "PF+3" must be screened as digits first.
 	if strings.HasPrefix(compactedUpper, "PF") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "PF")); err == nil && n >= 1 && n <= 24 {
-			return fmt.Sprintf("PF(%d)", n)
+		if digits := strings.TrimPrefix(compactedUpper, "PF"); isDigitsOnlyString(digits) {
+			n, err := strconv.Atoi(digits)
+			if err == nil && n >= 1 && n <= 24 {
+				return fmt.Sprintf("PF(%d)", n)
+			}
 		}
 	}
 	if strings.HasPrefix(compactedUpper, "PA") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "PA")); err == nil && n >= 1 && n <= 3 {
-			return fmt.Sprintf("PA(%d)", n)
+		if digits := strings.TrimPrefix(compactedUpper, "PA"); isDigitsOnlyString(digits) {
+			n, err := strconv.Atoi(digits)
+			if err == nil && n >= 1 && n <= 3 {
+				return fmt.Sprintf("PA(%d)", n)
+			}
 		}
 	}
 	if strings.HasPrefix(compactedUpper, "F") {
-		if n, err := strconv.Atoi(strings.TrimPrefix(compactedUpper, "F")); err == nil && n >= 1 && n <= 24 {
-			return fmt.Sprintf("PF(%d)", n)
+		if digits := strings.TrimPrefix(compactedUpper, "F"); isDigitsOnlyString(digits) {
+			n, err := strconv.Atoi(digits)
+			if err == nil && n >= 1 && n <= 24 {
+				return fmt.Sprintf("PF(%d)", n)
+			}
 		}
 	}
 	switch compactedLower {
