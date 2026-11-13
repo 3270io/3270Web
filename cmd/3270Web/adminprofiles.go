@@ -47,7 +47,8 @@ func (app *App) AdminListProfilesHandler(c *gin.Context) {
 	app.seedSampleAppPresets(c)
 	profiles, err := store.load()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
+		log.Printf("admin profiles: list failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host presets"})
 		return
 	}
 	for i := range profiles {
@@ -100,7 +101,8 @@ func (app *App) AdminSaveProfileHandler(c *gin.Context) {
 		return
 	}
 	if _, err := store.upsert(profile); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to save profile: %v", err)})
+		log.Printf("admin profiles: save failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save the host preset"})
 		return
 	}
 
@@ -138,7 +140,8 @@ func (app *App) AdminDeleteProfileHandler(c *gin.Context) {
 		return
 	}
 	if _, err := store.delete(name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+		log.Printf("admin profiles: delete failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not delete the host preset"})
 		return
 	}
 

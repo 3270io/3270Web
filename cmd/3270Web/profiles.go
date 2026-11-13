@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -409,7 +410,8 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 	}
 	profiles, err := lister(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
+		log.Printf("profiles: list failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host presets"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -541,13 +543,15 @@ func (app *App) ProfilesSaveHandler(c *gin.Context) {
 		return
 	}
 	if _, err := store.upsert(profile); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to save profile: %v", err)})
+		log.Printf("profiles: save failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save the host preset"})
 		return
 	}
 
 	profiles, err := app.visibleProfiles(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
+		log.Printf("profiles: list after save failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host presets"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "profiles": profiles})
@@ -593,7 +597,8 @@ func (app *App) ProfilesDeleteHandler(c *gin.Context) {
 	own := app.ownProfiles(c)
 	if _, found := own.find(name); found {
 		if _, err := own.delete(name); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+			log.Printf("profiles: delete (own) failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not delete the host preset"})
 			return
 		}
 	} else if published := app.publishedProfiles(c); published != nil {
@@ -605,7 +610,8 @@ func (app *App) ProfilesDeleteHandler(c *gin.Context) {
 				return
 			}
 			if _, err := published.delete(name); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete profile: %v", err)})
+				log.Printf("profiles: delete (published) failed: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "could not delete the host preset"})
 				return
 			}
 		}
@@ -613,7 +619,8 @@ func (app *App) ProfilesDeleteHandler(c *gin.Context) {
 
 	profiles, err := app.visibleProfiles(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read profiles: %v", err)})
+		log.Printf("profiles: list after delete failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host presets"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "profiles": profiles})
