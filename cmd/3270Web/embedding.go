@@ -254,10 +254,10 @@ func rememberEmbedMode(c *gin.Context) {
 	sameSite, secure := sessionCookieSameSite(c)
 	c.SetSameSite(sameSite)
 	if isTruthyParam(q) {
-		c.SetCookie(embedModeCookieName, "1", 3600, "/", "", secure, true)
+		c.SetCookie(embedModeCookieName, "1", sessionCookieMaxAgeSeconds, "/", "", secure, true)
 		return
 	}
-	c.SetCookie(embedModeCookieName, "", -1, "/", "", secure, true)
+	c.SetCookie(embedModeCookieName, "", cookieExpireNow, "/", "", secure, true)
 }
 
 // embedOriginsAttr is the allowlist as it is handed to the page: a

@@ -4602,6 +4602,13 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)
 }
 
+// sessionCookieMaxAgeSeconds is how long the browser keeps a session cookie
+// (and the embed-mode cookie, which must agree with it) before dropping it.
+const sessionCookieMaxAgeSeconds = 60 * 60
+
+// cookieExpireNow is the MaxAge that tells the browser to delete a cookie.
+const cookieExpireNow = -1
+
 func setSessionCookie(c *gin.Context, name, value string) {
 	// Both halves come from sessionCookieSameSite: Lax unless this deployment
 	// embeds the terminal, and Secure whenever the browser reached the edge
@@ -4614,9 +4621,9 @@ func setSessionCookie(c *gin.Context, name, value string) {
 	// nothing in any log to say why. See sessionCookieSameSite in embedding.go.
 	sameSite, secure := sessionCookieSameSite(c)
 	c.SetSameSite(sameSite)
-	maxAge := 3600
+	maxAge := sessionCookieMaxAgeSeconds
 	if value == "" {
-		maxAge = -1
+		maxAge = cookieExpireNow
 	}
 	c.SetCookie(name, value, maxAge, "/", "", secure, true)
 }
