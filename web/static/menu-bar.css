@@ -146,7 +146,9 @@ body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
 }
 
 .appbar-host-port {
-  opacity: 0.7;
+  /* Dimming it with opacity dropped it under 4.5:1 on every theme; the
+     difference from the host name is carried by the smaller, mono type. */
+  opacity: 1;
 }
 
 .appbar-actions {

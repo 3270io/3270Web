@@ -560,9 +560,19 @@
   const MIN_W = 320;
   const MAX_W = 900;
 
+  function currentPanelWidth() {
+    const width = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--copilot-panel-width"),
+      10
+    );
+    return Number.isFinite(width) ? width : MIN_W;
+  }
+
   function applyPanelWidth(px) {
     const clamped = Math.min(MAX_W, Math.max(MIN_W, Math.round(px)));
     document.documentElement.style.setProperty("--copilot-panel-width", `${clamped}px`);
+    const handle = document.querySelector(".copilot-resize-handle");
+    if (handle) handle.setAttribute("aria-valuenow", String(clamped));
     return clamped;
   }
 
@@ -578,6 +588,10 @@
     handle.setAttribute("role", "separator");
     handle.setAttribute("aria-orientation", "vertical");
     handle.setAttribute("aria-label", "Resize Copilot panel");
+    // A focusable separator is a slider, so it has to say where it is.
+    handle.setAttribute("aria-valuemin", String(MIN_W));
+    handle.setAttribute("aria-valuemax", String(MAX_W));
+    handle.setAttribute("aria-valuenow", String(currentPanelWidth()));
     handle.tabIndex = 0;
     panel.appendChild(handle);
 

@@ -385,8 +385,10 @@ body.theme-io-daylight {
   --border: rgba(12, 60, 45, 0.16);
   --fg: #082019;
   --fg-muted: #3d5c51;
-  --accent: #00875a;
-  --accent-2: #00a76f;
+  /* Darkened from #00875a: as text on a tinted button it was 3.8:1, and white
+     on the fill was 4.0:1. #007049 clears 4.5:1 on both. */
+  --accent: #007049;
+  --accent-2: #00875a;
   --accent-contrast: #ffffff;
   --aurora-1: rgba(0, 160, 105, 0.12);
   --aurora-2: rgba(0, 130, 190, 0.08);
@@ -3692,44 +3694,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-shrink: 0;
 }
 
-.logs-modal-footer button {
-  padding: 8px 16px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
-}
-
-.logs-modal-footer button:disabled,
-.logs-modal-header-actions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.logs-modal-footer button:hover {
-  background: var(--accent);
-  color: var(--bg);
-}
-
-.logs-modal-header-actions button {
-  padding: 6px 12px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
-}
-
-.logs-modal-header-actions button:hover {
-  background: var(--accent);
-  color: var(--bg);
-}
-
 .logs-modal-header-actions .icon-button {
   padding: 6px;
   border: 1px solid var(--accent);
@@ -3781,20 +3745,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.logs-confirm-actions button {
-  padding: 8px 14px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.logs-confirm-actions button:hover {
-  background: var(--accent);
-  color: var(--bg);
 }
 
 /* Settings Modal */
@@ -3854,22 +3804,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.settings-modal-actions button {
-  padding: 6px 12px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
-}
-
-.settings-modal-actions button:hover {
-  background: var(--accent);
-  color: var(--bg);
 }
 
 .settings-modal-actions .icon-button {
@@ -4427,21 +4361,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   padding-top: 6px;
 }
 
-.settings-actions button {
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--panel);
-  color: var(--fg);
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-
-.settings-actions button:hover {
-  background: var(--accent);
-  color: var(--bg);
-}
-
 .settings-confirm-modal {
   position: absolute;
   inset: 0;
@@ -4488,20 +4407,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.settings-confirm-actions button {
-  padding: 8px 14px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.settings-confirm-actions button:hover {
-  background: var(--accent);
-  color: var(--bg);
 }
 
 @media (max-width: 900px) {

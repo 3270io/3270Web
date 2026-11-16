@@ -73,7 +73,8 @@ body {
   /* Semantic status colours, blended toward the theme so they never clash */
   --ok: color-mix(in srgb, #35d07f 76%, var(--accent));
   --warn: #f5b544;
-  --danger: #ff6b6b;
+  /* #ff6b6b was 4.4:1 as text on the tinted danger button in the slick theme. */
+  --danger: #ff7474;
   --info: color-mix(in srgb, #4aa8ff 70%, var(--accent));
 
   /* Masked icons (tinted with currentColor via mask-image). */
@@ -90,6 +91,12 @@ body.theme-io-daylight {
   --elev-4: 0 32px 68px -18px rgba(60, 45, 25, 0.3), 0 14px 28px -16px rgba(60, 45, 25, 0.18);
   --scrim: color-mix(in srgb, #3a2f22 44%, transparent);
   --surface-sunken: color-mix(in srgb, var(--panel-2) 60%, var(--panel));
+  /* The status colours above are tuned for dark surfaces. As text on a light
+     one the amber and red are under 3:1, so each is darkened to clear 4.5:1. */
+  --ok: #0b6e43;
+  --warn: #8a5a00;
+  --danger: #a81c1f;
+  --info: #0b6aa8;
 }
 
 /* ---------------------------------------------------------------------
@@ -164,7 +171,7 @@ button:active:not(:disabled),
 }
 
 button:disabled {
-  opacity: 0.42;
+  opacity: 0.45;
   transform: none;
   box-shadow: none;
 }
@@ -180,6 +187,10 @@ textarea:focus-visible,
   outline: none;
   box-shadow: var(--ring);
   border-radius: var(--r-sm);
+}
+
+textarea {
+  padding: 8px 10px;
 }
 
 input,
@@ -647,7 +658,7 @@ body.theme-authentic .screen-container::after {
   gap: 6px;
   padding: 0 12px;
   border-right: 1px solid var(--hairline-soft);
-  color: color-mix(in srgb, var(--fg-muted) 82%, transparent);
+  color: var(--fg-muted);
   font-size: 0.86em;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1123,7 +1134,7 @@ body[data-focus="on"] .sample-status {
   width: min(96vw, 620px);
   max-height: 88vh;
   overflow: auto;
-  padding: 18px 20px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
@@ -1277,7 +1288,7 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 560px);
   max-height: 88vh;
-  padding: 18px 20px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
@@ -1535,7 +1546,7 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 860px);
   max-height: 90vh;
-  padding: 18px 20px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
@@ -1977,7 +1988,7 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 660px);
   max-height: 88vh;
-  padding: 18px 20px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
@@ -2128,7 +2139,7 @@ body[data-focus="on"] .sample-status {
   width: min(96vw, 760px);
   max-height: 88vh;
   overflow: auto;
-  padding: 18px 20px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
@@ -3056,24 +3067,63 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   margin-bottom: 2px;
 }
 
+/* The dialogs that are built by their own scripts carry the same header: a
+   hairline under the title and the same gap before the content. */
+.history-modal-header,
+.profiles-modal-header,
+.transfer-modal-header,
+.keymap-modal-header,
+.tasks-modal-header,
+.wizard-modal-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+  margin-bottom: 14px;
+}
+
 .modal-header h3,
 .workflow-modal-header h3,
 .logs-modal-header h3,
-.settings-modal-header h3 {
-  font-size: 1.06rem;
+.settings-modal-header h3,
+.history-modal-header h3,
+.profiles-modal-header h3,
+.transfer-modal-header h3,
+.keymap-modal-header h3,
+.tasks-modal-header h3,
+.wizard-modal-header h3 {
+  font-size: 1.0625rem;
   letter-spacing: 0;
   color: var(--fg);
 }
 
-.modal-close {
+.modal-close,
+[class*="modal-header"] button[data-modal-close],
+[class*="modal-header"] button[data-logs-modal-close],
+[class*="modal-header"] button[data-settings-close],
+[class*="modal-header"] button[data-wizard-close],
+[class*="modal-header"] button[data-keymap-close],
+[class*="modal-header"] button[data-profiles-close],
+[class*="modal-header"] button[data-history-close],
+[class*="modal-header"] button[data-transfer-close],
+[class*="modal-header"] button[data-tasks-close] {
   border-radius: var(--r-xs);
   font-size: 0.84rem;
   color: var(--fg-muted);
+  padding: 6px 10px;
 }
 
-.modal-close:hover {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+/* Closing is not destructive, so it does not turn red: red is kept for the
+   buttons that delete or disconnect. */
+.modal-close:hover,
+[class*="modal-header"] button[data-modal-close]:hover,
+[class*="modal-header"] button[data-logs-modal-close]:hover,
+[class*="modal-header"] button[data-settings-close]:hover,
+[class*="modal-header"] button[data-wizard-close]:hover,
+[class*="modal-header"] button[data-keymap-close]:hover,
+[class*="modal-header"] button[data-profiles-close]:hover,
+[class*="modal-header"] button[data-history-close]:hover,
+[class*="modal-header"] button[data-transfer-close]:hover,
+[class*="modal-header"] button[data-tasks-close]:hover {
+  color: var(--fg);
 }
 
 .modal-actions {
@@ -3923,4 +3973,19 @@ body.copilot-resizing {
   font-size: 0.78rem;
   line-height: 1.45;
   color: var(--fg-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Consistency fixes found by measuring every dialog
+   --------------------------------------------------------------------- */
+/* The Logs dialog's footer rule was a bright full-strength line while every
+   other divider is a hairline. */
+.logs-modal-footer {
+  border-top: 1px solid var(--hairline-soft);
+}
+
+/* "optional" next to a field label is the same size as the label, not the
+   larger body size that .subtle brings. */
+.profiles-modal-content label > .subtle {
+  font-size: inherit;
 }
