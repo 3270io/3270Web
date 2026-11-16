@@ -31,6 +31,30 @@ import (
 // back the wrong server would connect somebody to an application that is not
 // the one their preset names, which is worse than the error it replaced.
 
+// SampleAppPortInUseError says a port is already serving a different sample
+// app. It is a type rather than a sentence so the layer that talks to a person
+// can name the apps by their titles and suggest a port that is actually free,
+// which this package has no business knowing how to word.
+type SampleAppPortInUseError struct {
+	Port      int
+	HeldBy    string // app id already serving the port
+	Requested string // app id that asked for it
+}
+
+func (e *SampleAppPortInUseError) Error() string {
+	return fmt.Sprintf("port %d is already serving the sample app %q, so %q cannot use it",
+		e.Port, e.HeldBy, e.Requested)
+}
+
+// SampleAppPortInUse reports whether a sample app listener this process
+// started is holding the port.
+func SampleAppPortInUse(port int) bool {
+	sampleAppPoolMu.Lock()
+	defer sampleAppPoolMu.Unlock()
+	_, ok := sampleAppPool[port]
+	return ok
+}
+
 type sampleAppLease struct {
 	appID  string
 	server *sampleapps.Server
@@ -77,8 +101,7 @@ func acquireSampleAppServer(appID string, port int) (*sampleapps.Server, error) 
 	}
 	if lease, ok := sampleAppPool[port]; ok {
 		if lease.appID != appID {
-			return nil, fmt.Errorf("port %d is already serving the sample app %q, so %q cannot use it",
-				port, lease.appID, appID)
+			return nil, &SampleAppPortInUseError{Port: port, HeldBy: lease.appID, Requested: appID}
 		}
 		lease.refs++
 		return lease.server, nil

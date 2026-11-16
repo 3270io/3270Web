@@ -201,7 +201,7 @@
                 <label for="sample-app-select">Sample application</label>
                 <select id="sample-app-select">
                     {{ range .SampleApps }}
-                    <option value="{{ .ID }}">{{ .Name }}</option>
+                    <option value="{{ .ID }}" data-port="{{ .Port }}">{{ .Name }}</option>
                     {{ end }}
                 </select>
                 <details><summary>Advanced: sample port</summary><label for="sample-app-port">Port</label>
@@ -237,5 +237,6 @@
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/connect-page.js?v=2"></script>
+    <script src="/static/connect-recovery.js" defer></script>
 </body>
 </html>

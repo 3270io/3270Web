@@ -183,6 +183,9 @@ type SampleAppOption struct {
 	ID       string
 	Name     string
 	Hostname string
+	// Port is the app's own default, so a picker can preselect it instead of
+	// offering every app the same one.
+	Port int
 }
 
 const sampleAppPrefix = "sampleapp:"
@@ -1485,8 +1488,18 @@ func connectErrorMessage(hostname string, err error) string {
 		return refusal.message
 	}
 	if id, port, ok := parseSampleAppHost(hostname); ok && err != nil {
-		return fmt.Sprintf("We couldn't start %s. %s.",
+		var inUse *host.SampleAppPortInUseError
+		if errors.As(err, &inUse) {
+			return samplePortInUseMessage(inUse)
+		}
+		message := fmt.Sprintf("We couldn't start %s. %s.",
 			sampleAppDescription(id, port), capitaliseFirst(err.Error()))
+		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			// Something outside this process has the port, so there is no
+			// list of free ones to offer; say where the choice is made.
+			message += " Pick another port under Advanced in Other samples."
+		}
+		return message
 	}
 	if err != nil {
 		text := strings.ToLower(err.Error())
@@ -1504,6 +1517,24 @@ func connectErrorMessage(hostname string, err error) string {
 		}
 	}
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
+}
+
+// samplePortInUseMessage explains a sample port held by a different sample and
+// says how to get out of it: a port that is free, and where to choose it.
+func samplePortInUseMessage(e *host.SampleAppPortInUseError) string {
+	name := func(id string) string {
+		if cfg, ok := sampleAppConfig(id); ok {
+			return cfg.Name
+		}
+		return id
+	}
+	message := fmt.Sprintf("Port %d is already serving %s, so %s cannot use it.",
+		e.Port, name(e.HeldBy), name(e.Requested))
+	if free := suggestSampleAppPort(e.Requested, e.Port); free != 0 {
+		return message + fmt.Sprintf(" Use port %d instead: type sampleapp:%s:%d, or pick another port under Advanced in Other samples.",
+			free, e.Requested, free)
+	}
+	return message + " Close the session using it, or pick another port under Advanced in Other samples."
 }
 
 // sampleAppDescription names a sample app the way the picker does, rather than
@@ -4524,6 +4555,7 @@ func availableSampleApps() []SampleAppOption {
 			ID:       app.ID,
 			Name:     app.Name,
 			Hostname: sampleAppHostname(app.ID),
+			Port:     defaultSampleAppPortFor(app.ID),
 		})
 	}
 	return options
@@ -4565,11 +4597,45 @@ func isAllowedSampleAppPort(port int) bool {
 	return ok
 }
 
-func sampleAppPort(port int) int {
+// defaultSampleAppPortFor is the port an app takes when none is chosen: the
+// one at its position in sampleAppConfigs, so the eight apps never share a
+// default. The saved-connections list (sampleAppPresetOptions) offers the same
+// ports for the same reason; both read this so they cannot drift apart.
+//
+// An id with no entry falls back to defaultSampleAppPort.
+func defaultSampleAppPortFor(id string) int {
+	ports := allowedSampleAppPorts()
+	for i, cfg := range sampleAppConfigs {
+		if cfg.ID == id && i < len(ports) {
+			return ports[i]
+		}
+	}
+	return defaultSampleAppPort
+}
+
+// sampleAppPort is the port to serve an app on: the one asked for, or the
+// app's own default when none was.
+func sampleAppPort(id string, port int) int {
 	if port <= 0 {
-		return defaultSampleAppPort
+		return defaultSampleAppPortFor(id)
 	}
 	return port
+}
+
+// suggestSampleAppPort names a port the app could use instead of busy: its own
+// default if that is free, else the first of the allowed ports that no sample
+// listener is holding. Zero means every one is taken.
+func suggestSampleAppPort(id string, busy int) int {
+	free := func(port int) bool { return port != busy && !host.SampleAppPortInUse(port) }
+	if own := defaultSampleAppPortFor(id); free(own) {
+		return own
+	}
+	for _, port := range allowedSampleAppPorts() {
+		if free(port) {
+			return port
+		}
+	}
+	return 0
 }
 
 // newHostFor builds the connection a target names, whether that target is a
@@ -4624,7 +4690,7 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 	if !ok {
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
-	port = sampleAppPort(port)
+	port = sampleAppPort(id, port)
 	target := fmt.Sprintf("127.0.0.1:%d", port)
 	args := buildS3270Args(opts, "")
 	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)
