@@ -82,6 +82,11 @@
   // The host's own input-inhibit state, as last reported by the server.
   var hostIndicator = "";
   var hostExplanation = "";
+  // Set once the host is known to have hung up (see session-expiry.js, which
+  // calls setHostLost). It outranks every other indicator, so a later repaint
+  // — the end of a failed key press, a toggle of insert mode — cannot put
+  // "Ready for input" back over a connection that is gone.
+  var hostLost = false;
   // Set while an AID key is in flight so the OIA can show X SYSTEM
   // immediately rather than waiting for the next server poll to say so.
   var awaitingHost = false;
@@ -304,7 +309,11 @@
     var explanation = "";
     var kind = "ready";
 
-    if (operatorError) {
+    if (hostLost) {
+      indicator = "X DISCONNECTED";
+      explanation = "Connection to the host was lost";
+      kind = "error";
+    } else if (operatorError) {
       indicator = "X -f";
       explanation = operatorError + " — press Reset (or Esc) to continue";
       kind = "error";
@@ -395,7 +404,7 @@
     })
       .then(function (response) {
         if (!response.ok) {
-          throw new Error("submit failed");
+          return failedRequest(response, "submit failed");
         }
         return fetch("/screen/content", {
           headers: {
@@ -407,7 +416,7 @@
       })
       .then(function (response) {
         if (!response.ok) {
-          throw new Error("content refresh failed");
+          return failedRequest(response, "content refresh failed");
         }
         return response.json();
       })
@@ -449,10 +458,52 @@
           window.sizeScreenContainer();
         }
       })
-      .catch(function () {
+      .catch(function (err) {
+        // A host that has hung up is not something a full-page submit can get
+        // past: it would post the same key to the same dead session and land
+        // on an error page, with whatever was typed gone. Hand it to the
+        // reconnect handling and leave the screen as it is.
+        if (reportConnectionLoss(err)) {
+          return;
+        }
         // Fall back to full form submit if async update fails.
         form.submit();
       });
+  }
+
+  // failedRequest turns a non-2xx answer into an Error that carries what the
+  // server said about it — its message and its machine-readable code — so the
+  // handler above can tell a lost connection from any other failure.
+  function failedRequest(response, fallback) {
+    return response
+      .json()
+      .catch(function () {
+        return {};
+      })
+      .then(function (payload) {
+        var err = new Error((payload && payload.error) || fallback);
+        err.status = response.status;
+        err.code = payload && payload.code;
+        throw err;
+      });
+  }
+
+  // reportConnectionLoss hands a failure that means "the host or its session is
+  // gone" to session-expiry.js. It returns false for anything else, which is
+  // left to the caller.
+  function reportConnectionLoss(err) {
+    if (!err || (err.code !== "host_disconnected" && err.code !== "host_session_missing")) {
+      return false;
+    }
+    var api = window.ThreeSeventyWeb;
+    if (!api || typeof api.handleAccessFailure !== "function") {
+      return false;
+    }
+    // A session that has gone and a host that has hung up look the same from a
+    // key press — it did not arrive — so both are reported as the latter,
+    // which is the one that offers Reconnect straight away.
+    api.handleAccessFailure(err.status, { code: "host_disconnected", error: err.message });
+    return true;
   }
 
   function isCursorNavigationKey(key) {
@@ -3348,6 +3399,14 @@
   // user deliberately left it via the Ctrl+Tab escape hatch.
   window.updateScreenStatusLine = updateScreenStatusLine;
   window.restoreScreenFocus = restoreScreenFocus;
+
+  // session-expiry.js marks the host lost through this, so the OIA keeps
+  // saying so across the repaints a failed key press and later typing cause.
+  window.ThreeSeventyWeb = window.ThreeSeventyWeb || {};
+  window.ThreeSeventyWeb.setHostLost = function (lost) {
+    hostLost = !!lost;
+    renderOIA();
+  };
 
   // Refresh the 3270 screen HTML from the server without a form submit.
   // Called by Copilot tools after state-changing actions so the terminal

@@ -1718,9 +1718,17 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		return
 	}
 
+	// A host that has hung up still gets its page, drawn from the last screen
+	// it sent and marked disconnected. The terminal page is where Reconnect
+	// lives, so an error page here would send somebody away from the one place
+	// that can fix it — which is also where "Return to terminal" leads.
+	hostLost := false
 	if err := h.UpdateScreen(); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
-		return
+		if !host.IsDisconnected(err) {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
+			return
+		}
+		hostLost = true
 	}
 
 	screen := hostScreenSnapshot(h)
@@ -1738,6 +1746,9 @@ func (app *App) ScreenHandler(c *gin.Context) {
 
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
 	oia := screenOIA(screen)
+	if hostLost {
+		markOIADisconnected(oia)
+	}
 
 	chaosRunActive := false
 	if app.chaosEngines != nil {
@@ -1838,6 +1849,10 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		return
 	}
 	if err := h.UpdateScreen(); err != nil {
+		if host.IsDisconnected(err) {
+			respondHostLostJSON(c)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
 	}
@@ -1948,6 +1963,10 @@ func (app *App) SubmitHandler(c *gin.Context) {
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
+		if errors.Is(err, errHostDisconnected) {
+			renderHostLostPage(c, err)
+			return
+		}
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": err.Error()})
 		return
 	}
@@ -1962,6 +1981,10 @@ func (app *App) SubmitAsyncHandler(c *gin.Context) {
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
+		if errors.Is(err, errHostDisconnected) {
+			respondHostLostJSON(c)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -2005,7 +2028,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	recordScreenForStep(s, painted)
 	recordFieldUpdates(s, filled)
 	if err != nil {
-		return fmt.Errorf("submit failed: %w", err)
+		return lostHostOr(h, fmt.Errorf("submit failed: %w", err))
 	}
 
 	if cursorRow != "" && cursorCol != "" {
@@ -2031,7 +2054,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	recordActionKey(s, actionKey)
 
 	if err := h.SendKey(actionKey); err != nil {
-		return fmt.Errorf("send key failed: %w", err)
+		return lostHostOr(h, fmt.Errorf("send key failed: %w", err))
 	}
 	return nil
 }

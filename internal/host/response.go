@@ -69,6 +69,37 @@ func AsActionError(err error) (*ActionError, bool) {
 	return nil, false
 }
 
+// IsDisconnected reports whether err means the connection to the host is gone,
+// as opposed to the host or the terminal refusing something on a connection
+// that is fine.
+//
+// A terminal whose host has hung up stays alive: the subprocess and its pipe
+// are healthy, so asking whether it is running says yes. What gives the drop
+// away is what comes back from the next thing asked of it. A write is refused
+// with a status line whose connection field reads "N"; the attempt to dial the
+// host again, which a screen read makes when it sees that field, is refused as
+// a failed Connect; a dead subprocess says "not connected" or that its pipe is
+// closed. All of them are the same fact, and a caller that wants to tell the
+// operator "the connection was lost" rather than "something failed" needs to
+// ask one question.
+func IsDisconnected(err error) bool {
+	if err == nil {
+		return false
+	}
+	if actionErr, ok := AsActionError(err); ok {
+		if isDisconnectedStatus(actionErr.Status) {
+			return true
+		}
+		// The terminal re-dials a host that has hung up before reading the
+		// screen. When that is refused the host is not coming back on its own.
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(actionErr.Command)), "connect(") {
+			return true
+		}
+		return false
+	}
+	return isConnectionError(err)
+}
+
 // IsActionError reports whether err is a refusal from the terminal.
 func IsActionError(err error) bool {
 	_, ok := AsActionError(err)

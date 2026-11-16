@@ -29,9 +29,14 @@
          jumps to, and role=alert on the card below is what announces it. -->
     <div class="error-page" role="main">
         <div class="error-card" role="alert" aria-live="assertive">
-            <h1 class="error-title">Something went wrong</h1>
-            <p class="error-message">The operation could not be completed. Your session has not been disconnected.</p>
-            <details><summary>Technical details</summary><p>{{ .Error }}</p></details>
+            <!-- Handlers that know what happened say so with Title and Message
+                 (the host hung up; the account may not open this page). The
+                 default is for the failures nobody anticipated, and it does
+                 not say whether the terminal session survived because the
+                 page cannot know. -->
+            <h1 class="error-title">{{ if .Title }}{{ .Title }}{{ else }}Something went wrong{{ end }}</h1>
+            <p class="error-message">{{ if .Message }}{{ .Message }}{{ else }}The operation could not be completed. Your terminal session may still be open: Return to terminal shows you, or choose a connection to start again.{{ end }}</p>
+            {{ if .Error }}<details><summary>Technical details</summary><p>{{ .Error }}</p></details>{{ end }}
             <div class="error-actions"><a class="button-link primary-action" href="/screen">Return to terminal</a><a class="button-link" href="/">Choose a connection</a></div>
         </div>
     </div>
