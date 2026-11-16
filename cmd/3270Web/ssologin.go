@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -199,8 +200,9 @@ func (app *App) SSOStartHandler(c *gin.Context) {
 	// Throttled on the same limiter as the password form. Each start costs a
 	// remembered pending login and a call to the provider, so it is a cost an
 	// anonymous caller can impose.
-	if ok, _ := app.loginLimiter.Allow("sso:" + clientIP); !ok {
-		app.renderLogin(c, http.StatusTooManyRequests, "Too many sign-in attempts. Try again shortly.")
+	if ok, retryIn := app.loginLimiter.Allow("sso:" + clientIP); !ok {
+		c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(retryIn)))
+		app.renderLogin(c, http.StatusTooManyRequests, "Too many sign-in attempts. Try again in "+retryAfterText(retryIn)+".")
 		return
 	}
 

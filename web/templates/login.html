@@ -41,15 +41,18 @@
             <form action="/login" method="post" class="auth-form" data-auth-form>
                 <div class="field">
                     <label for="username">Username</label>
-                    <input type="text" id="username" name="username" autocomplete="username"
+                    <!-- A refused sign-in comes back with the name that was typed,
+                         and the cursor in the password box, which is what there
+                         is left to retype. -->
+                    <input type="text" id="username" name="username" value="{{ .Username }}" autocomplete="username"
                            autocapitalize="none" autocorrect="off" spellcheck="false"
-                           required autofocus>
+                           required {{ if not .Username }}autofocus{{ end }}>
                 </div>
 
                 <div class="field">
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password"
-                           autocomplete="current-password" required>
+                           autocomplete="current-password" required {{ if .Username }}autofocus{{ end }}>
                 </div>
 
                 <button type="submit" class="auth-submit">Sign in</button>
