@@ -95,7 +95,9 @@ recording controls — or find it in the command palette. The wizard is five
 stages, in the shape of the task itself:
 
 1. **Details.** What the task is called and what it does. The name is what
-   appears on the menu, and what an assistant calls to run it.
+   appears on the menu, and what an assistant calls to run it. The name is
+   marked *required*: **Next** will not move on without one, and says so beside
+   the field.
 2. **Inputs.** Everything typed during the recording arrives as an input the
    operator will be asked for, labelled with the text the screen itself uses.
    Each one is **Ask the operator**, **Always this value** — which removes it
@@ -115,7 +117,9 @@ stages, in the shape of the task itself:
    that may be missing.
 5. **Review.** The server validates the task and reads the answer back from
    the screen — using the same validation and the same extraction the runner
-   uses, so what it shows is what a run will do. Then save.
+   uses, so what it shows is what a run will do. Then save. **Save task** stays
+   off while the task cannot be saved — no name yet, or a problem the review
+   lists — and the reason is shown beside it.
 
 On the first stage is **What was assumed** — every guess the draft made,
 listed rather than buried. Read it: a guard that could not be derived, a field
