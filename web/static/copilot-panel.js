@@ -171,7 +171,13 @@
             if (promptText) promptText.textContent = "Sign in to " + providerLabel + " to start chatting.";
             if (connectBtn) connectBtn.textContent = "Sign in to " + providerLabel;
         } else if (!s.ready) {
-            if (promptText) promptText.textContent = providerLabel + " needs an API key before you can chat.";
+            // Name what is actually empty. The OpenAI-compatible entry's key
+            // is optional, so asking for one there sent people to the wrong
+            // field; the server says which setting is missing.
+            let text = providerLabel + " needs to be set up before you can chat.";
+            if (s.missing === "baseUrl") text = "Add an endpoint URL before you can chat.";
+            else if (s.missing === "apiKey") text = providerLabel + " needs an API key before you can chat.";
+            if (promptText) promptText.textContent = text;
             if (connectBtn) connectBtn.textContent = "Set up " + providerLabel;
         }
         const signout = panel.querySelector("[data-copilot-signout]");

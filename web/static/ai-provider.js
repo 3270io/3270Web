@@ -114,6 +114,7 @@
                         <span class="ai-field-label" for="ai-baseurl">Endpoint URL</span>
                         <input id="ai-baseurl" type="url" data-ai-baseurl spellcheck="false" autocomplete="off">
                     </label>
+                    <p class="ai-field-help ai-field-error" id="ai-baseurl-error" data-ai-baseurl-error hidden></p>
 
                     <label class="ai-field" data-ai-key-row hidden>
                         <span class="ai-field-label" for="ai-key" data-ai-key-label>API key</span>
@@ -151,6 +152,11 @@
         });
         wrap.querySelector("[data-ai-signin]").addEventListener("click", onSignInClicked);
         wrap.querySelector("[data-ai-save]").addEventListener("click", onSaveClicked);
+        // The complaint is about what was typed, so it goes as soon as the
+        // field is touched rather than waiting for the next Save.
+        wrap.querySelector("[data-ai-baseurl]").addEventListener("input", function () {
+            setBaseUrlError("");
+        });
         return wrap;
     }
 
@@ -164,6 +170,25 @@
         // entirely rather than rendering an empty bar under the form.
         el.hidden = !text;
         el.classList.toggle("ai-status-error", !!isError);
+    }
+
+    // setBaseUrlError marks the Endpoint URL field invalid, or clears the mark
+    // when called with no message. The message is tied to the field with
+    // aria-describedby so a screen reader reads it when the field takes focus,
+    // rather than leaving it as a line of text somewhere below.
+    function setBaseUrlError(text) {
+        const input = q("[data-ai-baseurl]");
+        const el = q("[data-ai-baseurl-error]");
+        if (!input || !el) return;
+        el.textContent = text || "";
+        el.hidden = !text;
+        if (text) {
+            input.setAttribute("aria-invalid", "true");
+            input.setAttribute("aria-describedby", el.id);
+        } else {
+            input.removeAttribute("aria-invalid");
+            input.removeAttribute("aria-describedby");
+        }
     }
 
     function providerById(id) {
@@ -196,6 +221,7 @@
         baseInput.value = saved.baseUrl || "";
         baseInput.placeholder = prov.defaultBaseUrl || "https://your-endpoint.example.com/v1";
         baseInput.required = !!prov.baseUrlRequired;
+        setBaseUrlError("");
 
         const keyRow = q("[data-ai-key-row]");
         keyRow.hidden = isOAuth;
@@ -260,7 +286,20 @@
         if (!prov) return;
 
         const patch = { provider: providerId, target: providerId };
-        if (prov.baseUrlEditable) patch.baseUrl = q("[data-ai-baseurl]").value.trim();
+        if (prov.baseUrlEditable) {
+            const baseUrl = q("[data-ai-baseurl]").value.trim();
+            // The OpenAI-compatible entry has no default endpoint, and its key
+            // is optional: the URL is the one thing it cannot work without.
+            // Saving it empty used to close the dialog and leave the panel
+            // asking for an API key, so say so here, where the field is.
+            if (prov.baseUrlRequired && !baseUrl) {
+                setStatusText("");
+                setBaseUrlError("Enter the endpoint URL, for example http://localhost:11434/v1");
+                q("[data-ai-baseurl]").focus();
+                return;
+            }
+            patch.baseUrl = baseUrl;
+        }
         if (prov.auth !== "oauth-device") {
             const key = q("[data-ai-key]").value;
             // Omit the field entirely when untouched so the saved key survives.

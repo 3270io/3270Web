@@ -285,11 +285,10 @@ type NotConfiguredError struct {
 func (e *NotConfiguredError) Error() string {
 	// "endpoint URL" is what the settings dialog calls the field; the code
 	// calls it a base URL.
-	what := "an API key"
 	if e.Missing == MissingBaseURL {
-		what = "an endpoint URL"
+		return e.Provider.Label + " has no endpoint URL set — enter one in AI provider settings"
 	}
-	return e.Provider.Label + " needs " + what + " — set one in AI provider settings"
+	return e.Provider.Label + " needs an API key — set one in AI provider settings"
 }
 
 func (e *identitySettings) snapshotLocked() Settings {
