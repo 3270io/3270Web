@@ -234,7 +234,8 @@ body.touch-device .copilot-panel {
 /* Same fix for the other bottom-docked widgets, which are anchored to the
  * viewport rather than to the page and so do not benefit from the padding
  * above. */
-body.touch-device #h3270-notification-container {
+body.touch-device #h3270-notification-container,
+body.touch-device .workflow-status-widget {
   bottom: calc(var(--touch-bar-height, 120px) + 12px);
 }
 

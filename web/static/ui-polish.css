@@ -3020,12 +3020,96 @@ body.theme-authentic .terminal-shell {
 
 /* Minimised, the fixed 220px width left no room for the title next to the
    tracking switch and the two icon buttons, so it collapsed to "W…".
-   Size to content instead. */
+   Size to content instead — to the header's content, which is what
+   min-content gives. max-content also counted the body, which is hidden
+   but still has a sentence of 400px in it, and made the minimised widget as
+   wide as the expanded one. */
 .workflow-status-widget.is-minimized,
 html.workflow-status-minimized .workflow-status-widget {
-  width: max-content;
+  width: min-content;
   min-width: 220px;
   max-width: calc(100vw - 40px);
+}
+
+/* The switch sits in a label, and style.css gives every label the padding and
+   border of a field. Round a 36px switch that is a 91px box, which is most
+   of what pushed the minimised widget past 400px. */
+.workflow-status-tracking-toggle {
+  padding: 4px 6px;
+}
+
+/* The real checkbox is there for the keyboard and for assistive tech and is
+   meant to take no room. The themed-checkbox rule above gives every checkbox
+   an 18px minimum width and puts it back in the flow, so the invisible one was
+   claiming 26px of the switch's label. Take it out of the flow again — and
+   since it is invisible, show its focus on the switch itself, or somebody
+   tabbing through the header lands on nothing. */
+.workflow-status-tracking-toggle input[type="checkbox"] {
+  position: absolute;
+  min-width: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.workflow-status-tracking-toggle:focus-within .workflow-status-toggle {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* One button restores the minimised widget and minimises the open one, so it
+   shows the chevron for whichever it will do. Restore (up: the widget grows
+   upward from its corner) while minimised, minimise (down) otherwise. */
+.workflow-status-icon-restore,
+.workflow-status-widget.is-minimized .workflow-status-icon-minimize,
+html.workflow-status-minimized .workflow-status-icon-minimize {
+  display: none;
+}
+
+.workflow-status-widget.is-minimized .workflow-status-icon-restore,
+html.workflow-status-minimized .workflow-status-icon-restore {
+  display: inline;
+}
+
+/* Where the widget lives.
+
+   It is fixed to the bottom-left of the viewport, and between 1280 and 1600px
+   the free margin on that side is narrower than the widget: at 1280 the
+   terminal frame starts about 335px in, and a minimised widget is 300 wide, so
+   it floated over the first columns of the screen — 89x65px of it at 1280,
+   46x65px at 1366 — hiding exactly the text somebody is watching a run to
+   read. A fixed element cannot know where the terminal is, so the page makes
+   the room instead: while the widget is showing, the page gets a left gutter
+   as wide as the widget and the card centres in what remains. The gutter is
+   the widget's width plus its 20px offset and a 16px gap, and the widget is
+   capped at that width so dragging its resize handle cannot take it back over
+   the card.
+
+   Above 1600px the margin is wide enough already, so nothing moves. Below
+   1280px there is not room for a gutter and the terminal comes first: the
+   widget stays a small floating pill. The AI chat panel and focus mode each
+   claim the rest of the width themselves, so the gutter stands down for them
+   and the widget floats as it always did. */
+@media (min-width: 1280px) and (max-width: 1599px) {
+  body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .page-wrap {
+    padding-left: 340px;
+  }
+
+  body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .card {
+    max-width: calc(100vw - 340px - 20px);
+  }
+
+  html:not(.workflow-status-minimized) body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .page-wrap {
+    padding-left: 396px;
+  }
+
+  html:not(.workflow-status-minimized) body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .card {
+    max-width: calc(100vw - 396px - 20px);
+  }
+
+  .workflow-status-widget {
+    max-width: 360px;
+  }
 }
 
 .workflow-status-widget.is-minimized .workflow-status-widget-header strong,

@@ -252,11 +252,19 @@ The Workflow Status panel shows:
 When you connect to a host the widget starts minimized so it stays out of the
 way until you need it.
 
+The widget sits in the bottom-left corner. On a window between 1280 and 1600
+pixels wide the page makes room for it — the terminal moves right by the
+widget's width while a run is showing — so it never covers the terminal screen.
+It floats over the page, as before, when the AI chat panel or focus mode is
+using the width, and on windows narrower than 1280 pixels.
+
 You can:
 
 - Open it from the status indicator
-- Minimize/maximize it
-- Enable or disable tracking
+- Minimize/maximize it (the button shows an up chevron while the widget is
+  minimized, to restore it, and a down chevron while it is open, to minimize it)
+- Enable or disable tracking with the switch in its header ("Track workflow
+  status" to a screen reader)
 
 ## Recording JSON Basics
 
