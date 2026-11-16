@@ -19,6 +19,9 @@
     const HISTORY_KEY_BASE = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
+    // Set once the person has read the Auto-run confirmation and accepted it
+    // in this browser, so it is asked the first time and not every time.
+    const AUTO_MODE_ACK_KEY = "copilot.panel.automode.ack";
     // Hard safety net on tool-call rounds per user message. The system prompt
     // asks the model to stay within ~30 rounds; this ceiling is a generous
     // backstop (well below the old effectively-unbounded 10000) so a runaway
@@ -1962,6 +1965,33 @@
         await send(EXPLAIN_ASK, { pinned });
     }
 
+    // loadToolSchema fetches the tool definitions, the system prompt and the
+    // keys that always need approval, once. Returns "" when they are loaded and
+    // the reason when they could not be. The Auto-run confirmation uses it too,
+    // so what it says is excluded from auto-run is the server's list.
+    async function loadToolSchema() {
+        if (toolSchema) return "";
+        try {
+            const resp = await fetch("/api/ai/tools", { credentials: "same-origin" });
+            const data = await resp.json();
+            toolSchema = data.tools || [];
+            systemPrompt = data.system_prompt || systemPrompt;
+            if (Array.isArray(data.dangerous_send_keys)) {
+                dangerousSendKeys = data.dangerous_send_keys;
+            }
+            // The model the provider is saved with is the server's to
+            // know; only fill in from here if nothing has set it yet
+            // (populateModelSelect, which reflects the real current
+            // selection, doesn't run until after this).
+            if (!model && data.model) {
+                model = data.model;
+            }
+            return "";
+        } catch (err) {
+            return String((err && err.message) || err);
+        }
+    }
+
     // send commits one user turn. `opts.pinned`, when present, is host-derived
     // text captured at the moment the ask was made — see explainScreen. It is
     // carried in the history message rather than in the per-turn context block
@@ -1976,26 +2006,10 @@
         sendInFlight = true;
         const pinned = (opts && opts.pinned) ? String(opts.pinned) : "";
         try {
-            if (!toolSchema) {
-                try {
-                    const resp = await fetch("/api/ai/tools", { credentials: "same-origin" });
-                    const data = await resp.json();
-                    toolSchema = data.tools || [];
-                    systemPrompt = data.system_prompt || systemPrompt;
-                    if (Array.isArray(data.dangerous_send_keys)) {
-                        dangerousSendKeys = data.dangerous_send_keys;
-                    }
-                    // The model the provider is saved with is the server's to
-                    // know; only fill in from here if nothing has set it yet
-                    // (populateModelSelect, which reflects the real current
-                    // selection, doesn't run until after this).
-                    if (!model && data.model) {
-                        model = data.model;
-                    }
-                } catch (err) {
-                    appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
-                    return;
-                }
+            const schemaError = await loadToolSchema();
+            if (schemaError) {
+                appendMessage("error", "Could not load tool schema: " + schemaError);
+                return;
             }
             // Make sure the provider is usable BEFORE committing the user turn,
             // so a cancelled sign-in (or an abandoned settings dialog) doesn't
@@ -2079,19 +2093,35 @@
             });
         }
 
+        // The button says what it does in words, and says when it is on: it
+        // used to read "Auto" and rely on a tooltip for "run tools without
+        // approval". The accessible name stays the same in both states, since
+        // aria-pressed carries the state.
         function syncAutoModeUI() {
             if (!autoModeBtn) return;
             autoModeBtn.setAttribute("aria-pressed", autoMode ? "true" : "false");
             autoModeBtn.classList.toggle("active", autoMode);
+            autoModeBtn.textContent = autoMode ? "Auto-run: on" : "Auto-run";
             if (hintEl) {
                 hintEl.innerHTML = autoMode
-                    ? "Auto Mode is <strong>on</strong> — tools run without approval."
+                    ? "Auto-run is <strong>on</strong>: tools run without asking you first. Some keys still ask."
                     : "Each tool call waits for you to click <strong>Run</strong>.";
             }
         }
 
+        let confirmingAutoRun = false;
         if (autoModeBtn) {
-            autoModeBtn.addEventListener("click", function () {
+            autoModeBtn.addEventListener("click", async function () {
+                if (confirmingAutoRun) return;
+                // Turning it on is the consequential direction. Ask the first
+                // time in this browser; turning it off never asks.
+                if (!autoMode && !autoRunAcknowledged()) {
+                    confirmingAutoRun = true;
+                    let accepted = false;
+                    try { accepted = await confirmAutoRun(); } finally { confirmingAutoRun = false; }
+                    if (!accepted) return;
+                    try { localStorage.setItem(AUTO_MODE_ACK_KEY, "1"); } catch (_) {}
+                }
                 autoMode = !autoMode;
                 try { localStorage.setItem(AUTO_MODE_KEY, autoMode ? "1" : "0"); } catch (_) {}
                 syncAutoModeUI();
@@ -2143,6 +2173,72 @@
                 }
             });
         }
+    }
+
+    function autoRunAcknowledged() {
+        try { return localStorage.getItem(AUTO_MODE_ACK_KEY) === "1"; } catch (_) { return false; }
+    }
+
+    // describeApprovalKeys names the keys that still need a person in Auto-run,
+    // from the server's list ("PF(3)" reads as PF3). Falls back to a
+    // description when the list has not loaded.
+    function describeApprovalKeys() {
+        if (!Array.isArray(dangerousSendKeys) || !dangerousSendKeys.length) {
+            return "keys that can end the session or discard the screen";
+        }
+        const names = dangerousSendKeys.map(function (k) { return String(k).replace(/[()]/g, ""); });
+        return names.length > 1
+            ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1]
+            : names[0];
+    }
+
+    // confirmAutoRun asks before Auto-run is switched on for the first time in
+    // this browser, and resolves true only if the person chose to turn it on.
+    // Focus starts on Cancel: the safe answer is the one a stray Enter gives.
+    //
+    // What it says is excluded is what the code excludes: send_key with a key
+    // from the server's approval list (requiresManualApproval), and ask_user,
+    // which is a question and has nothing to run. Every other tool, including
+    // the ones that drive the host, runs unasked.
+    async function confirmAutoRun() {
+        const modal = document.querySelector("[data-copilot-automode-modal]");
+        if (!modal) return true; // markup missing: do not strand the toggle
+        await loadToolSchema(); // best effort; only needed for the key names
+        const keysEl = modal.querySelector("[data-copilot-automode-keys]");
+        if (keysEl) keysEl.textContent = describeApprovalKeys();
+
+        return new Promise(function (resolve) {
+            const trap =
+                window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+                    ? window.ThreeSeventyWeb.createFocusTrap(modal)
+                    : { activate() {}, deactivate() {} };
+            const confirmBtn = modal.querySelector("[data-copilot-automode-confirm]");
+            const cancelBtns = modal.querySelectorAll("[data-copilot-automode-cancel]");
+            const safeButton = modal.querySelector(".modal-actions [data-copilot-automode-cancel]");
+            let settled = false;
+            function finish(accepted) {
+                if (settled) return;
+                settled = true;
+                modal.hidden = true;
+                trap.deactivate();
+                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+                    window.ThreeSeventyWeb.popModal(modal);
+                }
+                modal.onclick = null;
+                if (confirmBtn) confirmBtn.onclick = null;
+                cancelBtns.forEach(function (b) { b.onclick = null; });
+                resolve(accepted);
+            }
+            modal.hidden = false;
+            trap.activate();
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+                window.ThreeSeventyWeb.pushModal(modal, function () { finish(false); },
+                    safeButton ? { initialFocus: safeButton } : undefined);
+            }
+            if (confirmBtn) confirmBtn.onclick = function () { finish(true); };
+            cancelBtns.forEach(function (b) { b.onclick = function () { finish(false); }; });
+            modal.onclick = function (ev) { if (ev.target === modal) finish(false); };
+        });
     }
 
     function openClearModal() {

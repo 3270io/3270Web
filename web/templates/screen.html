@@ -1288,8 +1288,12 @@ Select = Enter"></textarea>
     <aside id="copilot-panel" class="copilot-panel" hidden aria-label="AI chat panel">
         <header class="copilot-panel-header">
             <span class="copilot-panel-title">AI Chat</span>
-            <div class="copilot-panel-header-actions">
-                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Toggle auto-run mode" title="Auto Mode: run tools without approval">Auto</button>
+            <!-- The inline style is a stopgap for the longer "Auto-run" label,
+                 which pushed the close button out of a 380px panel when signed
+                 in: let the buttons wrap instead of overflowing. It belongs in
+                 the stylesheet with .copilot-panel-header-actions. -->
+            <div class="copilot-panel-header-actions" style="flex-wrap: wrap; justify-content: flex-end; min-width: 0;">
+                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto-run tools without asking for approval" data-tippy-content="Auto-run: the assistant's tools run without asking you first">Auto-run</button>
                 <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
                 <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
                 <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of the current AI provider" aria-label="Sign out of the current AI provider" hidden>Sign out</button>
@@ -1343,6 +1347,23 @@ Select = Enter"></textarea>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
                 <button type="button" class="danger" data-copilot-clear-confirm>Clear history</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-copilot-automode-modal hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="copilot-automode-modal-title" aria-describedby="copilot-automode-modal-desc">
+            <div class="modal-header">
+                <h3 id="copilot-automode-modal-title">Turn on Auto-run?</h3>
+                <button type="button" class="modal-close" data-copilot-automode-cancel>Close</button>
+            </div>
+            <div id="copilot-automode-modal-desc">
+                <p>With Auto-run on, the assistant's tools run without asking you first. They read the screen and drive the terminal: typing into fields, pressing keys, submitting screens, opening connections, and running saved tasks or chaos exploration.</p>
+                <p>It still stops and asks before it presses <span data-copilot-automode-keys>keys that can end the session or discard the screen</span>, and whenever it asks you a question.</p>
+                <p>You can turn Auto-run off from the same button at any time.</p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-copilot-automode-cancel>Cancel</button>
+                <button type="button" data-copilot-automode-confirm>Turn on Auto-run</button>
             </div>
         </div>
     </div>

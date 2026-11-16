@@ -129,7 +129,23 @@ can scan a long exchange quickly:
 | **Failed** (red) | The call returned an error |
 | **Skipped** (grey) | You declined it |
 
-To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
+### Auto-run
+
+To let the AI proceed without pausing, turn on **Auto-run** (the button in the
+panel header). While it is on, the button reads **Auto-run: on** and the panel
+runs tool calls without waiting for you to click **Run** each time.
+
+The first time you turn it on in a browser, 3270Web asks you to confirm, with
+focus on **Cancel**: the tools that read and drive the terminal will run
+without asking. The answer is remembered in that browser, so turning it off and
+on again does not ask a second time.
+
+Two things always wait for you, even with Auto-run on:
+
+- `send_key` with **PF3** or **Clear**, which commonly log the session off or
+  discard the screen. The card shows **Needs your approval** and waits for
+  **Run** or **Skip**.
+- Questions the AI asks you (`ask_user`), which have nothing to run.
 
 ## Choose a Model
 
