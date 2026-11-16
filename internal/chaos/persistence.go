@@ -26,6 +26,17 @@ type SavedRunMeta struct {
 	UniqueScreens int       `json:"uniqueScreens"`
 	UniqueInputs  int       `json:"uniqueInputs"`
 	Error         string    `json:"error,omitempty"`
+	// TerminationReason is why the run ended (one of the TerminationReason*
+	// constants), kept with the run so it is still known after the engine
+	// that produced it has gone.
+	TerminationReason string `json:"terminationReason,omitempty"`
+	// FirstScreenHash is the screen the run started on. Resume reads it
+	// rather than guessing from the (capped) attempt history.
+	FirstScreenHash string `json:"firstScreenHash,omitempty"`
+	// TargetHost is the host the run explored, for telling saved runs apart.
+	TargetHost string `json:"targetHost,omitempty"`
+	// Label is an optional name the user gave the run.
+	Label string `json:"label,omitempty"`
 }
 
 // SavedRun is a complete snapshot of a finished (or in-progress) chaos run,
