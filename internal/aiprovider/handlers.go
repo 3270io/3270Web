@@ -187,14 +187,7 @@ func (h *Handlers) Status(c *gin.Context) {
 func (h *Handlers) Tools(c *gin.Context) {
 	id := copilot.Identity(c)
 	_, cfg, _ := h.config.Resolve(id)
-	c.JSON(http.StatusOK, gin.H{
-		"tools":         copilot.DefaultTools(),
-		"model":         cfg.Model,
-		"system_prompt": copilot.SystemPrompt(),
-		// The panel used to carry its own copy of this list, which meant the
-		// rule only existed where the browser ran the tool loop.
-		"dangerous_send_keys": copilot.DangerousSendKeys(),
-	})
+	c.JSON(http.StatusOK, copilot.ToolsPayload(cfg.Model))
 }
 
 // Models returns the model IDs available from the selected provider, falling

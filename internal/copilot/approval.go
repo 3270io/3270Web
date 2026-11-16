@@ -5,6 +5,8 @@ package copilot
 import (
 	"fmt"
 	"strings"
+
+	"github.com/jnnngs/3270Web/internal/host"
 )
 
 // Which tool calls a model may not make unattended.
@@ -65,37 +67,43 @@ func RequiresApproval(toolName string, args map[string]any) string {
 }
 
 // CanonicalKeyName folds the spellings a model produces onto one form, so
-// "pf3", "PF(3)", "PF 3" and "pf( 3 )" are one key rather than four.
+// "pf3", "PF(3)", "PF 3", "pf( 3 )", "F3" and "f03" are one key rather than
+// six.
 //
-// This is a comparison aid, not the server's key parser: the handlers reject
-// an unrecognised key on their own, and this must never be the thing that
+// It reads a key through host.NormalizeKey, the same function the server's key
+// handlers use, so that what is classified is what will be sent. It used to
+// carry its own folding that knew the PF and PA prefixes but not the bare F
+// alias: "F3" was accepted by the handler as PF3 and classified here as a key
+// that needed nobody's approval.
+//
+// For a name the parser does not recognise it still returns a stable folded
+// form, so two unknown spellings compare equal; it is never the thing that
 // decides a key is valid.
 func CanonicalKeyName(key string) string {
-	compact := strings.ToUpper(strings.Join(strings.Fields(key), ""))
-	compact = strings.NewReplacer("(", "", ")", "").Replace(compact)
-
-	for _, prefix := range []string{"PF", "PA"} {
-		digits, ok := strings.CutPrefix(compact, prefix)
-		if !ok || digits == "" {
-			continue
-		}
-		if strings.IndexFunc(digits, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
-			continue
-		}
-		// Leading zeros folded, so "PF03" is "PF(3)".
-		trimmed := strings.TrimLeft(digits, "0")
-		if trimmed == "" {
-			trimmed = "0"
-		}
-		return fmt.Sprintf("%s(%s)", prefix, trimmed)
+	compact := strings.Join(strings.Fields(key), "")
+	if normalized, ok := host.NormalizeKey(compact); ok {
+		return normalized
 	}
-
+	compact = strings.NewReplacer("(", "", ")", "").Replace(strings.ToUpper(compact))
 	if compact == "" {
 		return ""
 	}
-	// Title case for the named keys, matching the spelling in the tool
-	// descriptions and in chaos's key weights.
 	return strings.ToUpper(compact[:1]) + strings.ToLower(compact[1:])
+}
+
+// IsDangerousKey reports whether a key, in any spelling the server accepts, is
+// one that needs a person.
+func IsDangerousKey(key string) bool {
+	canonical := CanonicalKeyName(key)
+	if canonical == "" {
+		return false
+	}
+	for _, dangerous := range dangerousSendKeys {
+		if canonical == dangerous {
+			return true
+		}
+	}
+	return false
 }
 
 // dangerousKeyNote is appended to the send_key description so a model knows
@@ -106,7 +114,7 @@ func dangerousKeyNote() string {
 		spelled = append(spelled, strings.NewReplacer("(", "", ")", "").Replace(key))
 	}
 	return fmt.Sprintf(
-		" %s need a person to approve them and will not run unattended: "+
+		" %s need a person to approve them and will not run unattended — the server refuses them until a person has confirmed: "+
 			"PF3 commonly logs the session off and Clear discards what is on the screen. "+
 			"Say what you are about to press and why before asking for one.",
 		strings.Join(spelled, " and "))

@@ -48,7 +48,8 @@ func TestScreenKeyHandlerRejectsUnrecognizedKey(t *testing.T) {
 }
 
 // TestScreenKeyHandlerAcceptsRecognizedKey confirms the pre-existing valid
-// path is unaffected by the rejection fix.
+// path is unaffected by the rejection fix. PF4 rather than PF3: PF3 is on the
+// list that needs a person's confirmation (see copilot_actions_test.go).
 func TestScreenKeyHandlerAcceptsRecognizedKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mh, err := host.NewMockHost("")
@@ -62,7 +63,7 @@ func TestScreenKeyHandlerAcceptsRecognizedKey(t *testing.T) {
 	r := gin.New()
 	r.POST("/screen/key", app.ScreenKeyHandler)
 
-	body, _ := json.Marshal(map[string]string{"key": "pf3"})
+	body, _ := json.Marshal(map[string]string{"key": "pf4"})
 	req := httptest.NewRequest(http.MethodPost, "/screen/key", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "3270Web_session", Value: sess.ID})
@@ -78,8 +79,8 @@ func TestScreenKeyHandlerAcceptsRecognizedKey(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	if resp.Key != "PF(3)" {
-		t.Fatalf("key = %q, want %q", resp.Key, "PF(3)")
+	if resp.Key != "PF(4)" {
+		t.Fatalf("key = %q, want %q", resp.Key, "PF(4)")
 	}
 }
 

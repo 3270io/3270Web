@@ -272,6 +272,13 @@
             if (!res.ok) return { error: res.error };
             return res.data;
         },
+        async chaos_get_screen(args) {
+            const hash = (args && args.hash) || "";
+            if (!hash) return { error: "hash required" };
+            const res = await getJSON("/copilot/known-screen?hash=" + encodeURIComponent(hash));
+            if (!res.ok) return { error: res.error };
+            return res.data;
+        },
         async chaos_annotate_screen(args) {
             const hash = (args && args.screen_hash) || "";
             if (!hash) return { error: "screen_hash required" };

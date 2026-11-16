@@ -16,6 +16,7 @@ import (
 	"github.com/jnnngs/3270Web/internal/chaos"
 	"github.com/jnnngs/3270Web/internal/copilot"
 	"github.com/jnnngs/3270Web/internal/host"
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 // initCopilot wires the Copilot package's HTTP routes and adds the
@@ -57,10 +58,68 @@ func (app *App) initCopilot(r *gin.Engine) {
 	// Per-turn orientation block injected by the chat panel into the system
 	// prompt (current screen + learned application knowledge).
 	r.GET("/copilot/context", app.CopilotContextHandler)
+
+	// One discovered screen, by the hash every screen result now carries.
+	r.GET("/copilot/known-screen", app.KnownScreenHandler)
 }
 
-// ScreenKeyHandler sends an AID key to the host without first submitting
-// any pending field writes. Used by the Copilot send_key tool.
+// dangerousKeyRefusal answers a request for a key that needs a person, unless
+// the request says a person agreed.
+//
+// The chat panel has always asked before pressing PF3 or Clear, but it was the
+// panel that asked: the endpoint itself pressed whatever it was sent. Anything
+// else holding the session cookie — a script, a second tab, a panel build with
+// the check removed, a model that found a spelling the panel's classifier did
+// not fold — reached the host unchallenged. The rule now lives where the key
+// is pressed. "confirmed" is set by the panel only after a human click; the
+// server cannot verify the click, but it can make sure that pressing a
+// dangerous key is always a deliberate, separately-marked request rather than
+// the default.
+//
+// It reports whether it wrote a response.
+func dangerousKeyRefusal(c *gin.Context, key string, confirmed bool) bool {
+	if confirmed || !copilot.IsDangerousKey(key) {
+		return false
+	}
+	c.JSON(http.StatusConflict, gin.H{
+		"error": fmt.Sprintf(
+			"%s needs a person's approval before it is sent: it commonly ends the session or discards what is on the screen. "+
+				"Nothing was sent. Ask the user, and resend with \"confirmed\": true only once they have agreed.", key),
+		"requiresApproval": true,
+		"key":              key,
+	})
+	return true
+}
+
+// sendRecordedKey presses a key the way the operator's own submit does: the
+// screen the host painted and the key are appended to an active recording
+// first, then the key is sent. A recording made while an assistant drives the
+// terminal used to have none of the assistant's keystrokes in it.
+func (app *App) sendRecordedKey(s *session.Session, h host.Host, key string) error {
+	recordScreenForStep(s, hostScreenSnapshot(h))
+	recordActionKey(s, key)
+	return h.SendKey(key)
+}
+
+// screenAfterAction reads the screen an action produced, with everything the
+// model is shown about a screen attached.
+func (app *App) screenAfterAction(s *session.Session, h host.Host) (gin.H, error) {
+	if err := h.UpdateScreen(); err != nil {
+		return nil, fmt.Errorf("update screen: %w", err)
+	}
+	screen := hostScreenSnapshot(h)
+	if screen == nil {
+		return nil, fmt.Errorf("screen unavailable")
+	}
+	return app.sessionScreenJSON(s, screen), nil
+}
+
+// ScreenKeyHandler sends one key to the host without first submitting any
+// pending field writes, and returns the screen it produced. Used by the
+// send_key tool.
+//
+// Body: {"key": "PF7", "confirmed": false}. A key on the dangerous list is
+// refused with 409 unless confirmed is true — see dangerousKeyRefusal.
 func (app *App) ScreenKeyHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -68,7 +127,8 @@ func (app *App) ScreenKeyHandler(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Key string `json:"key"`
+		Key       string `json:"key"`
+		Confirmed bool   `json:"confirmed"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -82,20 +142,105 @@ func (app *App) ScreenKeyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized key %q", body.Key)})
 		return
 	}
-	if err := app.sessionHost(s).SendKey(key); err != nil {
+	if dangerousKeyRefusal(c, key, body.Confirmed) {
+		return
+	}
+	h := app.sessionHost(s)
+	if err := app.sendRecordedKey(s, h, key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"key": key})
+	out := gin.H{"ok": true, "key": key}
+	if screen, err := app.screenAfterAction(s, h); err == nil {
+		out["screen"] = screen
+	}
+	c.JSON(http.StatusOK, out)
 }
 
-// ScreenWriteHandler writes text into the field at (row, col). Used by
-// the Copilot write_field tool. Accepts either a 1-indexed field_key (the
-// R<row>C<col>L<len> key from chaos_list_screens/business function steps)
-// or 0-indexed row/col (from get_screen) — never both conventions applied
-// to the same call, which is what let the model silently land one row and
-// one column off when it passed a business function's field_key straight
-// through as if it were 0-indexed.
+// fieldWriteRequest is one write, after the two ways of naming a position
+// have been reduced to a 0-indexed row and column.
+type fieldWriteRequest struct {
+	Row, Col int
+	Text     string
+	Erase    bool
+}
+
+// writeFieldChecked writes into the field at a position with the checks a
+// caller that cannot see the screen needs — see host.WriteField — and records
+// the write when a recording is active.
+//
+// A host with no buffer to check against falls back to the bare write. Every
+// host that reaches a real terminal has one.
+func (app *App) writeFieldChecked(s *session.Session, h host.Host, req fieldWriteRequest) (*host.FieldWrite, error) {
+	var (
+		result *host.FieldWrite
+		err    error
+	)
+	if fw, ok := h.(host.FieldWriter); ok {
+		result, err = fw.WriteField(req.Row, req.Col, req.Text, req.Erase)
+	} else {
+		err = h.WriteStringAt(req.Row, req.Col, req.Text)
+		result = &host.FieldWrite{Row: req.Row, Col: req.Col, Length: len([]rune(req.Text)), Value: req.Text}
+	}
+	if err != nil {
+		return nil, err
+	}
+	recordFieldWrite(s, req.Row, req.Col, req.Text)
+	return result, nil
+}
+
+// recordFieldWrite appends a write to an active recording through the same
+// function the operator's own typing goes through, so a step an assistant
+// produced is indistinguishable from one a person did.
+func recordFieldWrite(s *session.Session, row, col int, text string) {
+	typed := &host.Field{
+		StartY: row, StartX: col,
+		EndY: row, EndX: col + len([]rune(text)) - 1,
+		Value:   text,
+		Changed: true,
+	}
+	recordFieldUpdates(s, &host.Screen{Fields: []*host.Field{typed}})
+}
+
+// fieldWriteJSON describes the field after a write. A hidden field's value is
+// masked: the caller learns that the field now holds something of that length,
+// which it knew, and not the characters, which must not travel back into a
+// model's context or a browser transcript.
+func fieldWriteJSON(w *host.FieldWrite) gin.H {
+	value := w.Value
+	if w.Hidden {
+		value = strings.Repeat("*", len([]rune(value)))
+	}
+	out := gin.H{
+		"row":    w.Row,
+		"col":    w.Col,
+		"length": w.Length,
+		"value":  value,
+	}
+	if w.Hidden {
+		out["hidden"] = true
+	}
+	if w.Numeric {
+		out["numeric"] = true
+	}
+	return out
+}
+
+// ScreenWriteHandler writes text into the input field at a position. Used by
+// the write_field tool.
+//
+// Body: {"row": 4, "col": 20, "text": "LEE", "erase": true}, or a 1-indexed
+// "field_key" (R<row>C<col>L<len>, from chaos_list_screens and business
+// function steps) in place of row and col — never both conventions applied to
+// one call, which is what once let a model land a row and a column off by
+// passing a field key through as though it were 0-indexed.
+//
+// The position is required: a write with neither used to default to row 0,
+// column 0 and type into whatever was there. The target must be an unprotected
+// field with room for the text. By default the field is erased from the
+// position to its end first, so the field holds what was written and not the
+// new text followed by the tail of the old; "erase": false overtypes. Empty
+// text clears the field. The answer is the field as it now stands.
 func (app *App) ScreenWriteHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -104,54 +249,125 @@ func (app *App) ScreenWriteHandler(c *gin.Context) {
 	}
 	var body struct {
 		FieldKey string `json:"field_key"`
-		Row      int    `json:"row"`
-		Col      int    `json:"col"`
+		Row      *int   `json:"row"`
+		Col      *int   `json:"col"`
 		Text     string `json:"text"`
+		Erase    *bool  `json:"erase"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	row, col := body.Row, body.Col
+	req := fieldWriteRequest{Text: body.Text, Erase: body.Erase == nil || *body.Erase}
 	if fieldKey := strings.TrimSpace(body.FieldKey); fieldKey != "" {
 		fkRow, fkCol, _, ok := chaos.ParseMindMapFieldKey(fieldKey)
 		if !ok {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid field_key %q (expected R<row>C<col>L<len>)", fieldKey)})
 			return
 		}
-		// field_key is 1-indexed; WriteStringAt is 0-indexed.
-		row, col = fkRow-1, fkCol-1
+		// field_key is 1-indexed; the terminal is 0-indexed.
+		req.Row, req.Col = fkRow-1, fkCol-1
+	} else {
+		if body.Row == nil || body.Col == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "row and col are required (0-indexed, from get_screen), or a field_key"})
+			return
+		}
+		req.Row, req.Col = *body.Row, *body.Col
 	}
-	if row < 0 || col < 0 {
+	if req.Row < 0 || req.Col < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "row/col must be >= 0"})
 		return
 	}
 	// Reject control characters that could be interpreted as s3270 commands.
-	if host.ContainsForbiddenFieldText(body.Text) {
+	if host.ContainsForbiddenFieldText(req.Text) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}
-	if err := app.sessionHost(s).WriteStringAt(row, col, body.Text); err != nil {
+
+	result, err := app.writeFieldChecked(s, app.sessionHost(s), req)
+	if err != nil {
+		if host.IsFieldWriteError(err) {
+			// The request was understood and the screen does not permit it.
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "field": fieldWriteJSON(result)})
 }
 
-// ScreenSubmitHandler submits any modified fields with an Enter AID. Used
-// by the Copilot submit_screen tool.
+// errUnrecognizedAID marks a submit that named a key which does not exist.
+type errUnrecognizedAID struct{ aid string }
+
+func (e errUnrecognizedAID) Error() string { return fmt.Sprintf("unrecognized aid %q", e.aid) }
+
+// resolveSubmitAID reads the key a submit should end with: Enter when none is
+// named.
+func resolveSubmitAID(aid string) (string, error) {
+	aid = strings.TrimSpace(aid)
+	if aid == "" {
+		return "Enter", nil
+	}
+	normalized, ok := normalizeKey(aid)
+	if !ok {
+		return "", errUnrecognizedAID{aid: aid}
+	}
+	return normalized, nil
+}
+
+// submitScreen is the whole of "submit": write any fields still marked
+// changed, press the key, and wait for the host to answer.
+//
+// There is one of these on purpose. The REST API's submit did all three; the
+// chat panel's did only the first, and since write_field types straight into
+// the terminal there was never anything marked changed to write — so
+// submit_screen reported success and pressed nothing. Both routes now come
+// here. SendKey waits for the keyboard to unlock after an AID key, so the
+// screen read next is the one the key produced.
+func (app *App) submitScreen(s *session.Session, h host.Host, aid string) error {
+	if err := h.SubmitScreen(); err != nil {
+		return err
+	}
+	return app.sendRecordedKey(s, h, aid)
+}
+
+// ScreenSubmitHandler presses Enter — or the AID key named in the body — and
+// returns the screen that comes back. Used by the submit_screen tool.
+//
+// Body (optional): {"aid": "PF(5)", "confirmed": false}.
 func (app *App) ScreenSubmitHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	if err := app.sessionHost(s).SubmitScreen(); err != nil {
+	var body struct {
+		AID       string `json:"aid"`
+		Confirmed bool   `json:"confirmed"`
+	}
+	_ = c.ShouldBindJSON(&body) // body is optional
+	aid, err := resolveSubmitAID(body.AID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Submitting with PF3 is pressing PF3.
+	if dangerousKeyRefusal(c, aid, body.Confirmed) {
+		return
+	}
+	h := app.sessionHost(s)
+	if err := app.submitScreen(s, h, aid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	screen, err := app.screenAfterAction(s, h)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "aid": aid, "screen": screen})
 }
 
 // ScreenConnectHandler establishes (or replaces) the current session's host
@@ -229,12 +445,53 @@ const (
 	screenWaitPollInterval   = 150 * time.Millisecond
 )
 
+// screenWaitTimeout turns a caller's timeout_ms into the time to wait: the
+// default when none is given, and the maximum when more than the maximum is
+// asked for. A request for longer than the cap used to be treated as no
+// request at all and given the five-second default — a third of what the
+// caller was entitled to, for having asked for more.
+func screenWaitTimeout(timeoutMs int) time.Duration {
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	switch {
+	case timeout <= 0:
+		return screenWaitDefaultTimeout
+	case timeout > screenWaitMaxTimeout:
+		return screenWaitMaxTimeout
+	}
+	return timeout
+}
+
+// keyboardState names the keyboard's condition in words: "unlocked" when input
+// is accepted, "locked" while the host is processing, "error" after an
+// operator error, which stays until Reset is pressed. A screen with no status
+// line to read is reported as unlocked, which is what its absence means on
+// every host that has one.
+func keyboardState(s *host.Screen) string {
+	if s == nil {
+		return "unlocked"
+	}
+	state, ok := s.StatusKeyboardState()
+	if !ok {
+		return "unlocked"
+	}
+	switch state {
+	case "U":
+		return "unlocked"
+	case "E":
+		return "error"
+	default:
+		return "locked"
+	}
+}
+
 // ScreenWaitHandler polls the host status line until the keyboard unlocks
 // (the transaction has finished processing) or timeout_ms elapses, then
-// returns the screen at that point. Used by the Copilot wait_for_unlock
-// tool — without it, a multi-second transaction's get_screen call right
-// after send_key/submit_screen returned the stale pre-action screen, since
-// nothing previously polled for the host to actually finish.
+// returns the screen at that point. Used by the wait_for_unlock tool.
+//
+// An operator error is not a wait. The keyboard is inhibited until Reset and
+// no amount of waiting changes that, so it is reported at once as
+// keyboard:"error" with unlocked:false — it used to be reported as unlocked,
+// because the test was "not L".
 func (app *App) ScreenWaitHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -244,15 +501,11 @@ func (app *App) ScreenWaitHandler(c *gin.Context) {
 	var body struct {
 		TimeoutMs int `json:"timeout_ms"`
 	}
-	_ = c.ShouldBindJSON(&body) // body is optional; zero value falls back to the default below
-
-	timeout := time.Duration(body.TimeoutMs) * time.Millisecond
-	if timeout <= 0 || timeout > screenWaitMaxTimeout {
-		timeout = screenWaitDefaultTimeout
-	}
+	_ = c.ShouldBindJSON(&body) // body is optional; zero value falls back to the default
 
 	h := app.sessionHost(s)
-	deadline := time.Now().Add(timeout)
+	ctx := c.Request.Context()
+	deadline := time.Now().Add(screenWaitTimeout(body.TimeoutMs))
 	for {
 		if err := h.UpdateScreen(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "update screen: " + err.Error()})
@@ -263,26 +516,35 @@ func (app *App) ScreenWaitHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
 			return
 		}
-		state, ok := screen.StatusKeyboardState()
-		unlocked := !ok || state != "L"
-		timedOut := !unlocked && time.Now().After(deadline)
-		if unlocked || timedOut {
-			if rows, cols, dimOK := app.modelDimensions(); dimOK {
-				screen = limitScreenForDisplay(screen, rows, cols)
-			}
-			c.JSON(http.StatusOK, gin.H{
+		keyboard := keyboardState(screen)
+		unlocked := keyboard == "unlocked"
+		timedOut := keyboard == "locked" && !time.Now().Before(deadline)
+		if keyboard != "locked" || timedOut {
+			out := gin.H{
 				"unlocked": unlocked,
 				"timedOut": timedOut,
-				"screen":   screenToJSON(screen),
-			})
+				"keyboard": keyboard,
+				"screen":   app.sessionScreenJSON(s, screen),
+			}
+			if keyboard == "error" {
+				out["hint"] = "The keyboard is inhibited by an operator error. Send the Reset key to release it."
+			}
+			c.JSON(http.StatusOK, out)
 			return
 		}
-		time.Sleep(screenWaitPollInterval)
+		// A caller that has gone away is not waiting for anything; without
+		// this the loop slept on for up to the full timeout holding a
+		// goroutine and polling the host on behalf of nobody.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(screenWaitPollInterval):
+		}
 	}
 }
 
 // ScreenJSONHandler returns the current screen as a JSON object suitable
-// for handing to Copilot via the get_screen tool. It mirrors the shape of
+// for handing to a model via the get_screen tool. It mirrors the shape of
 // (*host.Screen) but flattens the Buffer into a plain text field plus a
 // per-field list so an LLM can reason about it without parsing internal
 // rune arrays.
@@ -292,27 +554,21 @@ func (app *App) ScreenJSONHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	h := app.sessionHost(s)
-	if err := h.UpdateScreen(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "update screen: " + err.Error()})
+	screen, err := app.screenAfterAction(s, app.sessionHost(s))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	screen := hostScreenSnapshot(h)
-	if screen == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "screen unavailable"})
-		return
-	}
-	if rows, cols, ok := app.modelDimensions(); ok {
-		screen = limitScreenForDisplay(screen, rows, cols)
-	}
-
-	c.JSON(http.StatusOK, screenToJSON(screen))
+	c.JSON(http.StatusOK, screen)
 }
 
+// screenToJSON renders a screen for a model: text and fields with hidden
+// values removed, the keyboard's state in a word, and a label for each field.
 func screenToJSON(s *host.Screen) gin.H {
 	if s == nil {
 		return gin.H{}
 	}
+	labels := fieldLabels(s)
 	fields := make([]gin.H, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		if f == nil {
@@ -322,7 +578,7 @@ func screenToJSON(s *host.Screen) gin.H {
 		// value must not reach the AI provider or be echoed back to the
 		// browser, where it would land in the tool-card transcript and
 		// persist in localStorage. See screen_redaction.go.
-		fields = append(fields, gin.H{
+		entry := gin.H{
 			"row":       f.StartY,
 			"col":       f.StartX,
 			"endRow":    f.EndY,
@@ -332,7 +588,11 @@ func screenToJSON(s *host.Screen) gin.H {
 			"numeric":   f.IsNumeric(),
 			"hidden":    f.IsHidden(),
 			"length":    fieldLength(f),
-		})
+		}
+		if label := labels[f]; label != "" {
+			entry["label"] = label
+		}
+		fields = append(fields, entry)
 	}
 	cursorRow, cursorCol, hasCursor := s.StatusCursor()
 	out := gin.H{
@@ -342,6 +602,7 @@ func screenToJSON(s *host.Screen) gin.H {
 		"fields":    fields,
 		"formatted": s.IsFormatted,
 		"status":    strings.TrimSpace(s.Status),
+		"keyboard":  keyboardState(s),
 		"hasCursor": hasCursor,
 	}
 	if hasCursor {

@@ -192,14 +192,32 @@ func (h *Handlers) Status(c *gin.Context) {
 // Tools exposes the tool definitions to the frontend so the chat panel
 // can build the chat/completions payload without duplicating the schema.
 func (h *Handlers) Tools(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, ToolsPayload(DefaultModel))
+}
+
+// ToolsPayload is what the chat panel is told about the tool surface: the
+// definitions, the prompt, and the rules that decide which calls a person has
+// to agree to. Both tool endpoints answer with it, so there is one account of
+// those rules rather than one per route.
+func ToolsPayload(model string) gin.H {
+	dangerous := DangerousSendKeys()
+	return gin.H{
 		"tools":         DefaultTools(),
-		"model":         DefaultModel,
+		"model":         model,
 		"system_prompt": SystemPrompt(),
 		// See approval.go: the classification is the server's, so the browser
-		// panel and an MCP client apply the same rule.
-		"dangerous_send_keys": DangerousSendKeys(),
-	})
+		// panel and an MCP client apply the same rule. The server also
+		// enforces it — /screen/key refuses one of these without
+		// "confirmed": true — so this list is for showing the reason, not
+		// for being the only gate.
+		"dangerous_send_keys": dangerous,
+		"dangerousSendKeys":   dangerous,
+		// Every tool's class: "read", "write" or "destructive". send_key is
+		// "write" here and destructive when its key is on the list above.
+		"toolClasses": ToolClasses(),
+		// The ceiling the prompt quotes, so the panel need not hold a copy.
+		"maxToolRounds": MaxToolRounds,
+	}
 }
 
 type enterpriseRequest struct {
