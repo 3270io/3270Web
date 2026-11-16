@@ -2046,11 +2046,15 @@
                 : { activate() {}, deactivate() {} };
         modal.hidden = false;
         trap.activate();
-        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-            window.ThreeSeventyWeb.pushModal(modal, close);
-        }
         const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
         const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
+        // Focus lands on Cancel, the safe answer, as it does in the Clear-logs
+        // confirmation. The dialog used to focus "Clear history", so an Enter
+        // pressed by habit wiped the conversation.
+        const safeButton = modal.querySelector(".modal-actions [data-copilot-clear-cancel]");
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(modal, close, safeButton ? { initialFocus: safeButton } : undefined);
+        }
         function close() {
             modal.hidden = true;
             trap.deactivate();
@@ -2060,7 +2064,7 @@
             if (returnFocus && typeof returnFocus.focus === "function") returnFocus.focus();
         }
         function onConfirm() { close(); clearHistory(); }
-        if (confirmBtn) { confirmBtn.onclick = onConfirm; confirmBtn.focus(); }
+        if (confirmBtn) confirmBtn.onclick = onConfirm;
         cancelBtns.forEach(function (b) { b.onclick = close; });
         modal.onclick = function (ev) { if (ev.target === modal) close(); };
     }
