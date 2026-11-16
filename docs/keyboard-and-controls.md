@@ -220,8 +220,9 @@ session you have and a **+ New session** button at the end of the row.
   tab has no **×** — closing your only session is a disconnect, and
   **Session → Disconnect** is where that lives.
 - **Disconnect** ends only the session you are looking at — the confirmation
-  names it. If other tabs are open you land on one of them rather than back at
-  the connect page.
+  names it, and starts with **Cancel** focused, so pressing Enter or Space as
+  it appears keeps the session. If other tabs are open you land on one of them
+  rather than back at the connect page.
 
     Disconnecting your last session leaves you at the connect page even where
     signing in would normally put you straight onto a host. Disconnect means

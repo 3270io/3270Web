@@ -6,7 +6,9 @@
   }
 
   const closeButtons = modal.querySelectorAll('[data-disconnect-close]');
-  const confirmButton = modal.querySelector('[data-disconnect-confirm]');
+  // The header also carries a [data-disconnect-close] ("Close"); the one that
+  // sits beside the confirm button is the Cancel.
+  const cancelButton = modal.querySelector('.modal-actions [data-disconnect-close]');
   const description = modal.querySelector('#disconnect-modal-desc');
 
   // Which session this ends, by name.
@@ -43,8 +45,10 @@
 
   // Focus, the Tab trap, the background scroll lock and the focus restore all
   // belong to pushModal/popModal — see modal-utils.js. Ending the session is
-  // the one thing here worth an explicit initial focus: the confirm button,
-  // not the cancel button that happens to come first in the markup.
+  // the one thing here worth an explicit initial focus, and it is the safe
+  // action's: an Enter or Space pressed by reflex as the dialog appears must
+  // keep the session, not end it. (This used to focus the confirm button, which
+  // made it the only destructive confirmation that did.)
   const openModal = (event) => {
     if (event) {
       event.preventDefault();
@@ -52,9 +56,9 @@
     describe();
     modal.hidden = false;
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-      window.ThreeSeventyWeb.pushModal(modal, closeModal, { initialFocus: confirmButton });
-    } else if (confirmButton) {
-      confirmButton.focus();
+      window.ThreeSeventyWeb.pushModal(modal, closeModal, { initialFocus: cancelButton || undefined });
+    } else if (cancelButton) {
+      cancelButton.focus();
     }
   };
 
