@@ -939,7 +939,7 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
                     </button>
                     <button type="button" class="icon-button" data-chaos-hints-minimize aria-expanded="true" data-tippy-content="Restore chaos hints size" aria-label="Restore chaos hints size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
                 </div>
@@ -947,32 +947,32 @@
             <div class="stack">
                 <p class="subtle chaos-hints-help">Add transactions, known data, and optional screen label to keyboard key mappings (for example, Return = PF3) to guide chaos behavior.</p>
                 <div class="chaos-hint-field">
-                    <label class="chaos-hint-field-label" for="chaos-key-blacklist">Blocked Keys</label>
-                    <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="Keys chaos must never press (one per line)
+                    <label class="chaos-hint-field-label" for="chaos-key-blacklist">Blocked keys, on every screen</label>
+                    <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="e.g. one key per line:
 PF3
 PF12"></textarea>
-                    <p class="subtle">Use this to block dangerous keys such as logoff/exit PF keys.</p>
+                    <p class="subtle">Keys chaos must never press. Use this to block dangerous keys such as logoff/exit PF keys.</p>
                 </div>
                 <fieldset class="chaos-hint-group">
                     <legend>First Screen Hints</legend>
                     <div class="chaos-hint-row chaos-hint-row-static">
                         <div class="chaos-hint-field">
                             <label class="chaos-hint-field-label" for="chaos-first-screen-known-data">First Screen Known Data</label>
-                            <textarea id="chaos-first-screen-known-data" data-chaos-first-screen-known-data placeholder="Known values for the first screen (comma or newline separated)"></textarea>
+                            <textarea id="chaos-first-screen-known-data" data-chaos-first-screen-known-data placeholder="e.g. a user id, a company name (comma or newline separated)"></textarea>
                         </div>
                         <div class="chaos-hint-field">
                             <label class="chaos-hint-field-label" for="chaos-first-screen-known-keys">First Screen Known Keys</label>
-                            <textarea id="chaos-first-screen-known-keys" data-chaos-first-screen-known-keys placeholder="Known keys for the first screen (e.g. Enter, PF8)"></textarea>
+                            <textarea id="chaos-first-screen-known-keys" data-chaos-first-screen-known-keys placeholder="e.g. Enter, PF8"></textarea>
                         </div>
                         <div class="chaos-hint-field">
-                            <label class="chaos-hint-field-label" for="chaos-first-screen-blocked-keys">First Screen Blocked Keys</label>
-                            <textarea id="chaos-first-screen-blocked-keys" data-chaos-first-screen-blocked-keys placeholder="Keys to block only on the first screen (one per line)
+                            <label class="chaos-hint-field-label" for="chaos-first-screen-blocked-keys">Blocked on the first screen only</label>
+                            <textarea id="chaos-first-screen-blocked-keys" data-chaos-first-screen-blocked-keys placeholder="e.g. one key per line:
 PF3
 PF12"></textarea>
                         </div>
                         <div class="chaos-hint-field">
                             <label class="chaos-hint-field-label" for="chaos-first-screen-key-assignments">First Screen Key Assignments</label>
-                            <textarea id="chaos-first-screen-key-assignments" data-chaos-first-screen-key-assignments placeholder="Label = Key (one per line)
+                            <textarea id="chaos-first-screen-key-assignments" data-chaos-first-screen-key-assignments placeholder="e.g. one per line, as Label = Key:
 Return = PF3
 Select = Enter"></textarea>
                             <p class="subtle">Applied only on the first screen of a chaos start/resume, useful for login or initial menu selection.</p>

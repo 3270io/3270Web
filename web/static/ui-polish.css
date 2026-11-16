@@ -3307,6 +3307,39 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   border-radius: var(--r-sm);
 }
 
+/* Chaos Hints.
+
+   The scroll region ended flush against its last row, so whatever was at the
+   bottom — the helper line under the key assignments, the status text — sat
+   on the edge of the clip and read as cut off. It gets room to finish.
+
+   The fourth first-screen field was alone in a 220px column on its second
+   row, so its sentence of help wrapped to four lines under a short textarea.
+   Alone on a row it takes the whole row, and the sentence fits on one. */
+.modal-chaos-hints .stack {
+  padding-bottom: 16px;
+  scroll-padding-bottom: 16px;
+}
+
+.chaos-hint-row-static > .chaos-hint-field:last-child {
+  grid-column: 1 / -1;
+}
+
+/* A placeholder is an example, not a value: the field is empty and the dialog
+   should say so. The markup now opens each one with "e.g."; italics set it
+   apart from typed text, which is upright and full-strength. The colour stays
+   the muted foreground rather than the browser's grey, which measured under
+   4.5:1 on the panel, so the example is still readable by anyone who needs
+   it. */
+.modal-chaos-hints .chaos-hint-field textarea::placeholder,
+.modal-chaos-hints .chaos-hint-field input::placeholder,
+.chaos-hint-row textarea::placeholder,
+.chaos-hint-row input::placeholder {
+  color: var(--fg-muted);
+  opacity: 1;
+  font-style: italic;
+}
+
 /* ...but not checkboxes: --r-sm on an 18px box renders as a circle, which
    reads as a radio button. */
 .settings-field input[type="checkbox"],
