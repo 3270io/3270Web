@@ -93,7 +93,17 @@ body.bg-paused .bg-overlay canvas {
      black is the sane default. The two paper themes swap it back to white,
      since their accent is a dark teal instead. */
   --accent-contrast: #000;
-  --term-color-blue: #0000ff;
+  /* Pure 3270 blue is 2.1-2.4:1 against every dark screen here, under the 3:1
+     floor for any text and far under the 4.5:1 for body text, so the screen id,
+     the date and the rules a host draws in blue all but vanish. Text drawn in
+     the host's blue is lifted to a lighter blue that is still unmistakably
+     blue (hue 228 against 240) and measures 5.0-5.4:1 on every dark theme's
+     ground. Only the ink is lifted: a host's blue *background* attribute keeps
+     the real colour, because it is a panel behind white or yellow text and the
+     real colour is what makes that legible. "Authentic 3270" keeps pure blue
+     for both, since reproducing the original palette is the point of it. */
+  --term-color-blue: #5c7cff;
+  --term-bg-blue: #0000ff;
   --term-color-red: #ff0000;
   --term-color-pink: #ff77ff;
   --term-color-green: #00ff00;
@@ -197,6 +207,7 @@ body.theme-light {
   --accent-2: #b6621f;
   --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
+  --term-bg-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
   --term-color-green: #1f7d2b;
@@ -310,6 +321,10 @@ body.theme-authentic {
   --accent: #45ff45;
   --accent-2: #98ff7a;
   --accent-contrast: #000;
+  /* The original palette, on purpose: this theme exists to look like the real
+     thing, so it keeps pure blue even though it is hard to read on black. The
+     other dark themes lift it (see :root). */
+  --term-color-blue: #0000ff;
   --bg-overlay-opacity: 0.02;
   font-family: var(--mono);
 }
@@ -408,6 +423,7 @@ body.theme-io-daylight {
   --aurora-2: rgba(0, 130, 190, 0.08);
   --aurora-3: rgba(140, 100, 220, 0.06);
   --term-color-blue: #0b6fa4;
+  --term-bg-blue: #0b6fa4;
   --term-color-red: #c0392b;
   --term-color-pink: #9c3f86;
   --term-color-green: #12805a;
@@ -464,6 +480,7 @@ body.theme-not3270 {
   --accent-2: #b6621f;
   --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
+  --term-bg-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
   --term-color-green: #1f7d2b;
@@ -1610,7 +1627,7 @@ pre, pre input, textarea {
 }
 
 .bg-blue {
-  background-color: var(--term-color-blue);
+  background-color: var(--term-bg-blue, var(--term-color-blue));
 }
 
 .bg-red {

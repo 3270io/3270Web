@@ -45,6 +45,12 @@ terminal.
 | The characters those code pages are chosen for — pound signs, umlauts, accents, Cyrillic and Greek — drawn on the screen and accepted into a field | ✅ |
 | The host's own code points readable over the API, so a code page complaint is settled against the byte the host sent rather than against the character it became | ✅ |
 
+Colours are the host's own, with one deliberate exception for legibility: text
+the host draws in pure 3270 blue is lightened in the dark themes, because
+`#0000FF` on black is about 2.4:1. The **Authentic 3270** theme keeps the real
+colour, and blue *backgrounds* are never changed. See
+[Accessibility](accessibility.md).
+
 Two of those rows are about the same distinction. A 3270 sets display
 attributes in two places: the attribute byte that opens a field, and a Set
 Attribute order that changes the characters written after it. An application
