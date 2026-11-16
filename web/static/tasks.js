@@ -54,17 +54,93 @@
   /* Chooser                                                          */
   /* ---------------------------------------------------------------- */
 
+  // The empty catalogue is the normal first-run state, so it says what to do
+  // and offers to do the first step, rather than defining "task" and leaving
+  // the only button on the dialog as Close.
+  //
+  // "Record a workflow" is the Automation menu's own Start recording item —
+  // its form is submitted, not re-implemented — so this and the menu cannot
+  // drift apart. That menu is hidden in Business mode, and it is also where a
+  // recording is stopped and saved as a task, so starting one without it would
+  // leave the operator recording with no way to finish. Hence the switch to
+  // Engineering mode first, and the sentence that says so.
+  function renderEmpty() {
+    var startForm = document.querySelector("form[data-recording-start]");
+    var stopForm = document.querySelector("form[data-recording-stop]");
+    var recording = !!stopForm && !stopForm.hidden;
+    var playing = !recording && !!startForm && startForm.hidden;
+    var workspace = window.ThreeSeventyWeb && window.ThreeSeventyWeb.workspace;
+    var needsEngineering = !!workspace && workspace.mode() !== "engineering";
+
+    var sentence = document.createElement("p");
+    sentence.className = "subtle task-empty";
+    listEl.appendChild(sentence);
+
+    if (recording || playing || !startForm) {
+      // Nothing to start: say why, and what to do instead, precisely.
+      sentence.textContent = recording
+        ? "A recording is in progress. Stop it from Automation → Stop recording, then save it as a task."
+        : playing
+          ? "A playback is running. Stop it, then record a workflow to save as a task."
+          : "Record a workflow from the Automation menu, then save it as a task to run it from here.";
+      if (needsEngineering && (recording || !startForm)) {
+        var show = document.createElement("p");
+        show.className = "subtle task-empty";
+        show.textContent = "The Automation menu is hidden in Business mode; Engineering tools shows it.";
+        listEl.appendChild(show);
+      }
+      return;
+    }
+
+    sentence.textContent = "Record a workflow, then save it as a task to run it from here.";
+    if (needsEngineering) {
+      var note = document.createElement("p");
+      note.className = "subtle task-empty";
+      note.textContent =
+        "Recording turns on Engineering mode, which adds the Automation menu where you stop " +
+        "the recording and save it as a task.";
+      listEl.appendChild(note);
+    }
+    var actions = document.createElement("div");
+    actions.className = "task-form-actions";
+    var record = document.createElement("button");
+    record.type = "button";
+    record.className = "primary-action";
+    record.setAttribute("data-task-record", "");
+    record.textContent = "Record a workflow";
+    record.addEventListener("click", function () {
+      record.disabled = true;
+      var ready = Promise.resolve();
+      if (needsEngineering) {
+        workspace.setMode("engineering");
+        // Starting the recording reloads the page, which can cancel a save
+        // still in flight; wait for the mode to be stored so the Automation
+        // menu is there to stop it with.
+        var prefs = window.ThreeSeventyWeb.preferences;
+        if (prefs && typeof prefs.save === "function") {
+          ready = Promise.resolve(prefs.save({ workspaceMode: "engineering" })).catch(function () {});
+        }
+      }
+      ready.then(function () {
+        close();
+        startForm.requestSubmit();
+      });
+    });
+    actions.appendChild(record);
+    listEl.appendChild(actions);
+    // The catalogue arrives after the dialog has opened, so the dialog's first
+    // focus went to Close. Move it to the one thing worth doing here — unless
+    // the operator has already gone somewhere else.
+    var active = document.activeElement;
+    if (!active || active === document.body || active === modal.querySelector(".tasks-modal-header [data-tasks-close]")) {
+      record.focus();
+    }
+  }
+
   function renderList() {
     listEl.innerHTML = "";
     if (!tasks.length) {
-      // An empty catalogue is the normal first-run state, so it explains
-      // itself rather than looking broken.
-      var empty = document.createElement("p");
-      empty.className = "subtle task-empty";
-      empty.textContent =
-        "No tasks yet. A task is a recorded screen flow with named inputs and " +
-        "a named answer — record a flow, then save it as a task.";
-      listEl.appendChild(empty);
+      renderEmpty();
       return;
     }
     tasks.forEach(function (task) {

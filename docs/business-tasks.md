@@ -46,6 +46,13 @@ Open **Tasks** from the menu bar (the labelled button on the right) or the comma
 Tasks are business-user surface, so the control stays visible in Business
 mode.
 
+With no tasks yet, the dialog says so and offers **Record a workflow**. That
+button does what **Automation → Start recording** does. Where you are in
+Business mode it first turns Engineering mode on, because the Automation menu
+is where you stop the recording and save it as a task, and says so in the
+dialog. While a recording is already running, the dialog tells you to stop it
+rather than offering another.
+
 Pick a task, fill in the form, press **Run**. The dialog closes and a card
 appears in the corner — **the terminal stays visible the whole time.** That
 is deliberate: operators need to see what the host is actually doing, and it
