@@ -112,6 +112,11 @@ Each account is also capped at `MAX_SESSIONS_PER_USER` concurrent sessions
 Every session is an `s3270` subprocess, so these are process limits rather
 than tidiness.
 
+When **Connect** is refused for either limit, the connect page is titled
+**Session limit reached** and lists the sessions your account holds — including
+ones opened from another browser or by an API client — with **Resume** and
+**Close** beside each. Close one and press **Connect** again.
+
 Instance-wide administration — settings, logs, restart and account management
 — requires the `admin` role.
 

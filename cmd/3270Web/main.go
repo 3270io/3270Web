@@ -1330,7 +1330,16 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		themesJSON = string(encoded)
 	}
 	rememberEmbedMode(c)
+	// At the session cap the way forward is to end or resume one of the
+	// sessions already open, so the page is given them to list.
+	sessionLimit := connectSessionLimit(c)
+	var openSessions []sessionTab
+	if sessionLimit {
+		openSessions = app.accountSessionTabs(c)
+	}
 	c.HTML(status, "connect.html", gin.H{
+		"SessionLimit":   sessionLimit,
+		"OpenSessions":   openSessions,
 		"Embedded":       embedRequested(c),
 		"EmbedOrigins":   embedOriginsAttr(),
 		"DefaultHost":    defaultHost,
@@ -1391,6 +1400,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
+			flagSessionLimit(c, err)
 			app.renderConnectPage(c, http.StatusServiceUnavailable, targetHost, connectErrorMessage(targetHost, err))
 			return
 		}
@@ -1430,6 +1440,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 		if err := app.connectWithProfile(c, profile); err != nil {
 			log.Printf("Connect failed for profile %q: %v", name, err)
 			c.Set("connectionDetails", err.Error())
+			flagSessionLimit(c, err)
 			app.renderConnectPage(c, http.StatusServiceUnavailable, profile.displayTarget(),
 				connectErrorMessage(profile.displayTarget(), err))
 			return
@@ -1466,6 +1477,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 	if err := connectErr; err != nil {
 		log.Printf("Connect failed for %q: %v", hostname, err)
 		c.Set("connectionDetails", err.Error())
+		flagSessionLimit(c, err)
 		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname, err))
 		return
 	}

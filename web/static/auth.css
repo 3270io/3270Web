@@ -1468,3 +1468,52 @@ table.admin-table {
   color: var(--fg-muted);
   border-bottom: 1px solid var(--border);
 }
+
+/* ---------------------------------------------------------------------
+   Connect page: the session-limit panel
+   ---------------------------------------------------------------------
+   Lives inside the connect page's .alert, which is where the refusal is
+   reported, and lists the sessions holding the slots with a Resume and a
+   Close for each. auth.css is already loaded on that page. */
+
+.session-limit {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.session-limit-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.session-limit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.session-limit-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  background: var(--panel);
+}
+
+.session-limit-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-limit-list button {
+  min-height: 32px;
+}
