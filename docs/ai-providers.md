@@ -211,6 +211,8 @@ curl http://localhost:3270/api/ai/status
 | Symptom | Cause and fix |
 |---|---|
 | *"… needs an API key"* | No key saved for the selected provider. Open **Provider** and add one. |
+| *"Add an endpoint URL before you can chat"* | The OpenAI-compatible provider has no endpoint saved. Its key is optional; the URL is not. Open **Provider** and enter the URL, for example `http://localhost:11434/v1`. The dialog will not save that provider with the endpoint empty. |
+| *"… rate limit hit. Try again in about 20 seconds"* | The provider is rate-limiting you and said how long to wait (its `Retry-After`). Without that header the message reads *Wait a moment and try again*. |
 | *"… rejected the credentials"* | The key is wrong, expired, or belongs to a different org. Re-paste it. |
 | *"Could not reach … at its configured endpoint"* | The endpoint URL is wrong or the server is not running. For Docker, see the `localhost` note above. |
 | *"The selected model … is not available"* | Your account or endpoint does not serve that model. Pick another from the dropdown. |
