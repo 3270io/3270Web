@@ -1485,7 +1485,7 @@
         if (toolName === "chaos_status" && args && args.verbose && result && result.mindMap) {
             const chaosUI = typeof window.ChaosUI === "object" ? window.ChaosUI : null;
             if (chaosUI && !chaosUI.isMapVisible()) {
-                const btn = makeBtn("🗺 View Chaos Map", function () {
+                const btn = makeBtn("View chaos map", function () {
                     chaosUI.openChaosMap();
                 });
                 extrasEl.appendChild(btn);
@@ -1498,13 +1498,13 @@
         if (toolName === "chaos_report" && result && result.markdown) {
             const chaosUI = typeof window.ChaosUI === "object" ? window.ChaosUI : null;
             if (chaosUI && !chaosUI.isFlowVisible()) {
-                const btn = makeBtn("📊 View Discovery Flow", function () {
+                const btn = makeBtn("View discovery flow", function () {
                     chaosUI.openChaosFlow();
                 });
                 extrasEl.appendChild(btn);
             }
             if (chaosUI && !chaosUI.isReportVisible()) {
-                const btn2 = makeBtn("📄 View Full Report", function () {
+                const btn2 = makeBtn("View full report", function () {
                     chaosUI.openChaosReport();
                 });
                 extrasEl.appendChild(btn2);

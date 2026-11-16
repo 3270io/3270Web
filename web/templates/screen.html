@@ -18,16 +18,16 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=23">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=24">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=22">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=23">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
-    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=4">
+    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=5">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
@@ -99,7 +99,7 @@
          Also after screen-grid.js: whether to suggest anything is decided by
          measuring the character cell, not by guessing from the device. -->
     <script src="/static/orientation-hint.js?v=2" defer></script>
-    <link rel="stylesheet" href="/static/activation.css?v=1">
+    <link rel="stylesheet" href="/static/activation.css?v=2">
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}" data-account="{{ .Auth.UserID }}" data-saved-workspace="{{ .UIPreferences.WorkspaceMode }}" data-quickstart-dismissed="{{ .UIPreferences.QuickStartDismissed }}" data-terminal-view="{{ .UIPreferences.TerminalView }}">
     <script src="/static/early-theme-init.js"></script>
@@ -134,6 +134,7 @@
                  palette still drives the session by clicking these. -->
             <div data-focus-rail-zone>
             <header class="appbar" data-appbar>
+              <h1 class="visually-hidden">3270Web terminal</h1>
               <div class="appbar-bar">
                 <div class="appbar-brand" data-chrome-title>
                     {{ template "brand-mark" }}

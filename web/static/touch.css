@@ -439,3 +439,31 @@ body.touch-device .tippy-box {
     transform: none;
   }
 }
+
+/* ---- Dialog controls ------------------------------------------------- */
+/* The dialogs were sized for a pointer: Close was 29px tall, the settings tabs
+ * 31px and a checkbox 18px. Everything a finger has to hit in a dialog gets
+ * the same 40px floor, a little under the 44px of the action bar because a
+ * dialog has far more controls than the bar and 44px would push the primary
+ * action off a phone screen. Chips and copy buttons are inline text-sized
+ * controls and keep their size. */
+body.touch-device [role="dialog"] button:not([class*="chip"]):not([class*="copy"]),
+body.touch-device [role="dialog"] summary {
+  min-height: 40px;
+}
+
+body.touch-device [role="dialog"] .icon-button {
+  min-width: 40px;
+}
+
+body.touch-device input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+}
+
+body.touch-device input[type="radio"] {
+  width: 22px;
+  height: 22px;
+}
+

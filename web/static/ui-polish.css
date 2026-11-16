@@ -46,32 +46,23 @@ body {
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --dur-1: 120ms;
   --dur-2: 200ms;
   --dur-3: 320ms;
 
   /* Derived surfaces + lines */
-  --surface-raised: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--panel-2) 82%, var(--fg) 3%),
-    color-mix(in srgb, var(--panel) 94%, transparent)
-  );
+  --surface-raised: color-mix(in srgb, var(--panel-2) 97%, var(--fg) 3%);
   --surface-sunken: color-mix(in srgb, var(--bg) 72%, var(--panel));
-  --glass: color-mix(in srgb, var(--panel) 82%, transparent);
-  --glass-strong: color-mix(in srgb, var(--panel) 92%, transparent);
   --hairline: color-mix(in srgb, var(--border) 78%, transparent);
   --hairline-soft: color-mix(in srgb, var(--border) 45%, transparent);
-  --top-sheen: color-mix(in srgb, var(--fg) 9%, transparent);
 
   /* Accent derivatives */
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-softer: color-mix(in srgb, var(--accent) 8%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 42%, var(--border));
-  --glow-sm: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 4px 14px -4px color-mix(in srgb, var(--accent) 30%, transparent);
-  --glow-md: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent),
-    0 10px 30px -8px color-mix(in srgb, var(--accent) 38%, transparent);
+  /* A one-pixel accent edge for hover and selection. It is a border, not a
+     halo: nothing here spreads light outside the element. */
+  --edge-accent: 0 0 0 1px var(--accent-line);
 
   /* Focus ring */
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--accent) 72%, transparent);
@@ -82,7 +73,8 @@ body {
   /* Semantic status colours, blended toward the theme so they never clash */
   --ok: color-mix(in srgb, #35d07f 76%, var(--accent));
   --warn: #f5b544;
-  --danger: #ff6b6b;
+  /* #ff6b6b was 4.4:1 as text on the tinted danger button in the slick theme. */
+  --danger: #ff7474;
   --info: color-mix(in srgb, #4aa8ff 70%, var(--accent));
 
   /* Masked icons (tinted with currentColor via mask-image). */
@@ -97,14 +89,32 @@ body.theme-io-daylight {
   --elev-2: 0 4px 12px -3px rgba(60, 45, 25, 0.16), 0 2px 5px -2px rgba(60, 45, 25, 0.1);
   --elev-3: 0 14px 32px -10px rgba(60, 45, 25, 0.22), 0 6px 14px -8px rgba(60, 45, 25, 0.12);
   --elev-4: 0 32px 68px -18px rgba(60, 45, 25, 0.3), 0 14px 28px -16px rgba(60, 45, 25, 0.18);
-  --top-sheen: rgba(255, 255, 255, 0.85);
   --scrim: color-mix(in srgb, #3a2f22 44%, transparent);
   --surface-sunken: color-mix(in srgb, var(--panel-2) 60%, var(--panel));
+  /* The status colours above are tuned for dark surfaces. As text on a light
+     one the amber and red are under 3:1, so each is darkened to clear 4.5:1. */
+  --ok: #0b6e43;
+  --warn: #8a5a00;
+  --danger: #a81c1f;
+  --info: #0b6aa8;
 }
 
 /* ---------------------------------------------------------------------
    2. Typography + base
    --------------------------------------------------------------------- */
+/* The browser's default bold is 700, which is heavier than anything else in
+   the interface. Strong text and headings top out at 600. */
+strong,
+b,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+}
+
 body {
   font-family: "Inter", "Inter var", "Segoe UI Variable Text", "Segoe UI",
     system-ui, -apple-system, "Helvetica Neue", sans-serif;
@@ -116,8 +126,8 @@ body {
 
 .card-header h1,
 .card-header h2 {
-  letter-spacing: -0.018em;
-  font-weight: 650;
+  letter-spacing: 0;
+  font-weight: 500;
 }
 
 /* Uppercase micro-labels used across the menus and panels. */
@@ -125,7 +135,7 @@ body {
 .copilot-panel-title,
 .settings-subgroup-legend,
 .active-run-label {
-  letter-spacing: 0.09em;
+  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -149,7 +159,7 @@ button,
 button:hover:not(:disabled),
 .h3270-key:hover {
   border-color: var(--accent-line);
-  box-shadow: var(--glow-sm);
+  box-shadow: var(--edge-accent);
   transform: translateY(-1px);
 }
 
@@ -161,7 +171,7 @@ button:active:not(:disabled),
 }
 
 button:disabled {
-  opacity: 0.42;
+  opacity: 0.45;
   transform: none;
   box-shadow: none;
 }
@@ -177,6 +187,10 @@ textarea:focus-visible,
   outline: none;
   box-shadow: var(--ring);
   border-radius: var(--r-sm);
+}
+
+textarea {
+  padding: 8px 10px;
 }
 
 input,
@@ -227,7 +241,7 @@ input[type="checkbox"]::after {
   width: 10px;
   height: 10px;
   transform: scale(0);
-  transition: transform var(--dur-2) var(--ease-spring);
+  transition: transform var(--dur-2) var(--ease-out);
   background: var(--bg);
   clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 16%, 84% 0%, 38% 68%);
 }
@@ -243,6 +257,30 @@ input[type="checkbox"]:checked::after {
 
 input[type="checkbox"]:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+/* Radios keep the native control (they are small and everyone knows them) but
+   take the theme's accent instead of the browser's blue. */
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* The native file picker button is a light-grey system control, which reads as
+   a hole in a dark theme. Style it like every other button. */
+input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent-line);
 }
 
 /* style.css styles `label` alongside input/select/button, so caption labels
@@ -276,7 +314,7 @@ input[type="checkbox"]:hover:not(:disabled) {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, var(--accent-soft), transparent 72%);
+  background: var(--accent-soft);
   opacity: 0;
   transition: opacity var(--dur-2) var(--ease-out);
 }
@@ -291,11 +329,6 @@ input[type="checkbox"]:hover:not(:disabled) {
 
 .icon-button svg {
   position: relative;
-  transition: transform var(--dur-2) var(--ease-spring);
-}
-
-.icon-button:hover:not(:disabled) svg {
-  transform: scale(1.12);
 }
 
 .icon-button-record {
@@ -326,18 +359,13 @@ button.danger,
 .danger {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
   color: var(--danger);
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--danger) 14%, var(--panel-2)),
-    color-mix(in srgb, var(--danger) 6%, transparent)
-  );
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel-2));
 }
 
 button.danger:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--bg);
   background: var(--danger);
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--danger) 60%, transparent);
 }
 
 /* A destructive button focused for confirmation should not be ringed in the
@@ -353,32 +381,10 @@ button.danger:focus-visible,
 .card {
   border-radius: var(--r-xl);
   border-color: var(--hairline);
-  background:
-    linear-gradient(180deg, var(--top-sheen), transparent 120px),
-    linear-gradient(168deg, color-mix(in srgb, var(--panel-2) 42%, var(--panel)), var(--panel) 62%);
-  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft),
-    0 0 90px -30px color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--panel);
+  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft);
   position: relative;
   isolation: isolate;
-}
-
-/* Hairline highlight along the top edge — reads as a lit bevel. */
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 55%, transparent) 22%,
-    color-mix(in srgb, var(--accent) 55%, transparent) 78%,
-    transparent
-  );
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 2;
 }
 
 .card-header {
@@ -401,8 +407,6 @@ button.danger:focus-visible,
   width: 37px;
   height: 34px;
   flex: none;
-  /* The drawing already casts an accent glow; this only seats it on the card. */
-  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--accent) 24%, transparent));
 }
 
 /* On the connect card the mark carries the page, so it gets a little more room. */
@@ -418,13 +422,9 @@ button.danger:focus-visible,
   }
 }
 
-/* Brand wordmark with an accent gradient. */
+/* Brand wordmark: the product name in the primary text colour. */
 .card-header [data-chrome-title] h2 {
-  background: linear-gradient(96deg, var(--fg), var(--accent) 55%, var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: var(--fg);
   font-size: 1.5rem;
 }
 
@@ -464,7 +464,7 @@ button.danger:focus-visible,
 .copilot-toggle-button[data-copilot-toggle] {
   color: var(--accent);
   border-color: var(--accent-line);
-  background: linear-gradient(160deg, var(--accent-soft), transparent);
+  background: var(--accent-soft);
 }
 
 body.copilot-open .copilot-toggle-button[data-copilot-toggle] {
@@ -487,14 +487,14 @@ body.copilot-open .copilot-toggle-button[data-copilot-toggle] {
 
 .active-run-row:hover {
   border-color: var(--accent-line);
-  box-shadow: var(--glow-sm);
+  box-shadow: var(--edge-accent);
 }
 
 .active-run-chip {
   border-radius: var(--r-pill);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   padding: 4px 10px;
 }
 
@@ -510,25 +510,20 @@ body.copilot-open .copilot-toggle-button[data-copilot-toggle] {
   padding: 14px;
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline);
-  background:
-    linear-gradient(180deg, var(--top-sheen), transparent 60px),
-    linear-gradient(165deg, color-mix(in srgb, var(--panel-2) 70%, var(--panel)), var(--panel));
+  background: var(--panel);
   box-shadow:
     var(--elev-3),
-    inset 0 1px 0 var(--top-sheen),
     0 0 0 1px var(--hairline-soft);
   transition: box-shadow var(--dur-3) var(--ease-out),
     border-color var(--dur-3) var(--ease-out);
 }
 
-/* The bezel lights up when the operator is actually typing into the screen. */
+/* The bezel takes an accent edge when the operator is typing into the screen. */
 .terminal-shell:focus-within {
   border-color: var(--accent-line);
   box-shadow:
     var(--elev-3),
-    inset 0 1px 0 var(--top-sheen),
-    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 0 42px -10px color-mix(in srgb, var(--accent) 42%, transparent);
+    0 0 0 1px var(--accent-line);
 }
 
 .screen-container {
@@ -570,8 +565,7 @@ body.theme-authentic .screen-container::after {
    They keep a fixed position and a monospace width so an operator can
    find them without reading, the way they do on a real terminal. */
 .screen-oia {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 88%, var(--bg)), color-mix(in srgb, var(--bg) 62%, var(--panel-2)));
+  background: color-mix(in srgb, var(--panel-2) 76%, var(--bg));
   color: var(--fg-muted);
   border: 1px solid color-mix(in srgb, var(--border) 90%, black);
   border-top: 1px solid var(--hairline-soft);
@@ -591,7 +585,6 @@ body.theme-authentic .screen-container::after {
   font-kerning: none;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0, "kern" 0;
-  box-shadow: inset 0 1px 0 var(--top-sheen);
 }
 
 /* The classic left-hand block: "4" online, "4-A" online and owned by an
@@ -665,7 +658,7 @@ body.theme-authentic .screen-container::after {
   gap: 6px;
   padding: 0 12px;
   border-right: 1px solid var(--hairline-soft);
-  color: color-mix(in srgb, var(--fg-muted) 82%, transparent);
+  color: var(--fg-muted);
   font-size: 0.86em;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -936,7 +929,7 @@ body[data-focus="on"] .focus-toggle-button[aria-pressed="true"] {
 
 .sample-status .subtle {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1134,8 +1127,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .transfer-modal-content {
@@ -1143,10 +1134,8 @@ body[data-focus="on"] .sample-status {
   width: min(96vw, 620px);
   max-height: 88vh;
   overflow: auto;
-  padding: 18px 20px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 20px;
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -1290,8 +1279,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .tasks-modal-content {
@@ -1301,10 +1288,8 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 560px);
   max-height: 88vh;
-  padding: 18px 20px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 20px;
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -1382,10 +1367,9 @@ body[data-focus="on"] .sample-status {
 }
 
 .task-field-required {
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 
@@ -1428,9 +1412,7 @@ body[data-focus="on"] .sample-status {
   max-height: min(70vh, 620px);
   overflow-y: auto;
   padding: 14px 16px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(16px) saturate(130%);
-  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-left: 3px solid var(--accent);
   border-radius: var(--r-md);
@@ -1511,7 +1493,6 @@ body[data-focus="on"] .sample-status {
 .task-result-values dd.is-missing {
   color: var(--danger);
   font-family: inherit;
-  font-style: italic;
 }
 
 .task-card-screen { margin-bottom: 10px; }
@@ -1556,8 +1537,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 74%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .wizard-modal-content {
@@ -1567,10 +1546,8 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 860px);
   max-height: 90vh;
-  padding: 18px 20px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 20px;
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -1865,10 +1842,10 @@ body[data-focus="on"] .sample-status {
   border-radius: 7px;
   background: var(--accent);
   color: var(--bg);
-  font-size: 0.6rem;
+  font-size: 0.6875rem;
   line-height: 14px;
   text-align: center;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .wizard-card-head .wizard-region-badge { position: static; }
@@ -1958,7 +1935,7 @@ body[data-focus="on"] .sample-status {
   padding: 8px 10px;
   overflow-x: auto;
   font-family: var(--mono, monospace);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   line-height: 1.5;
   white-space: pre;
   background: var(--panel-2);
@@ -1966,7 +1943,7 @@ body[data-focus="on"] .sample-status {
 }
 
 .wizard-snippet .wizard-copy { position: absolute; top: 6px; right: 6px; }
-.wizard-copy { font-size: 0.64rem; padding: 1px 6px; }
+.wizard-copy { font-size: 0.6875rem; padding: 1px 6px; }
 
 .wizard-actions {
   display: flex;
@@ -2002,8 +1979,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .keymap-modal-content {
@@ -2013,10 +1988,8 @@ body[data-focus="on"] .sample-status {
   gap: 12px;
   width: min(96vw, 660px);
   max-height: 88vh;
-  padding: 18px 20px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 20px;
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -2052,10 +2025,9 @@ body[data-focus="on"] .sample-status {
   z-index: 1;
   margin: 0;
   padding: 8px 10px 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   background: var(--panel);
   border-bottom: 1px solid var(--hairline-soft);
@@ -2100,12 +2072,10 @@ body[data-focus="on"] .sample-status {
 /* No keyboard default at all — the label is prose, not a key name. */
 .keymap-keys.is-unbound {
   font-family: inherit;
-  font-style: italic;
 }
 
 .keymap-keys.is-waiting {
   color: var(--accent);
-  font-style: italic;
 }
 
 .keymap-action-btn {
@@ -2159,8 +2129,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .profiles-modal-content {
@@ -2171,10 +2139,8 @@ body[data-focus="on"] .sample-status {
   width: min(96vw, 760px);
   max-height: 88vh;
   overflow: auto;
-  padding: 18px 20px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 20px;
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -2255,8 +2221,8 @@ body[data-focus="on"] .sample-status {
   padding: 2px 7px;
   border-radius: 999px;
   font-family: var(--mono);
-  font-size: 0.62rem;
-  font-weight: 700;
+  font-size: 0.6875rem;
+  font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--ok);
   background: color-mix(in srgb, var(--ok) 16%, transparent);
@@ -2299,8 +2265,7 @@ body[data-focus="on"] .sample-status {
 .profiles-samples h4 {
   margin: 0;
   font-size: 0.82rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 
@@ -2441,8 +2406,6 @@ body[data-focus="on"] .sample-status {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .history-modal-content {
@@ -2453,9 +2416,7 @@ body[data-focus="on"] .sample-status {
   max-width: min(96vw, 1100px);
   max-height: 88vh;
   padding: 16px 18px 14px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
@@ -2569,9 +2530,7 @@ body[data-hotspots="off"] .screen-hotspot {
   width: 100%;
   max-width: var(--terminal-width, 100%);
   box-sizing: border-box;
-  background: var(--glass-strong);
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
   box-shadow: var(--elev-2);
@@ -2640,7 +2599,7 @@ body[data-hotspots="off"] .screen-hotspot {
 
 .screen-find-match.is-active {
   background: color-mix(in srgb, var(--accent) 46%, transparent);
-  box-shadow: inset 0 0 0 1px var(--accent), 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* ---------------------------------------------------------------- */
@@ -2694,7 +2653,6 @@ body[data-hotspots="off"] .screen-hotspot {
 
 .host-details-list dd[data-empty] {
   color: var(--fg-muted);
-  font-style: italic;
 }
 
 .host-details-list-raw {
@@ -2860,8 +2818,7 @@ body[data-hotspots="off"] .screen-hotspot {
 .printer-job-truncated {
   color: var(--danger, #d9534f);
   font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
 }
 
 .printer-job-actions {
@@ -2987,10 +2944,8 @@ body.theme-authentic .terminal-shell {
 .controls.h3270-keypad {
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline-soft);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--elev-2), inset 0 1px 0 var(--top-sheen);
+  background: var(--panel);
+  box-shadow: var(--elev-2);
 }
 
 .h3270-key {
@@ -3007,9 +2962,7 @@ body.theme-authentic .terminal-shell {
 .workflow-status-widget {
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline);
-  background: var(--glass-strong);
-  backdrop-filter: blur(16px) saturate(130%);
-  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  background: var(--panel);
   box-shadow: var(--elev-3);
 }
 
@@ -3063,8 +3016,6 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .theme-save-confirm-backdrop,
 .copilot-modal-backdrop {
   background: var(--scrim);
-  backdrop-filter: blur(10px) saturate(115%);
-  -webkit-backdrop-filter: blur(10px) saturate(115%);
 }
 
 .modal-backdrop:not([hidden]),
@@ -3095,12 +3046,9 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .copilot-modal {
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline);
-  background:
-    linear-gradient(180deg, var(--top-sheen), transparent 90px),
-    linear-gradient(168deg, color-mix(in srgb, var(--panel-2) 38%, var(--panel)), var(--panel) 58%);
-  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft),
-    0 0 80px -30px color-mix(in srgb, var(--accent) 26%, transparent);
-  animation: polish-modal-in var(--dur-3) var(--ease-spring);
+  background: var(--panel);
+  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft);
+  animation: polish-modal-in var(--dur-3) var(--ease-out);
 }
 
 /* The logs + settings dialogs used a hard 2px accent frame; soften them
@@ -3119,39 +3067,63 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   margin-bottom: 2px;
 }
 
+/* The dialogs that are built by their own scripts carry the same header: a
+   hairline under the title and the same gap before the content. */
+.history-modal-header,
+.profiles-modal-header,
+.transfer-modal-header,
+.keymap-modal-header,
+.tasks-modal-header,
+.wizard-modal-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+  margin-bottom: 14px;
+}
+
 .modal-header h3,
 .workflow-modal-header h3,
 .logs-modal-header h3,
-.settings-modal-header h3 {
-  font-size: 1.06rem;
-  letter-spacing: -0.012em;
+.settings-modal-header h3,
+.history-modal-header h3,
+.profiles-modal-header h3,
+.transfer-modal-header h3,
+.keymap-modal-header h3,
+.tasks-modal-header h3,
+.wizard-modal-header h3 {
+  font-size: 1.0625rem;
+  letter-spacing: 0;
   color: var(--fg);
 }
 
-/* A small accent rule before each dialog title. */
-.modal-header h3::before,
-.logs-modal-header h3::before,
-.settings-modal-header h3::before,
-.workflow-modal-header h3::before {
-  content: "";
-  display: inline-block;
-  width: 3px;
-  height: 1em;
-  margin-right: 10px;
-  vertical-align: -0.14em;
-  border-radius: var(--r-pill);
-  background: linear-gradient(180deg, var(--accent), var(--accent-2));
-}
-
-.modal-close {
+.modal-close,
+[class*="modal-header"] button[data-modal-close],
+[class*="modal-header"] button[data-logs-modal-close],
+[class*="modal-header"] button[data-settings-close],
+[class*="modal-header"] button[data-wizard-close],
+[class*="modal-header"] button[data-keymap-close],
+[class*="modal-header"] button[data-profiles-close],
+[class*="modal-header"] button[data-history-close],
+[class*="modal-header"] button[data-transfer-close],
+[class*="modal-header"] button[data-tasks-close] {
   border-radius: var(--r-xs);
   font-size: 0.84rem;
   color: var(--fg-muted);
+  padding: 6px 10px;
 }
 
-.modal-close:hover {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+/* Closing is not destructive, so it does not turn red: red is kept for the
+   buttons that delete or disconnect. */
+.modal-close:hover,
+[class*="modal-header"] button[data-modal-close]:hover,
+[class*="modal-header"] button[data-logs-modal-close]:hover,
+[class*="modal-header"] button[data-settings-close]:hover,
+[class*="modal-header"] button[data-wizard-close]:hover,
+[class*="modal-header"] button[data-keymap-close]:hover,
+[class*="modal-header"] button[data-profiles-close]:hover,
+[class*="modal-header"] button[data-history-close]:hover,
+[class*="modal-header"] button[data-transfer-close]:hover,
+[class*="modal-header"] button[data-tasks-close]:hover {
+  color: var(--fg);
 }
 
 .modal-actions {
@@ -3175,15 +3147,16 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .settings-tab {
-  border-radius: var(--r-pill);
-  transition: all var(--dur-2) var(--ease-out);
+  border-radius: var(--r-sm);
+  transition: color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
 }
 
 .settings-tab.is-active {
   background: var(--accent);
   color: var(--bg);
   border-color: var(--accent);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .settings-group,
@@ -3200,12 +3173,12 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .chaos-run-item:hover,
 .chaos-map-card:hover {
   border-color: var(--accent-line);
-  box-shadow: var(--glow-sm);
+  box-shadow: var(--edge-accent);
 }
 
 .chaos-run-item.is-selected {
   border-color: var(--accent);
-  box-shadow: var(--glow-sm);
+  box-shadow: var(--edge-accent);
 }
 
 .settings-field input,
@@ -3252,9 +3225,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .h3270-notification {
   border-radius: var(--r-md);
   border: 1px solid var(--hairline);
-  background: var(--glass-strong);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  background: var(--panel);
   box-shadow: var(--elev-3);
   border-left-width: 3px;
 }
@@ -3269,8 +3240,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
    --------------------------------------------------------------------- */
 .copilot-panel {
   border-left: 1px solid var(--hairline);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 40%, var(--panel)), var(--panel) 220px);
+  background: var(--panel);
   box-shadow: -24px 0 60px -24px rgba(0, 0, 0, 0.7);
   animation: polish-panel-in var(--dur-3) var(--ease-out);
 }
@@ -3281,9 +3251,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .copilot-panel-header {
-  background: var(--glass);
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  background: var(--panel);
   border-bottom: 1px solid var(--hairline-soft);
   padding: 12px 14px;
   position: relative;
@@ -3295,22 +3263,16 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   align-items: center;
   gap: 8px;
   font-size: 0.72rem;
-  background: linear-gradient(96deg, var(--fg), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: var(--fg);
 }
 
 .copilot-panel-title::before {
   content: "";
-  width: 20px;
-  height: 20px;
-  border-radius: var(--r-xs);
+  width: 8px;
+  height: 14px;
+  border-radius: 1px;
   flex: none;
-  background: linear-gradient(140deg, var(--accent), var(--accent-2));
-  -webkit-text-fill-color: initial;
-  box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--accent) 70%, transparent);
+  background: var(--accent);
   -webkit-mask: none;
   mask: none;
 }
@@ -3318,7 +3280,9 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .copilot-icon-button {
   border-radius: var(--r-xs);
   padding: 5px 9px;
-  transition: all var(--dur-2) var(--ease-out);
+  transition: color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
 }
 
 .copilot-automode-btn[aria-pressed="true"] {
@@ -3349,7 +3313,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .copilot-msg-user {
-  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 20%, var(--panel-2)), color-mix(in srgb, var(--accent) 8%, var(--panel-2)));
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
   border-bottom-right-radius: var(--r-xs);
   margin-left: 18px;
@@ -3371,10 +3335,9 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .copilot-msg-assistant::before,
 .copilot-msg-error::before {
   display: block;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   margin-bottom: 6px;
   opacity: 0.72;
 }
@@ -3417,9 +3380,8 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-tool-call-status {
   font-size: 0.7rem;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   padding: 3px 8px;
   border-radius: var(--r-pill);
   border: 1px solid var(--hairline);
@@ -3456,7 +3418,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-tool-call-name {
   color: var(--accent);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .copilot-tool-call-args,
@@ -3483,15 +3445,15 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-example-chip {
   border-radius: var(--r-pill);
-  transition: all var(--dur-2) var(--ease-out);
+  transition: color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
   text-align: left;
 }
 
 .copilot-example-chip:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
-  transform: translateY(-1px);
-  box-shadow: var(--glow-sm);
 }
 
 .copilot-empty-state {
@@ -3499,18 +3461,12 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .copilot-empty-title {
-  background: linear-gradient(96deg, var(--fg), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: var(--fg);
 }
 
 .copilot-panel-form {
   border-top: 1px solid var(--hairline-soft);
-  background: var(--glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--panel);
   padding: 12px;
   gap: 8px;
 }
@@ -3529,10 +3485,10 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-send {
   border-radius: var(--r-md);
-  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--accent-2)));
+  background: var(--accent);
   color: var(--bg);
   border-color: var(--accent);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .copilot-send:hover:not(:disabled) {
@@ -3547,12 +3503,11 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-connect-btn {
   border-radius: var(--r-md);
-  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: var(--bg);
-  font-weight: 650;
+  font-weight: 600;
   border: none;
   padding: 10px 18px;
-  box-shadow: 0 10px 26px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* Signed out, the panel showed a top-aligned pitch and a bottom-aligned
@@ -3629,7 +3584,6 @@ body.copilot-resizing .page-wrap {
 .copilot-resize-handle:hover::after,
 body.copilot-resizing .copilot-resize-handle::after {
   background: var(--accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 body.copilot-resizing {
@@ -3649,8 +3603,6 @@ body.copilot-resizing {
   justify-content: center;
   padding: clamp(48px, 12vh, 140px) 20px 20px;
   background: var(--scrim);
-  backdrop-filter: blur(10px) saturate(115%);
-  -webkit-backdrop-filter: blur(10px) saturate(115%);
   animation: polish-fade-in var(--dur-2) var(--ease-out);
 }
 
@@ -3665,13 +3617,10 @@ body.copilot-resizing {
   flex-direction: column;
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline);
-  background:
-    linear-gradient(180deg, var(--top-sheen), transparent 80px),
-    linear-gradient(168deg, color-mix(in srgb, var(--panel-2) 40%, var(--panel)), var(--panel) 58%);
-  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft),
-    0 0 90px -30px color-mix(in srgb, var(--accent) 34%, transparent);
+  background: var(--panel);
+  box-shadow: var(--elev-4), 0 0 0 1px var(--hairline-soft);
   overflow: hidden;
-  animation: polish-modal-in var(--dur-3) var(--ease-spring);
+  animation: polish-modal-in var(--dur-3) var(--ease-out);
 }
 
 .cmdk-search {
@@ -3710,7 +3659,7 @@ body.copilot-resizing {
 
 .cmdk-hintkey {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   padding: 3px 7px;
   border-radius: var(--r-xs);
   border: 1px solid var(--hairline);
@@ -3729,10 +3678,9 @@ body.copilot-resizing {
 
 .cmdk-group {
   padding: 10px 10px 6px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 
@@ -3787,7 +3735,7 @@ body.copilot-resizing {
 .cmdk-item-label mark {
   background: transparent;
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .cmdk-item-sub {
@@ -3818,7 +3766,7 @@ body.copilot-resizing {
 
 .cmdk-footer kbd {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   padding: 2px 6px;
   border-radius: 5px;
   border: 1px solid var(--hairline);
@@ -3980,8 +3928,7 @@ body.copilot-resizing {
 .macro-import-notes-heading {
   margin: 0 0 6px;
   font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 
@@ -4026,4 +3973,19 @@ body.copilot-resizing {
   font-size: 0.78rem;
   line-height: 1.45;
   color: var(--fg-muted);
+}
+
+/* ---------------------------------------------------------------------
+   Consistency fixes found by measuring every dialog
+   --------------------------------------------------------------------- */
+/* The Logs dialog's footer rule was a bright full-strength line while every
+   other divider is a hairline. */
+.logs-modal-footer {
+  border-top: 1px solid var(--hairline-soft);
+}
+
+/* "optional" next to a field label is the same size as the label, not the
+   larger body size that .subtle brings. */
+.profiles-modal-content label > .subtle {
+  font-size: inherit;
 }
