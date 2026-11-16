@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
 // anthropicVersion is the required API version header value.
@@ -75,7 +77,12 @@ func (c *anthropicClient) StreamChat(ctx context.Context, payload map[string]any
 
 	if resp.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		return &APIError{Provider: c.provider.Label, Status: resp.StatusCode, Body: string(b)}
+		return &APIError{
+			Provider:   c.provider.Label,
+			Status:     resp.StatusCode,
+			Body:       string(b),
+			RetryAfter: copilot.ParseRetryAfter(resp.Header, time.Now()),
+		}
 	}
 	return translateAnthropicStream(streamCtx, resp.Body, out, cancelStream)
 }

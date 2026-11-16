@@ -155,13 +155,21 @@ func (h *Handlers) Status(c *gin.Context) {
 
 	ready := err == nil
 	needs := ""
+	// missing names the setting behind needs == "config", so the panel can ask
+	// for the thing that is actually empty rather than assuming it is a key.
+	missing := ""
 	if !ready {
 		needs = "config"
+		var notConfigured *NotConfiguredError
+		if errors.As(err, &notConfigured) {
+			missing = notConfigured.Missing
+		}
 	}
 	if IsCopilot(prov.ID) {
 		auth, _ := h.copilot.Get(id)
 		ready = auth.LoggedIn()
 		needs = ""
+		missing = ""
 		if !ready {
 			needs = "login"
 		}
@@ -173,6 +181,7 @@ func (h *Handlers) Status(c *gin.Context) {
 		"auth":          prov.Auth,
 		"ready":         ready,
 		"needs":         needs,
+		"missing":       missing,
 		"model":         cfg.Model,
 		"baseUrl":       cfg.BaseURL,
 		// logged_in keeps the shape of the older /api/copilot/status response
@@ -315,8 +324,10 @@ func (h *Handlers) Chat(c *gin.Context) {
 			var copilotErr *copilot.APIError
 			if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 600 {
 				status = apiErr.Status
+				copilot.SetRetryAfter(c.Writer.Header(), apiErr.RetryAfter)
 			} else if errors.As(err, &copilotErr) && copilotErr.Status >= 400 && copilotErr.Status < 600 {
 				status = copilotErr.Status
+				copilot.SetRetryAfter(c.Writer.Header(), copilotErr.RetryAfter)
 			}
 			c.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
 			return

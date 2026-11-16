@@ -256,12 +256,40 @@ func (st *ConfigStore) Resolve(id string) (Provider, ProviderConfig, error) {
 		cfg.Model = prov.DefaultModel
 	}
 	if prov.BaseURLRequired && cfg.BaseURL == "" {
-		return prov, cfg, errors.New(prov.Label + " needs a base URL — set one in AI provider settings")
+		return prov, cfg, &NotConfiguredError{Provider: prov, Missing: MissingBaseURL}
 	}
 	if prov.Auth == AuthAPIKey && strings.TrimSpace(cfg.APIKey) == "" {
-		return prov, cfg, errors.New(prov.Label + " needs an API key — set one in AI provider settings")
+		return prov, cfg, &NotConfiguredError{Provider: prov, Missing: MissingAPIKey}
 	}
 	return prov, cfg, nil
+}
+
+// The settings a provider can be unusable for lack of. The values are what
+// /api/ai/status reports in "missing", and the panel words its prompt from
+// them, so they are part of that response's shape.
+const (
+	MissingBaseURL = "baseUrl"
+	MissingAPIKey  = "apiKey"
+)
+
+// NotConfiguredError is what Resolve returns when the selected provider cannot
+// answer yet, and it says which setting is the reason. The OpenAI-compatible
+// entry's key is optional and its endpoint is not, so "needs an API key" was
+// the wrong thing to tell somebody whose endpoint was the empty field.
+type NotConfiguredError struct {
+	Provider Provider
+	// Missing is MissingBaseURL or MissingAPIKey.
+	Missing string
+}
+
+func (e *NotConfiguredError) Error() string {
+	// "endpoint URL" is what the settings dialog calls the field; the code
+	// calls it a base URL.
+	what := "an API key"
+	if e.Missing == MissingBaseURL {
+		what = "an endpoint URL"
+	}
+	return e.Provider.Label + " needs " + what + " — set one in AI provider settings"
 }
 
 func (e *identitySettings) snapshotLocked() Settings {

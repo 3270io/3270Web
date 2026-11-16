@@ -375,6 +375,7 @@ func (h *Handlers) Chat(c *gin.Context) {
 			var apiErr *APIError
 			if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 600 {
 				status = apiErr.Status
+				SetRetryAfter(c.Writer.Header(), apiErr.RetryAfter)
 			}
 			c.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
 			return
