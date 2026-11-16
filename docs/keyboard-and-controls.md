@@ -194,7 +194,9 @@ Two details worth knowing:
   cannot tell you" are different answers.
 - The longest values (copyright, proxy list, running tasks) are abbreviated
   by the terminal itself and carry a **Show** button that fetches them in
-  full.
+  full. Each button is named for the value it reveals — a screen reader
+  announces "Show Copyright", not six buttons that all say "Show" — and focus
+  moves to the value once it appears.
 
 **Copy** puts the whole list on the clipboard as plain text, for pasting
 into a ticket. **Refresh** re-reads it — the byte counts always move, and
