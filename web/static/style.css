@@ -61,8 +61,6 @@ body {
   position: absolute;
   inset: 0;
   opacity: var(--bg-overlay-opacity);
-  background: radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.08), transparent 45%),
-    radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.06), transparent 35%);
   transition: opacity 0.3s ease;
 }
 
@@ -130,30 +128,18 @@ body.bg-paused .bg-overlay canvas {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--scrollbar-thumb) 92%, white),
-    var(--scrollbar-thumb)
-  );
+  background: var(--scrollbar-thumb);
   border: 2px solid var(--scrollbar-track);
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px var(--scrollbar-thumb-border);
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--scrollbar-thumb-hover) 92%, white),
-    var(--scrollbar-thumb-hover)
-  );
+  background: var(--scrollbar-thumb-hover);
 }
 
 *::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--scrollbar-thumb-active) 92%, white),
-    var(--scrollbar-thumb-active)
-  );
+  background: var(--scrollbar-thumb-active);
 }
 
 *::-webkit-scrollbar-corner {
@@ -286,18 +272,13 @@ body.theme-yorkshire .h3270-form {
 
 body.theme-yorkshire .card {
   border: 1px solid var(--border);
-  box-shadow: 0 0 18px rgba(0, 255, 128, 0.22), 0 0 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
 }
 
 body.theme-yorkshire a,
 body.theme-yorkshire .yorkshire-accent {
   color: var(--yorkshire-accent);
   font-style: italic;
-}
-
-body.theme-yorkshire a:hover,
-body.theme-yorkshire .yorkshire-accent:hover {
-  text-shadow: 0 0 4px #ffc1074d;
 }
 
 body.theme-authentic {
@@ -557,22 +538,13 @@ body.terminal-fit-active .card {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--panel-2) 92%, transparent),
-    color-mix(in srgb, var(--panel) 86%, transparent)
-  );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--panel-2);
   cursor: pointer;
 }
 
 .active-run-row:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--panel-2) 90%, transparent),
-    color-mix(in srgb, var(--panel) 82%, transparent)
-  );
+  background: color-mix(in srgb, var(--panel-2) 94%, var(--accent));
 }
 
 .active-run-row:focus-visible {
@@ -584,8 +556,7 @@ body.terminal-fit-active .card {
   flex: 0 0 auto;
   color: var(--fg-muted);
   font-size: 0.7rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .active-run-chip {
@@ -730,7 +701,6 @@ body.terminal-fit-active .card {
   height: 14px;
   border-radius: 50%;
   background-color: #ff4d4d;
-  box-shadow: 0 0 10px rgba(255, 77, 77, 0.7);
   animation: pulse 1s infinite;
 }
 
@@ -740,7 +710,6 @@ body.terminal-fit-active .card {
   border-top: 8px solid transparent;
   border-bottom: 8px solid transparent;
   border-left: 14px solid #39ff14;
-  filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.7));
   animation: pulse 1s infinite;
 }
 
@@ -759,7 +728,6 @@ body.terminal-fit-active .card {
   height: 14px;
   background-color: #ffd24d;
   border-radius: 2px;
-  box-shadow: 0 0 8px rgba(255, 210, 77, 0.7);
 }
 
 .chaos-indicator {
@@ -767,7 +735,6 @@ body.terminal-fit-active .card {
   height: 14px;
   border-radius: 3px;
   background-color: #a855f7;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.7);
   animation: chaos-spin 2s linear infinite;
 }
 
@@ -955,7 +922,6 @@ button.danger:hover:not(:disabled) {
 .chaos-hint-field-label {
   font-size: 0.76rem;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--fg-muted);
 }
 
@@ -1001,8 +967,7 @@ button.danger:hover:not(:disabled) {
   padding: 0 8px;
   margin-left: -2px;
   font-size: 0.78rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   font-weight: 600;
 }
@@ -1139,7 +1104,7 @@ button.danger:hover:not(:disabled) {
 .required-mark {
   color: #cc5b5b;
   margin-left: 4px;
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .error-page {
@@ -1273,7 +1238,6 @@ button.danger:hover:not(:disabled) {
   font-size: 0.76rem;
   line-height: 1.2;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--fg-muted);
   white-space: nowrap;
 }
@@ -1312,7 +1276,7 @@ label, select, button, input {
 
 button {
   cursor: pointer;
-  background: linear-gradient(135deg, var(--panel-2), transparent);
+  background: var(--panel-2);
 }
 
 /* A link that navigates but is presented as a button.
@@ -1325,7 +1289,6 @@ button {
   align-items: center;
   gap: 6px;
   color: var(--fg);
-  background: linear-gradient(135deg, var(--panel-2), transparent);
   background-color: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1731,7 +1694,6 @@ pre, pre input, textarea {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
 }
 
 .h3270-keypad-header {
@@ -1752,7 +1714,7 @@ pre, pre input, textarea {
 .h3270-keypad-toggle {
   padding: 4px 10px;
   font-size: 0.75rem;
-  border-radius: 999px;
+  border-radius: 8px;
 }
 
 .h3270-keypad-mode-switch {
@@ -1811,7 +1773,7 @@ pre, pre input, textarea {
 
 .h3270-key.is-active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 0 1px var(--accent);
   transform: translateY(1px);
 }
 
@@ -1947,7 +1909,7 @@ pre, pre input, textarea {
 .h3270-max-shift.is-locked {
   border-color: var(--accent);
   background-color: rgba(57, 255, 20, 0.26);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(57, 255, 20, 0.32);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* A symbol cap prints both its legends, shifted above, as the key itself
@@ -1974,7 +1936,7 @@ pre, pre input, textarea {
   background-color: var(--panel-2);
   color: var(--fg);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 4px 8px;
   font-size: 0.75rem;
   font-family: inherit;
@@ -2480,8 +2442,7 @@ pre, pre input, textarea {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel-2) 86%, transparent));
+  background: var(--panel);
   padding: 14px;
 }
 
@@ -2666,12 +2627,7 @@ pre, pre input, textarea {
   grid-column: 1 / -1;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background:
-    radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 94%, transparent), color-mix(in srgb, var(--panel) 90%, transparent));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent),
-    0 8px 24px color-mix(in srgb, var(--panel) 45%, transparent);
+  background: var(--panel-2);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -2757,7 +2713,7 @@ pre, pre input, textarea {
 .chaos-map-flow-zoom-controls button[data-chaos-flow-zoom-out],
 .chaos-map-flow-zoom-controls button[data-chaos-flow-zoom-in] {
   min-width: 28px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .chaos-map-flow-zoom-controls button[data-chaos-flow-layout-reset] {
@@ -2779,9 +2735,8 @@ pre, pre input, textarea {
   background:
     linear-gradient(0deg, color-mix(in srgb, var(--border) 14%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--border) 14%, transparent) 1px, transparent 1px),
-    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
     color-mix(in srgb, var(--panel) 86%, transparent);
-  background-size: 26px 26px, 26px 26px, auto, auto;
+  background-size: 26px 26px, 26px 26px, auto;
   overflow: auto;
   height: min(42vh, 520px);
   max-height: min(42vh, 520px);
@@ -2943,7 +2898,7 @@ pre, pre input, textarea {
 .chaos-map-flow-node-footer-label {
   fill: var(--fg);
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .chaos-map-flow-node-footer-meta {
@@ -2958,14 +2913,13 @@ pre, pre input, textarea {
 .chaos-map-flow-node.is-dragging rect {
   stroke-width: 1.5;
   stroke: color-mix(in srgb, var(--accent) 65%, var(--fg));
-  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, var(--accent) 25%, transparent))
-          drop-shadow(0 3px 12px color-mix(in srgb, var(--panel) 58%, transparent));
+  filter: drop-shadow(0 3px 12px color-mix(in srgb, var(--panel) 58%, transparent));
 }
 
 .chaos-map-flow-node-title {
   fill: var(--fg);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .chaos-map-flow-node-meta {
@@ -2978,7 +2932,7 @@ pre, pre input, textarea {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel-2) 82%, transparent));
+  background: var(--panel);
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -3024,7 +2978,7 @@ pre, pre input, textarea {
   border-left: 3px solid var(--chaos-flow-edge-color, color-mix(in srgb, var(--accent) 64%, var(--fg-muted)));
   border-radius: 6px;
   padding: 4px 6px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 78%, transparent), color-mix(in srgb, var(--panel) 74%, transparent));
+  background: var(--panel-2);
 }
 
 .chaos-map-flow-legend-row.is-listed-only {
@@ -3106,7 +3060,6 @@ pre, pre input, textarea {
 
 .chaos-map-card-purpose {
   font-size: 0.78rem;
-  font-style: italic;
   color: var(--fg-muted);
   line-height: 1.3;
 }
@@ -3254,7 +3207,7 @@ pre, pre input, textarea {
 
 .chaos-map-field-toggle {
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 0.7rem;
   line-height: 1.2;
 }
@@ -3374,7 +3327,7 @@ pre, pre input, textarea {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: linear-gradient(135deg, var(--panel-2), transparent);
+  background: var(--panel-2);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3480,7 +3433,7 @@ html.workflow-status-maximized .workflow-status-widget {
   position: relative;
   width: 36px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--border);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   transition: background 0.2s ease, box-shadow 0.2s ease;
@@ -3565,7 +3518,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
 }
 
 .workflow-status-disabled {
-  font-style: italic;
   color: var(--fg-muted);
 }
 
@@ -3745,7 +3697,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
 .logs-modal-footer button:disabled,
@@ -3767,7 +3719,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
 .logs-modal-header-actions button:hover {
@@ -3909,7 +3861,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
 .settings-modal-actions button:hover {
@@ -4008,7 +3960,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-theme-editor-toggle {
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--fg);
@@ -4052,9 +4004,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-custom-theme-title {
   font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   margin-bottom: 6px;
 }
@@ -4068,7 +4019,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 .settings-theme-palette,
 .settings-theme-reset {
   padding: 6px 10px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--fg);
@@ -4099,7 +4050,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex: 0 0 auto;
   white-space: nowrap;
   padding: 6px 10px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--fg);
@@ -4219,7 +4170,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-tab {
   padding: 7px 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel-2);
   color: var(--fg);
@@ -4275,7 +4226,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-group-reset {
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
@@ -4302,10 +4253,9 @@ html.workflow-status-minimized .workflow-status-widget-header {
   padding: 0 8px;
   margin-left: 4px;
   font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--accent);
-  text-transform: uppercase;
 }
 
 .settings-subgroup-description {
@@ -4455,7 +4405,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 }
 
 .settings-readonly-note {
-  font-style: italic;
+  color: var(--fg-muted);
 }
 
 .settings-error {
@@ -4639,8 +4589,6 @@ html.workflow-status-minimized .workflow-status-widget-header {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel) 96%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--fg);
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -4826,8 +4774,7 @@ body.copilot-open .page-wrap {
 
 .copilot-panel-title {
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-size: 12px;
   color: var(--fg);
 }
@@ -5122,7 +5069,6 @@ body.copilot-open .page-wrap {
   margin-top: 8px;
   font-size: 12px;
   color: var(--fg-muted);
-  font-style: italic;
 }
 
 .copilot-model-bar {
@@ -5393,8 +5339,7 @@ body.copilot-open .page-wrap {
   display: block;
   margin-bottom: 4px;
   font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 .ai-field select,
@@ -5593,8 +5538,7 @@ body.copilot-open .page-wrap {
 .profiles-share legend {
   padding: 0 6px;
   font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
 }
 

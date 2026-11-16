@@ -41,10 +41,10 @@
     {{ end }}
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=22">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=23">
     <!-- Shared design system layer; see the note in screen.html. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=20">
-    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=21">
+    <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- Embedded mode; inert unless the page was asked for with ?embed=1.
          The connect page needs it too: a fresh frame lands here first, and a
          chrome-less terminal behind a full-chrome connect form is worse than
@@ -65,7 +65,7 @@
     <script src="/static/background.js?v=2" defer></script>
     <script src="/static/ui.js?v=22" defer></script>
     <script src="/static/connection-profiles.js?v=2" defer></script>
-    <link rel="stylesheet" href="/static/activation.css?v=1">
+    <link rel="stylesheet" href="/static/activation.css?v=2">
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-embed-origins="{{ .EmbedOrigins }}" data-account="{{ .Auth.UserID }}" data-enforced-target="{{ .EnforcedTarget }}">
     <script src="/static/early-theme-init.js"></script>

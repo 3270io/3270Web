@@ -37,21 +37,6 @@
   overflow: hidden;
 }
 
-/* A hairline of accent along the top edge. The card is otherwise very
-   plain, and this is what ties it to the terminal chrome elsewhere. */
-.auth-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg,
-      transparent,
-      var(--accent) 22%,
-      var(--accent-2, var(--accent)) 62%,
-      transparent);
-  opacity: 0.85;
-}
-
 .auth-card--wide {
   max-width: 560px;
 }
@@ -106,8 +91,7 @@
    depends on. */
 .field > label {
   font-size: 0.72rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   font-weight: 600;
   background: none;
@@ -197,7 +181,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--bg);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
+  background: var(--accent);
   border: 1px solid transparent;
   border-radius: var(--r-sm, 8px);
   cursor: pointer;
@@ -277,7 +261,7 @@
 }
 
 .auth-alert::before {
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -479,8 +463,7 @@
 .admin-count {
   font-size: 0.8rem;
   color: var(--fg-muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .admin-table-wrap {
@@ -515,8 +498,7 @@ table.admin-table {
   text-align: left;
   padding: 11px 14px;
   font-size: 0.68rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
   background: color-mix(in srgb, var(--panel-2) 70%, var(--panel));
@@ -562,9 +544,9 @@ table.admin-table {
   display: grid;
   place-items: center;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--bg);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
+  background: var(--accent);
   text-transform: uppercase;
 }
 
@@ -591,8 +573,7 @@ table.admin-table {
 
 .admin-self-tag {
   font-size: 0.66rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -604,8 +585,7 @@ table.admin-table {
    "you" tag, since both answer "what is different about this row". */
 .admin-origin-tag {
   font-size: 0.66rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--fg-muted);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -619,8 +599,7 @@ table.admin-table {
   align-items: center;
   gap: 5px;
   font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-weight: 600;
   padding: 3px 9px;
   border-radius: 999px;
@@ -759,7 +738,6 @@ table.admin-table {
   padding: 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(3px);
 }
 
 .admin-dialog-content {
@@ -1050,8 +1028,7 @@ table.admin-table {
   font-size: 0.76rem;
   font-style: normal;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   text-decoration: none;
   color: var(--fg-muted);
   border-bottom: 2px solid transparent;
@@ -1088,8 +1065,7 @@ table.admin-table {
 
 .admin-stat-label {
   font-size: 0.66rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
 }
@@ -1098,7 +1074,7 @@ table.admin-table {
   margin: 5px 0 3px;
   font-family: var(--mono);
   font-size: 1.65rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
@@ -1144,8 +1120,7 @@ table.admin-table {
 .admin-section-head h2 {
   margin: 0;
   font-size: 0.8rem;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
 }
@@ -1274,8 +1249,7 @@ table.admin-table {
    respect like one that is in use. */
 .admin-tag--unoffered {
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--warn);
 }
 
@@ -1372,8 +1346,7 @@ table.admin-table {
 .preset-audience legend {
   padding: 0 6px;
   font-size: 0.72rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
 }

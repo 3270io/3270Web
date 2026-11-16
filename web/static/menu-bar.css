@@ -29,7 +29,7 @@ body {
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--surface-raised);
-  box-shadow: var(--elev-1), inset 0 1px 0 var(--top-sheen);
+  box-shadow: var(--elev-1);
 }
 
 .appbar-bar {
@@ -58,8 +58,8 @@ body {
 .appbar-wordmark {
   margin: 0;
   font-size: 0.9rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: 0;
   white-space: nowrap;
   color: var(--fg);
 }
@@ -92,7 +92,7 @@ body {
 
 /* The scroll hint from ui-polish.js, restyled for this surface. Its default
    fades to var(--panel) — the page's flat panel colour — which over the bar's
-   lit gradient reads as a grey block with a hard edge rather than as the row
+   raised surface reads as a grey block with a hard edge rather than as the row
    running out of room. Same affordance, narrower, in the bar's own colour. */
 .appbar-menus.polish-hscroll::before,
 .appbar-menus.polish-hscroll::after {
@@ -102,7 +102,7 @@ body {
 .appbar-menus.polish-hscroll::before {
   background: linear-gradient(
     to right,
-    color-mix(in srgb, var(--panel-2) 82%, var(--fg) 3%),
+    var(--surface-raised),
     transparent
   );
 }
@@ -110,7 +110,7 @@ body {
 .appbar-menus.polish-hscroll::after {
   background: linear-gradient(
     to left,
-    color-mix(in srgb, var(--panel-2) 82%, var(--fg) 3%),
+    var(--surface-raised),
     transparent
   );
 }
@@ -314,8 +314,7 @@ body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
   padding: 6px;
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
-  background: var(--glass-strong);
-  backdrop-filter: blur(14px) saturate(1.2);
+  background: var(--panel);
   box-shadow: var(--elev-3);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -489,9 +488,8 @@ body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
   padding: 8px 9px 4px;
   color: var(--fg-muted);
   font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 /* A heading that follows another group rules itself off from it; the first
@@ -738,8 +736,7 @@ body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
   color: var(--fg-muted);
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .context-bar .record-download-link,
