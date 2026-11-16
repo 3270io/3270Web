@@ -1067,7 +1067,10 @@ body[data-focus="on"] .sample-status {
   align-items: center;
   gap: 2px;
   flex: 0 0 auto;
-  max-width: 22ch;
+  /* 22ch cut a sample app's name ("Pet Store - Retail & Back Offic…") at the
+     point where a person has started to recognise it. The tab list scrolls
+     sideways when there are many tabs, so each can afford to be wider. */
+  max-width: min(44ch, 70vw);
   padding: 0 2px 0 0;
   border: 1px solid transparent;
   border-bottom: none;
