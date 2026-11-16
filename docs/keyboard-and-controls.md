@@ -448,6 +448,16 @@ narrow display that means smaller keys, not a taller keyboard. The terminal
 is served first: the keyboard takes the room left beneath it and scales
 into that.
 
+**Phones are the exception.** Below 600 pixels of width a scaled MAX keyboard
+comes out at keys of about 20 pixels, which nobody can hit, and its width
+used to push the whole page wider than the screen. So on a viewport that
+narrow the keypad starts in **Compact** (until you choose a size yourself), is
+not scaled, and has keys at least 44 pixels tall; the PF keys wrap onto as many
+rows as the width needs. **Full** and **MAX** are still one press of the size control away.
+MAX keeps its keys at their full size and scrolls sideways inside its own box
+rather than widening the page. The terminal key bar along the bottom stays the
+quickest way to Enter, Tab, `PF3`, Clear and Reset.
+
 ![Virtual keyboard screenshot](images/keypad-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 

@@ -164,6 +164,25 @@
   }
 }
 
+/* A 360px phone leaves 46px a key, and 320px leaves 40: still a 44px-tall
+   thumb target, but the type has to come down another step for "Enter" and
+   "Reset" to stay whole. The row is never allowed to scroll or wrap — the
+   keys somebody reaches for without looking have to be where they were. */
+@media (max-width: 380px) {
+  .touch-action-bar {
+    padding-inline: 4px;
+  }
+
+  .touch-key-row {
+    gap: 3px;
+  }
+
+  .touch-key-row--primary .touch-key {
+    padding-inline: 1px;
+    font-size: 0.74rem;
+  }
+}
+
 .touch-key:active {
   background: var(--accent-soft, rgba(120, 180, 255, 0.28));
   transform: translateY(1px);

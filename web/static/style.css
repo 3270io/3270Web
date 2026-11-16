@@ -2015,6 +2015,62 @@ pre, pre input, textarea {
   }
 }
 
+/* Phones.
+
+   The keyboard is built for a desk: MAX is one 15u letter block with a cursor
+   cluster and a number pad beside it, a little over a thousand pixels of keys
+   at natural size. Its rows are nowrap on purpose, so when the viewport is
+   390px the keys that do not fit are not wrapped but spilled off the right
+   edge — and a mobile browser answers overflow by widening the layout
+   viewport to fit it (innerWidth 482-496 on a 390px phone). That drags the
+   fixed touch bar, the header and every dialog out to the same width, and the
+   right-hand keys of each of them are off the screen with nothing to scroll
+   them back.
+
+   So the keypad takes the room it is given and no more. What does not fit is
+   panned inside the keypad's own box rather than overflowing the page. The
+   compact and full sizes wrap, so they need nothing but sensible key sizes;
+   touch.js starts a phone in compact (see defaultKeypadForPhone there), and
+   MAX stays one press of the size control away for somebody who wants it.
+
+   Every size is held at its natural size here (see zoom below): scaling is a
+   way of fitting, and on a phone the keypad scrolls instead. */
+@media (max-width: 600px) {
+  .controls.h3270-keypad {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    /* The auto-scale in keyboard.js fits the keypad into the height left below
+       the terminal. On a phone the terminal fills the screen and the keypad is
+       below the fold, so that height is a hundred pixels and every size of
+       keypad came out at the 0.45 floor — 20px keys. It is reached by scrolling
+       the page, like anything else below the terminal, so it is not scaled. */
+    zoom: 1 !important;
+  }
+
+  /* Keys a thumb can find: 44px tall, and narrow enough that six PF keys share
+     a row. min-width is the floor, not the width — a label like BackTab still
+     takes what it needs. */
+  .h3270-keypad:not(.is-max) .h3270-key {
+    min-width: 46px;
+    min-height: 44px;
+    margin: 1px;
+    padding: 4px 5px;
+  }
+
+  .h3270-keypad-row,
+  .h3270-keypad-row--pf {
+    gap: 4px;
+  }
+
+  .h3270-keypad-header {
+    flex-wrap: wrap;
+  }
+}
+
 .stack {
   display: flex;
   flex-direction: column;
