@@ -264,6 +264,26 @@ input[type="checkbox"]:hover:not(:disabled) {
   border-radius: 0;
 }
 
+/* The "Start sample app" dialog's captions. Its two labels sit directly above
+   the select they name rather than wrapping it, so they are captions — but
+   style.css gives every label the border, fill and padding of a field, and
+   "Sample application" read as a second, empty control above the real one.
+   Same treatment as the settings dialog's captions: no box, semibold. */
+[data-sample-modal] .stack > label,
+[data-sample-modal] details > label {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+[data-sample-modal] details > label {
+  display: block;
+  margin: 8px 0 4px;
+}
+
 /* Icon buttons get a circular hover halo. */
 .icon-button {
   border-radius: var(--r-sm);
