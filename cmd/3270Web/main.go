@@ -1273,17 +1273,45 @@ const sessionCookieName = "3270Web_session"
 
 const lastTargetCookieName = "3270Web_last_target"
 
+// lastTargetCheckTimeout bounds the name lookup done to decide whether the
+// remembered target is worth offering. Drawing the connect page must not wait
+// on a slow resolver for a convenience; a lookup that does not answer in time
+// is treated as "not a refusal", the same as checkHostResolves treats a failed
+// one.
+const lastTargetCheckTimeout = 750 * time.Millisecond
+
+// offerableLastTarget returns the remembered target if Connect would accept it
+// and "" otherwise.
+//
+// The cookie is written on every connect, so it can name something this
+// instance has since stopped permitting — most often a loopback address from a
+// browser that submitted the old pre-filled default. Offering it back means
+// the next click on Connect is a refusal the person did nothing to earn, so it
+// goes through the same checks Connect runs first.
+func offerableLastTarget(c *gin.Context, target string) string {
+	target = strings.TrimSpace(target)
+	if target == "" || !isValidHostname(target) || checkHostAllowed(target) != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(requestContext(c), lastTargetCheckTimeout)
+	defer cancel()
+	if checkHostResolves(ctx, target) != nil {
+		return ""
+	}
+	return target
+}
+
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
 	defaultHost := strings.TrimSpace(hostname)
 	if app.Config.TargetHost.Value != "" {
 		defaultHost = app.Config.TargetHost.Value
 	}
 	if defaultHost == "" {
-		defaultHost = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
+		defaultHost = offerableLastTarget(c, getCookieValue(c, lastTargetCookieName))
 	}
-	if defaultHost == "" {
-		defaultHost = "localhost:3270"
-	}
+	// Nothing to offer is an empty field with the placeholder example, not a
+	// guess. The old fallback, "localhost:3270", is the one address this
+	// instance's own loopback guard always refuses on Connect.
 	samplePorts := allowedSampleAppPorts()
 	// The connect page carries the same theme picker as the terminal, and
 	// embedding its list is what makes the picker right on first paint rather
