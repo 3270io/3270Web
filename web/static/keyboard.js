@@ -529,6 +529,15 @@
       return;
     }
 
+    // A screen that changes while the person is in the AI panel — a tool the
+    // assistant just ran, say — must not pull focus out of it: the Run button
+    // they are about to press, or the message they are typing, would otherwise
+    // be left behind and the next keystroke sent to the host.
+    var focused = document.activeElement;
+    if (focused && typeof focused.closest === "function" && focused.closest("#copilot-panel")) {
+      return;
+    }
+
     target.focus();
     if (
       caret === null &&
@@ -1877,6 +1886,14 @@
     // Never intercept keystrokes when focus is inside a non-terminal editable
     // element (e.g. the Copilot chat textarea, settings inputs).
     if (isEditableTarget(event.target) && !isScreenInput(event.target)) {
+      return;
+    }
+
+    // Nor inside the AI panel. Only its text box was exempt above, so Enter on
+    // any of its buttons — Run and Skip on a tool-call card, Provider, Clear —
+    // was sent to the host as an AID key and cancelled, and the button never
+    // activated.
+    if (event.target && typeof event.target.closest === "function" && event.target.closest("#copilot-panel")) {
       return;
     }
 
