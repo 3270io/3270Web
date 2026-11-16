@@ -23,6 +23,13 @@ You can connect to:
 - `IPv6:port` (example: `[::1]:23`)
 - `sampleapp:<id>` for bundled sample targets
 
+While a connection is being made the **Connect** button reads *Connecting…* and
+is off, so a second click or Enter cannot start another one; the page says which
+address it is connecting to (screen readers announce it), and **Cancel** stops
+waiting. Cancel only ends the browser's wait. A host that was merely slow can
+still finish connecting in the background, and that unused session is closed
+once it has been idle long enough.
+
 If autoconnect is enabled, 3270Web will connect automatically on startup.
 
 ## Open Settings

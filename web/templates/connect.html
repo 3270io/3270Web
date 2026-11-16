@@ -116,6 +116,15 @@
                 {{ if .ConnectDetails }}<details><summary>Technical details</summary><pre data-connection-diagnostic>{{ .ConnectDetails }}</pre><button type="button" data-copy-diagnostic>Copy details</button></details>{{ end }}
             </div>
             {{ end }}
+            <!-- What a connect in progress says. Kept out of the form and
+                 always rendered, both on purpose: aria-busy on the form would
+                 hold back announcements from inside it, and a live region that
+                 only appears when it is first written to is not reliably read.
+                 connect-page.js fills the status and reveals Cancel. -->
+            <div class="connect-progress" data-connect-progress>
+                <span class="subtle" role="status" aria-live="polite" data-connect-status></span>
+                <button type="button" class="quiet-action" data-connect-cancel hidden>Cancel</button>
+            </div>
             <form action="/connect" method="post" id="connect-form">
                 <fieldset class="connect-row">
                     <label for="hostname-input">Mainframe address<span class="required-mark" aria-hidden="true">*</span></label>
