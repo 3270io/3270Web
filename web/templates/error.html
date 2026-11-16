@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>3270Web - Error</title>
+    <title>3270Web - {{ if .Title }}{{ .Title }}{{ else }}Error{{ end }}</title>
     <!-- Without this, mobile browsers lay the page out at a ~980px virtual
          viewport and scale it down: the desktop layout is rendered in
          miniature and every max-width media query below is dead, because

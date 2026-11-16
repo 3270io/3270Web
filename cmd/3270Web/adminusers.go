@@ -37,8 +37,12 @@ func (app *App) RequireAdmin() gin.HandlerFunc {
 				})
 				return
 			}
+			// Said as what it is: a refusal about the account, not a fault.
+			// The default error page is titled "Something went wrong", which
+			// is right for a crash and reads as one here.
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
-				"Error": "This page requires an administrator account.",
+				"Title":   "You don't have access to administration",
+				"Message": "Your account doesn't have the administrator role, so it can't open this page. Ask an administrator if you need access.",
 			})
 			c.Abort()
 			return

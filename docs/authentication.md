@@ -300,6 +300,10 @@ New accounts are `user` unless `--admin` is given. The command refuses to
 disable the last enabled administrator, since that leaves an instance nobody
 can administer.
 
+An account without the `admin` role that opens an administration page is shown
+**You don't have access to administration**, with links back to the terminal
+and the connect page. The response is still HTTP `403`.
+
 ### Passwords
 
 At least 12 characters. There are no composition rules — required digits and
