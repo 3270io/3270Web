@@ -1249,14 +1249,38 @@
         }
     }
 
+    // describeWait renders a wait in whole seconds the way a person says it:
+    // "20 seconds", "1 minute", "3 minutes".
+    function describeWait(seconds) {
+        const s = Math.max(1, Math.round(seconds));
+        if (s < 60) return s + (s === 1 ? " second" : " seconds");
+        const m = Math.round(s / 60);
+        return m + (m === 1 ? " minute" : " minutes");
+    }
+
+    // retryAfterSeconds reads the Retry-After header the chat proxy repeats
+    // from the provider. The proxy normalises it to whole seconds; anything
+    // else is ignored rather than guessed at.
+    function retryAfterSeconds(resp) {
+        let raw = "";
+        try { raw = resp.headers.get("Retry-After") || ""; } catch (_) { return 0; }
+        return /^\d+$/.test(raw.trim()) ? parseInt(raw, 10) : 0;
+    }
+
     // friendlyChatError converts an upstream error body into a human-readable
     // explanation. Every provider we proxy reports errors in roughly the
     // OpenAI shape —
     //   {"error":{"message":"...","code":"model_not_supported",...}}
     // — sometimes nested inside our own "<provider>: status NNN: <body>", and
     // Anthropic uses {"type":"..."} where OpenAI uses {"code":"..."}.
-    function friendlyChatError(raw) {
+    //
+    // `hint` carries what only the HTTP response knows: its status, and the
+    // wait the provider asked for in Retry-After (whole seconds, 0 if it said
+    // nothing). A mid-stream error arrives as an SSE frame with neither.
+    function friendlyChatError(raw, hint) {
         const text = String(raw || "");
+        const status = hint && hint.status;
+        const retryAfter = (hint && hint.retryAfter) || 0;
         // Try to extract a JSON error object even when wrapped in prose.
         let parsed = null;
         const braceAt = text.indexOf("{");
@@ -1273,7 +1297,10 @@
         if (code === "authentication_error" || code === "invalid_api_key" || code === "permission_error" || /api key|unauthor|forbidden/i.test(message)) {
             return providerLabel + " rejected the credentials. Open AI provider settings and check the key.";
         }
-        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+        if (status === 429 || code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+            if (retryAfter > 0) {
+                return providerLabel + " rate limit hit. Try again in about " + describeWait(retryAfter) + ".";
+            }
             return providerLabel + " rate limit hit. Wait a moment and try again, or switch to a smaller model.";
         }
         if (/premium request|monthly.*limit|quota|exhaust|insufficient_quota|credit balance/i.test(message)) {
@@ -1321,7 +1348,7 @@
                 window.AIProvider.ensureReady().then(refreshConnectionState);
                 return null;
             }
-            appendMessage("error", friendlyChatError(msg));
+            appendMessage("error", friendlyChatError(msg, { status: resp.status, retryAfter: retryAfterSeconds(resp) }));
             return null;
         }
         return resp.body;
