@@ -17,32 +17,9 @@
 
   var authEnabled = document.body.getAttribute('data-auth-enabled') === 'true';
 
-  /* Event names are stable identifiers; these are the readable forms. An
-     unrecognised event falls back to its raw name rather than being hidden. */
-  var LABELS = {
-    'login.succeeded': 'Signed in',
-    'login.failed': 'Sign-in failed',
-    'login.locked_out': 'Sign-in throttled',
-    'logout': 'Signed out',
-    'account.password_changed': 'Password changed',
-    'account.created': 'Account created',
-    'account.updated': 'Account changed',
-    'account.deleted': 'Account deleted',
-    'account.first_admin_created': 'First administrator created',
-    'group.role_changed': 'Group role changed',
-    'profile.published': 'Host preset published',
-    'profile.removed': 'Host preset removed',
-    'token.issued': 'API token issued',
-    'token.revoked': 'API token revoked',
-    'token.refused': 'API token refused',
-    'session.opened': 'Session opened',
-    'session.denied': 'Session refused',
-    'session.closed': 'Session disconnected',
-    'file.transfer': 'File transfer',
-    'settings.saved': 'Settings changed',
-    'app.restarted': 'Server restarted',
-    'logs.access_changed': 'Log access changed'
-  };
+  // How an entry is named, and its pill, come from admin-audit-labels.js: the
+  // audit trail shows the same entries and has to name them the same way.
+  var events = window.ThreeSeventyWeb && window.ThreeSeventyWeb.auditEvent;
 
   function setStatus(message, state) {
     if (!statusEl) return;
@@ -191,9 +168,7 @@
       if (entry.time) timeEl.setAttribute('datetime', entry.time);
       li.appendChild(timeEl);
 
-      var badge = el('span', 'audit-event', LABELS[entry.event] || entry.event);
-      badge.setAttribute('data-outcome', entry.outcome || 'success');
-      li.appendChild(badge);
+      li.appendChild(events ? events.badge(entry) : el('span', 'audit-event', entry.event));
 
       var actor = entry.actor || {};
       var who = actor.username || actor.userId || '';
