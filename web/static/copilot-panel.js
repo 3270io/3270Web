@@ -886,7 +886,9 @@
             case "submit_screen": return "Submit the screen (press Enter)";
             case "connect_session": return args.hostname ? "Connect to " + args.hostname : "Connect to a host";
             case "move_cursor":
-                return "Move the cursor to row " + (Number(args.row) + 1) + ", column " + (Number(args.col) + 1);
+                return isFinite(Number(args.row)) && isFinite(Number(args.col)) && args.row != null && args.col != null
+                    ? "Move the cursor to row " + (Number(args.row) + 1) + ", column " + (Number(args.col) + 1)
+                    : "Move the cursor";
             case "wait_for_unlock":
                 return typeof args.timeout_ms === "number"
                     ? "Wait up to " + Math.round(args.timeout_ms / 1000) + " s for the keyboard to unlock"
@@ -1504,6 +1506,7 @@
 
     let turnRunning = false;       // a turn is in flight (Send is hidden)
     let pendingApprovals = [];     // [{card, skip}] in the order they appear
+    let pendingQuestions = 0;      // ask_user cards still waiting for an answer
     let lastTypedAt = 0;           // last printable keystroke into any text control
 
     // Only a keystroke into a text control is typing. Space on a Run button is
@@ -1570,6 +1573,18 @@
         if (pendingApprovals.length && focusLost) takeFocusForApproval(pendingApprovals[0].card);
     }
 
+    // A question from the assistant (ask_user) holds the turn open the same
+    // way, and is answered on its card, not in the message box.
+    function beginQuestion() {
+        pendingQuestions++;
+        syncComposeHint();
+    }
+
+    function endQuestion() {
+        pendingQuestions = Math.max(0, pendingQuestions - 1);
+        syncComposeHint();
+    }
+
     // syncComposeHint says, under the composer, why Enter is not sending: a
     // call is waiting for the person, or the assistant is still on its turn.
     // The textarea points at it with aria-describedby while it is showing.
@@ -1584,6 +1599,8 @@
             text = pendingApprovals.length > 1
                 ? "Waiting for you to Run or Skip the pending actions"
                 : "Waiting for you to Run or Skip the pending action";
+        } else if (pendingQuestions) {
+            text = "Waiting for your answer to the assistant's question above";
         } else if (turnRunning) {
             text = "The assistant is still working. Send your next message when it finishes, or press Stop.";
         }
@@ -2117,9 +2134,11 @@
                 const textForm = card.querySelector(".copilot-ask-user-textform");
                 const textInput = card.querySelector(".copilot-ask-user-textinput");
                 const chosenEl = card.querySelector(".copilot-ask-user-chosen");
+                beginQuestion();
                 const promise = new Promise((resolve) => {
                     let settled = false;
                     const disableAll = function () {
+                        endQuestion();
                         if (optWrap) optWrap.querySelectorAll(".copilot-btn-option").forEach(function (b) { b.disabled = true; });
                         if (textInput) textInput.disabled = true;
                         if (textForm) {
