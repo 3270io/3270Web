@@ -2066,7 +2066,7 @@ body[data-focus="on"] .sample-status {
   grid-template-columns: 1fr minmax(120px, 1.2fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px;
+  padding: 3px 10px;
   border-bottom: 1px solid var(--hairline-soft);
 }
 
@@ -2108,8 +2108,15 @@ body[data-focus="on"] .sample-status {
   font-style: italic;
 }
 
+/* 28px, not the 22px that the 3px of padding on 0.72rem type made them: 94 of
+   the dialog's 100 controls were under the 24px that WCAG 2.5.8 asks of a
+   target, and the Rebind and Default buttons are what the dialog is for. The
+   row padding comes down by the same amount so the rows grow by a few pixels,
+   not by the full height of the new buttons. */
 .keymap-action-btn {
-  padding: 3px 10px;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px 10px;
   font-size: 0.72rem;
   white-space: nowrap;
 }
