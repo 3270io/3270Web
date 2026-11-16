@@ -128,10 +128,12 @@ Each AI action requires explicit approval:
 Every tool call is a card. It opens with a plain-language line saying what
 will happen — *Read the current screen*, *Press PF3*, *Type "ADMIN" in the
 User id field*, *Run the saved task "Balance enquiry"* — and a status badge.
-Under **Details** are the technical tool name and its arguments. A value
-typed into a hidden (password) field is never written out in the card: the
-line says *Type a hidden value in the Password field*, and the arguments
-leave the value out too.
+Under **Details** are the technical tool name and its arguments. The text
+typed into a field is only spelled out in the line when the screen shows the
+field is not hidden. For a hidden (password) field the line says *Type a
+hidden value in the Password field* and the arguments under **Details** leave
+the value out too; where the field cannot be identified, the line says *Type
+text in the field at row 12, column 21* and does not repeat the text.
 
 When a card needs your decision, keyboard focus moves to its **Run** button,
 so ++enter++ or ++space++ approves it and ++tab++ reaches **Skip**. If you
