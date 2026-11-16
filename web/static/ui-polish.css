@@ -3637,6 +3637,100 @@ body.copilot-resizing {
   user-select: none;
 }
 
+/* Phones: the panel is a sheet, not a column.
+
+   Beside the terminal it is a 380px column the page makes room for with
+   padding. On a 390px phone that is the whole screen: the padding squeezed the
+   page behind it to a ~100px strip, and the panel's own header — title, Auto,
+   Provider, Clear, close — is wider than the room left, so Clear and the close
+   button fell off the right edge with nothing to scroll them back.
+
+   Below 600px it covers the viewport instead, and the page behind it is left
+   alone: no padding, no reflow, nothing to squeeze. It respects the notch and
+   the home indicator. The drag handle is meaningless at full width. Desktop
+   keeps the column exactly as it was. */
+@media (max-width: 600px) {
+  .copilot-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    height: auto;
+    border-left: none;
+    box-shadow: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+    box-sizing: border-box;
+    animation: none;
+  }
+
+  /* On a touch device the key bar owns the bottom edge and touch.css ends the
+     sheet where the bar begins. Without one, the sheet is the bottom edge and
+     has the home indicator to clear. */
+  body:not(.touch-device) .copilot-panel {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body.copilot-open .page-wrap {
+    padding-right: 20px;
+    transition: none;
+  }
+
+  /* The page cannot be scrolled behind the sheet: the only scrolling that
+     should happen while it is open is the conversation's own. */
+  body.copilot-open {
+    overflow: hidden;
+  }
+
+  .copilot-resize-handle {
+    display: none;
+  }
+
+  /* Five controls in a row: they wrap to a second line before any of them is
+     pushed off the edge, and each is a thumb-sized target. */
+  .copilot-panel-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .copilot-panel-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .copilot-icon-button {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+  }
+
+  /* The close cross is the control that has to be found, so it is the largest
+     glyph in the row. */
+  .copilot-icon-button[data-copilot-close] {
+    font-size: 1.5rem;
+    line-height: 1;
+    padding-inline: 14px;
+  }
+
+  /* Toasts are offset for the column on a desktop; here the sheet covers the
+     whole width and they belong at the screen edge, above it. */
+  body.copilot-open #h3270-notification-container {
+    right: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  body.copilot-open .page-wrap {
+    padding-right: 8px;
+  }
+}
+
 /* ---------------------------------------------------------------------
    10. Command palette
    --------------------------------------------------------------------- */
