@@ -126,6 +126,16 @@ not been handed out yet, which is how the [bundled sample
 apps](#sample-apps-as-hosts) arrive. Naming any audience offers the preset to
 them, so a preset assigned from the Groups page is never left reaching nobody.
 
+On the presets page, **Offer** is a one-way action rather than a switch: it
+offers the preset to everyone, and the button goes away. Each row's **Offer**,
+**Edit** and **Remove** buttons carry the preset's name for a screen reader
+(*Offer Game - Snake to everyone*, *Edit Game - Snake*, *Remove Game - Snake*).
+The **Add preset** and **Edit** dialog scrolls inside itself when the window is
+short, with its title and its **Cancel** and **Save preset** buttons always in
+view, and keyboard focus stays inside it until it is closed. On a phone the list
+is drawn as one card per preset — name, mainframe, who it is offered to, then the
+buttons — instead of a table whose right-hand columns run off the screen.
+
 The audience is a restriction and not a display filter. Both paths that connect
 by name resolve profiles through the same check, so naming a host you were not
 given gets the same answer as naming one that does not exist.
