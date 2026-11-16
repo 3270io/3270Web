@@ -8,17 +8,19 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=22">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=19">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=8">
+    <link rel="stylesheet" type="text/css" href="/static/admin.css?v=1">
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
 </head>
 <body data-auth-enabled="{{ .AuthEnabled }}">
     <script src="/static/early-theme-init.js"></script>
+    {{ template "admin-skip" }}
     <div class="bg-overlay" aria-hidden="true">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
 
     <div class="admin-page admin-page--wide">
-        <div class="card" role="main">
+        <div class="card">
             <div class="card-header">
                 <div class="brand-lockup">
                     {{ template "brand-mark" }}
@@ -34,6 +36,8 @@
             </div>
 
             {{ template "admin-nav" "overview" }}
+
+            <main id="main" tabindex="-1">
 
             <div class="admin-status" data-overview-status aria-live="polite"></div>
 
@@ -111,6 +115,7 @@
                 <span>Up <span data-meta="uptime"></span></span>
                 <span>Authentication: <span data-meta="authMode"></span></span>
             </div>
+            </main>
         </div>
     </div>
 
@@ -126,6 +131,8 @@
         </div>
     </div>
 
-    <script src="/static/admin-overview.js?v=1" defer></script>
+    <script src="/static/modal-utils.js?v=2" defer></script>
+    <script src="/static/admin-tables.js?v=1" defer></script>
+    <script src="/static/admin-overview.js?v=2" defer></script>
 </body>
 </html>

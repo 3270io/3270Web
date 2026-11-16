@@ -266,6 +266,8 @@
       var actions = el('div', 'admin-actions');
       var btn = el('button', 'danger', 'Disconnect');
       btn.type = 'button';
+      // Every row says "Disconnect"; the name says whose session it ends.
+      btn.setAttribute('aria-label', 'Disconnect ' + ownerName + '’s session');
       btn.addEventListener('click', function () {
         confirmThen(
           'Disconnect ' + ownerName + '’s session?',
@@ -292,11 +294,30 @@
 
   /* ------------------------------------------------------------ confirm */
 
+  /* The confirmation goes on the shared modal stack (modal-utils.js), like
+     every other dialog in the area: focus moves in and stays in, Escape closes
+     it, the page behind stops scrolling, and focus goes back to the button that
+     opened it. It used to do none of those, and it put focus on Disconnect —
+     the button that ends somebody's session — so a stray Enter did it. Focus
+     now starts on Cancel. */
+
   var confirmDialog = document.querySelector('[data-dialog="confirm"]');
   var lastFocus = null;
 
+  function stack() {
+    return window.ThreeSeventyWeb;
+  }
+
   function closeConfirm() {
-    if (confirmDialog) confirmDialog.hidden = true;
+    if (!confirmDialog || confirmDialog.hidden) return;
+    confirmDialog.hidden = true;
+    // Escape reaches here through the stack, which has already popped the
+    // entry; popping a dialog that is no longer on it does nothing, so both
+    // ways of closing end up here without double-popping.
+    if (stack() && typeof stack().popModal === 'function') {
+      stack().popModal(confirmDialog);
+      return;
+    }
     if (lastFocus && lastFocus.focus) lastFocus.focus();
     lastFocus = null;
   }
@@ -316,9 +337,15 @@
       action();
     });
 
-    lastFocus = document.activeElement;
     confirmDialog.hidden = false;
-    fresh.focus();
+    var safe = confirmDialog.querySelector('[data-dialog-cancel]');
+    if (stack() && typeof stack().pushModal === 'function') {
+      stack().pushModal(confirmDialog, closeConfirm, { initialFocus: safe || false });
+      return;
+    }
+    // modal-utils.js absent (an older cached page): place focus at least.
+    lastFocus = document.activeElement;
+    if (safe) safe.focus();
   }
 
   if (confirmDialog) {
@@ -330,8 +357,12 @@
     });
   }
 
+  // Escape is the shared stack's. This stands in when modal-utils.js is not
+  // there, because a dialog Escape does not close is one somebody is stuck in.
   document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') closeConfirm();
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (stack() && typeof stack().pushModal === 'function') return;
+    closeConfirm();
   });
 
   /* ---------------------------------------------------------------- load */
