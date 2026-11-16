@@ -366,6 +366,17 @@ Keypad features:
 
 The keypad visibility preference can be saved in Settings (`Use keypad`).
 
+### The welcome banner
+
+The first time you open a terminal, a **Your terminal is ready** banner sits
+above it. Its PF-key line follows the keypad: while the keypad is hidden — the
+default on a desktop — it says to use F1–F12, or to show the on-screen keypad,
+and offers a **Show keypad** button that does what **View → Virtual keypad**
+does. The banner hides itself at your first action in the terminal, meaning the
+first key sent to the host or the start of a recording, playback, chaos run or
+task, and stays hidden afterwards. **Dismiss** hides it sooner. Typing into a
+field, or moving between fields, is not yet an action: nothing has been sent.
+
 ### Sizes
 
 The control at the top right of the keypad steps through the sizes in
