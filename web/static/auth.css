@@ -882,6 +882,18 @@ table.admin-table {
   font-size: 0.72rem;
   padding: 3px 9px;
   border-radius: 999px;
+  /* A control that signs you out should not be the smallest thing on the
+     page: 24px is the least a pointer can reliably land on (WCAG 2.5.8). */
+  min-height: 24px;
+}
+
+/* The links in the sign-in page's help panel are inline text, which is as tall
+   as a line of it — 20px. Made inline-flex so they can be given the same 24px
+   minimum without changing how the sentence around them reads. */
+.access-help a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
 }
 
 /* ---------------------------------------------------------------------

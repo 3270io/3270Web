@@ -192,6 +192,12 @@ Behind a CDN or a reverse proxy that terminates TLS, the hop into 3270Web is
 plain HTTP. That is normal and fine — but the server cannot see the hop the
 browser actually made, so until it is told, it assumes the worst and says so.
 
+The sign-in page is written for the person signing in, who usually cannot
+change the server, so it says what is wrong and to ask the administrator to
+serve 3270Web over HTTPS; it does not name the settings. Its **For
+administrators** link opens this section. (The first-run setup page, which the
+administrator is the one reading, does name them.)
+
 The sign-in page distinguishes two cases:
 
 - **Something in front says HTTPS and this server has not been told to believe
