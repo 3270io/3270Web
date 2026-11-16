@@ -18,7 +18,7 @@
 .quick-start { padding: 14px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .quick-start p { margin: 6px 0 12px; color: var(--fg-muted); font-size: .9rem; }
 .terminal-view-bar { margin: 8px 0; }
-.terminal-view-bar button[aria-pressed="true"] { border-color: var(--accent); font-weight: 650; }
+.terminal-view-bar button[aria-pressed="true"] { border-color: var(--accent); font-weight: 600; }
 .terminal-width-column { min-width: 0; max-width: 100%; }
 body[data-terminal-view="readable"] .terminal-shell {
   max-width: 100%; min-width: 0; overflow: auto; justify-content: flex-start;

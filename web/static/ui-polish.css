@@ -95,6 +95,19 @@ body.theme-io-daylight {
 /* ---------------------------------------------------------------------
    2. Typography + base
    --------------------------------------------------------------------- */
+/* The browser's default bold is 700, which is heavier than anything else in
+   the interface. Strong text and headings top out at 600. */
+strong,
+b,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+}
+
 body {
   font-family: "Inter", "Inter var", "Segoe UI Variable Text", "Segoe UI",
     system-ui, -apple-system, "Helvetica Neue", sans-serif;
@@ -233,6 +246,30 @@ input[type="checkbox"]:checked::after {
 
 input[type="checkbox"]:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+/* Radios keep the native control (they are small and everyone knows them) but
+   take the theme's accent instead of the browser's blue. */
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* The native file picker button is a light-grey system control, which reads as
+   a hole in a dark theme. Style it like every other button. */
+input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent-line);
 }
 
 /* style.css styles `label` alongside input/select/button, so caption labels
@@ -446,7 +483,7 @@ body.copilot-open .copilot-toggle-button[data-copilot-toggle] {
   border-radius: var(--r-pill);
   font-weight: 600;
   letter-spacing: 0.08em;
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   padding: 4px 10px;
 }
 
@@ -881,7 +918,7 @@ body[data-focus="on"] .focus-toggle-button[aria-pressed="true"] {
 
 .sample-status .subtle {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1319,7 +1356,7 @@ body[data-focus="on"] .sample-status {
 }
 
 .task-field-required {
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
@@ -1794,7 +1831,7 @@ body[data-focus="on"] .sample-status {
   border-radius: 7px;
   background: var(--accent);
   color: var(--bg);
-  font-size: 0.6rem;
+  font-size: 0.6875rem;
   line-height: 14px;
   text-align: center;
   font-weight: 600;
@@ -1887,7 +1924,7 @@ body[data-focus="on"] .sample-status {
   padding: 8px 10px;
   overflow-x: auto;
   font-family: var(--mono, monospace);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   line-height: 1.5;
   white-space: pre;
   background: var(--panel-2);
@@ -1895,7 +1932,7 @@ body[data-focus="on"] .sample-status {
 }
 
 .wizard-snippet .wizard-copy { position: absolute; top: 6px; right: 6px; }
-.wizard-copy { font-size: 0.64rem; padding: 1px 6px; }
+.wizard-copy { font-size: 0.6875rem; padding: 1px 6px; }
 
 .wizard-actions {
   display: flex;
@@ -1977,7 +2014,7 @@ body[data-focus="on"] .sample-status {
   z-index: 1;
   margin: 0;
   padding: 8px 10px 6px;
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
@@ -2173,7 +2210,7 @@ body[data-focus="on"] .sample-status {
   padding: 2px 7px;
   border-radius: 999px;
   font-family: var(--mono);
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--ok);
@@ -3181,9 +3218,9 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 
 .copilot-panel-title::before {
   content: "";
-  width: 20px;
-  height: 20px;
-  border-radius: var(--r-xs);
+  width: 8px;
+  height: 14px;
+  border-radius: 1px;
   flex: none;
   background: var(--accent);
   -webkit-mask: none;
@@ -3248,7 +3285,7 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .copilot-msg-assistant::before,
 .copilot-msg-error::before {
   display: block;
-  font-size: 0.62rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   margin-bottom: 6px;
@@ -3572,7 +3609,7 @@ body.copilot-resizing {
 
 .cmdk-hintkey {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   padding: 3px 7px;
   border-radius: var(--r-xs);
   border: 1px solid var(--hairline);
@@ -3591,7 +3628,7 @@ body.copilot-resizing {
 
 .cmdk-group {
   padding: 10px 10px 6px;
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
@@ -3679,7 +3716,7 @@ body.copilot-resizing {
 
 .cmdk-footer kbd {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   padding: 2px 6px;
   border-radius: 5px;
   border: 1px solid var(--hairline);

@@ -497,7 +497,7 @@ table.admin-table {
 .admin-table th {
   text-align: left;
   padding: 11px 14px;
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
@@ -572,7 +572,7 @@ table.admin-table {
 }
 
 .admin-self-tag {
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
   border: 1px solid var(--border);
@@ -584,7 +584,7 @@ table.admin-table {
 /* Where an account signs in from, when it is not from here. Same shape as the
    "you" tag, since both answer "what is different about this row". */
 .admin-origin-tag {
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.01em;
   color: var(--fg-muted);
   border: 1px solid var(--border);
@@ -598,7 +598,7 @@ table.admin-table {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.01em;
   font-weight: 600;
   padding: 3px 9px;
@@ -1064,7 +1064,7 @@ table.admin-table {
 }
 
 .admin-stat-label {
-  font-size: 0.66rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.01em;
   font-weight: 600;
   color: var(--fg-muted);
@@ -1197,7 +1197,7 @@ table.admin-table {
 /* Where an inherited role came from, under the role pill. */
 .admin-role-via {
   margin-top: 3px;
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   color: var(--fg-muted);
   letter-spacing: 0.04em;
 }
