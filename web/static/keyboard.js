@@ -34,7 +34,8 @@
   // dialog) silently destroys unsaved input. clearConfirmArmed tracks
   // whether the PREVIOUS keydown was an unconfirmed Escape; a second Escape
   // within clearConfirmWindowMs actually sends Clear, and any other key (or
-  // the window elapsing) cancels the pending confirmation.
+  // the window elapsing) cancels the pending confirmation. Only a fresh press
+  // counts: a held key's auto-repeat neither arms nor confirms.
   var clearConfirmArmed = false;
   var clearConfirmTimer = 0;
   var clearConfirmWindowMs = 2000;
@@ -1854,6 +1855,13 @@
     }
   }
 
+  // A block marked for copying (screen-copy.js) is showing. Its own Esc handler
+  // runs after this one, so the mark is still there to be seen.
+  function blockMarkShowing() {
+    var mark = document.querySelector(".screen-block-selection");
+    return !!(mark && !mark.hidden);
+  }
+
   function armClearConfirmation() {
     clearConfirmArmed = true;
     if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
@@ -2091,6 +2099,20 @@
         }
       }
       if (special === specialKeys.Clear) {
+        // Esc is the key that closes things, so an Esc that has already done
+        // its job must not also count towards clearing the screen. A dialog or
+        // an open menu is dealt with above (isModalOpen runs before the key
+        // is looked at, and the one that is open is what Esc closes). Two ways
+        // left for it to leak through, both closed here:
+        //  - A held Esc. The first keydown closes the dialog; the auto-repeats
+        //    that follow arrive at the terminal, the first arms the
+        //    confirmation and the next one confirms it — a dialog dismissed
+        //    with a slightly long press cleared the host screen as well. A
+        //    repeat is never a deliberate second press.
+        //  - Esc that dismisses a marked block, which is that block's.
+        if (event.repeat || blockMarkShowing()) {
+          return;
+        }
         if (!clearConfirmArmed) {
           armClearConfirmation();
           return;

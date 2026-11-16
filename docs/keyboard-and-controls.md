@@ -695,6 +695,11 @@ screen you had not yet seen is a hazard, not a convenience.
     again within two seconds. Any other key — or letting the window
     elapse — cancels it.
 
+    Only a fresh press counts. The ++esc++ that closes a menu or dialog, or
+    that clears a marked block, is spent on that and does not arm `Clear`; and
+    holding the key down does not arm or confirm it either, so dismissing a
+    dialog with a slightly long press cannot wipe the host screen.
+
 ### Moving focus out of the terminal
 
 While the terminal has focus it captures ++tab++ so field navigation
