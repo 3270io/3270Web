@@ -128,7 +128,7 @@
                         <datalist id="ai-model-suggestions" data-ai-model-list></datalist>
                     </label>
 
-                    <p class="copilot-modal-status" data-ai-status hidden></p>
+                    <p class="copilot-modal-status" id="ai-provider-status" data-ai-status hidden></p>
                 </div>
                 <div class="copilot-modal-footer">
                     <button type="button" data-ai-cancel>Cancel</button>
@@ -335,7 +335,12 @@
         if (resolve) resolve(!!saved);
     }
 
-    async function openSettings() {
+    // opts.notice is one line saying why the dialog opened when the user did
+    // not ask for it themselves — a starter prompt that needs a provider, say.
+    // It is shown in the dialog's status strip, which a provider change clears,
+    // and tied to the dialog with aria-describedby so a screen reader reads it
+    // on open.
+    async function openSettings(opts) {
         if (modalPromise) return modalPromise;
         const wrap = buildModal();
         modalPromise = new Promise((resolve) => { modalResolve = resolve; });
@@ -359,6 +364,14 @@
         const current = (data.settings && data.settings.provider) || (data.providers[0] && data.providers[0].id);
         if (current) select.value = current;
         renderFields(select.value);
+        const notice = opts && opts.notice;
+        const dialog = wrap.querySelector("[role=dialog]");
+        if (notice) {
+            setStatusText(notice);
+            if (dialog) dialog.setAttribute("aria-describedby", "ai-provider-status");
+        } else if (dialog) {
+            dialog.removeAttribute("aria-describedby");
+        }
 
         wrap.hidden = false;
         focusTrap.activate();

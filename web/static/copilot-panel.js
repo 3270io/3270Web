@@ -44,6 +44,12 @@
     // names from another's.
     let model = "";
     let providerLabel = "AI";
+    // What the last status check said about the selected provider: whether it
+    // can answer a chat yet, and if not, what it is waiting for ("login" for a
+    // GitHub sign-in, "config" for a key or an endpoint). null until the first
+    // answer arrives.
+    let providerReady = null;
+    let providerNeeds = "";
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
@@ -156,6 +162,8 @@
         const panel = ensurePanel();
         if (!panel || !s) return;
         providerLabel = s.providerLabel || "AI";
+        providerReady = !!s.ready;
+        providerNeeds = s.needs || "";
         if (s.model) model = s.model;
 
         const nameEl = panel.querySelector("[data-copilot-provider-name]");
@@ -180,6 +188,12 @@
             if (promptText) promptText.textContent = text;
             if (connectBtn) connectBtn.textContent = "Set up " + providerLabel;
         }
+        // Beside "Sign in to GitHub Copilot", the way out for anyone who is
+        // not going to use it. Only the sign-in prompt needs it: every other
+        // provider's primary button already opens the provider settings.
+        const connectAlt = panel.querySelector("[data-copilot-connect-alt]");
+        if (connectAlt) connectAlt.hidden = s.needs !== "login";
+        syncEmptyStateNote();
         const signout = panel.querySelector("[data-copilot-signout]");
         if (signout) {
             // One short label for both auth styles — the header has no room
@@ -709,13 +723,94 @@
             chip.type = "button";
             chip.className = "copilot-example-chip";
             chip.textContent = p.label;
-            chip.addEventListener("click", function () {
-                if (p.run) p.run(); else send(p.label);
+            chip.addEventListener("click", async function () {
+                // A prompt with its own entry point (explainScreen) asks for a
+                // provider itself; the rest are plain text to send.
+                if (p.run) { p.run(); return; }
+                if (await ensureProviderForPrompt(p.label)) send(p.label);
             });
             chips.appendChild(chip);
         });
         wrap.appendChild(chips);
+        // The visible reason the chips behave differently until a provider is
+        // ready. syncEmptyStateNote fills it in, and keeps it in step with the
+        // provider's state.
+        const note = document.createElement("p");
+        note.className = "copilot-empty-hint copilot-empty-note";
+        note.id = "copilot-empty-note";
+        note.setAttribute("data-copilot-empty-note", "");
+        note.hidden = true;
+        wrap.appendChild(note);
         list.appendChild(wrap);
+        syncEmptyStateNote();
+    }
+
+    // syncEmptyStateNote says why the starter prompts will open the provider
+    // settings instead of running, while no provider is ready. Hidden again
+    // the moment one is, and the chips' aria-describedby goes with it: a hidden
+    // element named by aria-describedby is still read out.
+    function syncEmptyStateNote() {
+        const list = messageList();
+        if (!list) return;
+        const note = list.querySelector("[data-copilot-empty-note]");
+        if (!note) return;
+        const needsSetup = providerReady === false;
+        note.textContent = needsSetup ? "Set up an AI provider first. Choosing one of these opens its settings." : "";
+        note.hidden = !needsSetup;
+        list.querySelectorAll(".copilot-example-chip").forEach(function (chip) {
+            if (needsSetup) chip.setAttribute("aria-describedby", note.id);
+            else chip.removeAttribute("aria-describedby");
+        });
+    }
+
+    // ensureProviderForPrompt is the gate in front of a starter prompt. With no
+    // provider ready it opens the provider settings — with a line saying why —
+    // instead of starting a GitHub sign-in the person never chose: the chips
+    // used to go straight to Copilot's device-code dialog, with no hint that
+    // an API key or a local model was an option. Returns true when a provider
+    // is ready, including when the settings dialog has just made one ready, so
+    // a prompt asked for before setup still runs once setup is done.
+    async function ensureProviderForPrompt(label) {
+        let s = null;
+        try { s = await window.AIProvider.status(); } catch (_) {}
+        if (s && s.ready) return true;
+        const saved = await window.AIProvider.openSettings({
+            notice: "Set up an AI provider to run “" + label + "”.",
+        });
+        if (!saved) return false;
+        await refreshConnectionState();
+        if (!providerReady) return false;
+        await populateModelSelect(true);
+        return true;
+    }
+
+    // appendStatusNote adds a neutral line to the transcript: something that
+    // happened which is neither an answer nor a failure, such as a sign-in the
+    // person backed out of. It replaces its predecessor rather than piling up,
+    // and leaves the starter prompts where they are.
+    function appendStatusNote(text) {
+        const list = messageList();
+        if (!list) return null;
+        list.querySelectorAll(".copilot-msg-status").forEach(function (old) { old.remove(); });
+        const el = document.createElement("div");
+        el.className = "copilot-msg copilot-msg-status";
+        el.setAttribute("role", "status");
+        const body = document.createElement("div");
+        body.className = "copilot-msg-body";
+        body.textContent = text;
+        el.appendChild(body);
+        list.appendChild(el);
+        scrollToBottom();
+        return el;
+    }
+
+    // cancelledNote words a setup that ended without a ready provider by what
+    // was being set up. A settings dialog can also be saved and still leave the
+    // provider short of something, so that case does not say "cancelled".
+    function cancelledNote() {
+        return providerNeeds === "login"
+            ? "Sign-in cancelled. Nothing was sent."
+            : "Provider setup wasn't finished. Nothing was sent.";
     }
 
     function appendToolCallCard(call) {
@@ -1860,6 +1955,9 @@
                 + "ask again once it has finished.");
             return;
         }
+        // Before the screen is captured: with no provider the capture would
+        // be taken at one moment and sent at another, after a dialog.
+        if (!(await ensureProviderForPrompt("Explain this screen"))) return;
         const pinned = await captureScreenBlock();
         await send(EXPLAIN_ASK, { pinned });
     }
@@ -1905,7 +2003,10 @@
             // stays in the box for another attempt.
             const ok = await window.AIProvider.ensureReady();
             if (!ok) {
-                appendMessage("error", "Cancelled — " + providerLabel + " is not set up yet.");
+                // Backing out of a sign-in or a settings dialog is the
+                // person's choice, not a failure: no red error, and no
+                // "Error" label above it.
+                appendStatusNote(cancelledNote());
                 return;
             }
             await refreshConnectionState();
@@ -2017,7 +2118,15 @@
             if (ok) {
                 await refreshConnectionState();
                 await populateModelSelect(true);
+            } else {
+                appendStatusNote(cancelledNote());
             }
+        });
+        // "Use an API key or local model": the provider dialog, which is
+        // otherwise only reachable through the small Provider button.
+        const connectAltBtn = panel.querySelector("[data-copilot-connect-alt]");
+        if (connectAltBtn) connectAltBtn.addEventListener("click", function () {
+            window.AIProvider.openSettings();
         });
 
         if (form && textarea) {

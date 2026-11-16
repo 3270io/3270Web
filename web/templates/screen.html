@@ -84,9 +84,9 @@
     <script src="/static/copilot-auth.js" defer></script>
     <!-- Loads before copilot-panel.js: the panel calls window.AIProvider at
          init to render whichever backend is selected. -->
-    <script src="/static/ai-provider.js?v=1" defer></script>
+    <script src="/static/ai-provider.js?v=2" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=6" defer></script>
+    <script src="/static/copilot-panel.js?v=7" defer></script>
     <script src="/static/ui-polish.js?v=12" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
@@ -1303,6 +1303,7 @@ Select = Enter"></textarea>
             <p class="subtle">Once connected, try “Explain this screen and show me the next step.”</p>
             <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> use your Ollama or compatible endpoint.</li></ul>
             <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+            <button type="button" class="copilot-icon-button copilot-connect-alt" data-copilot-connect-alt hidden>Use an API key or local model</button>
         </div>
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
