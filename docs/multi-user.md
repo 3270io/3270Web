@@ -412,7 +412,7 @@ against that host, and when* — which has to survive being asked months later.
 | Session opened, or refused | account, target host, and why it was refused |
 | Session disconnected by an administrator | who did it, whose session, target host |
 | File transfer | direction and the host-side dataset name |
-| Settings changed | which keys — never their values |
+| Settings changed | which keys changed — never their values. A save that changed nothing is not recorded |
 | Server restarted, log access changed | who did it |
 
 A refused sign-in is recorded **with the real reason** — a disabled account is

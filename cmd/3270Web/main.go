@@ -2982,14 +2982,24 @@ func (app *App) updateSettings(c *gin.Context) {
 			return
 		}
 		app.applyRuntimeSetting(key, value)
-		changed = append(changed, key)
+		// The form posts every setting it shows, so a key being in the payload
+		// says nothing about whether it was edited. Compared with what was in
+		// effect before this save: a secret is served as its mask, so a new
+		// value reads as different and an untouched one was skipped above.
+		if previous, known := current[key]; !known || previous != value {
+			changed = append(changed, key)
+		}
 	}
 
 	// The keys, never the values: a setting can hold a proxy string or a
-	// keyfile password, and the trail is read by every administrator.
-	sort.Strings(changed)
-	app.auditRequest(c, audit.EventSettingsSaved, audit.Success, "",
-		map[string]string{"keys": strings.Join(changed, ",")})
+	// keyfile password, and the trail is read by every administrator. A save
+	// that changed nothing is not recorded: "Settings changed" over an empty
+	// list, or over every setting on the form, tells a reader nothing.
+	if len(changed) > 0 {
+		sort.Strings(changed)
+		app.auditRequest(c, audit.EventSettingsSaved, audit.Success, "",
+			map[string]string{"keys": strings.Join(changed, ",")})
+	}
 
 	app.writeSettingsResponse(c)
 }
