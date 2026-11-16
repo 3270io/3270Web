@@ -2405,6 +2405,47 @@ body[data-focus="on"] .sample-status {
   gap: 8px;
 }
 
+/* "Use TLS" and "Use these options for this connection" were a bare 18px box
+   with a line of small text beside it. The label already is the click target
+   (the box sits inside it), but the box is what the eye and a thumb aim at, so
+   it is 24px — the smallest a pointer target is meant to be — and the label
+   keeps room above and below it, with a few pixels between one and the next so
+   a tap between two lands on one of them and not on the gap. The same class
+   is used by the checkboxes in the saved-connection form, so they follow. */
+.profiles-check {
+  box-sizing: border-box;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.profiles-check input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.profiles-check input[type="checkbox"]::after {
+  width: 13px;
+  height: 13px;
+}
+
+.connection-options .profiles-check {
+  font-size: 0.85rem;
+}
+
+.connection-options .profiles-check + .profiles-check {
+  margin-top: 6px;
+}
+
+@media (pointer: coarse) {
+  .profiles-check {
+    min-height: 44px;
+  }
+}
+
 .profiles-form input[type="text"],
 .profiles-form input[type="number"],
 .profiles-form select {
