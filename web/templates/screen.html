@@ -1335,6 +1335,10 @@ Select = Enter"></textarea>
             <button type="submit" class="copilot-send" aria-label="Send message" data-copilot-send>Send</button>
             <button type="button" class="copilot-stop" aria-label="Stop AI response" data-copilot-stop hidden>Stop</button>
         </form>
+        <!-- Why Enter is not sending: a tool call is waiting for Run or Skip, or
+             the assistant is still on its turn. Filled in by copilot-panel.js;
+             the textarea points at it with aria-describedby while it shows. -->
+        <p class="copilot-panel-hint copilot-compose-hint" id="copilot-compose-hint" data-copilot-compose-hint role="status" hidden></p>
         <p class="copilot-panel-hint" data-copilot-hint>Each tool call waits for you to click <strong>Run</strong>.</p>
     </aside>
     <div class="modal-backdrop" data-copilot-clear-modal hidden>

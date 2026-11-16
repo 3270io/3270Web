@@ -816,31 +816,327 @@
             : "Provider setup wasn't finished. Nothing was sent.";
     }
 
-    function appendToolCallCard(call) {
+    // -- Tool-call cards ---------------------------------------------------
+    //
+    // A card used to open with the raw tool name and a JSON blob, which is
+    // what the model said and not what is about to happen. It now leads with
+    // a plain-language line saying what will be done, keeps the technical name
+    // and the arguments one click away under "Details", and folds the result
+    // away once the call has run (a get_screen result is the whole screen as
+    // JSON, padding and all).
+
+    function parseToolArgs(call) {
+        const raw = call && call.function && call.function.arguments;
+        try {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    // quoteShort renders a value inside typographic quotes, flattened to one
+    // line and cut at `max` characters.
+    function quoteShort(value, max) {
+        let s = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+        if (s.length > max) s = s.slice(0, max - 1) + "…";
+        return "“" + s + "”";
+    }
+
+    // displayKey spells a key the way an operator would: PF(3) as PF3.
+    function displayKey(key) {
+        const k = String(key == null ? "" : key).trim() || "Enter";
+        return canonicalKeyName(k).replace(/[()]/g, "");
+    }
+
+    // fieldWhere names a write_field target from the call alone, for when the
+    // screen has nothing better to say about it. Rows and columns are shown
+    // 1-based, as the terminal's own status line shows the cursor.
+    function fieldWhere(args) {
+        const key = String(args.field_key || "").trim();
+        if (key) return "field " + key.toUpperCase();
+        const row = Number(args.row), col = Number(args.col);
+        if (args.row != null && args.col != null && isFinite(row) && isFinite(col)) {
+            return "the field at row " + (row + 1) + ", column " + (col + 1);
+        }
+        return "the field";
+    }
+
+    // describeToolCall turns a call into the sentence the card leads with.
+    // `field` is what the screen knows about a write_field target, or null
+    // when that is not known: {hidden, label}.
+    //
+    // The text typed into a field is only ever spelled out when the screen
+    // says the field is not hidden. A password field is hidden, and a
+    // sentence that read "Type hunter2 in Password" is a secret in the
+    // transcript; where the field could not be identified the text is left
+    // out for the same reason, because not knowing is not the same as safe.
+    function describeToolCall(name, args, field) {
+        args = args || {};
+        switch (name) {
+            case "get_screen": return "Read the current screen";
+            case "send_key": return "Press " + displayKey(args.key);
+            case "write_field": {
+                const where = field && field.label ? "the " + field.label + " field" : fieldWhere(args);
+                if (field && field.hidden) return "Type a hidden value in " + where;
+                if (!field) return "Type text in " + where;
+                const text = args.text == null ? "" : String(args.text);
+                return text === "" ? "Clear " + where : "Type " + quoteShort(text, 40) + " in " + where;
+            }
+            case "submit_screen": return "Submit the screen (press Enter)";
+            case "connect_session": return args.hostname ? "Connect to " + args.hostname : "Connect to a host";
+            case "move_cursor":
+                return "Move the cursor to row " + (Number(args.row) + 1) + ", column " + (Number(args.col) + 1);
+            case "wait_for_unlock":
+                return typeof args.timeout_ms === "number"
+                    ? "Wait up to " + Math.round(args.timeout_ms / 1000) + " s for the keyboard to unlock"
+                    : "Wait for the keyboard to unlock";
+            case "chaos_status": return "Check chaos exploration progress";
+            case "chaos_start":
+                return typeof args.max_steps === "number"
+                    ? "Start a chaos exploration (up to " + args.max_steps + " steps)"
+                    : "Start a chaos exploration";
+            case "chaos_stop": return "Stop the chaos exploration";
+            case "chaos_resume": return "Resume the chaos exploration";
+            case "chaos_report": return "Build the chaos discovery report";
+            case "chaos_save_screen_hint": return "Save a chaos hint for a screen";
+            case "chaos_get_hints": return "Read the chaos hints";
+            case "chaos_update_hints": return "Update the chaos hints";
+            case "chaos_export_workflow": return "Export the chaos run as a workflow";
+            case "chaos_list_screens": return "List the screens chaos found";
+            case "chaos_annotate_screen": return "Annotate a screen chaos found";
+            case "chaos_insights": return "Read the chaos insights";
+            case "business_list_functions": return "List the saved business functions";
+            case "business_save_function":
+                return args.name ? "Save the business function " + quoteShort(args.name, 40) : "Save a business function";
+            case "business_generate_workflow":
+                return args.name ? "Generate a workflow for " + quoteShort(args.name, 40) : "Generate a workflow";
+            case "business_app_overview": return "Read the business overview of this app";
+            case "list_skills": return "List the available skills";
+            case "load_skill": return args.name ? "Load the skill " + quoteShort(args.name, 40) : "Load a skill";
+            case "list_instructions": return "List the available instructions";
+            case "load_instruction":
+                return args.name ? "Load the instruction " + quoteShort(args.name, 40) : "Load an instruction";
+            case "list_extensions": return "List the available extensions";
+            case "get_connection_details": return "Read the connection details";
+            case "get_display_toggles": return "Read the display toggles";
+            case "set_display_toggle":
+                return (args.value === false ? "Turn off" : "Turn on") + " the " + quoteShort(args.name, 40) + " display toggle";
+            case "snapshot_take":
+                return args.name ? "Take a screen snapshot named " + quoteShort(args.name, 40) : "Take a screen snapshot";
+            case "snapshot_list": return args.name ? "Read the snapshot " + quoteShort(args.name, 40) : "List the screen snapshots";
+            case "snapshot_diff":
+                return "Compare the snapshot " + quoteShort(args.left, 40) + " with " +
+                    (args.right ? "the snapshot " + quoteShort(args.right, 40) : "the current screen");
+            case "snapshot_delete":
+                return args.name ? "Delete the snapshot " + quoteShort(args.name, 40) : "Delete a snapshot";
+            case "printer_status": return "Check the printer session";
+            case "printer_start": return args.lu ? "Start the printer session on LU " + args.lu : "Start the printer session";
+            case "printer_stop": return "Stop the printer session";
+            case "printer_read_job": return args.name ? "Read the print job " + quoteShort(args.name, 40) : "Read a print job";
+            case "list_tasks": return "List the saved tasks";
+            case "run_task": return args.name ? "Run the saved task " + quoteShort(args.name, 40) : "Run a saved task";
+            default: return name || "Tool call";
+        }
+    }
+
+    // locateField finds the input field a write_field call is aimed at. The
+    // call carries either a 1-based R<row>C<col>L<len> key or a 0-based
+    // row/col, and the server writes at that position, so the field that
+    // contains it is the one that receives the text.
+    function locateField(screen, args) {
+        const fields = Array.isArray(screen && screen.fields) ? screen.fields : [];
+        const width = Number(screen && screen.width) || 80;
+        let row = NaN, col = NaN;
+        const m = /^R(\d+)C(\d+)L(\d+)$/i.exec(String(args.field_key || "").trim());
+        if (m) {
+            row = parseInt(m[1], 10) - 1;
+            col = parseInt(m[2], 10) - 1;
+        } else if (args.row != null && args.col != null) {
+            row = Number(args.row);
+            col = Number(args.col);
+        }
+        if (!isFinite(row) || !isFinite(col)) return null;
+        const pos = row * width + col;
+        for (const f of fields) {
+            if (!f || f.protected) continue;
+            const start = f.row * width + f.col;
+            if (pos >= start && pos < start + (Number(f.length) || 0)) return f;
+        }
+        return null;
+    }
+
+    // fieldLabel reads a field's caption off the screen: the protected text
+    // that ends nearest before it on the same row ("User id . . . . :" becomes
+    // "User id"). Returns "" when there is nothing usable.
+    function fieldLabel(screen, field) {
+        let best = null;
+        for (const g of screen.fields) {
+            if (!g || !g.protected || g.row !== field.row || g.endRow !== g.row) continue;
+            if (!(g.endCol < field.col)) continue;
+            if (!best || g.endCol > best.endCol) best = g;
+        }
+        if (!best) return "";
+        const text = stripNulPadding(String(best.value || "")).replace(/[\s.:]+$/, "").replace(/^\s+/, "");
+        return text && text.length <= 40 ? text : "";
+    }
+
+    // stripNulPadding removes the NUL padding a 3270 buffer is full of. Fields
+    // and screen text arrive padded with U+0000 out to the end of each row,
+    // and JSON.stringify writes every one of them as the six characters
+    // \u0000. Trailing runs are dropped; any left between words become spaces.
+    // For display only: what the model is sent is untouched.
+    function stripNulPadding(value) {
+        if (typeof value === "string") {
+            return value.replace(/\u0000+(?=\n|$)/g, "").replace(/\u0000/g, " ");
+        }
+        if (Array.isArray(value)) return value.map(stripNulPadding);
+        if (value && typeof value === "object") {
+            const out = {};
+            Object.keys(value).forEach(function (k) { out[k] = stripNulPadding(value[k]); });
+            return out;
+        }
+        return value;
+    }
+
+    function formatSize(chars) {
+        if (chars < 1024) return chars + " characters";
+        return (chars / 1024).toFixed(1) + " KB";
+    }
+
+    // summariseToolResult is the one line a finished call leaves in the
+    // transcript, so the result itself can stay folded: what it was, and how
+    // much of it there is.
+    function summariseToolResult(result, displayLength) {
+        if (result == null) return "no result";
+        if (typeof result !== "object") return formatSize(displayLength);
+        if (result.skipped) return "skipped";
+        if (result.error) return "failed: " + quoteShort(result.error, 100).slice(1, -1);
+        const screen = (result.screen && typeof result.screen === "object")
+            ? result.screen
+            : ((typeof result.text === "string" && Array.isArray(result.fields)) ? result : null);
+        let what;
+        if (screen) {
+            const inputs = (Array.isArray(screen.fields) ? screen.fields : []).filter(function (f) { return f && !f.protected; }).length;
+            what = "screen" + (screen.height && screen.width ? " " + screen.height + "×" + screen.width : "") +
+                ", " + inputs + " input field" + (inputs === 1 ? "" : "s");
+        } else if (result.ok === true) {
+            what = "OK";
+        } else if (Array.isArray(result)) {
+            what = result.length + " item" + (result.length === 1 ? "" : "s");
+        } else {
+            const n = Object.keys(result).length;
+            what = n + " field" + (n === 1 ? "" : "s");
+        }
+        return displayLength > 80 ? what + " (" + formatSize(displayLength) + ")" : what;
+    }
+
+    // showToolResult puts a finished call's result behind a "Result" fold.
+    function showToolResult(card, resultObj) {
+        const details = card.querySelector("[data-result-details]");
+        const summary = card.querySelector("[data-result-summary]");
+        const pre = card.querySelector("[data-result]");
+        if (!details || !summary || !pre) return;
+        if (resultObj && resultObj.skipped) {
+            details.hidden = true;
+            return;
+        }
+        const text = typeof resultObj === "string"
+            ? stripNulPadding(resultObj)
+            : JSON.stringify(stripNulPadding(resultObj), null, 2);
+        pre.textContent = text;
+        decoratePreBlocks(pre);
+        summary.textContent = "Result: " + summariseToolResult(resultObj, text.length);
+        details.open = false;
+        details.hidden = false;
+        scrollToBottom();
+    }
+
+    // setCardSummary writes the plain-language line and the Run/Skip names
+    // that repeat it, so a screen reader hears which action a button decides.
+    function setCardSummary(card, text) {
+        const el = card.querySelector("[data-summary]");
+        if (el) el.textContent = text;
+        const run = card.querySelector("[data-run]");
+        const skip = card.querySelector("[data-skip]");
+        if (run) run.setAttribute("aria-label", "Run: " + text);
+        if (skip) skip.setAttribute("aria-label", "Skip: " + text);
+    }
+
+    // applyFieldKnowledge words a write_field card from what is known about
+    // its target, and keeps a hidden field's text out of the Details too: the
+    // arguments there would otherwise print the same secret the sentence
+    // above was careful not to.
+    function applyFieldKnowledge(card, args, field) {
+        setCardSummary(card, describeToolCall("write_field", args, field));
+        if (!field || !field.hidden) return;
+        const argsEl = card.querySelector("[data-args]");
+        if (argsEl) {
+            argsEl.textContent = JSON.stringify(Object.assign({}, args, { text: "(hidden field — value not shown)" }), null, 2);
+        }
+    }
+
+    // refineWriteFieldCard improves a write_field card's wording from the
+    // screen as it stands now. Only for a call that is waiting to run: a card
+    // restored from history would be matched against whatever screen is up
+    // today, which may have nothing to do with it. What it finds is kept on the
+    // call (call.uiField, which never reaches the provider — requests are
+    // rebuilt from id, type and function) so a card restored after a reload
+    // says the same thing, and still does not spell out a hidden value.
+    async function refineWriteFieldCard(card, call, args) {
+        let screen = null;
+        try {
+            const resp = await fetch("/screen.json", { credentials: "same-origin" });
+            if (resp.ok) screen = await resp.json();
+        } catch (_) { /* leave the card as it is */ }
+        if (!screen || !card.isConnected) return;
+        const f = locateField(screen, args);
+        if (!f) return;
+        call.uiField = { hidden: !!f.hidden, label: fieldLabel(screen, f) };
+        applyFieldKnowledge(card, args, call.uiField);
+    }
+
+    function appendToolCallCard(call, opts) {
         const list = messageList();
         if (!list) return null;
         removeEmptyState();
+        const name = (call.function && call.function.name) || "?";
+        const args = parseToolArgs(call);
         const card = document.createElement("div");
         card.className = "copilot-tool-call";
         card.dataset.toolCallId = call.id;
-        const args = call.function && call.function.arguments;
-        let argsPretty = args;
-        try { argsPretty = JSON.stringify(JSON.parse(args), null, 2); } catch (_) {}
+        let argsPretty = call.function && call.function.arguments;
+        try { argsPretty = JSON.stringify(JSON.parse(argsPretty), null, 2); } catch (_) {}
         card.innerHTML = `
             <div class="copilot-tool-call-head">
-                <span class="copilot-tool-call-name">${escapeHTML(call.function && call.function.name || "?")}</span>
+                <span class="copilot-tool-call-summary" data-summary></span>
                 <span class="copilot-tool-call-status" data-status>Pending approval</span>
             </div>
-            <pre class="copilot-tool-call-args">${escapeHTML(argsPretty || "{}")}</pre>
+            <details class="copilot-tool-call-details">
+                <summary>Details</summary>
+                <div class="copilot-tool-call-name">${escapeHTML(name)}</div>
+                <pre class="copilot-tool-call-args" data-args>${escapeHTML(argsPretty || "{}")}</pre>
+            </details>
             <div class="copilot-tool-call-actions">
                 <button type="button" class="copilot-btn-run" data-run>Run</button>
                 <button type="button" class="copilot-btn-skip" data-skip>Skip</button>
             </div>
-            <pre class="copilot-tool-call-result" data-result hidden></pre>
+            <details class="copilot-tool-call-result-details" data-result-details hidden>
+                <summary data-result-summary>Result</summary>
+                <pre class="copilot-tool-call-result" data-result></pre>
+            </details>
             <div class="copilot-tool-extras" data-tool-extras hidden></div>
         `;
+        if (name === "write_field") {
+            // call.uiField is set when the card was first shown (see
+            // refineWriteFieldCard); without it the target is unknown.
+            applyFieldKnowledge(card, args, call.uiField || null);
+        } else {
+            setCardSummary(card, describeToolCall(name, args, null));
+        }
         list.appendChild(card);
         scrollToBottom();
+        if (opts && opts.live && name === "write_field") refineWriteFieldCard(card, call, args);
         return card;
     }
 
@@ -961,7 +1257,6 @@
         const card = appendToolCallCard(call);
         if (!card) return;
         const statusEl = card.querySelector("[data-status]");
-        const resultEl = card.querySelector("[data-result]");
         const runBtn = card.querySelector("[data-run]");
         const skipBtn = card.querySelector("[data-skip]");
         if (runBtn) runBtn.disabled = true;
@@ -969,10 +1264,10 @@
         if (statusEl) {
             statusEl.textContent = resultObj && resultObj.skipped ? "Skipped" : (resultObj && resultObj.error ? "Failed" : "Done");
         }
-        if (resultEl) {
-            resultEl.hidden = false;
-            resultEl.textContent = resultObj ? JSON.stringify(resultObj, null, 2) : unwrapUntrustedHostContent(resultContentJSON);
-            decoratePreBlocks(resultEl);
+        if (resultObj) {
+            showToolResult(card, resultObj);
+        } else if (typeof resultContentJSON === "string" && resultContentJSON) {
+            showToolResult(card, unwrapUntrustedHostContent(resultContentJSON));
         }
     }
 
@@ -1184,6 +1479,8 @@
         // progress rather than appearing to do nothing.
         if (form) form.setAttribute("aria-busy", running ? "true" : "false");
         if (textarea) textarea.setAttribute("aria-busy", running ? "true" : "false");
+        turnRunning = !!running;
+        syncComposeHint();
     }
 
     function requestStop() {
@@ -1191,6 +1488,110 @@
         if (activeAbort) {
             try { activeAbort.abort(); } catch (_) {}
         }
+        // A call waiting for Run or Skip would otherwise hold the turn open
+        // for as long as nobody answered it, with Stop doing nothing. Stopping
+        // is declining: nothing that has not run yet will.
+        pendingApprovals.slice().forEach(function (entry) { entry.skip(); });
+    }
+
+    // -- Approvals waiting on a person ---------------------------------------
+    //
+    // While a call waits for Run or Skip the composer cannot send, and used to
+    // say nothing about it: Enter simply did nothing. These keep a list of the
+    // cards that are waiting, so the panel can say so under the composer, move
+    // keyboard focus to the Run button, and carry it to the next card when one
+    // is decided.
+
+    let turnRunning = false;       // a turn is in flight (Send is hidden)
+    let pendingApprovals = [];     // [{card, skip}] in the order they appear
+    let lastTypedAt = 0;           // last printable keystroke into any text control
+
+    // Only a keystroke into a text control is typing. Space on a Run button is
+    // a printable key too, and counting it would mean the card that follows a
+    // Run never got focus.
+    function noteTyping(ev) {
+        if (ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const t = ev.target;
+        const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+        const editable = tag === "textarea" || tag === "select" || (t && t.isContentEditable) ||
+            (tag === "input" && !/^(button|submit|checkbox|radio|reset|image)$/i.test(t.type || ""));
+        if (!editable) return;
+        if (ev.key && (ev.key.length === 1 || ev.key === "Backspace" || ev.key === "Delete")) {
+            lastTypedAt = Date.now();
+        }
+    }
+
+    function dialogIsOpen() {
+        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+        for (const d of dialogs) {
+            if (d.getClientRects().length > 0) return true;
+        }
+        return false;
+    }
+
+    // userIsTyping is the one case where moving focus would do harm: a message
+    // being written in the composer (or any text control, a moment ago), or a
+    // dialog the person is in the middle of. Everywhere else a keyboard user
+    // would have to Tab through the transcript to find the card.
+    function userIsTyping() {
+        if (Date.now() - lastTypedAt < 2500) return true;
+        const panel = ensurePanel();
+        const ta = panel && panel.querySelector("[data-copilot-input]");
+        if (ta && document.activeElement === ta && ta.value.trim() !== "") return true;
+        return dialogIsOpen();
+    }
+
+    // takeFocusForApproval puts focus on a waiting card's Run button. When the
+    // person is typing it does not: the card, the composer hint and the
+    // transcript's polite live region announce that something is waiting
+    // instead.
+    function takeFocusForApproval(card) {
+        const run = card && card.querySelector("[data-run]");
+        if (!run || run.disabled || userIsTyping()) return;
+        try { run.focus(); } catch (_) {}
+    }
+
+    function registerPending(card, skip) {
+        pendingApprovals.push({ card: card, skip: skip });
+        syncComposeHint();
+        if (pendingApprovals.length === 1) takeFocusForApproval(card);
+    }
+
+    // resolvePending takes a card off the waiting list once the person has
+    // decided it. If focus was on that card (or has fallen to the page because
+    // its buttons just went disabled) it moves on to the next waiting card.
+    function resolvePending(card) {
+        const had = pendingApprovals.length;
+        pendingApprovals = pendingApprovals.filter(function (entry) { return entry.card !== card; });
+        if (pendingApprovals.length === had) return;
+        const active = document.activeElement;
+        const focusLost = !active || active === document.body || card.contains(active);
+        syncComposeHint();
+        if (pendingApprovals.length && focusLost) takeFocusForApproval(pendingApprovals[0].card);
+    }
+
+    // syncComposeHint says, under the composer, why Enter is not sending: a
+    // call is waiting for the person, or the assistant is still on its turn.
+    // The textarea points at it with aria-describedby while it is showing.
+    function syncComposeHint() {
+        const panel = ensurePanel();
+        if (!panel) return;
+        const hint = panel.querySelector("[data-copilot-compose-hint]");
+        const ta = panel.querySelector("[data-copilot-input]");
+        if (!hint) return;
+        let text = "";
+        if (pendingApprovals.length) {
+            text = pendingApprovals.length > 1
+                ? "Waiting for you to Run or Skip the pending actions"
+                : "Waiting for you to Run or Skip the pending action";
+        } else if (turnRunning) {
+            text = "The assistant is still working. Send your next message when it finishes, or press Stop.";
+        }
+        hint.textContent = text;
+        hint.hidden = !text;
+        if (!ta) return;
+        if (text) ta.setAttribute("aria-describedby", hint.id);
+        else ta.removeAttribute("aria-describedby");
     }
 
     // toolSignature returns a stable string identifying a set of tool calls
@@ -1698,6 +2099,7 @@
         // other — HTTP completion order isn't guaranteed to match call
         // order, so submit_screen could reach the host before the writes
         // it depends on had landed, submitting a half-filled screen.
+        const auto = autoMode;
         const entries = toolCalls.map((tc) => {
             const name = tc.function && tc.function.name;
 
@@ -1757,31 +2159,40 @@
                 return { promise, run: null };
             }
 
-            const card = appendToolCallCard(tc);
+            const card = appendToolCallCard(tc, { live: true });
             if (!card) {
                 return { promise: Promise.resolve({ id: tc.id, contentJSON: JSON.stringify({ error: "panel not ready" }) }), run: null };
             }
             const statusEl = card.querySelector("[data-status]");
-            const resultEl = card.querySelector("[data-result]");
             const runBtn = card.querySelector("[data-run]");
             const skipBtn = card.querySelector("[data-skip]");
 
             let resolveFn;
             const promise = new Promise((resolve) => { resolveFn = resolve; });
 
+            let settled = false;
             const finish = function (resultObj, label) {
+                if (settled) return;
+                settled = true;
                 statusEl.textContent = label;
-                resultEl.hidden = false;
-                resultEl.textContent = JSON.stringify(resultObj, null, 2);
-                decoratePreBlocks(resultEl);
+                // The result goes behind a fold, with its one-line summary;
+                // the model still gets all of it.
+                showToolResult(card, resultObj);
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
+                resolvePending(card);
                 resolveFn({ id: tc.id, contentJSON: JSON.stringify(resultObj) });
             };
 
+            let started = false;
             async function runTool() {
+                // Auto-run reaches a card in order, and its Run button is live
+                // until then, so a click on it must not run the call twice.
+                if (started || settled) return;
+                started = true;
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
+                resolvePending(card);
                 statusEl.textContent = "Running...";
                 let args = {};
                 try {
@@ -1806,13 +2217,23 @@
             });
 
             const dangerous = requiresManualApproval(name, tc.function && tc.function.arguments);
+            // A card waits for a person unless Auto-run is about to run it. The
+            // ones that are not waiting say so — "Pending approval" on a call
+            // nobody is going to be asked about was wrong — and take no part
+            // in the focus and composer-hint handling below.
+            const awaitsPerson = !auto || !!dangerous;
             if (dangerous) {
                 statusEl.textContent = "Needs your approval (" + dangerous + ")";
+            } else if (!awaitsPerson) {
+                statusEl.textContent = "Queued";
+            }
+            if (awaitsPerson) {
+                registerPending(card, function () { finish({ skipped: true }, "Skipped"); });
             }
             return { promise, run: runTool, requiresApproval: dangerous };
         });
 
-        if (autoMode) {
+        if (auto) {
             (async () => {
                 for (const entry of entries) {
                     // A dangerous send_key (see requiresManualApproval) always
@@ -2164,15 +2585,33 @@
             // so a failed/cancelled send keeps the user's text.
             form.addEventListener("submit", function (ev) {
                 ev.preventDefault();
+                nudgeComposeHint(textarea);
                 send(textarea.value);
             });
             textarea.addEventListener("keydown", function (ev) {
                 if (ev.key === "Enter" && !ev.shiftKey) {
                     ev.preventDefault();
+                    nudgeComposeHint(textarea);
                     send(textarea.value);
                 }
             });
         }
+        // Capture phase, so a keystroke into the terminal counts too: that is
+        // the other place somebody can be mid-sentence while a card arrives.
+        document.addEventListener("keydown", noteTyping, true);
+    }
+
+    // nudgeComposeHint answers an Enter that cannot send. The hint is already
+    // on screen; this makes the live region read it again, so a message typed
+    // and sent into a busy panel is not met with silence. (syncComposeHint
+    // refills it from the current state, not from what it said a moment ago.)
+    function nudgeComposeHint(textarea) {
+        if (!textarea || !textarea.value.trim()) return;
+        const panel = ensurePanel();
+        const hint = panel && panel.querySelector("[data-copilot-compose-hint]");
+        if (!hint || hint.hidden) return;
+        hint.textContent = "";
+        setTimeout(syncComposeHint, 60);
     }
 
     function autoRunAcknowledged() {
