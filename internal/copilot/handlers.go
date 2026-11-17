@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 	"github.com/jnnngs/3270Web/internal/reqsec"
 )
 
@@ -169,15 +171,38 @@ func (h *Handlers) identity(c *gin.Context) *identityAuth {
 //	POST /api/copilot/chat         (SSE proxy)
 func (h *Handlers) Register(r gin.IRouter) {
 	g := r.Group("/api/copilot")
+	// Status says whether the feature is on; signing out is always allowed.
 	g.GET("/status", h.Status)
-	g.GET("/tools", h.Tools)
-	g.GET("/models", h.Models)
-	g.POST("/login/start", h.LoginStart)
-	g.POST("/login/poll", h.LoginPoll)
 	g.POST("/logout", h.Logout)
-	g.POST("/enterprise", h.SetEnterprise)
-	g.POST("/chat", h.Chat)
+
+	on := g.Group("", requireEnabled)
+	on.GET("/tools", h.Tools)
+	on.GET("/models", h.Models)
+	on.POST("/login/start", h.LoginStart)
+	on.POST("/login/poll", h.LoginPoll)
+	on.POST("/enterprise", h.SetEnterprise)
+	on.POST("/chat", h.Chat)
 }
+
+// requireEnabled refuses a request when the operator has turned the AI chat
+// off, or has not permitted this provider.
+func requireEnabled(c *gin.Context) {
+	switch {
+	case aipolicy.Disabled():
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": aipolicy.DisabledMessage, "disabled": true})
+	case !aipolicy.ProviderAllowed(ProviderID):
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error":            "GitHub Copilot is not one of the AI providers this instance permits.",
+			"providerDisabled": true,
+		})
+	default:
+		c.Next()
+	}
+}
+
+// ProviderID is the id this provider is known by in the provider catalogue
+// and in AI_ALLOWED_PROVIDERS.
+const ProviderID = "github-copilot"
 
 // Status returns the current login state. No secrets are returned.
 func (h *Handlers) Status(c *gin.Context) {
@@ -186,20 +211,39 @@ func (h *Handlers) Status(c *gin.Context) {
 		"logged_in":  ia.auth.LoggedIn(),
 		"enterprise": ia.auth.EnterpriseURL(),
 		"model":      DefaultModel,
+		"disabled":   aipolicy.Disabled() || !aipolicy.ProviderAllowed(ProviderID),
 	})
 }
 
 // Tools exposes the tool definitions to the frontend so the chat panel
 // can build the chat/completions payload without duplicating the schema.
 func (h *Handlers) Tools(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, ToolsPayload(DefaultModel))
+}
+
+// ToolsPayload is what the chat panel is told about the tool surface: the
+// definitions, the prompt, and the rules that decide which calls a person has
+// to agree to. Both tool endpoints answer with it, so there is one account of
+// those rules rather than one per route.
+func ToolsPayload(model string) gin.H {
+	dangerous := DangerousSendKeys()
+	return gin.H{
 		"tools":         DefaultTools(),
-		"model":         DefaultModel,
+		"model":         model,
 		"system_prompt": SystemPrompt(),
 		// See approval.go: the classification is the server's, so the browser
-		// panel and an MCP client apply the same rule.
-		"dangerous_send_keys": DangerousSendKeys(),
-	})
+		// panel and an MCP client apply the same rule. The server also
+		// enforces it — /screen/key refuses one of these without
+		// "confirmed": true — so this list is for showing the reason, not
+		// for being the only gate.
+		"dangerous_send_keys": dangerous,
+		"dangerousSendKeys":   dangerous,
+		// Every tool's class: "read", "write" or "destructive". send_key is
+		// "write" here and destructive when its key is on the list above.
+		"toolClasses": ToolClasses(),
+		// The ceiling the prompt quotes, so the panel need not hold a copy.
+		"maxToolRounds": MaxToolRounds,
+	}
 }
 
 type enterpriseRequest struct {
@@ -215,7 +259,13 @@ func (h *Handlers) SetEnterprise(c *gin.Context) {
 	}
 	ia := h.identity(c)
 	if err := ia.auth.SetEnterpriseURL(req.URL); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var invalid *InvalidEnterpriseHostError
+		if errors.As(err, &invalid) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": invalid.Error()})
+			return
+		}
+		log.Printf("[copilot] saving the enterprise host failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save the enterprise host. The server log has the details."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"enterprise": ia.auth.EnterpriseURL()})
@@ -244,7 +294,11 @@ func (h *Handlers) LoginStart(c *gin.Context) {
 	ia := h.identity(c)
 	dc, err := ia.auth.StartDeviceLogin(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		status, msg := aipolicy.PublicError(err, false)
+		if status == http.StatusBadGateway {
+			msg = "Could not start the GitHub sign-in. The server log has the details."
+		}
+		c.JSON(status, gin.H{"error": msg})
 		return
 	}
 	loginID := randomID()
@@ -314,7 +368,8 @@ func (h *Handlers) LoginPoll(c *gin.Context) {
 func (h *Handlers) Logout(c *gin.Context) {
 	ia := h.identity(c)
 	if err := ia.auth.Logout(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("[copilot] sign-out failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not clear the stored sign-in. The server log has the details."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"logged_in": false})
@@ -333,12 +388,12 @@ func (h *Handlers) Chat(c *gin.Context) {
 
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "read body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "could not read the request body"})
 		return
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "the request body is not valid JSON"})
 		return
 	}
 
@@ -369,17 +424,14 @@ func (h *Handlers) Chat(c *gin.Context) {
 		// If nothing has been written yet, we can still emit a clean JSON
 		// error. Otherwise, send an `event: error` SSE frame the frontend
 		// understands.
+		// A sentence written here for the browser; the detail for the log.
+		status, msg := aipolicy.PublicError(err, false)
 		if pw.bytes == 0 {
 			c.Writer.Header().Set("Content-Type", "application/json")
-			status := http.StatusBadGateway
-			var apiErr *APIError
-			if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 600 {
-				status = apiErr.Status
-			}
-			c.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(status, gin.H{"error": msg})
 			return
 		}
-		writeErrEvent(pw, err.Error())
+		writeErrEvent(pw, msg)
 	}
 }
 

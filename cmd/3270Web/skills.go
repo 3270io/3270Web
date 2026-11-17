@@ -53,27 +53,100 @@ func pluralY(n int) string {
 	return "ies"
 }
 
-// loadSessionFor returns the per-conversation load tracker for a session.
+// loadTracker remembers what one conversation has been sent, so a repeat
+// request can be answered with a reminder instead of the body.
 //
-// Dedup is scoped to the terminal session rather than to the process: two
-// browser tabs against different hosts are two conversations, and telling the
-// second one it already has a skill it has never seen would be wrong.
-func (app *App) loadSessionFor(sessionID string) *agent.LoadSession {
+// It counts rather than marks. A mark says "you have this" forever, and that
+// is only true while the conversation still holds what it was sent. A chat
+// panel trims old turns to stay inside the context window, and a person
+// clears the conversation and starts again against the same terminal session:
+// either way the model no longer has the skill, asks for it, and was told —
+// every time, with no way out — that it already did. So the second request
+// gets the reminder, which is cheap and usually right, and a request after
+// that is taken at its word and sent the body again.
+type loadTracker struct {
+	mu    sync.Mutex
+	loads map[string]int
+}
+
+// loadOutcome is what a request for a skill or instruction should be given.
+type loadOutcome int
+
+const (
+	// loadFirst: never sent in this conversation. Send the body.
+	loadFirst loadOutcome = iota
+	// loadReminder: sent once already. Send a reminder, and say how to get
+	// the body if it has gone.
+	loadReminder
+	// loadAgain: asked again after the reminder. Send the body, with a note.
+	loadAgain
+)
+
+// request records a request and says how to answer it. A nil tracker — an
+// unidentified caller — is always a first load.
+func (t *loadTracker) request(kind, name string) loadOutcome {
+	if t == nil {
+		return loadFirst
+	}
+	key := kind + ":" + strings.ToLower(strings.TrimSpace(name))
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.loads == nil {
+		t.loads = map[string]int{}
+	}
+	t.loads[key]++
+	switch t.loads[key] {
+	case 1:
+		return loadFirst
+	case 2:
+		return loadReminder
+	default:
+		// The body goes out again, so the next request is a repeat of a
+		// fresh load rather than a third strike.
+		t.loads[key] = 1
+		return loadAgain
+	}
+}
+
+// maxTrackedConversations bounds the trackers kept for conversations named by
+// header. A session's tracker is dropped when the session ends; a conversation
+// id is whatever a client sends and nothing ever says it is over.
+const maxTrackedConversations = 2048
+
+// conversationKeyPrefix separates trackers keyed by conversation id from those
+// keyed by session id, so one can never be mistaken for the other.
+const conversationKeyPrefix = "conversation:"
+
+// loadSessionFor returns the load tracker for a conversation key.
+func (app *App) loadSessionFor(key string) *loadTracker {
 	app.loadSessionsMu.Lock()
 	defer app.loadSessionsMu.Unlock()
 	if app.loadSessions == nil {
-		app.loadSessions = map[string]*agent.LoadSession{}
+		app.loadSessions = map[string]*loadTracker{}
 	}
-	ls, ok := app.loadSessions[sessionID]
+	ls, ok := app.loadSessions[key]
 	if !ok {
-		ls = agent.NewLoadSession()
-		app.loadSessions[sessionID] = ls
+		if strings.HasPrefix(key, conversationKeyPrefix) && app.trackedConversations >= maxTrackedConversations {
+			// Forgetting is safe: the worst it costs is one skill body sent
+			// to a conversation that already had it.
+			for existing := range app.loadSessions {
+				if strings.HasPrefix(existing, conversationKeyPrefix) {
+					delete(app.loadSessions, existing)
+				}
+			}
+			app.trackedConversations = 0
+		}
+		ls = &loadTracker{}
+		app.loadSessions[key] = ls
+		if strings.HasPrefix(key, conversationKeyPrefix) {
+			app.trackedConversations++
+		}
 	}
 	return ls
 }
 
-// forgetLoadSession drops a conversation's tracker when its session ends, so
-// the map does not grow for the life of the process.
+// forgetLoadSession drops a session's tracker when the session ends, so the
+// map does not grow for the life of the process.
 func (app *App) forgetLoadSession(sessionID string) {
 	app.loadSessionsMu.Lock()
 	defer app.loadSessionsMu.Unlock()
@@ -83,31 +156,52 @@ func (app *App) forgetLoadSession(sessionID string) {
 // ConversationHeader lets a caller name the conversation a request belongs
 // to, for the purpose of "have I already been given this?".
 //
-// The browser panel does not need it: one terminal session is one
-// conversation, and the cookie already says which. A headless client has no
-// cookie and its conversation is not tied to a session at all — it may read
-// the catalogue before connecting anywhere, and keep the same conversation
-// across several sessions. Without a way to say so, every load looks like a
-// first load and the dedup silently does nothing on the surface where
-// conversations are longest.
+// A conversation and a terminal session are different things, and the tracker
+// used to be keyed on the session wherever a session cookie was present. The
+// chat panel's Clear button starts a new conversation against the same
+// session; the new conversation has been sent nothing, and was told it had
+// everything. The panel now sends a conversation id and regenerates it on
+// Clear. A headless client has always needed this: it has no cookie, its
+// conversation is not tied to a session at all, and it may read the catalogue
+// before connecting anywhere.
 const ConversationHeader = "X-3270Web-Conversation"
 
+// maxConversationIDLength bounds the header value used as a map key.
+const maxConversationIDLength = 128
+
 // currentLoadSession resolves the tracker for a request: an explicit
-// conversation header first, then the session cookie.
+// conversation header first, then the session cookie — which is what every
+// request used before the header existed, and what a client that does not
+// send it still gets.
 //
-// A request with neither gets a throwaway tracker, so an anonymous caller is
-// never refused a skill for want of an identifier — it just does not get
-// deduplication, which is the right trade when we cannot tell one caller
+// A request with neither gets no tracker, so an anonymous caller is never
+// answered with a reminder for something it has not seen — it just does not
+// get deduplication, which is the right trade when we cannot tell one caller
 // from another.
-func (app *App) currentLoadSession(c *gin.Context) *agent.LoadSession {
+func (app *App) currentLoadSession(c *gin.Context) *loadTracker {
 	if id := strings.TrimSpace(c.GetHeader(ConversationHeader)); id != "" {
-		return app.loadSessionFor("conversation:" + id)
+		if len(id) > maxConversationIDLength {
+			id = id[:maxConversationIDLength]
+		}
+		return app.loadSessionFor(conversationKeyPrefix + id)
 	}
 	if s := app.getSession(c); s != nil {
 		return app.loadSessionFor(s.ID)
 	}
-	return agent.NewLoadSession()
+	return nil
 }
+
+// alreadyLoadedReminder is the short answer to a repeat request.
+func alreadyLoadedReminder(kind, name string) string {
+	return fmt.Sprintf(
+		"[%s:%s] Already loaded in this conversation — you have it, so there is no need to request it again. "+
+			"If it is no longer in your context (earlier turns were trimmed), request it once more and the full text will be sent.",
+		kind, name)
+}
+
+// resentNote accompanies a body sent for the second time.
+const resentNote = "Sent again because it was requested after the reminder. " +
+	"It was already loaded earlier in this conversation; keep it in mind rather than requesting it a further time."
 
 // SkillsListHandler handles GET /skills — metadata only.
 func (app *App) SkillsListHandler(c *gin.Context) {
@@ -153,24 +247,28 @@ func (app *App) SkillLoadHandler(c *gin.Context) {
 		return
 	}
 
-	if !app.currentLoadSession(c).FirstLoad("skill", skill.Name) {
+	outcome := app.currentLoadSession(c).request("skill", skill.Name)
+	if outcome == loadReminder {
 		c.JSON(http.StatusOK, gin.H{
 			"name":         skill.Name,
 			"already_load": true,
-			"body": fmt.Sprintf(
-				"[skill:%s] Already loaded in this conversation — you have it. Do not request it again.",
-				skill.Name),
+			"body":         alreadyLoadedReminder("skill", skill.Name),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	out := gin.H{
 		"name":             skill.Name,
 		"description":      skill.Description,
 		"source":           skill.SourceLabel,
 		"body":             skill.Body(),
 		"instruction_refs": skill.Instructions,
-	})
+	}
+	if outcome == loadAgain {
+		out["reloaded"] = true
+		out["note"] = resentNote
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // InstructionsListHandler handles GET /instructions.
@@ -203,23 +301,27 @@ func (app *App) InstructionLoadHandler(c *gin.Context) {
 		return
 	}
 
-	if !app.currentLoadSession(c).FirstLoad("instruction", inst.Name) {
+	outcome := app.currentLoadSession(c).request("instruction", inst.Name)
+	if outcome == loadReminder {
 		c.JSON(http.StatusOK, gin.H{
 			"name":         inst.Name,
 			"already_load": true,
-			"body": fmt.Sprintf(
-				"[instruction:%s] Already loaded in this conversation — you have it. Do not request it again.",
-				inst.Name),
+			"body":         alreadyLoadedReminder("instruction", inst.Name),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	out := gin.H{
 		"name":   inst.Name,
 		"title":  inst.Title,
 		"source": inst.SourceLabel,
 		"body":   inst.Body(),
-	})
+	}
+	if outcome == loadAgain {
+		out["reloaded"] = true
+		out["note"] = resentNote
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // ExtensionsListHandler handles GET /extensions, including packs that failed
@@ -298,5 +400,8 @@ type catalogueFields struct {
 	catalogueOnce  sync.Once
 	catalogue      *agent.Catalogue
 	loadSessionsMu sync.Mutex
-	loadSessions   map[string]*agent.LoadSession
+	loadSessions   map[string]*loadTracker
+	// trackedConversations counts the entries of loadSessions keyed by a
+	// conversation id rather than a session id.
+	trackedConversations int
 }

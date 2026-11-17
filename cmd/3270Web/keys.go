@@ -8,43 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
-
-// numberedFnKeyMax and numberedPAKeyMax are the highest key numbers a 3270
-// keyboard defines, replacing the "24" and "3" that used to be repeated at
-// every PF/PA prefix check in normalizeKey below.
-const (
-	numberedFnKeyMax = 24
-	numberedPAKeyMax = 3
-)
-
-// numberedKey matches upper against one PF/PA-style prefix — the bare form
-// ("PF12") or, when allowParen, the parenthesized one ("PF(12)") — and
-// reports it in canonical "canon(N)" form when N falls within [1, max].
-// normalizeKey used to repeat this match inline once per prefix; unifying it
-// also means the range bound is named once instead of copied at each site.
-func numberedKey(upper, prefix, canon string, max int, allowParen bool) (string, bool) {
-	body, matched := "", false
-	if allowParen && strings.HasPrefix(upper, prefix+"(") && strings.HasSuffix(upper, ")") {
-		body, matched = strings.TrimSuffix(strings.TrimPrefix(upper, prefix+"("), ")"), true
-	} else if strings.HasPrefix(upper, prefix) {
-		body, matched = strings.TrimPrefix(upper, prefix), true
-	}
-	if !matched {
-		return "", false
-	}
-	// Atoi accepts a leading sign, so "PF+3" would otherwise be taken for
-	// PF(3) although it is not a key name anyone typed on purpose.
-	if body == "" || strings.Trim(body, "0123456789") != "" {
-		return "", false
-	}
-	n, err := strconv.Atoi(body)
-	if err != nil || n < 1 || n > max {
-		return "", false
-	}
-	return fmt.Sprintf("%s(%d)", canon, n), true
-}
 
 // normalizeKey canonicalizes a caller-supplied AID/navigation key name (e.g.
 // "pf3", "PF(3)", "enter") to the exact form host.Host.SendKey expects. It
@@ -52,83 +18,20 @@ func numberedKey(upper, prefix, canon string, max int, allowParen bool) (string,
 // must reject the request rather than substitute a default, since silently
 // falling back to "Enter" for anything unrecognized means a typo or a
 // malformed request (from a script, an API caller, or an AI model choosing
-// a key by name) submits the current screen instead of failing loudly. That
-// matters most for machine-driven callers (the Copilot send_key tool, the
-// REST API): a request for a key that doesn't exist should be rejected, not
-// silently reinterpreted as "press Enter and submit".
+// a key by name) submits the current screen instead of failing loudly.
+//
+// The parsing itself lives in host.NormalizeKey, because the rule that decides
+// which keys need a person's approval (internal/copilot/approval.go) has to
+// read a key name exactly the way this does. When the two were separate, "F3"
+// was PF3 here and an unremarkable key there.
 func normalizeKey(key string) (normalized string, ok bool) {
 	trimmed := strings.TrimSpace(key)
-	if trimmed == "" {
-		return "", false
-	}
-
 	// Reject characters that could be interpreted as s3270 script commands.
 	if strings.ContainsAny(trimmed, "\n\r\t;") {
 		log.Printf("Security warning: detected potential command injection in key: %q", key)
 		return "", false
 	}
-
-	upper := strings.ToUpper(trimmed)
-	lower := strings.ToLower(trimmed)
-
-	if k, ok := numberedKey(upper, "PF", "PF", numberedFnKeyMax, true); ok {
-		return k, true
-	}
-	if k, ok := numberedKey(upper, "PA", "PA", numberedPAKeyMax, true); ok {
-		return k, true
-	}
-	// "F" is a bare alias for "PF" (e.g. "F1" means PF(1)); unlike PF/PA it
-	// never had a parenthesized spelling, so allowParen stays false here —
-	// "F(1)" is rejected exactly as it always was, not accepted as a second
-	// way to spell PF(1).
-	if k, ok := numberedKey(upper, "F", "PF", numberedFnKeyMax, false); ok {
-		return k, true
-	}
-
-	switch lower {
-	case "enter":
-		return "Enter", true
-	case "tab":
-		return "Tab", true
-	case "backtab":
-		return "BackTab", true
-	case "clear":
-		return "Clear", true
-	case "reset":
-		return "Reset", true
-	case "eraseeof", "erase_eof":
-		return "EraseEOF", true
-	case "eraseinput", "erase_input":
-		return "EraseInput", true
-	case "dup":
-		return "Dup", true
-	case "fieldmark", "field_mark":
-		return "FieldMark", true
-	case "sysreq", "sys_req":
-		return "SysReq", true
-	case "attn":
-		return "Attn", true
-	case "newline", "new_line":
-		return "Newline", true
-	case "backspace":
-		return "BackSpace", true
-	case "delete":
-		return "Delete", true
-	case "insert":
-		return "Insert", true
-	case "home":
-		return "Home", true
-	case "up":
-		return "Up", true
-	case "down":
-		return "Down", true
-	case "left":
-		return "Left", true
-	case "right":
-		return "Right", true
-	}
-
-	return "", false
+	return host.NormalizeKey(trimmed)
 }
 
 // workflowStepForKey turns a key an operator pressed into the recording step
