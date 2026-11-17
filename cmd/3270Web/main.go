@@ -2284,7 +2284,7 @@ func (app *App) LoadWorkflowJSONHandler(c *gin.Context) {
 	raw := []byte(content)
 	workflow, err := parseWorkflowPayload(raw)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid workflow JSON: %v", err)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid recording JSON: %v", err)})
 		return
 	}
 	name := strings.TrimSpace(payload.Name)

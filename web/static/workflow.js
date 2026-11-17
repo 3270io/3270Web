@@ -217,7 +217,7 @@
       if (modalPreview) {
         modalPreview.textContent = modalWorkflowRawText || '';
       }
-      setStatus('Invalid workflow JSON preview (read-only view only).', true);
+      setStatus('Invalid recording JSON (read-only view only).', true);
       return;
     }
     setStatus('');
@@ -284,12 +284,12 @@
       return Promise.resolve(false);
     }
     if (!modalWorkflowObject) {
-      setStatus('Cannot save: workflow JSON is invalid.', true);
+      setStatus('Cannot save: the recording JSON is invalid.', true);
       return Promise.resolve(false);
     }
     const content = refreshPreview();
     const name = modalName ? modalName.textContent.trim() : 'edited-workflow.json';
-    setStatus(modalMode === 'chaos-workflow' ? 'Loading the edited workflow...' : 'Saving...');
+    setStatus(modalMode === 'chaos-workflow' ? 'Loading as a recording...' : 'Saving...');
     return fetch('/workflow/load-json', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -298,7 +298,7 @@
     })
       .then(async (resp) => {
         if (!resp.ok) {
-          let message = 'Failed to save workflow.';
+          let message = 'Failed to save the recording.';
           try {
             const payload = await resp.json();
             if (payload && payload.error) {
@@ -317,14 +317,14 @@
         populateControlsFromWorkflow(nextPreview);
         setMeta(nextName, nextPreview);
         modalDownloadName = nextName || 'workflow.json';
-        setStatus('Saved. Reloading workflow...');
+        setStatus('Saved. Reloading the recording...');
         window.setTimeout(() => {
           window.location.assign('/screen');
         }, 120);
         return true;
       })
       .catch((err) => {
-        setStatus((err && err.message) || 'Failed to save workflow.', true);
+        setStatus((err && err.message) || 'Failed to save the recording.', true);
         return false;
       });
   };
@@ -336,7 +336,7 @@
     modalMode = options.saveMode || 'view';
     modalDownloadName = options.downloadName || options.name || 'workflow.json';
     if (modalTitle) {
-      modalTitle.textContent = options.title || 'Workflow JSON';
+      modalTitle.textContent = options.title || 'Recording (JSON)';
     }
     const content = typeof options.content === 'string' ? options.content : '';
     populateControlsFromWorkflow(content);
@@ -359,7 +359,7 @@
   openButtons.forEach((button) => {
     button.addEventListener('click', () => {
       window.openWorkflowJsonEditor({
-        title: 'Loaded Recording',
+        title: 'Recording (JSON)',
         name: (modalName && modalName.textContent.trim()) || 'loaded-workflow.json',
         content: modalPreview ? modalPreview.textContent : '',
         editable: true,
@@ -1306,7 +1306,7 @@
       applyStoredSize();
     }
     if (statusWidgetToggle) {
-      const label = minimized ? 'Restore workflow status' : 'Minimize workflow status';
+      const label = minimized ? 'Restore run status' : 'Minimize run status';
       statusWidgetToggle.setAttribute('aria-expanded', minimized ? 'false' : 'true');
       statusWidgetToggle.setAttribute('aria-label', label);
       statusWidgetToggle.setAttribute('data-tippy-content', label);
@@ -1339,7 +1339,7 @@
       applyStoredSize();
     }
     if (statusWidgetMaximize) {
-      const label = maximized ? 'Restore workflow status' : 'Maximize workflow status';
+      const label = maximized ? 'Restore run status' : 'Maximize run status';
       statusWidgetMaximize.setAttribute('aria-expanded', maximized ? 'true' : 'false');
       statusWidgetMaximize.setAttribute('aria-label', label);
       statusWidgetMaximize.setAttribute('data-tippy-content', label);

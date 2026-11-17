@@ -7,7 +7,7 @@
          miniature and every max-width media query below is dead, because
          the viewport reports 980px on a 412px phone. -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install. 3270Web renders the session as HTML and adds AI Chat, chaos exploration and workflow recording.">
+    <meta name="description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install. 3270Web renders the session as HTML and adds AI Chat, automated exploration and recording.">
     <meta name="theme-color" content="#03110d">
     <meta name="color-scheme" content="dark light">
     <!--
@@ -27,7 +27,7 @@
     <meta property="og:site_name" content="3270Web">
     <meta property="og:url" content="{{ .BaseURL }}/">
     <meta property="og:title" content="3270Web — the mainframe in a browser tab">
-    <meta property="og:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, chaos exploration and workflow recording.">
+    <meta property="og:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, automated exploration and recording.">
     <meta property="og:image" content="{{ .BaseURL }}/static/og-image.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
@@ -35,7 +35,7 @@
     <meta property="og:image:alt" content="3270Web — the mainframe in a browser tab">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="3270Web — the mainframe in a browser tab">
-    <meta name="twitter:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, chaos exploration and workflow recording.">
+    <meta name="twitter:description" content="Connect to an IBM 3270 mainframe host from the browser — no emulator install — with AI Chat, automated exploration and recording.">
     <meta name="twitter:image" content="{{ .BaseURL }}/static/og-image.png">
     <meta name="twitter:image:alt" content="3270Web — the mainframe in a browser tab">
     {{ end }}
@@ -173,7 +173,7 @@
                 <button type="button" class="quiet-action" data-open-sample-modal>Other samples</button>
                 {{ else }}<p class="subtle">Samples are unavailable on this instance. Ask your administrator for a mainframe address.</p>{{ end }}{{ end }}
             </div>
-            {{ if not .EnforcedTarget }}<p class="subtle">No mainframe needed for the sample. Terminal and workflow recording work without an AI account.</p>{{ end }}
+            {{ if not .EnforcedTarget }}<p class="subtle">No mainframe needed for the sample. Terminal and recording work without an AI account.</p>{{ end }}
 
         </div>
     </div>

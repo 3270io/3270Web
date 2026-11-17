@@ -593,7 +593,7 @@
                         <div><strong>Your terminal is ready</strong><p>Tab moves between fields, and Alt+Shift+M leaves the terminal. Enter submits. <span data-quick-start-keys>{{ if .UseKeypad }}Use F1–F12 for PF keys, or the on-screen keypad.{{ else }}Use F1–F12 for PF keys, or show the on-screen keypad.{{ end }}</span></p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
                         <div class="quick-start-actions">
                             <button type="button" data-start-goal="terminal">Use terminal</button>
-                            <button type="button" data-start-goal="record">Record a workflow</button>
+                            <button type="button" data-start-goal="record">Start recording</button>
                             <button type="button" data-start-goal="explore">Explore screens</button>
                             <button type="button" data-quick-start-show-keypad {{ if .UseKeypad }}hidden{{ end }}>Show keypad</button>
                             <button type="button" class="quiet-action" data-quick-start-dismiss>Dismiss</button>
@@ -651,7 +651,7 @@
                     <div class="chaos-run-panel-actions">
                         <button type="button" data-chaos-run-panel-report>View report</button>
                         <button type="button" data-chaos-run-panel-map>Open screen map</button>
-                        <button type="button" data-chaos-run-panel-export>Download workflow</button>
+                        <button type="button" data-chaos-run-panel-export>Download workflow JSON</button>
                         <button type="button" data-chaos-run-panel-continue>Continue exploring</button>
                     </div>
                     <div class="chaos-run-panel-next" data-chaos-run-panel-next hidden>
@@ -768,7 +768,7 @@
         <div class="workflow-modal-backdrop" data-modal-close></div>
         <div class="workflow-modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
             <div class="workflow-modal-header">
-                <h3 id="workflow-modal-title" data-modal-title>Workflow JSON</h3>
+                <h3 id="workflow-modal-title" data-modal-title>Recording (JSON)</h3>
                 <div class="workflow-modal-actions">
                     <button type="button" class="icon-button" data-modal-copy data-tippy-content="Copy content" aria-label="Copy content">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
@@ -1085,7 +1085,7 @@
                     <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="e.g. one key per line:
 PF3
 PF12"></textarea>
-                    <p class="subtle">Keys chaos must never press. Use this to block dangerous keys such as logoff/exit PF keys.</p>
+                    <p class="subtle">Keys exploration must never press. Use this to block dangerous keys such as logoff/exit PF keys.</p>
                 </div>
                 <fieldset class="chaos-hint-group">
                     <legend>First Screen</legend>
@@ -1287,23 +1287,23 @@ Sign On = Enter"></textarea>
     </div>
     <!--
         Hidden until there is a run to report on. workflow.js reveals it when a
-        recording, playback or chaos run goes active and hides it again when the
+        recording, playback or exploration run goes active and hides it again when the
         run ends or the operator dismisses the active-run row. Rendered hidden
         server-side so it never flashes on a page load with no run in progress.
     -->
     <div class="workflow-status-widget" data-status-widget {{ if not .ShowRunStatus }}hidden{{ end }}>
         <div class="workflow-status-widget-header" data-status-widget-header>
-            <strong>Workflow status</strong>
+            <strong>Run status</strong>
             <div class="workflow-status-widget-actions">
                 <label class="workflow-status-tracking-toggle">
-                    <input type="checkbox" data-status-tracking-toggle aria-label="Track workflow status">
+                    <input type="checkbox" data-status-tracking-toggle aria-label="Track run status">
                     <span class="workflow-status-toggle" aria-hidden="true"></span>
                 </label>
                 <script src="/static/screen-status-tracking-init.js"></script>
-                <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize workflow status" aria-label="Maximize workflow status">
+                <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize run status" aria-label="Maximize run status">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
                 </button>
-                <button type="button" class="icon-button" data-status-minimize aria-expanded="false" data-tippy-content="Restore workflow status" aria-label="Restore workflow status">
+                <button type="button" class="icon-button" data-status-minimize aria-expanded="false" data-tippy-content="Restore run status" aria-label="Restore run status">
                     <!-- Two chevrons, one shown at a time (ui-polish.css): up to restore the
                          minimised widget, down to minimise it. This used to be a filled
                          square, which on a screen with a run in progress reads as Stop. -->
@@ -1327,7 +1327,7 @@ Sign On = Enter"></textarea>
             <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
                 Applied delay: {{ .PlaybackDelayApplied }}
             </div>
-            <div class="workflow-status-line subtle">Updates automatically while playback or chaos runs.</div>
+            <div class="workflow-status-line subtle">Updates automatically while playback or exploration runs.</div>
             <div class="workflow-status-events" data-status-events>
                 {{ range .PlaybackEvents }}
                 <div class="workflow-status-event">
