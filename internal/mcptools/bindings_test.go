@@ -88,3 +88,42 @@ func TestSummariseSnapshotsFallsBackToTheRawBody(t *testing.T) {
 		t.Errorf("an unrecognised shape lost its content: %q", got)
 	}
 }
+
+// A session-ending key is held by a click in the browser panel. Over MCP the
+// server sees no click, so the binding refuses until the call carries the
+// user's agreement — under every spelling the key parser accepts.
+func TestSendKeyHoldsASessionEndingKeyUntilConfirmed(t *testing.T) {
+	for _, key := range []string{"PF3", "F3", "pf(03)", "Clear"} {
+		rec := &recorder{}
+		out := call(t, "send_key", map[string]any{"key": key}, rec)
+		if len(rec.calls) != 0 {
+			t.Errorf("%s reached the host without confirmation: %v", key, rec.calls)
+		}
+		if !strings.Contains(out, "confirmed") {
+			t.Errorf("the refusal for %s does not say how to proceed: %q", key, out)
+		}
+	}
+
+	rec := &recorder{}
+	call(t, "send_key", map[string]any{"key": "F3", "confirmed": true}, rec)
+	if len(rec.calls) == 0 || !strings.Contains(rec.calls[0], "/key") {
+		t.Errorf("a confirmed key was not sent: %v", rec.calls)
+	}
+
+	rec = &recorder{}
+	call(t, "send_key", map[string]any{"key": "PF7"}, rec)
+	if len(rec.calls) == 0 {
+		t.Error("an ordinary key was held")
+	}
+}
+
+func TestSendKeyWithNoKeySendsNothing(t *testing.T) {
+	rec := &recorder{}
+	out := call(t, "send_key", map[string]any{}, rec)
+	if len(rec.calls) != 0 {
+		t.Errorf("a call naming no key pressed something: %v", rec.calls)
+	}
+	if !strings.Contains(out, "key") {
+		t.Errorf("the reply does not say what was missing: %q", out)
+	}
+}

@@ -408,8 +408,15 @@ func (e *Engine) runStep(rs *runState) (stop bool) {
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
 		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
 		// What the legend says may re-weight keys the configuration allows;
-		// it may not bring in one it does not.
-		helpBoosts := restrictBoostsToKeys(inferScreenHelpKeyBoosts(screen), e.candidateKeys)
+		// it may not bring in one it does not — except a key this screen
+		// labels as paging, which is admitted here and nowhere else.
+		allowedKeys := e.candidateKeys
+		if e.cfg.AutoPreferNavigationKeys {
+			if paging := inferPagingKeys(screen); len(paging) > 0 {
+				allowedKeys = mergeSortedUniqueStrings(append([]string(nil), e.candidateKeys...), paging)
+			}
+		}
+		helpBoosts := restrictBoostsToKeys(inferScreenHelpKeyBoosts(screen), allowedKeys)
 		if !e.cfg.AutoPreferNavigationKeys {
 			// The operator declined the navigation-label steering, not the
 			// protection: penalties for exit/logoff-style labels stay live.

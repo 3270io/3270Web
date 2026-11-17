@@ -184,6 +184,9 @@ func buildRegistry(declared []copilot.Tool, binds map[string]Tool) map[string]To
 		bind.Name = name
 		bind.Description = d.Function.Description
 		bind.InputSchema = d.Function.Parameters
+		if d.Function.Name == "send_key" {
+			bind.InputSchema = withConfirmed(d.Function.Parameters)
+		}
 		out[name] = bind
 	}
 
@@ -230,5 +233,33 @@ func Omitted() map[string]string {
 	for k, v := range omitted {
 		out[k] = v
 	}
+	return out
+}
+
+// withConfirmed returns send_key's schema with a "confirmed" argument added.
+//
+// The browser panel's schema deliberately has no such argument: there the
+// confirmation is a person's click, which the model cannot supply. An MCP
+// client runs its own loop and the server never sees a click, so the nearest
+// equivalent is an argument the client shows the person in its own approval
+// prompt. The schema is copied rather than edited so the panel's stays as it
+// is.
+func withConfirmed(schema map[string]any) map[string]any {
+	out := make(map[string]any, len(schema))
+	for k, v := range schema {
+		out[k] = v
+	}
+	props := map[string]any{}
+	if existing, ok := schema["properties"].(map[string]any); ok {
+		for k, v := range existing {
+			props[k] = v
+		}
+	}
+	props["confirmed"] = map[string]any{
+		"type": "boolean",
+		"description": "Only for a key that ends the session or discards the screen (PF3, Clear). " +
+			"Set true only after the user has explicitly agreed to that key being pressed on this screen; never on your own judgement.",
+	}
+	out["properties"] = props
 	return out
 }

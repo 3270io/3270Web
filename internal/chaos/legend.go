@@ -262,6 +262,33 @@ func inferAutoNavigationKeys(screen *host.Screen) []string {
 	return inferKeysWithLabel(screen, labelIsNavigationStyle)
 }
 
+// labelIsPagingStyle reports whether a legend label names scrolling within
+// the screen the run is already on: the next or previous page of a list.
+//
+// "Back" and "Menu" are deliberately not here. They leave the screen, and
+// which screen they leave it for is exactly what the configured key set is
+// there to decide.
+func labelIsPagingStyle(label string) bool {
+	n := normalizeHintAssignmentLabel(label)
+	if n == "" || labelIsDenied(n) {
+		return false
+	}
+	return containsAnyLabelWord(n, []string{
+		"NEXT", "PREV", "PREVIOUS", "FORWARD", "BACKWARD", "SCROLL",
+		"UP", "DOWN", "MORE", "NEXT PAGE", "PREV PAGE", "PAGE UP", "PAGE DOWN",
+		"PAGE FORWARD", "PAGE BACK",
+	})
+}
+
+// inferPagingKeys returns the function keys a screen's own legend labels as
+// paging. These are the one case where the legend may bring in a key the
+// configuration did not list: the default key set has no paging keys, so a
+// list was only ever seen one page deep, and a key the screen itself says
+// scrolls it is not one that can sign the session off or change data.
+func inferPagingKeys(screen *host.Screen) []string {
+	return inferKeysWithLabel(screen, labelIsPagingStyle)
+}
+
 // restrictBoostsToKeys drops boosts for keys outside allowed. Built-in hints
 // and legend-derived boosts go through this so that they can only re-weight
 // keys the configuration already allows, never introduce one.

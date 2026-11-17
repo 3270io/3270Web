@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
 // This file is the Go counterpart of web/static/copilot-tools.js: for each
@@ -60,7 +62,19 @@ func bindings() map[string]Tool {
 			Handle: func(c Call) (string, error) {
 				key := stringArg(c.Args, "key")
 				if key == "" {
-					key = "Enter"
+					// Guessing Enter for a call that named no key would
+					// submit the screen on the strength of a malformed
+					// request.
+					return "No key was sent: send_key needs a \"key\" argument, e.g. \"Enter\" or \"PF7\".", nil
+				}
+				// The browser panel holds a session-ending key until a
+				// person clicks Run. An MCP client has no such click the
+				// server can see, so the equivalent here is an explicit
+				// argument the model is told to set only once the user has
+				// agreed — a refusal it must take back to the user first.
+				if copilot.IsDangerousKey(key) && !boolArg(c.Args, "confirmed") {
+					return fmt.Sprintf("%s was not sent. It commonly ends the session or discards what is on the screen, so it needs the user's approval. "+
+						"Ask the user; if they agree, call send_key again with \"confirmed\": true.", copilot.CanonicalKeyName(key)), nil
 				}
 				res, err := c.Inv.Do(c.Ctx, http.MethodPost,
 					sessionPath(c.SessionID, "/key"), nil, map[string]any{"key": key})

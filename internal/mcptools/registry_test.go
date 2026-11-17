@@ -67,6 +67,11 @@ func TestSchemasComeFromTheDeclaration(t *testing.T) {
 
 	for _, tool := range All() {
 		want := declared[tool.Name]
+		// The one deliberate difference: send_key carries "confirmed" over
+		// MCP, where no click reaches the server. See withConfirmed.
+		if tool.Name == "send_key" {
+			want = withConfirmed(want)
+		}
 		gotJSON, err := json.Marshal(tool.InputSchema)
 		if err != nil {
 			t.Errorf("tool %q: schema does not marshal: %v", tool.Name, err)
@@ -272,8 +277,8 @@ func TestActionsReportTheResultingScreen(t *testing.T) {
 		return Response{Status: 200, Body: []byte(`{"ok":true}`)}
 	}}
 
-	out := call(t, "send_key", map[string]any{"key": "PF3"}, rec)
-	if !strings.Contains(out, "Sent PF3") || !strings.Contains(out, "MAIN MENU") {
+	out := call(t, "send_key", map[string]any{"key": "PF7"}, rec)
+	if !strings.Contains(out, "Sent PF7") || !strings.Contains(out, "MAIN MENU") {
 		t.Errorf("send_key should report the action and the screen it produced, got %q", out)
 	}
 }

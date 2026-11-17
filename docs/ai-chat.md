@@ -156,6 +156,10 @@ model cannot set that flag; it is not part of the tool it is given. So a
 script holding your session cookie, or a model that finds an unusual way to
 spell a key, gets a refusal rather than a logged-off session.
 
+An [MCP](mcp.md) client has no panel to click in. There `send_key` takes a
+`confirmed` argument and refuses either key without it, and your client's own
+approval prompt shows the argument before the call runs.
+
 `ask_user` always waits for you, in any mode.
 
 ## Choose a Model

@@ -152,9 +152,16 @@ server itself refuses either — in any spelling, `F3` included — until someon
 has clicked Run, Auto Mode or not; see
 [What still asks in Auto Mode](ai-chat.md#what-still-asks-in-auto-mode).
 `send_key`'s own description says so, so a model knows before it builds a
-plan around one. Over MCP there is no panel to click in, and the server does
-not ask a second time: the gate is your client's tool-approval prompt, and
-`send_key` is annotated destructive so that prompt appears. Leave it on.
+plan around one. Over MCP there is no panel to click in, so `send_key`
+refuses either key until the call carries `"confirmed": true`. The model is
+told to set that only once you have agreed, and the refusal sends it back to
+ask. Your client's tool-approval prompt is still the gate that cannot be
+talked round: `send_key` is annotated destructive so the prompt appears, and
+`confirmed: true` is visible in it. Leave it on.
+
+A `send_key` call that names no key sends nothing; it is not treated as
+Enter. The plain REST route is not gated this way: a script that sends `PF3`
+to `/api/v1/sessions/:id/key` means it.
 
 The driving tools behave the same on both surfaces. `write_field` refuses a
 protected position or text that does not fit, erases to the end of the field
