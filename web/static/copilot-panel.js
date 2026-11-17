@@ -19,6 +19,9 @@
     const HISTORY_KEY_BASE = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY = "copilot.panel.automode";
+    // Set once the person has read the Auto-run confirmation and accepted it
+    // in this browser, so it is asked the first time and not every time.
+    const AUTO_MODE_ACK_KEY = "copilot.panel.automode.ack";
     // Hard safety net on tool-call rounds per user message. The system prompt
     // asks the model to stay within ~30 rounds; this ceiling is a generous
     // backstop (well below the old effectively-unbounded 10000) so a runaway
@@ -44,6 +47,12 @@
     // names from another's.
     let model = "";
     let providerLabel = "AI";
+    // What the last status check said about the selected provider: whether it
+    // can answer a chat yet, and if not, what it is waiting for ("login" for a
+    // GitHub sign-in, "config" for a key or an endpoint). null until the first
+    // answer arrives.
+    let providerReady = null;
+    let providerNeeds = "";
 
     let history = loadHistory();
     let pendingAssistant = null;  // current streaming assistant message
@@ -156,6 +165,8 @@
         const panel = ensurePanel();
         if (!panel || !s) return;
         providerLabel = s.providerLabel || "AI";
+        providerReady = !!s.ready;
+        providerNeeds = s.needs || "";
         if (s.model) model = s.model;
 
         const nameEl = panel.querySelector("[data-copilot-provider-name]");
@@ -171,9 +182,21 @@
             if (promptText) promptText.textContent = "Sign in to " + providerLabel + " to start chatting.";
             if (connectBtn) connectBtn.textContent = "Sign in to " + providerLabel;
         } else if (!s.ready) {
-            if (promptText) promptText.textContent = providerLabel + " needs an API key before you can chat.";
+            // Name what is actually empty. The OpenAI-compatible entry's key
+            // is optional, so asking for one there sent people to the wrong
+            // field; the server says which setting is missing.
+            let text = providerLabel + " needs to be set up before you can chat.";
+            if (s.missing === "baseUrl") text = "Add an endpoint URL before you can chat.";
+            else if (s.missing === "apiKey") text = providerLabel + " needs an API key before you can chat.";
+            if (promptText) promptText.textContent = text;
             if (connectBtn) connectBtn.textContent = "Set up " + providerLabel;
         }
+        // Beside "Sign in to GitHub Copilot", the way out for anyone who is
+        // not going to use it. Only the sign-in prompt needs it: every other
+        // provider's primary button already opens the provider settings.
+        const connectAlt = panel.querySelector("[data-copilot-connect-alt]");
+        if (connectAlt) connectAlt.hidden = s.needs !== "login";
+        syncEmptyStateNote();
         const signout = panel.querySelector("[data-copilot-signout]");
         if (signout) {
             // One short label for both auth styles — the header has no room
@@ -703,40 +726,419 @@
             chip.type = "button";
             chip.className = "copilot-example-chip";
             chip.textContent = p.label;
-            chip.addEventListener("click", function () {
-                if (p.run) p.run(); else send(p.label);
+            chip.addEventListener("click", async function () {
+                // A prompt with its own entry point (explainScreen) asks for a
+                // provider itself; the rest are plain text to send.
+                if (p.run) { p.run(); return; }
+                if (await ensureProviderForPrompt(p.label)) send(p.label);
             });
             chips.appendChild(chip);
         });
         wrap.appendChild(chips);
+        // The visible reason the chips behave differently until a provider is
+        // ready. syncEmptyStateNote fills it in, and keeps it in step with the
+        // provider's state.
+        const note = document.createElement("p");
+        note.className = "copilot-empty-hint copilot-empty-note";
+        note.id = "copilot-empty-note";
+        note.setAttribute("data-copilot-empty-note", "");
+        note.hidden = true;
+        wrap.appendChild(note);
         list.appendChild(wrap);
+        syncEmptyStateNote();
     }
 
-    function appendToolCallCard(call) {
+    // syncEmptyStateNote says why the starter prompts will open the provider
+    // settings instead of running, while no provider is ready. Hidden again
+    // the moment one is, and the chips' aria-describedby goes with it: a hidden
+    // element named by aria-describedby is still read out.
+    function syncEmptyStateNote() {
+        const list = messageList();
+        if (!list) return;
+        const note = list.querySelector("[data-copilot-empty-note]");
+        if (!note) return;
+        const needsSetup = providerReady === false;
+        note.textContent = needsSetup ? "Set up an AI provider first. Choosing one of these opens its settings." : "";
+        note.hidden = !needsSetup;
+        list.querySelectorAll(".copilot-example-chip").forEach(function (chip) {
+            if (needsSetup) chip.setAttribute("aria-describedby", note.id);
+            else chip.removeAttribute("aria-describedby");
+        });
+    }
+
+    // ensureProviderForPrompt is the gate in front of a starter prompt. With no
+    // provider ready it opens the provider settings — with a line saying why —
+    // instead of starting a GitHub sign-in the person never chose: the chips
+    // used to go straight to Copilot's device-code dialog, with no hint that
+    // an API key or a local model was an option. Returns true when a provider
+    // is ready, including when the settings dialog has just made one ready, so
+    // a prompt asked for before setup still runs once setup is done.
+    async function ensureProviderForPrompt(label) {
+        let s = null;
+        try { s = await window.AIProvider.status(); } catch (_) {}
+        if (s && s.ready) return true;
+        const saved = await window.AIProvider.openSettings({
+            notice: "Set up an AI provider to run “" + label + "”.",
+        });
+        if (!saved) return false;
+        await refreshConnectionState();
+        if (!providerReady) return false;
+        await populateModelSelect(true);
+        return true;
+    }
+
+    // appendStatusNote adds a neutral line to the transcript: something that
+    // happened which is neither an answer nor a failure, such as a sign-in the
+    // person backed out of. It replaces its predecessor rather than piling up,
+    // and leaves the starter prompts where they are.
+    function appendStatusNote(text) {
+        const list = messageList();
+        if (!list) return null;
+        list.querySelectorAll(".copilot-msg-status").forEach(function (old) { old.remove(); });
+        const el = document.createElement("div");
+        el.className = "copilot-msg copilot-msg-status";
+        el.setAttribute("role", "status");
+        const body = document.createElement("div");
+        body.className = "copilot-msg-body";
+        body.textContent = text;
+        el.appendChild(body);
+        list.appendChild(el);
+        scrollToBottom();
+        return el;
+    }
+
+    // cancelledNote words a setup that ended without a ready provider by what
+    // was being set up. A settings dialog can also be saved and still leave the
+    // provider short of something, so that case does not say "cancelled".
+    function cancelledNote() {
+        return providerNeeds === "login"
+            ? "Sign-in cancelled. Nothing was sent."
+            : "Provider setup wasn't finished. Nothing was sent.";
+    }
+
+    // -- Tool-call cards ---------------------------------------------------
+    //
+    // A card used to open with the raw tool name and a JSON blob, which is
+    // what the model said and not what is about to happen. It now leads with
+    // a plain-language line saying what will be done, keeps the technical name
+    // and the arguments one click away under "Details", and folds the result
+    // away once the call has run (a get_screen result is the whole screen as
+    // JSON, padding and all).
+
+    function parseToolArgs(call) {
+        const raw = call && call.function && call.function.arguments;
+        try {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    // quoteShort renders a value inside typographic quotes, flattened to one
+    // line and cut at `max` characters.
+    function quoteShort(value, max) {
+        let s = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+        if (s.length > max) s = s.slice(0, max - 1) + "…";
+        return "“" + s + "”";
+    }
+
+    // displayKey spells a key the way an operator would: PF(3) as PF3.
+    function displayKey(key) {
+        const k = String(key == null ? "" : key).trim() || "Enter";
+        return canonicalKeyName(k).replace(/[()]/g, "");
+    }
+
+    // fieldWhere names a write_field target from the call alone, for when the
+    // screen has nothing better to say about it. Rows and columns are shown
+    // 1-based, as the terminal's own status line shows the cursor.
+    function fieldWhere(args) {
+        const key = String(args.field_key || "").trim();
+        if (key) return "field " + key.toUpperCase();
+        const row = Number(args.row), col = Number(args.col);
+        if (args.row != null && args.col != null && isFinite(row) && isFinite(col)) {
+            return "the field at row " + (row + 1) + ", column " + (col + 1);
+        }
+        return "the field";
+    }
+
+    // describeToolCall turns a call into the sentence the card leads with.
+    // `field` is what the screen knows about a write_field target, or null
+    // when that is not known: {hidden, label}.
+    //
+    // The text typed into a field is only ever spelled out when the screen
+    // says the field is not hidden. A password field is hidden, and a
+    // sentence that read "Type hunter2 in Password" is a secret in the
+    // transcript; where the field could not be identified the text is left
+    // out for the same reason, because not knowing is not the same as safe.
+    function describeToolCall(name, args, field) {
+        args = args || {};
+        switch (name) {
+            case "get_screen": return "Read the current screen";
+            case "send_key": return "Press " + displayKey(args.key);
+            case "write_field": {
+                const where = field && field.label ? "the " + field.label + " field" : fieldWhere(args);
+                if (field && field.hidden) return "Type a hidden value in " + where;
+                if (!field) return "Type text in " + where;
+                const text = args.text == null ? "" : String(args.text);
+                return text === "" ? "Clear " + where : "Type " + quoteShort(text, 40) + " in " + where;
+            }
+            case "submit_screen": return "Submit the screen (press Enter)";
+            case "connect_session": return args.hostname ? "Connect to " + args.hostname : "Connect to a host";
+            case "move_cursor":
+                return isFinite(Number(args.row)) && isFinite(Number(args.col)) && args.row != null && args.col != null
+                    ? "Move the cursor to row " + (Number(args.row) + 1) + ", column " + (Number(args.col) + 1)
+                    : "Move the cursor";
+            case "wait_for_unlock":
+                return typeof args.timeout_ms === "number"
+                    ? "Wait up to " + Math.round(args.timeout_ms / 1000) + " s for the keyboard to unlock"
+                    : "Wait for the keyboard to unlock";
+            case "chaos_status": return "Check chaos exploration progress";
+            case "chaos_start":
+                return typeof args.max_steps === "number"
+                    ? "Start a chaos exploration (up to " + args.max_steps + " steps)"
+                    : "Start a chaos exploration";
+            case "chaos_stop": return "Stop the chaos exploration";
+            case "chaos_resume": return "Resume the chaos exploration";
+            case "chaos_report": return "Build the chaos discovery report";
+            case "chaos_save_screen_hint": return "Save a chaos hint for a screen";
+            case "chaos_get_hints": return "Read the chaos hints";
+            case "chaos_update_hints": return "Update the chaos hints";
+            case "chaos_export_workflow": return "Export the chaos run as a workflow";
+            case "chaos_list_screens": return "List the screens chaos found";
+            case "chaos_annotate_screen": return "Annotate a screen chaos found";
+            case "chaos_insights": return "Read the chaos insights";
+            case "business_list_functions": return "List the saved business functions";
+            case "business_save_function":
+                return args.name ? "Save the business function " + quoteShort(args.name, 40) : "Save a business function";
+            case "business_generate_workflow":
+                return args.name ? "Generate a workflow for " + quoteShort(args.name, 40) : "Generate a workflow";
+            case "business_app_overview": return "Read the business overview of this app";
+            case "list_skills": return "List the available skills";
+            case "load_skill": return args.name ? "Load the skill " + quoteShort(args.name, 40) : "Load a skill";
+            case "list_instructions": return "List the available instructions";
+            case "load_instruction":
+                return args.name ? "Load the instruction " + quoteShort(args.name, 40) : "Load an instruction";
+            case "list_extensions": return "List the available extensions";
+            case "get_connection_details": return "Read the connection details";
+            case "get_display_toggles": return "Read the display toggles";
+            case "set_display_toggle":
+                return (args.value === false ? "Turn off" : "Turn on") + " the " + quoteShort(args.name, 40) + " display toggle";
+            case "snapshot_take":
+                return args.name ? "Take a screen snapshot named " + quoteShort(args.name, 40) : "Take a screen snapshot";
+            case "snapshot_list": return args.name ? "Read the snapshot " + quoteShort(args.name, 40) : "List the screen snapshots";
+            case "snapshot_diff":
+                return "Compare the snapshot " + quoteShort(args.left, 40) + " with " +
+                    (args.right ? "the snapshot " + quoteShort(args.right, 40) : "the current screen");
+            case "snapshot_delete":
+                return args.name ? "Delete the snapshot " + quoteShort(args.name, 40) : "Delete a snapshot";
+            case "printer_status": return "Check the printer session";
+            case "printer_start": return args.lu ? "Start the printer session on LU " + args.lu : "Start the printer session";
+            case "printer_stop": return "Stop the printer session";
+            case "printer_read_job": return args.name ? "Read the print job " + quoteShort(args.name, 40) : "Read a print job";
+            case "list_tasks": return "List the saved tasks";
+            case "run_task": return args.name ? "Run the saved task " + quoteShort(args.name, 40) : "Run a saved task";
+            default: return name || "Tool call";
+        }
+    }
+
+    // locateField finds the input field a write_field call is aimed at. The
+    // call carries either a 1-based R<row>C<col>L<len> key or a 0-based
+    // row/col, and the server writes at that position, so the field that
+    // contains it is the one that receives the text.
+    function locateField(screen, args) {
+        const fields = Array.isArray(screen && screen.fields) ? screen.fields : [];
+        const width = Number(screen && screen.width) || 80;
+        let row = NaN, col = NaN;
+        const m = /^R(\d+)C(\d+)L(\d+)$/i.exec(String(args.field_key || "").trim());
+        if (m) {
+            row = parseInt(m[1], 10) - 1;
+            col = parseInt(m[2], 10) - 1;
+        } else if (args.row != null && args.col != null) {
+            row = Number(args.row);
+            col = Number(args.col);
+        }
+        if (!isFinite(row) || !isFinite(col)) return null;
+        const pos = row * width + col;
+        for (const f of fields) {
+            if (!f || f.protected) continue;
+            const start = f.row * width + f.col;
+            if (pos >= start && pos < start + (Number(f.length) || 0)) return f;
+        }
+        return null;
+    }
+
+    // fieldLabel reads a field's caption off the screen: the protected text
+    // that ends nearest before it on the same row ("User id . . . . :" becomes
+    // "User id"). Returns "" when there is nothing usable.
+    function fieldLabel(screen, field) {
+        let best = null;
+        for (const g of screen.fields) {
+            if (!g || !g.protected || g.row !== field.row || g.endRow !== g.row) continue;
+            if (!(g.endCol < field.col)) continue;
+            if (!best || g.endCol > best.endCol) best = g;
+        }
+        if (!best) return "";
+        const text = stripNulPadding(String(best.value || "")).replace(/[\s.:]+$/, "").replace(/^\s+/, "");
+        return text && text.length <= 40 ? text : "";
+    }
+
+    // stripNulPadding removes the NUL padding a 3270 buffer is full of. Fields
+    // and screen text arrive padded with U+0000 out to the end of each row,
+    // and JSON.stringify writes every one of them as the six characters
+    // \u0000. Trailing runs are dropped; any left between words become spaces.
+    // For display only: what the model is sent is untouched.
+    function stripNulPadding(value) {
+        if (typeof value === "string") {
+            return value.replace(/\u0000+(?=\n|$)/g, "").replace(/\u0000/g, " ");
+        }
+        if (Array.isArray(value)) return value.map(stripNulPadding);
+        if (value && typeof value === "object") {
+            const out = {};
+            Object.keys(value).forEach(function (k) { out[k] = stripNulPadding(value[k]); });
+            return out;
+        }
+        return value;
+    }
+
+    function formatSize(chars) {
+        if (chars < 1024) return chars + " characters";
+        return (chars / 1024).toFixed(1) + " KB";
+    }
+
+    // summariseToolResult is the one line a finished call leaves in the
+    // transcript, so the result itself can stay folded: what it was, and how
+    // much of it there is.
+    function summariseToolResult(result, displayLength) {
+        if (result == null) return "no result";
+        if (typeof result !== "object") return formatSize(displayLength);
+        if (result.skipped) return "skipped";
+        if (result.error) return "failed: " + quoteShort(result.error, 100).slice(1, -1);
+        const screen = (result.screen && typeof result.screen === "object")
+            ? result.screen
+            : ((typeof result.text === "string" && Array.isArray(result.fields)) ? result : null);
+        let what;
+        if (screen) {
+            const inputs = (Array.isArray(screen.fields) ? screen.fields : []).filter(function (f) { return f && !f.protected; }).length;
+            what = "screen" + (screen.height && screen.width ? " " + screen.height + "×" + screen.width : "") +
+                ", " + inputs + " input field" + (inputs === 1 ? "" : "s");
+        } else if (result.ok === true) {
+            what = "OK";
+        } else if (Array.isArray(result)) {
+            what = result.length + " item" + (result.length === 1 ? "" : "s");
+        } else {
+            const n = Object.keys(result).length;
+            what = n + " field" + (n === 1 ? "" : "s");
+        }
+        return displayLength > 80 ? what + " (" + formatSize(displayLength) + ")" : what;
+    }
+
+    // showToolResult puts a finished call's result behind a "Result" fold.
+    function showToolResult(card, resultObj) {
+        const details = card.querySelector("[data-result-details]");
+        const summary = card.querySelector("[data-result-summary]");
+        const pre = card.querySelector("[data-result]");
+        if (!details || !summary || !pre) return;
+        if (resultObj && resultObj.skipped) {
+            details.hidden = true;
+            return;
+        }
+        const text = typeof resultObj === "string"
+            ? stripNulPadding(resultObj)
+            : JSON.stringify(stripNulPadding(resultObj), null, 2);
+        pre.textContent = text;
+        decoratePreBlocks(pre);
+        summary.textContent = "Result: " + summariseToolResult(resultObj, text.length);
+        details.open = false;
+        details.hidden = false;
+        scrollToBottom();
+    }
+
+    // setCardSummary writes the plain-language line and the Run/Skip names
+    // that repeat it, so a screen reader hears which action a button decides.
+    function setCardSummary(card, text) {
+        const el = card.querySelector("[data-summary]");
+        if (el) el.textContent = text;
+        const run = card.querySelector("[data-run]");
+        const skip = card.querySelector("[data-skip]");
+        if (run) run.setAttribute("aria-label", "Run: " + text);
+        if (skip) skip.setAttribute("aria-label", "Skip: " + text);
+    }
+
+    // applyFieldKnowledge words a write_field card from what is known about
+    // its target, and keeps a hidden field's text out of the Details too: the
+    // arguments there would otherwise print the same secret the sentence
+    // above was careful not to.
+    function applyFieldKnowledge(card, args, field) {
+        setCardSummary(card, describeToolCall("write_field", args, field));
+        if (!field || !field.hidden) return;
+        const argsEl = card.querySelector("[data-args]");
+        if (argsEl) {
+            argsEl.textContent = JSON.stringify(Object.assign({}, args, { text: "(hidden field — value not shown)" }), null, 2);
+        }
+    }
+
+    // refineWriteFieldCard improves a write_field card's wording from the
+    // screen as it stands now. Only for a call that is waiting to run: a card
+    // restored from history would be matched against whatever screen is up
+    // today, which may have nothing to do with it. What it finds is kept on the
+    // call (call.uiField, which never reaches the provider — requests are
+    // rebuilt from id, type and function) so a card restored after a reload
+    // says the same thing, and still does not spell out a hidden value.
+    async function refineWriteFieldCard(card, call, args) {
+        let screen = null;
+        try {
+            const resp = await fetch("/screen.json", { credentials: "same-origin" });
+            if (resp.ok) screen = await resp.json();
+        } catch (_) { /* leave the card as it is */ }
+        if (!screen || !card.isConnected) return;
+        const f = locateField(screen, args);
+        if (!f) return;
+        call.uiField = { hidden: !!f.hidden, label: fieldLabel(screen, f) };
+        applyFieldKnowledge(card, args, call.uiField);
+    }
+
+    function appendToolCallCard(call, opts) {
         const list = messageList();
         if (!list) return null;
         removeEmptyState();
+        const name = (call.function && call.function.name) || "?";
+        const args = parseToolArgs(call);
         const card = document.createElement("div");
         card.className = "copilot-tool-call";
         card.dataset.toolCallId = call.id;
-        const args = call.function && call.function.arguments;
-        let argsPretty = args;
-        try { argsPretty = JSON.stringify(JSON.parse(args), null, 2); } catch (_) {}
+        let argsPretty = call.function && call.function.arguments;
+        try { argsPretty = JSON.stringify(JSON.parse(argsPretty), null, 2); } catch (_) {}
         card.innerHTML = `
             <div class="copilot-tool-call-head">
-                <span class="copilot-tool-call-name">${escapeHTML(call.function && call.function.name || "?")}</span>
+                <span class="copilot-tool-call-summary" data-summary></span>
                 <span class="copilot-tool-call-status" data-status>Pending approval</span>
             </div>
-            <pre class="copilot-tool-call-args">${escapeHTML(argsPretty || "{}")}</pre>
+            <details class="copilot-tool-call-details">
+                <summary>Details</summary>
+                <div class="copilot-tool-call-name">${escapeHTML(name)}</div>
+                <pre class="copilot-tool-call-args" data-args>${escapeHTML(argsPretty || "{}")}</pre>
+            </details>
             <div class="copilot-tool-call-actions">
                 <button type="button" class="copilot-btn-run" data-run>Run</button>
                 <button type="button" class="copilot-btn-skip" data-skip>Skip</button>
             </div>
-            <pre class="copilot-tool-call-result" data-result hidden></pre>
+            <details class="copilot-tool-call-result-details" data-result-details hidden>
+                <summary data-result-summary>Result</summary>
+                <pre class="copilot-tool-call-result" data-result></pre>
+            </details>
             <div class="copilot-tool-extras" data-tool-extras hidden></div>
         `;
+        if (name === "write_field") {
+            // call.uiField is set when the card was first shown (see
+            // refineWriteFieldCard); without it the target is unknown.
+            applyFieldKnowledge(card, args, call.uiField || null);
+        } else {
+            setCardSummary(card, describeToolCall(name, args, null));
+        }
         list.appendChild(card);
         scrollToBottom();
+        if (opts && opts.live && name === "write_field") refineWriteFieldCard(card, call, args);
         return card;
     }
 
@@ -857,7 +1259,6 @@
         const card = appendToolCallCard(call);
         if (!card) return;
         const statusEl = card.querySelector("[data-status]");
-        const resultEl = card.querySelector("[data-result]");
         const runBtn = card.querySelector("[data-run]");
         const skipBtn = card.querySelector("[data-skip]");
         if (runBtn) runBtn.disabled = true;
@@ -865,10 +1266,10 @@
         if (statusEl) {
             statusEl.textContent = resultObj && resultObj.skipped ? "Skipped" : (resultObj && resultObj.error ? "Failed" : "Done");
         }
-        if (resultEl) {
-            resultEl.hidden = false;
-            resultEl.textContent = resultObj ? JSON.stringify(resultObj, null, 2) : unwrapUntrustedHostContent(resultContentJSON);
-            decoratePreBlocks(resultEl);
+        if (resultObj) {
+            showToolResult(card, resultObj);
+        } else if (typeof resultContentJSON === "string" && resultContentJSON) {
+            showToolResult(card, unwrapUntrustedHostContent(resultContentJSON));
         }
     }
 
@@ -1080,6 +1481,8 @@
         // progress rather than appearing to do nothing.
         if (form) form.setAttribute("aria-busy", running ? "true" : "false");
         if (textarea) textarea.setAttribute("aria-busy", running ? "true" : "false");
+        turnRunning = !!running;
+        syncComposeHint();
     }
 
     function requestStop() {
@@ -1087,6 +1490,125 @@
         if (activeAbort) {
             try { activeAbort.abort(); } catch (_) {}
         }
+        // A call waiting for Run or Skip would otherwise hold the turn open
+        // for as long as nobody answered it, with Stop doing nothing. Stopping
+        // is declining: nothing that has not run yet will.
+        pendingApprovals.slice().forEach(function (entry) { entry.skip(); });
+    }
+
+    // -- Approvals waiting on a person ---------------------------------------
+    //
+    // While a call waits for Run or Skip the composer cannot send, and used to
+    // say nothing about it: Enter simply did nothing. These keep a list of the
+    // cards that are waiting, so the panel can say so under the composer, move
+    // keyboard focus to the Run button, and carry it to the next card when one
+    // is decided.
+
+    let turnRunning = false;       // a turn is in flight (Send is hidden)
+    let pendingApprovals = [];     // [{card, skip}] in the order they appear
+    let pendingQuestions = 0;      // ask_user cards still waiting for an answer
+    let lastTypedAt = 0;           // last printable keystroke into any text control
+
+    // Only a keystroke into a text control is typing. Space on a Run button is
+    // a printable key too, and counting it would mean the card that follows a
+    // Run never got focus.
+    function noteTyping(ev) {
+        if (ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const t = ev.target;
+        const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+        const editable = tag === "textarea" || tag === "select" || (t && t.isContentEditable) ||
+            (tag === "input" && !/^(button|submit|checkbox|radio|reset|image)$/i.test(t.type || ""));
+        if (!editable) return;
+        if (ev.key && (ev.key.length === 1 || ev.key === "Backspace" || ev.key === "Delete")) {
+            lastTypedAt = Date.now();
+        }
+    }
+
+    function dialogIsOpen() {
+        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+        for (const d of dialogs) {
+            if (d.getClientRects().length > 0) return true;
+        }
+        return false;
+    }
+
+    // userIsTyping is the one case where moving focus would do harm: a message
+    // being written in the composer (or any text control, a moment ago), or a
+    // dialog the person is in the middle of. Everywhere else a keyboard user
+    // would have to Tab through the transcript to find the card.
+    function userIsTyping() {
+        if (Date.now() - lastTypedAt < 2500) return true;
+        const panel = ensurePanel();
+        const ta = panel && panel.querySelector("[data-copilot-input]");
+        if (ta && document.activeElement === ta && ta.value.trim() !== "") return true;
+        return dialogIsOpen();
+    }
+
+    // takeFocusForApproval puts focus on a waiting card's Run button. When the
+    // person is typing it does not: the card, the composer hint and the
+    // transcript's polite live region announce that something is waiting
+    // instead.
+    function takeFocusForApproval(card) {
+        const run = card && card.querySelector("[data-run]");
+        if (!run || run.disabled || userIsTyping()) return;
+        try { run.focus(); } catch (_) {}
+    }
+
+    function registerPending(card, skip) {
+        pendingApprovals.push({ card: card, skip: skip });
+        syncComposeHint();
+        if (pendingApprovals.length === 1) takeFocusForApproval(card);
+    }
+
+    // resolvePending takes a card off the waiting list once the person has
+    // decided it. If focus was on that card (or has fallen to the page because
+    // its buttons just went disabled) it moves on to the next waiting card.
+    function resolvePending(card) {
+        const had = pendingApprovals.length;
+        pendingApprovals = pendingApprovals.filter(function (entry) { return entry.card !== card; });
+        if (pendingApprovals.length === had) return;
+        const active = document.activeElement;
+        const focusLost = !active || active === document.body || card.contains(active);
+        syncComposeHint();
+        if (pendingApprovals.length && focusLost) takeFocusForApproval(pendingApprovals[0].card);
+    }
+
+    // A question from the assistant (ask_user) holds the turn open the same
+    // way, and is answered on its card, not in the message box.
+    function beginQuestion() {
+        pendingQuestions++;
+        syncComposeHint();
+    }
+
+    function endQuestion() {
+        pendingQuestions = Math.max(0, pendingQuestions - 1);
+        syncComposeHint();
+    }
+
+    // syncComposeHint says, under the composer, why Enter is not sending: a
+    // call is waiting for the person, or the assistant is still on its turn.
+    // The textarea points at it with aria-describedby while it is showing.
+    function syncComposeHint() {
+        const panel = ensurePanel();
+        if (!panel) return;
+        const hint = panel.querySelector("[data-copilot-compose-hint]");
+        const ta = panel.querySelector("[data-copilot-input]");
+        if (!hint) return;
+        let text = "";
+        if (pendingApprovals.length) {
+            text = pendingApprovals.length > 1
+                ? "Waiting for you to Run or Skip the pending actions"
+                : "Waiting for you to Run or Skip the pending action";
+        } else if (pendingQuestions) {
+            text = "Waiting for your answer to the assistant's question above";
+        } else if (turnRunning) {
+            text = "The assistant is still working. Send your next message when it finishes, or press Stop.";
+        }
+        hint.textContent = text;
+        hint.hidden = !text;
+        if (!ta) return;
+        if (text) ta.setAttribute("aria-describedby", hint.id);
+        else ta.removeAttribute("aria-describedby");
     }
 
     // toolSignature returns a stable string identifying a set of tool calls
@@ -1243,14 +1765,38 @@
         }
     }
 
+    // describeWait renders a wait in whole seconds the way a person says it:
+    // "20 seconds", "1 minute", "3 minutes".
+    function describeWait(seconds) {
+        const s = Math.max(1, Math.round(seconds));
+        if (s < 60) return s + (s === 1 ? " second" : " seconds");
+        const m = Math.round(s / 60);
+        return m + (m === 1 ? " minute" : " minutes");
+    }
+
+    // retryAfterSeconds reads the Retry-After header the chat proxy repeats
+    // from the provider. The proxy normalises it to whole seconds; anything
+    // else is ignored rather than guessed at.
+    function retryAfterSeconds(resp) {
+        let raw = "";
+        try { raw = resp.headers.get("Retry-After") || ""; } catch (_) { return 0; }
+        return /^\d+$/.test(raw.trim()) ? parseInt(raw, 10) : 0;
+    }
+
     // friendlyChatError converts an upstream error body into a human-readable
     // explanation. Every provider we proxy reports errors in roughly the
     // OpenAI shape —
     //   {"error":{"message":"...","code":"model_not_supported",...}}
     // — sometimes nested inside our own "<provider>: status NNN: <body>", and
     // Anthropic uses {"type":"..."} where OpenAI uses {"code":"..."}.
-    function friendlyChatError(raw) {
+    //
+    // `hint` carries what only the HTTP response knows: its status, and the
+    // wait the provider asked for in Retry-After (whole seconds, 0 if it said
+    // nothing). A mid-stream error arrives as an SSE frame with neither.
+    function friendlyChatError(raw, hint) {
         const text = String(raw || "");
+        const status = hint && hint.status;
+        const retryAfter = (hint && hint.retryAfter) || 0;
         // Try to extract a JSON error object even when wrapped in prose.
         let parsed = null;
         const braceAt = text.indexOf("{");
@@ -1267,7 +1813,10 @@
         if (code === "authentication_error" || code === "invalid_api_key" || code === "permission_error" || /api key|unauthor|forbidden/i.test(message)) {
             return providerLabel + " rejected the credentials. Open AI provider settings and check the key.";
         }
-        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+        if (status === 429 || code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+            if (retryAfter > 0) {
+                return providerLabel + " rate limit hit. Try again in about " + describeWait(retryAfter) + ".";
+            }
             return providerLabel + " rate limit hit. Wait a moment and try again, or switch to a smaller model.";
         }
         if (/premium request|monthly.*limit|quota|exhaust|insufficient_quota|credit balance/i.test(message)) {
@@ -1315,7 +1864,7 @@
                 window.AIProvider.ensureReady().then(refreshConnectionState);
                 return null;
             }
-            appendMessage("error", friendlyChatError(msg));
+            appendMessage("error", friendlyChatError(msg, { status: resp.status, retryAfter: retryAfterSeconds(resp) }));
             return null;
         }
         return resp.body;
@@ -1567,6 +2116,7 @@
         // other — HTTP completion order isn't guaranteed to match call
         // order, so submit_screen could reach the host before the writes
         // it depends on had landed, submitting a half-filled screen.
+        const auto = autoMode;
         const entries = toolCalls.map((tc) => {
             const name = tc.function && tc.function.name;
 
@@ -1584,9 +2134,11 @@
                 const textForm = card.querySelector(".copilot-ask-user-textform");
                 const textInput = card.querySelector(".copilot-ask-user-textinput");
                 const chosenEl = card.querySelector(".copilot-ask-user-chosen");
+                beginQuestion();
                 const promise = new Promise((resolve) => {
                     let settled = false;
                     const disableAll = function () {
+                        endQuestion();
                         if (optWrap) optWrap.querySelectorAll(".copilot-btn-option").forEach(function (b) { b.disabled = true; });
                         if (textInput) textInput.disabled = true;
                         if (textForm) {
@@ -1626,31 +2178,40 @@
                 return { promise, run: null };
             }
 
-            const card = appendToolCallCard(tc);
+            const card = appendToolCallCard(tc, { live: true });
             if (!card) {
                 return { promise: Promise.resolve({ id: tc.id, contentJSON: JSON.stringify({ error: "panel not ready" }) }), run: null };
             }
             const statusEl = card.querySelector("[data-status]");
-            const resultEl = card.querySelector("[data-result]");
             const runBtn = card.querySelector("[data-run]");
             const skipBtn = card.querySelector("[data-skip]");
 
             let resolveFn;
             const promise = new Promise((resolve) => { resolveFn = resolve; });
 
+            let settled = false;
             const finish = function (resultObj, label) {
+                if (settled) return;
+                settled = true;
                 statusEl.textContent = label;
-                resultEl.hidden = false;
-                resultEl.textContent = JSON.stringify(resultObj, null, 2);
-                decoratePreBlocks(resultEl);
+                // The result goes behind a fold, with its one-line summary;
+                // the model still gets all of it.
+                showToolResult(card, resultObj);
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
+                resolvePending(card);
                 resolveFn({ id: tc.id, contentJSON: JSON.stringify(resultObj) });
             };
 
+            let started = false;
             async function runTool() {
+                // Auto-run reaches a card in order, and its Run button is live
+                // until then, so a click on it must not run the call twice.
+                if (started || settled) return;
+                started = true;
                 runBtn.disabled = true;
                 skipBtn.disabled = true;
+                resolvePending(card);
                 statusEl.textContent = "Running...";
                 let args = {};
                 try {
@@ -1675,13 +2236,23 @@
             });
 
             const dangerous = requiresManualApproval(name, tc.function && tc.function.arguments);
+            // A card waits for a person unless Auto-run is about to run it. The
+            // ones that are not waiting say so — "Pending approval" on a call
+            // nobody is going to be asked about was wrong — and take no part
+            // in the focus and composer-hint handling below.
+            const awaitsPerson = !auto || !!dangerous;
             if (dangerous) {
                 statusEl.textContent = "Needs your approval (" + dangerous + ")";
+            } else if (!awaitsPerson) {
+                statusEl.textContent = "Queued";
+            }
+            if (awaitsPerson) {
+                registerPending(card, function () { finish({ skipped: true }, "Skipped"); });
             }
             return { promise, run: runTool, requiresApproval: dangerous };
         });
 
-        if (autoMode) {
+        if (auto) {
             (async () => {
                 for (const entry of entries) {
                     // A dangerous send_key (see requiresManualApproval) always
@@ -1827,8 +2398,38 @@
                 + "ask again once it has finished.");
             return;
         }
+        // Before the screen is captured: with no provider the capture would
+        // be taken at one moment and sent at another, after a dialog.
+        if (!(await ensureProviderForPrompt("Explain this screen"))) return;
         const pinned = await captureScreenBlock();
         await send(EXPLAIN_ASK, { pinned });
+    }
+
+    // loadToolSchema fetches the tool definitions, the system prompt and the
+    // keys that always need approval, once. Returns "" when they are loaded and
+    // the reason when they could not be. The Auto-run confirmation uses it too,
+    // so what it says is excluded from auto-run is the server's list.
+    async function loadToolSchema() {
+        if (toolSchema) return "";
+        try {
+            const resp = await fetch("/api/ai/tools", { credentials: "same-origin" });
+            const data = await resp.json();
+            toolSchema = data.tools || [];
+            systemPrompt = data.system_prompt || systemPrompt;
+            if (Array.isArray(data.dangerous_send_keys)) {
+                dangerousSendKeys = data.dangerous_send_keys;
+            }
+            // The model the provider is saved with is the server's to
+            // know; only fill in from here if nothing has set it yet
+            // (populateModelSelect, which reflects the real current
+            // selection, doesn't run until after this).
+            if (!model && data.model) {
+                model = data.model;
+            }
+            return "";
+        } catch (err) {
+            return String((err && err.message) || err);
+        }
     }
 
     // send commits one user turn. `opts.pinned`, when present, is host-derived
@@ -1845,26 +2446,10 @@
         sendInFlight = true;
         const pinned = (opts && opts.pinned) ? String(opts.pinned) : "";
         try {
-            if (!toolSchema) {
-                try {
-                    const resp = await fetch("/api/ai/tools", { credentials: "same-origin" });
-                    const data = await resp.json();
-                    toolSchema = data.tools || [];
-                    systemPrompt = data.system_prompt || systemPrompt;
-                    if (Array.isArray(data.dangerous_send_keys)) {
-                        dangerousSendKeys = data.dangerous_send_keys;
-                    }
-                    // The model the provider is saved with is the server's to
-                    // know; only fill in from here if nothing has set it yet
-                    // (populateModelSelect, which reflects the real current
-                    // selection, doesn't run until after this).
-                    if (!model && data.model) {
-                        model = data.model;
-                    }
-                } catch (err) {
-                    appendMessage("error", "Could not load tool schema: " + (err && err.message || err));
-                    return;
-                }
+            const schemaError = await loadToolSchema();
+            if (schemaError) {
+                appendMessage("error", "Could not load tool schema: " + schemaError);
+                return;
             }
             // Make sure the provider is usable BEFORE committing the user turn,
             // so a cancelled sign-in (or an abandoned settings dialog) doesn't
@@ -1872,7 +2457,10 @@
             // stays in the box for another attempt.
             const ok = await window.AIProvider.ensureReady();
             if (!ok) {
-                appendMessage("error", "Cancelled — " + providerLabel + " is not set up yet.");
+                // Backing out of a sign-in or a settings dialog is the
+                // person's choice, not a failure: no red error, and no
+                // "Error" label above it.
+                appendStatusNote(cancelledNote());
                 return;
             }
             await refreshConnectionState();
@@ -1945,19 +2533,35 @@
             });
         }
 
+        // The button says what it does in words, and says when it is on: it
+        // used to read "Auto" and rely on a tooltip for "run tools without
+        // approval". The accessible name stays the same in both states, since
+        // aria-pressed carries the state.
         function syncAutoModeUI() {
             if (!autoModeBtn) return;
             autoModeBtn.setAttribute("aria-pressed", autoMode ? "true" : "false");
             autoModeBtn.classList.toggle("active", autoMode);
+            autoModeBtn.textContent = autoMode ? "Auto-run: on" : "Auto-run";
             if (hintEl) {
                 hintEl.innerHTML = autoMode
-                    ? "Auto Mode is <strong>on</strong> — tools run without approval."
+                    ? "Auto-run is <strong>on</strong>: tools run without asking you first. Some keys still ask."
                     : "Each tool call waits for you to click <strong>Run</strong>.";
             }
         }
 
+        let confirmingAutoRun = false;
         if (autoModeBtn) {
-            autoModeBtn.addEventListener("click", function () {
+            autoModeBtn.addEventListener("click", async function () {
+                if (confirmingAutoRun) return;
+                // Turning it on is the consequential direction. Ask the first
+                // time in this browser; turning it off never asks.
+                if (!autoMode && !autoRunAcknowledged()) {
+                    confirmingAutoRun = true;
+                    let accepted = false;
+                    try { accepted = await confirmAutoRun(); } finally { confirmingAutoRun = false; }
+                    if (!accepted) return;
+                    try { localStorage.setItem(AUTO_MODE_ACK_KEY, "1"); } catch (_) {}
+                }
                 autoMode = !autoMode;
                 try { localStorage.setItem(AUTO_MODE_KEY, autoMode ? "1" : "0"); } catch (_) {}
                 syncAutoModeUI();
@@ -1984,7 +2588,15 @@
             if (ok) {
                 await refreshConnectionState();
                 await populateModelSelect(true);
+            } else {
+                appendStatusNote(cancelledNote());
             }
+        });
+        // "Use an API key or local model": the provider dialog, which is
+        // otherwise only reachable through the small Provider button.
+        const connectAltBtn = panel.querySelector("[data-copilot-connect-alt]");
+        if (connectAltBtn) connectAltBtn.addEventListener("click", function () {
+            window.AIProvider.openSettings();
         });
 
         if (form && textarea) {
@@ -1992,15 +2604,99 @@
             // so a failed/cancelled send keeps the user's text.
             form.addEventListener("submit", function (ev) {
                 ev.preventDefault();
+                nudgeComposeHint(textarea);
                 send(textarea.value);
             });
             textarea.addEventListener("keydown", function (ev) {
                 if (ev.key === "Enter" && !ev.shiftKey) {
                     ev.preventDefault();
+                    nudgeComposeHint(textarea);
                     send(textarea.value);
                 }
             });
         }
+        // Capture phase, so a keystroke into the terminal counts too: that is
+        // the other place somebody can be mid-sentence while a card arrives.
+        document.addEventListener("keydown", noteTyping, true);
+    }
+
+    // nudgeComposeHint answers an Enter that cannot send. The hint is already
+    // on screen; this makes the live region read it again, so a message typed
+    // and sent into a busy panel is not met with silence. (syncComposeHint
+    // refills it from the current state, not from what it said a moment ago.)
+    function nudgeComposeHint(textarea) {
+        if (!textarea || !textarea.value.trim()) return;
+        const panel = ensurePanel();
+        const hint = panel && panel.querySelector("[data-copilot-compose-hint]");
+        if (!hint || hint.hidden) return;
+        hint.textContent = "";
+        setTimeout(syncComposeHint, 60);
+    }
+
+    function autoRunAcknowledged() {
+        try { return localStorage.getItem(AUTO_MODE_ACK_KEY) === "1"; } catch (_) { return false; }
+    }
+
+    // describeApprovalKeys names the keys that still need a person in Auto-run,
+    // from the server's list ("PF(3)" reads as PF3). Falls back to a
+    // description when the list has not loaded.
+    function describeApprovalKeys() {
+        if (!Array.isArray(dangerousSendKeys) || !dangerousSendKeys.length) {
+            return "keys that can end the session or discard the screen";
+        }
+        const names = dangerousSendKeys.map(function (k) { return String(k).replace(/[()]/g, ""); });
+        return names.length > 1
+            ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1]
+            : names[0];
+    }
+
+    // confirmAutoRun asks before Auto-run is switched on for the first time in
+    // this browser, and resolves true only if the person chose to turn it on.
+    // Focus starts on Cancel: the safe answer is the one a stray Enter gives.
+    //
+    // What it says is excluded is what the code excludes: send_key with a key
+    // from the server's approval list (requiresManualApproval), and ask_user,
+    // which is a question and has nothing to run. Every other tool, including
+    // the ones that drive the host, runs unasked.
+    async function confirmAutoRun() {
+        const modal = document.querySelector("[data-copilot-automode-modal]");
+        if (!modal) return true; // markup missing: do not strand the toggle
+        await loadToolSchema(); // best effort; only needed for the key names
+        const keysEl = modal.querySelector("[data-copilot-automode-keys]");
+        if (keysEl) keysEl.textContent = describeApprovalKeys();
+
+        return new Promise(function (resolve) {
+            const trap =
+                window.ThreeSeventyWeb && window.ThreeSeventyWeb.createFocusTrap
+                    ? window.ThreeSeventyWeb.createFocusTrap(modal)
+                    : { activate() {}, deactivate() {} };
+            const confirmBtn = modal.querySelector("[data-copilot-automode-confirm]");
+            const cancelBtns = modal.querySelectorAll("[data-copilot-automode-cancel]");
+            const safeButton = modal.querySelector(".modal-actions [data-copilot-automode-cancel]");
+            let settled = false;
+            function finish(accepted) {
+                if (settled) return;
+                settled = true;
+                modal.hidden = true;
+                trap.deactivate();
+                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+                    window.ThreeSeventyWeb.popModal(modal);
+                }
+                modal.onclick = null;
+                if (confirmBtn) confirmBtn.onclick = null;
+                cancelBtns.forEach(function (b) { b.onclick = null; });
+                resolve(accepted);
+            }
+            modal.hidden = false;
+            trap.activate();
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+                window.ThreeSeventyWeb.pushModal(modal, function () { finish(false); },
+                    safeButton ? { initialFocus: safeButton } : undefined);
+            }
+            if (confirmBtn) confirmBtn.onclick = function () { finish(true); };
+            cancelBtns.forEach(function (b) { b.onclick = function () { finish(false); }; });
+            modal.onclick = function (ev) { if (ev.target === modal) finish(false); };
+        });
     }
 
     function openClearModal() {
@@ -2013,11 +2709,15 @@
                 : { activate() {}, deactivate() {} };
         modal.hidden = false;
         trap.activate();
-        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-            window.ThreeSeventyWeb.pushModal(modal, close);
-        }
         const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
         const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
+        // Focus lands on Cancel, the safe answer, as it does in the Clear-logs
+        // confirmation. The dialog used to focus "Clear history", so an Enter
+        // pressed by habit wiped the conversation.
+        const safeButton = modal.querySelector(".modal-actions [data-copilot-clear-cancel]");
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(modal, close, safeButton ? { initialFocus: safeButton } : undefined);
+        }
         function close() {
             modal.hidden = true;
             trap.deactivate();
@@ -2027,7 +2727,7 @@
             if (returnFocus && typeof returnFocus.focus === "function") returnFocus.focus();
         }
         function onConfirm() { close(); clearHistory(); }
-        if (confirmBtn) { confirmBtn.onclick = onConfirm; confirmBtn.focus(); }
+        if (confirmBtn) confirmBtn.onclick = onConfirm;
         cancelBtns.forEach(function (b) { b.onclick = close; });
         modal.onclick = function (ev) { if (ev.target === modal) close(); };
     }

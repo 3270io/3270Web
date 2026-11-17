@@ -117,8 +117,9 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 
 	if resp.StatusCode/100 != 2 {
 		return &APIError{
-			Status: resp.StatusCode,
-			Body:   readErrorBody(resp),
+			Status:     resp.StatusCode,
+			Body:       readErrorBody(resp),
+			RetryAfter: ParseRetryAfter(resp.Header, time.Now()),
 		}
 	}
 
@@ -228,6 +229,9 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 type APIError struct {
 	Status int
 	Body   string
+	// RetryAfter is how long the upstream asked callers to wait, from its
+	// Retry-After header; zero when it did not say.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {

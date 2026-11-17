@@ -46,6 +46,14 @@ panel prompts for whichever the selected provider needs.
 3. The panel header shows the provider you are talking to, and the model
    dropdown reloads with that provider's models.
 
+Until a provider is ready, the panel shows a **Sign in to GitHub Copilot**
+button and, beside it, **Use an API key or local model**, which opens the
+same provider dialog. The starter prompts do not start a sign-in on their
+own: while no provider is ready, choosing one opens the provider dialog
+with a line saying why, and once you save a working provider the prompt you
+chose runs. Backing out of a sign-in shows a neutral note ("Sign-in
+cancelled. Nothing was sent."), not an error.
+
 To disconnect, click **Sign out** in the panel header. For Copilot that
 clears the OAuth token; for every other provider it forgets the stored
 API key.
@@ -117,19 +125,59 @@ Each AI action requires explicit approval:
 - Click **Run** to approve it, or **Skip** to decline it.
 - This prevents unintended writes or key presses.
 
-Every tool call is a card carrying its name, arguments, result, and a
-status badge. The badge and the card's left edge are colour-coded so you
-can scan a long exchange quickly:
+Every tool call is a card. It opens with a plain-language line saying what
+will happen — *Read the current screen*, *Press PF3*, *Type "ADMIN" in the
+User id field*, *Run the saved task "Balance enquiry"* — and a status badge.
+Under **Details** are the technical tool name and its arguments. The text
+typed into a field is only spelled out in the line when the screen shows the
+field is not hidden. For a hidden (password) field the line says *Type a
+hidden value in the Password field* and the arguments under **Details** leave
+the value out too; where the field cannot be identified, the line says *Type
+text in the field at row 12, column 21* and does not repeat the text.
+
+When a card needs your decision, keyboard focus moves to its **Run** button,
+so ++enter++ or ++space++ approves it and ++tab++ reaches **Skip**. If you
+are in the middle of typing a message, focus stays where it is and the
+panel announces the waiting action instead. The **Run** and **Skip**
+buttons are named for the action ("Run: Press PF3"), and while an action
+is waiting a line under the message box says *Waiting for you to Run or Skip
+the pending action*, because the box cannot send until you decide. **Stop**
+skips anything still waiting and ends the turn.
+
+When a call has run, its result is folded under **Result** with a one-line
+summary (for a screen: its size and how many input fields it has). Open it
+to read the full text; padding characters the host sends are not shown. The
+assistant still receives the whole result.
+
+The badge and the card's left edge are colour-coded so you can scan a long
+exchange quickly:
 
 | Status | Meaning |
 |---|---|
 | **Pending approval** (amber) | Waiting for you to click **Run** |
+| **Queued** | Auto-run will run it when the calls before it have finished |
 | **Running** (blue) | Executing against the session |
 | **Done** (green) | Completed successfully |
 | **Failed** (red) | The call returned an error |
 | **Skipped** (grey) | You declined it |
 
-To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
+### Auto-run
+
+To let the AI proceed without pausing, turn on **Auto-run** (the button in the
+panel header). While it is on, the button reads **Auto-run: on** and the panel
+runs tool calls without waiting for you to click **Run** each time.
+
+The first time you turn it on in a browser, 3270Web asks you to confirm, with
+focus on **Cancel**: the tools that read and drive the terminal will run
+without asking. The answer is remembered in that browser, so turning it off and
+on again does not ask a second time.
+
+Two things always wait for you, even with Auto-run on:
+
+- `send_key` with **PF3** or **Clear**, which commonly log the session off or
+  discard the screen. The card shows **Needs your approval** and waits for
+  **Run** or **Skip**.
+- Questions the AI asks you (`ask_user`), which have nothing to run.
 
 ## Choose a Model
 
@@ -230,7 +278,7 @@ Generated business workflows carry `Name`, `Description`, `BusinessFunction`, an
 
 ## Clear the Conversation
 
-Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted.
+Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted, with focus on **Cancel**, so a stray ++enter++ keeps your conversation.
 
 ## Keyboard Shortcut
 
