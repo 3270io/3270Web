@@ -28,7 +28,7 @@ func newAuthTestApp(t *testing.T, mode string) (*App, *gin.Engine) {
 	// Pin binding off by default; the binding tests turn it on explicitly.
 	t.Setenv("AUTH_BIND_SESSION_IP", "false")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatalf("buildRouter: %v", err)
@@ -290,7 +290,7 @@ func TestSessionIPBinding(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "local")
 	t.Setenv("AUTH_BIND_SESSION_IP", "true")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatal(err)
@@ -447,7 +447,7 @@ func TestNoAccountIsCreatedAutomatically(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "local")
 
 	base := t.TempDir()
-	app := newApp(base)
+	app := newTestApp(t, base)
 	if _, err := buildRouter(app); err != nil {
 		t.Fatalf("buildRouter: %v", err)
 	}

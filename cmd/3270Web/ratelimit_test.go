@@ -124,7 +124,7 @@ func TestRateLimiterForgetsIdleCallers(t *testing.T) {
 func TestRateLimitedRoutesExist(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv(authz.ModeEnv, "none")
-	r, err := buildRouter(newApp(t.TempDir()))
+	r, err := buildRouter(newTestApp(t, t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}

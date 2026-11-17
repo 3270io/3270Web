@@ -93,7 +93,7 @@ func TestStateGoesToTheDataDirectoryAndAssetsStayWithTheProgram(t *testing.T) {
 	data := t.TempDir()
 	t.Setenv("DATA_DIR", data)
 
-	app := newAppAt(install, data)
+	app := newTestAppAt(t, install, data)
 
 	for name, path := range map[string]string{
 		"accounts":     app.usersPath,

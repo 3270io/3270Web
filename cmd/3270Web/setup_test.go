@@ -22,7 +22,7 @@ func newSetupTestApp(t *testing.T) (*App, *gin.Engine) {
 	t.Setenv(authz.ModeEnv, "local")
 	t.Setenv("AUTH_BIND_SESSION_IP", "false")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatalf("buildRouter: %v", err)
@@ -224,7 +224,7 @@ func TestSetupNotArmedWhenAccountsAlreadyExist(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "local")
 
 	base := t.TempDir()
-	app := newApp(base)
+	app := newTestApp(t, base)
 	if _, err := app.userStore().Add("preseeded", loginTestPassword, authz.RoleAdmin, false); err != nil {
 		t.Fatal(err)
 	}
