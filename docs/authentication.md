@@ -489,4 +489,4 @@ Local accounts are created and reset by an administrator under **Admin → Accou
 
 Set `AUTH_HELP_URL=https://helpdesk.example.com/3270` (or a `mailto:` contact) to link the sign-in guidance to your own helpdesk. Other URL schemes are rejected.
 
-Workspace mode, terminal view and quick-start dismissal are saved to each authenticated account and follow it across devices. Single-operator instances save these choices in the current browser.
+The Automation tools setting, terminal view and quick-start dismissal are saved to each authenticated account and follow it across devices. Single-operator instances save these choices in the current browser.

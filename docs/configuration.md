@@ -81,22 +81,22 @@ they are read once, when 3270Web starts, so a change to one needs a restart.
 1. **Session** — profiles, connection details, reconnect, print, disconnect
 2. **Terminal** — find, copy, screen history, file transfer, keyboard mapping
 3. **View** — focus mode, hotspots, virtual keypad, terminal size, theme
-4. **Automation** — recording, playback and chaos exploration
+4. **Automation** — recording, playback and exploration
 5. **Tasks** — run a guided business task
 6. **AI chat** — show or hide the AI side panel
 7. **Command palette** — search every action (++ctrl+k++)
-8. **Account and settings** — settings, logs, workspace mode, about, sign out
+8. **Account and settings** — settings, logs, Automation tools, about, sign out
 9. **Collapse** — fold the bar away for a distraction-free terminal
 
-!!! note "Business mode is the default"
+!!! note "Automation tools are off by default"
 
-    The screenshot above is **Engineering** mode, which is why callout 4 is
-    visible. In **Business** mode — what you get on a fresh browser — the
+    The screenshot above has **Automation tools** turned on, which is why
+    callout 4 is visible. With it off — what you get on a fresh browser — the
     Automation menu is hidden and the bar carries only what an application
-    user needs. **Engineering tools** in menu 8 switches between them, and
-    the choice persists per browser. See
-    [Keyboard and Controls](keyboard-and-controls.md) for the full
-    breakdown.
+    user needs. **Automation tools** in menu 8 turns it on or off, and the
+    choice persists per browser. See
+    [Keyboard and Controls](keyboard-and-controls.md#automation-tools) for the
+    full breakdown.
 
 ## Settings Modal Callouts
 
