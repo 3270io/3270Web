@@ -190,7 +190,7 @@ several hosts at once — live on the
 1. [Install and run](installation.md#your-first-terminal) the native binary, Docker image or Compose stack.
 2. Open `http://localhost:3270`. If accounts are enabled and this is a fresh instance, use the setup code from the server log to create your first administrator. Existing shared instances require an account from your administrator or organisation SSO.
 3. Choose **Try the sample terminal**, or enter your mainframe hostname and port. Open **Connection options** for TLS, LU, model or code page; **Saved connections** opens your personal and shared hosts.
-4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. On a phone, **Readable terminal** lets you pan without shrinking text; **Fit overview** shows all columns.
+4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. The size control above the terminal sets how big it is: **Fit** shows every column at once, **Readable** keeps full-size text and lets you pan (the default on a phone), and **Custom** gives you a slider.
 5. Choose **Record a workflow** in the first-session strip, or **Show automation**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
 
 [:octicons-arrow-right-24: Install and Run](installation.md)

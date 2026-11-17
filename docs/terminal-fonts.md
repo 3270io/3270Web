@@ -38,6 +38,16 @@ same origin as the app (no CDN, no external request). See
 
 The choice is persisted with the rest of the theme settings.
 
+## Text size
+
+The font and the size of the text are separate choices. Size is the
+**Fit / Readable / Custom** control directly above the terminal, not a
+setting: **Fit** picks the largest size at which the whole screen is in view,
+**Readable** is the text at 100%, and **Custom** shows a slider. A narrower
+font such as **3270 Condensed** makes the grid narrower at any given size, so
+**Fit** can use larger text on a narrow window and **Readable** has less to
+pan across. See [Terminal size](keyboard-and-controls.md#terminal-size).
+
 ## Programmatic note
 
 The font dropdown writes into the same theme settings block stored
