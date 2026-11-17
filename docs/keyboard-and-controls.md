@@ -364,7 +364,24 @@ Keypad features:
 - Common editing/navigation keys
 - A whole keyboard, letters and number pad included, in MAX
 
-The keypad visibility preference can be saved in Settings (`Use keypad`).
+### Who decides whether the keypad is showing
+
+Whether the keypad is showing is **your** choice, kept in **your browser**.
+**View → Virtual keypad** (or the **Show keypad** button on the welcome
+banner) shows or hides it, and the browser remembers that and applies it as the
+page loads, so it does not flash the other way first. Other people on the same
+3270Web instance are not affected, and neither is the next person to open it.
+
+**Settings → App → Use keypad** is only the default, for browsers that have not
+chosen. It decides what a new browser sees until its person uses the toggle,
+and changing it does not override anyone who already has. It is stored on the
+server with the other settings; the View toggle never changes it.
+
+A browser that has chosen goes back to following the default when its site data
+is cleared. A private window starts with no choice and follows the default,
+and forgets what you pick in it when it closes. A phone follows the same rules:
+the keypad is hidden until the default or your own choice shows it, and a
+narrow screen starts it in Compact (see [Sizes](#sizes)).
 
 ### The welcome banner
 

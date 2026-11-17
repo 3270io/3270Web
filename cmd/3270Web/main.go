@@ -3605,24 +3605,22 @@ func (app *App) KeypadPrefHandler(c *gin.Context) {
 		return
 	}
 
+	// View > Virtual keypad is one person's choice about their own screen, so it
+	// is kept for this session only. It used to be written to the process
+	// environment and to .env as well, which made it the default for everyone's
+	// next session and for the next restart — the very value Settings calls
+	// "Show the virtual keypad by default". The instance default is changed in
+	// Settings and nowhere else. The browser remembers the choice itself
+	// (keyboard.js, localStorage); this copy only keeps a reload inside the
+	// session agreeing with the page when the browser has nothing stored.
 	enabled := parseBoolFormValue(c.PostForm("keypad"))
 	withSessionLock(s, func() {
 		app.ensurePrefs(s)
 		s.Prefs.UseKeypad = enabled
 	})
 
-	_ = os.Setenv("APP_USE_KEYPAD", strconv.FormatBool(enabled))
-	persisted := true
-	if app.envPath != "" {
-		if err := config.UpsertDotEnvValue(app.envPath, "APP_USE_KEYPAD", strconv.FormatBool(enabled)); err != nil {
-			persisted = false
-			log.Printf("Warning: could not persist APP_USE_KEYPAD to .env: %v", err)
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"useKeypad": enabled,
-		"persisted": persisted,
 	})
 }
 

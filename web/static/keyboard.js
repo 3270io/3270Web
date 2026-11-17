@@ -4,6 +4,9 @@
   var submitting = false;
   var keydownInstalled = false;
   var keySubmitDelayMs = 65;
+  // Whether the keypad is shown is this browser's own choice: "1" or "0", or
+  // absent until the person has toggled it. Read by early-keypad-init.js.
+  var keypadVisibleStorageKey = "3270Web.keypad";
   var keypadCompactStorageKey = "h3270KeypadCompact";
   var keypadModeStorageKey = "h3270KeypadMode";
   var keypadLayoutStorageKey = "h3270KeypadLayout";
@@ -3293,7 +3296,6 @@
       return;
     }
 
-    var previousHidden = keypad.hidden;
     keypad.hidden = !nextVisible;
     syncKeypadToggleUi(nextVisible);
 
@@ -3304,21 +3306,26 @@
     scheduleKeypadAutoScale();
     notifyTerminalLayoutChange();
 
+    // The choice belongs to this browser. It is applied on the next page load
+    // by early-keypad-init.js, ahead of first paint; Settings > "Use keypad"
+    // is only the default for people who have not made one.
+    try {
+      localStorage.setItem(keypadVisibleStorageKey, nextVisible ? "1" : "0");
+    } catch (_) {
+      // Storage blocked or full: the keypad still shows or hides now, and the
+      // session's own copy below keeps a reload in this session consistent.
+    }
+
+    // The server keeps a copy for this session only, so a reload in a browser
+    // that cannot store anything still agrees with the page. It never changes
+    // the instance default, and nothing here depends on it succeeding, so a
+    // failed request does not undo what the person just chose.
     var body = "keypad=" + encodeURIComponent(nextVisible ? "on" : "off");
     fetch("/prefs/keypad", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: body
-    }).then(function (response) {
-      if (!response.ok) {
-        throw new Error("failed");
-      }
-    }).catch(function () {
-      keypad.hidden = previousHidden;
-      syncKeypadToggleUi(!keypad.hidden);
-      scheduleKeypadAutoScale();
-      notifyTerminalLayoutChange();
-    });
+    }).catch(function () {});
   }
 
   function initKeypadVisibilityToggle() {

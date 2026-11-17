@@ -707,6 +707,9 @@
                 </button>
                 </div>
                 <div id="keypad" class="controls" {{ if not .UseKeypad }}hidden{{ end }}></div>
+                <!-- This browser's own keypad choice replaces the instance
+                     default rendered above, before first paint. -->
+                <script src="/static/early-keypad-init.js"></script>
             </div>
         </div>
     </div>
