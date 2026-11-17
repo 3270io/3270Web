@@ -29,6 +29,11 @@ type fakeApp struct {
 	presses []string
 	// lastPassword is what was in the password field at the last sign-on.
 	lastPassword string
+	// dropOn is a "page:key" press on which the host drops the session and
+	// the terminal reconnects, landing on the help page rather than sign-on
+	// so that only the connect count gives it away.
+	dropOn   string
+	connects int64
 	// panicOnKey makes SendKey panic, for the recover test.
 	panicOnKey bool
 	// noScreen makes GetScreenSnapshot return nil.
@@ -183,6 +188,12 @@ func (a *fakeApp) SendKey(key string) error {
 	}
 	a.presses = append(a.presses, a.page+":"+key)
 	a.msg = ""
+	if a.dropOn != "" && a.dropOn == a.page+":"+key {
+		a.connects++
+		a.page = "help"
+		a.render()
+		return nil
+	}
 	switch a.page {
 	case "signon":
 		if key == "Enter" {
@@ -289,4 +300,11 @@ func areaByLabelPrefix(t *testing.T, mm *MindMap, prefix string) *MindMapArea {
 	}
 	t.Fatalf("no area labelled %q", prefix)
 	return nil
+}
+
+// ConnectCount lets the engine see a reconnect, as the real terminal does.
+func (a *fakeApp) ConnectCount() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.connects
 }
