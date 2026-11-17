@@ -188,3 +188,59 @@ func TestPetStoreDiscoveryReachesBeyondTheMainMenu(t *testing.T) {
 		})
 	}
 }
+
+// TestPetStoreMenuIsOneAreaAtBothScreenSizes drives the real application:
+// sign on, note the main menu, press PF9 (which switches between the 24x80
+// and the alternate screen size) and check the menu is still the same area.
+func TestPetStoreMenuIsOneAreaAtBothScreenSizes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("drives a real s3270")
+	}
+	h := startPetStoreHost(t)
+	read := func() *host.Screen {
+		t.Helper()
+		if err := h.UpdateScreen(); err != nil {
+			t.Fatalf("UpdateScreen: %v", err)
+		}
+		s := h.GetScreenSnapshot()
+		if s == nil {
+			t.Fatal("no screen")
+		}
+		return s
+	}
+	signon := read()
+	for _, f := range unprotectedFields(signon) {
+		if err := h.WriteStringAt(f.StartY, f.StartX, "TESTER"); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := h.SendKey("Enter"); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+
+	e := New(h, DefaultConfig())
+	e.mindMap = newMindMap()
+	menu := read()
+	if !strings.Contains(menu.Text(), "MAIN MENU") {
+		t.Fatalf("not on the main menu:\n%s", menu.Text())
+	}
+	first := e.canonicalizeScreenHash(hashScreen(menu), menu)
+	e.mu.Lock()
+	e.observeMindMapAreaLocked(first, menu, time.Now())
+	label := e.mindMap.Areas[first].Label
+	e.mu.Unlock()
+	if label != "PET100 MAIN MENU" {
+		t.Errorf("menu label = %q, want %q", label, "PET100 MAIN MENU")
+	}
+
+	if err := h.SendKey("PF(9)"); err != nil {
+		t.Fatalf("PF9: %v", err)
+	}
+	resized := read()
+	if resized.Height == menu.Height {
+		t.Skipf("PF9 did not change the screen size (still %dx%d)", resized.Height, resized.Width)
+	}
+	if got := e.canonicalizeScreenHash(hashScreen(resized), resized); got != first {
+		t.Errorf("the main menu at %dx%d and %dx%d was counted as two areas", menu.Height, menu.Width, resized.Height, resized.Width)
+	}
+}
