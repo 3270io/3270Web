@@ -75,6 +75,11 @@ Open 3270Web in a browser, enter the code, and choose your own username and
 password. You are signed in immediately, and setup closes for good — the page
 redirects to the sign-in form from then on, and the code stops working.
 
+If the form is refused — a wrong code, a username that is not allowed, a weak
+password or passwords that differ — it comes back with the setup code and the
+username still filled in and the cursor in the field to fix. The passwords are
+never written back; retype them.
+
 !!! note "Nothing is created behind your back"
     3270Web never invents an account or a default password. Until you complete
     setup there are no credentials to leak, and the administrator's password is
@@ -300,6 +305,10 @@ New accounts are `user` unless `--admin` is given. The command refuses to
 disable the last enabled administrator, since that leaves an instance nobody
 can administer.
 
+An account without the `admin` role that opens an administration page is shown
+**You don't have access to administration**, with links back to the terminal
+and the connect page. The response is still HTTP `403`.
+
 ### Passwords
 
 At least 12 characters. There are no composition rules — required digits and
@@ -416,6 +425,12 @@ needed.
 | `MAX_TOTAL_SESSIONS` | `64` | Concurrent terminal sessions across the instance |
 
 Sessions live in memory, so restarting the server signs everyone out.
+
+A refused sign-in keeps the username in the form. After five failed attempts
+for the same account or from the same address, further attempts are locked out
+for a period that doubles with each failure, up to 15 minutes. The sign-in
+page says how long ("Try again in 2 minutes."), and the response carries a
+`Retry-After` header.
 
 `AUTH_BIND_SESSION_IP` accepts `auto`, `true` or `false`. `auto` enables
 pinning on plain HTTP and disables it behind TLS — see

@@ -45,9 +45,12 @@
             <form action="/setup" method="post" class="auth-form" data-auth-form novalidate>
                 <div class="field">
                     <label for="setupCode">Setup code</label>
-                    <input type="text" id="setupCode" name="setupCode" class="code-input"
+                    <!-- The code and the username come back after a refused
+                         attempt; the passwords never do. The cursor goes to
+                         whichever field the refusal was about. -->
+                    <input type="text" id="setupCode" name="setupCode" value="{{ .SetupCode }}" class="code-input"
                            autocomplete="off" autocapitalize="characters" autocorrect="off"
-                           spellcheck="false" required autofocus
+                           spellcheck="false" required {{ if eq .Focus "setupCode" }}autofocus{{ end }}
                            aria-describedby="setup-code-hint">
                     <div class="field-hint" id="setup-code-hint">
                         Dashes, spaces and lower case are all fine.
@@ -56,8 +59,9 @@
 
                 <div class="field">
                     <label for="username">Administrator username</label>
-                    <input type="text" id="username" name="username" autocomplete="username"
+                    <input type="text" id="username" name="username" value="{{ .Username }}" autocomplete="username"
                            autocapitalize="none" autocorrect="off" spellcheck="false" required
+                           {{ if eq .Focus "username" }}autofocus{{ end }}
                            aria-describedby="username-hint">
                     <div class="field-hint" id="username-hint">
                         Letters, digits, dot, dash and underscore.
@@ -68,6 +72,7 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password"
                            autocomplete="new-password" minlength="{{ .MinLength }}" required
+                           {{ if eq .Focus "password" }}autofocus{{ end }}
                            data-pw-input aria-describedby="pw-status">
                     <div class="pw-meter" data-pw-meter data-score="0" aria-hidden="true">
                         <span></span><span></span><span></span><span></span>

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/session"
 )
 
@@ -45,6 +46,19 @@ func (app *App) ScreenStreamHandler(c *gin.Context) {
 		return
 	}
 
+	// A host that has already hung up is answered with an error status rather
+	// than an empty stream. A browser treats any answer but 200 to an
+	// EventSource as the end of it and says so, which is what hands the page
+	// to its reconnect handling (session-expiry.js). A stream that opened
+	// happily and then said nothing was how a dead host went unnoticed for as
+	// long as the tab was left open.
+	if h := app.sessionHost(s); h != nil {
+		if err := h.UpdateScreen(); err != nil && host.IsDisconnected(err) {
+			respondHostLostJSON(c)
+			return
+		}
+	}
+
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -74,7 +88,17 @@ func (app *App) ScreenStreamHandler(c *gin.Context) {
 			}
 			flusher.Flush()
 		case <-poll.C:
-			data, changed := app.renderScreenStreamUpdate(s, &lastHTML)
+			data, changed, lost := app.renderScreenStreamState(s, &lastHTML)
+			if lost {
+				// The host hung up while this stream was open. End it, asking
+				// the browser to come back quickly: the request it makes is
+				// answered with the 409 above, and that is how the page finds
+				// out. Carrying on would poll a dead host every poll interval
+				// for ever, saying nothing.
+				_, _ = io.WriteString(c.Writer, "retry: 500\n\n")
+				flusher.Flush()
+				return
+			}
 			if !changed {
 				continue
 			}
@@ -92,29 +116,36 @@ func (app *App) ScreenStreamHandler(c *gin.Context) {
 // already drive their own polling loop at a tighter cadence — pushing here
 // too would just make the same DOM patch race two sources.
 func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) ([]byte, bool) {
+	data, changed, _ := app.renderScreenStreamState(s, lastHTML)
+	return data, changed
+}
+
+// renderScreenStreamState is renderScreenStreamUpdate that also says whether
+// the host has hung up, which the handler answers by ending the stream.
+func (app *App) renderScreenStreamState(s *session.Session, lastHTML *string) (data []byte, changed bool, lost bool) {
 	var playbackActive bool
 	withSessionLock(s, func() {
 		playbackActive = s.Playback != nil && s.Playback.Active
 	})
 	if playbackActive {
-		return nil, false
+		return nil, false, false
 	}
 	if app.chaosEngines != nil {
 		if eng, ok := app.chaosEngines.get(s.ID); ok && eng != nil && eng.Active() {
-			return nil, false
+			return nil, false, false
 		}
 	}
 
 	h := app.sessionHost(s)
 	if h == nil {
-		return nil, false
+		return nil, false, false
 	}
 	if err := h.UpdateScreen(); err != nil {
-		return nil, false
+		return nil, false, host.IsDisconnected(err)
 	}
 	screen := hostScreenSnapshot(h)
 	if screen == nil {
-		return nil, false
+		return nil, false, false
 	}
 	if rows, cols, ok := app.modelDimensions(); ok {
 		screen = limitScreenForDisplay(screen, rows, cols)
@@ -128,7 +159,7 @@ func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) (
 	// stale "ready" indicator during exactly the wait it exists to report.
 	fingerprint := rendered + "\x00" + fmt.Sprint(oia["oiaIndicator"], oia["oiaOnline"])
 	if fingerprint == *lastHTML {
-		return nil, false
+		return nil, false, false
 	}
 	*lastHTML = fingerprint
 
@@ -144,9 +175,9 @@ func (app *App) renderScreenStreamUpdate(s *session.Session, lastHTML *string) (
 		payload["cursorRow"] = cursorRow
 		payload["cursorCol"] = cursorCol
 	}
-	data, err := json.Marshal(payload)
+	encoded, err := json.Marshal(payload)
 	if err != nil {
-		return nil, false
+		return nil, false, false
 	}
-	return data, true
+	return encoded, true, false
 }

@@ -778,6 +778,12 @@ If the host drops the connection, 3270Web notices, shows
 connection. If it does not, a banner offers a manual **Reconnect**, which
 is also in the Session menu and the command palette.
 
+It notices a drop in two ways: within a second or two while the terminal is
+idle, and straight away if you press a key on a connection that has gone. In
+the second case the key is not sent, the banner appears at once, and
+whatever you had typed stays in the fields until a reconnect succeeds — the
+page does not navigate away or show an error page.
+
 Reconnecting starts a new host session, so recording and chaos state from
 the dead connection does not survive — the host-side conversation those
 features were tracking ended when the connection did.

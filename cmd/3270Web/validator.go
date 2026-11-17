@@ -21,6 +21,13 @@ func parseHostPort(hostname string) (string, int) {
 				return "", port
 			}
 			port = samplePort
+		} else if host != sampleAppHostname(defaultSampleAppID) {
+			// No port typed: the app is served on its own default (see
+			// newSampleAppHost), and the session's recorded target has to say
+			// so or a reconnect from it would name a port no sample listens
+			// on. The pet store is the exception: typed bare, it picks a free
+			// port itself and records none.
+			port = defaultSampleAppPortFor(id)
 		}
 		return host, port
 	}

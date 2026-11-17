@@ -111,8 +111,26 @@
             </div>
             {{ if .ConnectError }}
             <div class="alert" role="alert" tabindex="-1" data-connect-error>
-                <strong>Connection error</strong>
+                <strong>{{ if .SessionLimit }}Session limit reached{{ else }}Connection error{{ end }}</strong>
                 <span>{{ .ConnectError }}</span>
+                {{ if .SessionLimit }}{{ if .OpenSessions }}
+                <!-- At the cap the way forward is one of the sessions already
+                     open. Resume and Close use the same /sessions endpoints as
+                     the terminal's tab bar; see connect-recovery.js. -->
+                <div class="session-limit" data-session-limit>
+                    <p class="session-limit-title" id="session-limit-title">Your open sessions</p>
+                    <ul class="session-limit-list" aria-labelledby="session-limit-title">
+                        {{ range .OpenSessions }}
+                        <li data-session-id="{{ .ID }}">
+                            <span class="session-limit-name">{{ .Label }}{{ if and .Target (ne .Target .Label) }} <span class="subtle">{{ .Target }}</span>{{ end }}</span>
+                            <button type="button" data-session-resume aria-label="Resume {{ .Label }}">Resume</button>
+                            <button type="button" data-session-close aria-label="Close {{ .Label }}">Close</button>
+                        </li>
+                        {{ end }}
+                    </ul>
+                    <p class="subtle" role="status" data-session-limit-status></p>
+                </div>
+                {{ end }}{{ end }}
                 {{ if .ConnectDetails }}<details><summary>Technical details</summary><pre data-connection-diagnostic>{{ .ConnectDetails }}</pre><button type="button" data-copy-diagnostic>Copy details</button></details>{{ end }}
             </div>
             {{ end }}
@@ -201,7 +219,7 @@
                 <label for="sample-app-select">Sample application</label>
                 <select id="sample-app-select">
                     {{ range .SampleApps }}
-                    <option value="{{ .ID }}">{{ .Name }}</option>
+                    <option value="{{ .ID }}" data-port="{{ .Port }}">{{ .Name }}</option>
                     {{ end }}
                 </select>
                 <details><summary>Advanced: sample port</summary><label for="sample-app-port">Port</label>
@@ -237,5 +255,6 @@
     <script src="/static/about-modal.js" defer></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/connect-page.js?v=2"></script>
+    <script src="/static/connect-recovery.js" defer></script>
 </body>
 </html>

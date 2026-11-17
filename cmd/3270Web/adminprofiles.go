@@ -162,18 +162,14 @@ type sampleAppPresetOption struct {
 func sampleAppPresetOptions() []sampleAppPresetOption {
 	out := make([]sampleAppPresetOption, 0, len(sampleAppConfigs))
 	// Each gets its own port, so publishing all three does not produce three
-	// presets fighting over one listener.
-	ports := allowedSampleAppPorts()
-	for i, cfg := range sampleAppConfigs {
-		port := defaultSampleAppPort
-		if i < len(ports) {
-			port = ports[i]
-		}
+	// presets fighting over one listener. The same port is what a typed
+	// "sampleapp:<id>" and the connect page's picker default to.
+	for _, cfg := range sampleAppConfigs {
 		out = append(out, sampleAppPresetOption{
 			ID:   cfg.ID,
 			Name: cfg.Name,
 			Host: sampleAppHostname(cfg.ID),
-			Port: port,
+			Port: defaultSampleAppPortFor(cfg.ID),
 		})
 	}
 	return out

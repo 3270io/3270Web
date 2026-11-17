@@ -112,6 +112,11 @@ Each account is also capped at `MAX_SESSIONS_PER_USER` concurrent sessions
 Every session is an `s3270` subprocess, so these are process limits rather
 than tidiness.
 
+When **Connect** is refused for either limit, the connect page is titled
+**Session limit reached** and lists the sessions your account holds — including
+ones opened from another browser or by an API client — with **Resume** and
+**Close** beside each. Close one and press **Connect** again.
+
 Instance-wide administration — settings, logs, restart and account management
 — requires the `admin` role.
 
@@ -186,6 +191,12 @@ connection is secure and choose its own apparent address.
 Behind a CDN or a reverse proxy that terminates TLS, the hop into 3270Web is
 plain HTTP. That is normal and fine — but the server cannot see the hop the
 browser actually made, so until it is told, it assumes the worst and says so.
+
+The sign-in page is written for the person signing in, who usually cannot
+change the server, so it says what is wrong and to ask the administrator to
+serve 3270Web over HTTPS; it does not name the settings. Its **For
+administrators** link opens this section. (The first-run setup page, which the
+administrator is the one reading, does name them.)
 
 The sign-in page distinguishes two cases:
 
@@ -407,7 +418,7 @@ against that host, and when* — which has to survive being asked months later.
 | Session opened, or refused | account, target host, and why it was refused |
 | Session disconnected by an administrator | who did it, whose session, target host |
 | File transfer | direction and the host-side dataset name |
-| Settings changed | which keys — never their values |
+| Settings changed | which keys changed — never their values. A save that changed nothing is not recorded |
 | Server restarted, log access changed | who did it |
 
 A refused sign-in is recorded **with the real reason** — a disabled account is

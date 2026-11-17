@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -22,6 +23,10 @@ import (
 )
 
 const setupPath = "/setup"
+
+// setupFocusKey lets a handler name the field the cursor should land in on the
+// re-rendered form, when it is not the one renderSetup would guess.
+const setupFocusKey = "setupFocus"
 
 // setupState tracks whether the instance still needs its first administrator.
 //
@@ -255,8 +260,33 @@ func (app *App) SetupPageHandler(c *gin.Context) {
 }
 
 func (app *App) renderSetup(c *gin.Context, status int, errMessage string) {
+	// The two fields that are not secrets come back after a refusal. The setup
+	// code is copied out of a log and the username was chosen; both cost
+	// something to produce again. Neither password is ever written back. Empty
+	// on a first visit, when nothing has been posted.
+	code := strings.TrimSpace(c.PostForm("setupCode"))
+	username := strings.TrimSpace(c.PostForm("username"))
+
+	// The cursor goes to the field the refusal was about, or failing that the
+	// first one still empty, rather than to the top of a form that is mostly
+	// filled in.
+	focus := c.GetString(setupFocusKey)
+	if focus == "" {
+		switch {
+		case code == "" || status == http.StatusUnauthorized || status == http.StatusTooManyRequests:
+			focus = "setupCode"
+		case username == "":
+			focus = "username"
+		default:
+			focus = "password"
+		}
+	}
+
 	c.HTML(status, "setup.html", gin.H{
 		"Error":          errMessage,
+		"SetupCode":      code,
+		"Username":       username,
+		"Focus":          focus,
 		"MinLength":      users.MinPasswordLength,
 		"LogPath":        app.logFilePath,
 		"ShowNoTLS":      !reqsec.IsTLS(c.Request),
@@ -279,8 +309,9 @@ func (app *App) SetupHandler(c *gin.Context) {
 
 	// Throttle the code as if it were a password, because that is what it is.
 	limitKeys := []string{"setup:" + clientIP}
-	if ok, _ := app.loginLimiter.Allow(limitKeys...); !ok {
-		app.renderSetup(c, http.StatusTooManyRequests, "Too many attempts. Try again shortly.")
+	if ok, retryIn := app.loginLimiter.Allow(limitKeys...); !ok {
+		c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(retryIn)))
+		app.renderSetup(c, http.StatusTooManyRequests, "Too many attempts. Try again in "+retryAfterText(retryIn)+".")
 		return
 	}
 
@@ -295,6 +326,7 @@ func (app *App) SetupHandler(c *gin.Context) {
 		return
 	}
 	if err := users.ValidateUsername(username); err != nil {
+		c.Set(setupFocusKey, "username")
 		app.renderSetup(c, http.StatusBadRequest, humanPasswordError(err))
 		return
 	}

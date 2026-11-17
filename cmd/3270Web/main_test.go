@@ -461,10 +461,14 @@ func TestSampleAppHostname(t *testing.T) {
 }
 
 func TestSampleAppPort(t *testing.T) {
-	if got := sampleAppPort(0); got != defaultSampleAppPort {
+	if got := sampleAppPort("petstore", 0); got != defaultSampleAppPort {
 		t.Fatalf("expected default port %d, got %d", defaultSampleAppPort, got)
 	}
-	if got := sampleAppPort(5555); got != 5555 {
+	// Each app's own default, not one shared port.
+	if got := sampleAppPort("app2", 0); got != 3273 {
+		t.Fatalf("expected app2's own default port 3273, got %d", got)
+	}
+	if got := sampleAppPort("app2", 5555); got != 5555 {
 		t.Fatalf("expected port 5555, got %d", got)
 	}
 }

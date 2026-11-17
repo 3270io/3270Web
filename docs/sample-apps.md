@@ -24,8 +24,10 @@ only. On a shared instance the headless API will not start one unless
 
 === "From the browser"
 
-    On the connect page, click **Start sample app**, pick an application and a
-    port, then **Start sample app**.
+    On the connect page, click **Other samples**, pick an application, then
+    **Start sample app**. The port follows the application you pick (see
+    [the port table](#what-is-bundled)); open **Advanced: sample port** only to
+    choose a different one.
 
 === "From the selection screen"
 
@@ -52,11 +54,19 @@ only. On a shared instance the headless API will not start one unless
 
     ```text
     sampleapp:petstore
-    sampleapp:petstore:3271
+    sampleapp:app2
+    sampleapp:app2:3273
     ```
 
-    The port is optional and defaults to 3271. Allowed ports are 3271 to 3278
-    — one per bundled sample, so they can all run side by side.
+    The port is optional. Left out, each application takes its own port from
+    the table [below](#what-is-bundled), 3271 to 3278 — one per bundled
+    sample, so they can all run side by side. `sampleapp:petstore` with no
+    port picks a free one itself. Allowed ports are 3271 to 3278.
+
+    A port can only serve one application at a time. If you give a sample a
+    port another sample is already using, the error names both and suggests a
+    port that is free; either type that port, or pick another under
+    **Advanced: sample port** in **Other samples**.
 
 === "From the API or an MCP client"
 
@@ -114,16 +124,21 @@ and nothing to sign in to. Nothing about them is a mainframe.
 
 ## What Is Bundled
 
-| Target | Application |
-|---|---|
-| `sampleapp:petstore` | **Pet Store** — retail counter and back office. The default. |
-| `sampleapp:app1` | Name entry and field validation. |
-| `sampleapp:app2` | RSS newsreader, showing dynamically built screens. |
-| `sampleapp:app3` | A matrix of every 3270 field attribute, colour and highlight. |
-| `sampleapp:wordle` | **Word Guess** — six goes at a five letter word. |
-| `sampleapp:tictactoe` | **Noughts and Crosses** — against a machine that can be made unbeatable. |
-| `sampleapp:snake` | **Snake** — eat, grow, and do not run into anything. |
-| `sampleapp:pong` | **Bat and Ball** — first to five points. |
+| Target | Port | Application |
+|---|---|---|
+| `sampleapp:petstore` | 3271 | **Pet Store** — retail counter and back office. The default. |
+| `sampleapp:app1` | 3272 | Name entry and field validation. |
+| `sampleapp:app2` | 3273 | RSS newsreader, showing dynamically built screens. |
+| `sampleapp:app3` | 3274 | A matrix of every 3270 field attribute, colour and highlight. |
+| `sampleapp:wordle` | 3275 | **Word Guess** — six goes at a five letter word. |
+| `sampleapp:tictactoe` | 3276 | **Noughts and Crosses** — against a machine that can be made unbeatable. |
+| `sampleapp:snake` | 3277 | **Snake** — eat, grow, and do not run into anything. |
+| `sampleapp:pong` | 3278 | **Bat and Ball** — first to five points. |
+
+These are the ports the Saved connections list, the **Other samples** picker
+and a typed `sampleapp:<id>` all use when you do not choose one. (The
+`3270Web sampleapp` command above is separate: it hands out ports from 3271
+upwards in the order you list the applications.)
 
 ---
 
