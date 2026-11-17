@@ -131,7 +131,7 @@ func TestOIDCModeNeedsItsSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv(authz.ModeEnv, "oidc")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	_, err := buildRouter(app)
 	if err == nil {
 		t.Fatal("AUTH_MODE=oidc started with no provider configured")

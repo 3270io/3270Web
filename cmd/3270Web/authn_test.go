@@ -79,7 +79,7 @@ func TestBuildRouter_RejectsUnsupportedAuthMode(t *testing.T) {
 	for _, mode := range []string{"proxy", "yes", "saml"} {
 		t.Setenv(authz.ModeEnv, mode)
 
-		app := newApp(t.TempDir())
+		app := newTestApp(t, t.TempDir())
 		if _, err := buildRouter(app); err == nil {
 			t.Errorf("AUTH_MODE=%q was accepted", mode)
 		} else if !strings.Contains(err.Error(), authz.ModeEnv) {
@@ -93,7 +93,7 @@ func TestBuildRouter_RejectsUnsupportedBindIPSetting(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "none")
 	t.Setenv("AUTH_BIND_SESSION_IP", "sometimes")
 
-	if _, err := buildRouter(newApp(t.TempDir())); err == nil {
+	if _, err := buildRouter(newTestApp(t, t.TempDir())); err == nil {
 		t.Fatal("buildRouter accepted an unsupported AUTH_BIND_SESSION_IP")
 	}
 }
@@ -103,7 +103,7 @@ func TestBuildRouter_AcceptsDefaultAndExplicitNone(t *testing.T) {
 
 	for _, value := range []string{"", "none"} {
 		t.Setenv(authz.ModeEnv, value)
-		app := newApp(t.TempDir())
+		app := newTestApp(t, t.TempDir())
 		if _, err := buildRouter(app); err != nil {
 			t.Fatalf("AUTH_MODE=%q: buildRouter returned %v", value, err)
 		}

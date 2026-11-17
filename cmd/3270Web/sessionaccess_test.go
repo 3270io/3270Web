@@ -289,7 +289,7 @@ func TestEveryRouteIsClassified(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv(authz.ModeEnv, "local")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatalf("buildRouter: %v", err)

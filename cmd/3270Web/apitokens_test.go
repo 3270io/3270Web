@@ -57,7 +57,7 @@ func TestSharedAPITokenRefusesToStartWithAccounts(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "local")
 	t.Setenv("API_TOKEN", "one-token-for-everybody")
 
-	_, err := buildRouter(newApp(t.TempDir()))
+	_, err := buildRouter(newTestApp(t, t.TempDir()))
 	if err == nil {
 		t.Fatal("the instance started with a shared token and separated users")
 	}
@@ -70,7 +70,7 @@ func TestSharedAPITokenRefusesToStartWithAccounts(t *testing.T) {
 	// The same variable is the whole API surface where there is one operator,
 	// so it must keep working there.
 	t.Setenv(authz.ModeEnv, "none")
-	if _, err := buildRouter(newApp(t.TempDir())); err != nil {
+	if _, err := buildRouter(newTestApp(t, t.TempDir())); err != nil {
 		t.Errorf("a single-operator instance refused a shared token: %v", err)
 	}
 }
@@ -266,7 +266,7 @@ func TestSingleOperatorTokenStillDrivesTheBrowsersSession(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "none")
 	t.Setenv("API_TOKEN", "a-test-api-token")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatalf("buildRouter: %v", err)
@@ -291,7 +291,7 @@ func TestAPIIsOffWithoutAnyToken(t *testing.T) {
 	t.Setenv(authz.ModeEnv, "none")
 	t.Setenv("API_TOKEN", "")
 
-	r, err := buildRouter(newApp(t.TempDir()))
+	r, err := buildRouter(newTestApp(t, t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}

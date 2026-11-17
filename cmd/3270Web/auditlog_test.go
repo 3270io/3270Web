@@ -415,7 +415,7 @@ func TestAuditWorksForASingleOperator(t *testing.T) {
 
 	t.Setenv("MAX_SESSIONS_PER_USER", "1")
 
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 	r, err := buildRouter(app)
 	if err != nil {
 		t.Fatal(err)

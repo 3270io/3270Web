@@ -28,7 +28,7 @@ import (
 // one caller: what has to hold is that a sample-app target produces a sample
 // app host whichever path asked.
 func TestASampleAppPresetBuildsASampleAppHost(t *testing.T) {
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 
 	profile := ConnectionProfile{Name: "Demo", Host: "sampleapp:app1"}
 	if err := validateProfile(&profile); err != nil {
@@ -49,7 +49,7 @@ func TestASampleAppPresetBuildsASampleAppHost(t *testing.T) {
 // The ordinary case is unchanged: a real mainframe still gets a plain s3270
 // carrying the profile's own target.
 func TestAMainframePresetStillBuildsAPlainS3270(t *testing.T) {
-	app := newApp(t.TempDir())
+	app := newTestApp(t, t.TempDir())
 
 	profile := ConnectionProfile{Name: "TSO", Host: "mainframe.example", Port: 992, TLS: true}
 	if err := validateProfile(&profile); err != nil {
