@@ -96,6 +96,13 @@ Chaos mode continuously:
 - Sends an AID key
 - Records transition and attempt metadata
 
+Exploration drives the same connection as the terminal you are looking at, so
+the terminal follows the run: each screen the engine reaches is shown as it
+happens. The terminal does not repaint for a moment after you type into it, so
+text you are typing is not wiped out — but keys you send during a run go to the
+same host session the run is using, so stop the run first if you want to work
+in the terminal.
+
 You can stop the run at any time with **Stop chaos exploration**.
 
 ## Completion Status
