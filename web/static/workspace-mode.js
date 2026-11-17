@@ -1,31 +1,36 @@
-// Workspace mode: who the toolbar is for.
+// Automation tools: whether the toolbar carries the Automation menu.
 //
 // The toolbar grew around the automation audience — of roughly 27 controls,
 // three (Disconnect, Logs, Print) serve someone whose job is to use the
-// mainframe application rather than to explore it. Chaos alone had twelve.
-// A clerk opening 3270Web for the first time met a control panel for a
-// testing tool.
+// mainframe application rather than to explore it. Exploration alone had
+// twelve. A clerk opening 3270Web for the first time met a control panel for
+// a testing tool.
 //
-// Nothing is removed. Business mode is the default surface and collapses the
-// recording and chaos groups; Engineering mode restores the full toolbar and
-// is one click away. The choice persists per browser.
+// Nothing is removed. Off is the default and collapses the recording and
+// exploration groups; On restores the full toolbar and is one click away.
+// The choice persists per browser. Users see On and Off and nothing else: this
+// used to be presented as a Business/Engineering "workspace mode", and the
+// stored values below keep those names only because accounts and browsers
+// already hold them.
 (function () {
   "use strict";
 
   var STORAGE_KEY = "3270Web.workspaceMode.v1";
   function preferences() { return window.ThreeSeventyWeb && window.ThreeSeventyWeb.preferences; }
+  // Stored values, not wording. "business" is Automation tools off and
+  // "engineering" is on; renaming them would drop everyone's saved choice.
   var BUSINESS = "business";
   var ENGINEERING = "engineering";
 
   // What belongs to the automation surface: the Automation menu (recording,
-  // playback and chaos, all of it) and the sample-app chip. The workflow
+  // playback and exploration, all of it) and the sample-app chip. The run
   // status widget is deliberately NOT here — workflow.js shows it whenever a
-  // run is live and hides it otherwise, which is the right rule in both modes:
-  // an operator in Business mode still needs to see what is driving their
-  // terminal when Copilot starts a run.
+  // run is live and hides it otherwise, which is the right rule either way: an
+  // operator with Automation tools off still needs to see what is driving
+  // their terminal when Copilot starts a run.
   // The sample-app chip is here for the same reason as the menu: which local
   // test server is running and on which port is a development detail, not
-  // something a business user reads.
+  // something an application user reads.
   var AUTOMATION_SELECTORS = [
     "[data-menu-automation]",
     "[data-sample-status]"
@@ -62,16 +67,18 @@
     var toggle = document.querySelector("[data-workspace-toggle]");
     if (toggle) {
       toggle.setAttribute("aria-pressed", String(automationVisible));
-      var label = automationVisible
-        ? "Engineering"
-        : "Business";
+      // The sub-label shows the current state, so it reads as a switch:
+      // "Automation tools — On".
+      var label = automationVisible ? "On" : "Off";
       var labelEl = toggle.querySelector("[data-workspace-label]");
       if (labelEl) {
         labelEl.textContent = label;
       }
+      // The accessible name starts with the visible words (WCAG 2.5.3) and
+      // then says what the state means and what selecting it does.
       var hint = automationVisible
-        ? "Engineering mode — the Automation menu is shown. Switch off for Business mode."
-        : "Business mode — terminal only. Switch on for the Automation menu (recording, chaos).";
+        ? "Automation tools: On — the Automation menu is shown. Select to turn off."
+        : "Automation tools: Off — the Automation menu is hidden. Select to turn on.";
       toggle.setAttribute("aria-label", hint);
       toggle.setAttribute("title", hint);
       if (toggle.hasAttribute("data-tippy-content")) {
@@ -91,8 +98,8 @@
     if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === "function") {
       window.ThreeSeventyWeb.notify(
         next === ENGINEERING
-          ? "Engineering mode — the Automation menu is available."
-          : "Business mode — the Automation menu is hidden.",
+          ? "Automation tools on — the Automation menu is available."
+          : "Automation tools off — the Automation menu is hidden.",
         "info",
         { duration: 2500 }
       );

@@ -28,7 +28,7 @@ replay it against the live host:
 6. Save the recording as a business task
 
 While a run is live, its progress shows in the strip under the menu bar and
-in the Workflow Status widget.
+in the Run status widget.
 
 ## Record a Session
 
@@ -56,7 +56,7 @@ during the recording is not carried into the saved task.
 
 1. Load a recording.
 2. Click **Play recording**.
-3. Watch playback status in the strip under the menu bar and the Workflow Status widget.
+3. Watch playback status in the strip under the menu bar and the Run status widget.
 4. Use **Pause/Resume** in play mode if needed.
 5. Click **Stop playback** to end execution.
 
@@ -240,9 +240,10 @@ it to chaos exploration.
 
 Click **Remove recording** to clear the currently loaded file from the session.
 
-## Workflow Status Widget
+## Run Status Widget
 
-The Workflow Status panel shows:
+The Run status panel (previously called Workflow status) reports whichever run
+is live — a recording, a playback or an exploration — and shows:
 
 - Current step and total steps
 - Current action type
@@ -425,7 +426,7 @@ names the step number.
 
 ### Watching it decide
 
-The Workflow Status widget carries each decision as it is made — which branch
+The Run status widget carries each decision as it is made — which branch
 an `If` took and on what value, which pass a `While` is on, what a
 `SetVariable` read. `GET /workflow/status` returns the same events, plus
 `playbackVariables`: what the run knows, which survives the end of the run so
@@ -471,7 +472,7 @@ Parameters whose value lands in a hidden (password-style) field, or in a field t
 Use Chaos mode when you need to discover unknown screen paths or generate new workflow steps automatically.
 
 - Start/stop chaos from the Automation menu
-- Review granular attempt status in the Workflow Status widget
+- Review granular attempt status in the Run status widget
 - Export the generated JSON and load it back as a standard workflow
 
 See [Chaos Mode](chaos-mode.md) for full details.

@@ -226,7 +226,7 @@ a separate read. The keyboard is one of:
 | `locked` | The host is still processing. `wait_for_unlock` waits it out |
 | `error` | The terminal rejected a keystroke and refuses everything until `Reset` is sent |
 
-**Recording.** Start a [workflow recording](workflow.md) and what the
+**Recording.** Start a [recording](workflow.md) and what the
 assistant does is recorded exactly as if you had done it: each write as a
 fill step, each key as a key step. A recording of an assisted session replays
 the whole of it.

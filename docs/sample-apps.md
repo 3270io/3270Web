@@ -8,7 +8,7 @@ description: >-
 # Bundled Sample Applications
 
 3270Web ships with TN3270 applications it can start for you, so you can try
-the terminal, chaos mode, workflow recording and the AI features without a
+the terminal, chaos mode, recording and the AI features without a
 mainframe to point at.
 
 The line-up in under a minute — the connect-page picker, the Pet Store,
@@ -296,7 +296,7 @@ a letter against an answer with one marks only one of them.
 
 ++f5++ starts another word, ++f6++ shows the answer, ++f1++ explains the
 rules. A guess is exactly one transmission, which makes this the game worth
-pointing a workflow recording or the MCP server at.
+pointing a recording or the MCP server at.
 
 ### Noughts and Crosses — `sampleapp:tictactoe`
 

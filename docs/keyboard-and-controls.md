@@ -26,7 +26,7 @@ the right, and the session tabs beneath.
 | **Session** | Connection profiles, connection details, reconnect, print screen, disconnect |
 | **Terminal** | Find on screen, copy screen, screen history, file transfer, keyboard mapping |
 | **View** | Focus mode, hotspots, virtual keypad, terminal size, theme |
-| **Automation** | Recording, playback and chaos exploration (Engineering mode only) |
+| **Automation** | Recording, playback and exploration (shown while Automation tools is on) |
 
 To the right of the menus: **Tasks**, the AI chat panel, the command palette,
 an account and settings menu, and the chevron that collapses the whole bar.
@@ -263,26 +263,32 @@ opened them.
     idle-session reaper still closes sessions you leave untouched for long
     enough.
 
-### Workspace modes
+### Automation tools
 
-The bar has two surfaces, chosen by **Engineering tools** in the account and
-settings menu. The choice is remembered per browser.
+**Automation tools** in the account and settings menu turns the **Automation**
+menu on or off. It shows **On** or **Off** beneath its name. The choice is
+remembered per browser, and per account on an instance with sign-in.
 
-**Business** is the default and shows only what you need to use a mainframe
+**Off** is the default and shows only what you need to use a mainframe
 application: the Session, Terminal and View menus, Tasks, AI chat, the
 command palette and settings.
 
-**Engineering** adds the **Automation** menu on top — recording, playback and
-chaos exploration, in two labelled groups within the one menu.
+**On** adds the **Automation** menu — recording, playback and exploration, in
+two labelled groups within the one menu.
 
-Nothing is removed in Business mode — switching modes is one click, and
-everything in the Automation menu remains reachable from the command palette
-either way.
+Nothing is removed while Automation tools is off. Turning it on is one click,
+from the account and settings menu, from **Show automation tools** on the
+terminal view bar, or from the command palette (**Turn automation tools on or
+off**).
+
+This setting was previously called **Engineering tools**, and its two states
+were shown as **Business** and **Engineering**; it is the same setting, and
+the choice you made carries over.
 
 !!! note "Runs are always visible"
 
-    If a recording, playback or chaos run starts while you are in
-    Business mode — the AI assistant can start one — the workflow status widget
+    If a recording, playback or exploration run starts while Automation
+    tools is off — the AI assistant can start one — the run status widget
     appears anyway, and goes away again when the run ends. You are never
     left watching a terminal move on its own with no way to see why. The
     playback transport (step, pause, stop) appears under the bar for the same
@@ -304,12 +310,12 @@ every menu and modal action.
   without opening Settings.
 - Terminal operations are here: copy the screen, copy a marked block,
   reconnect, toggle insert mode, reset the keyboard, show the keypad,
-  switch workspace mode.
+  turn automation tools on or off.
 - Every host key is searchable but hidden from the default list, since
   twenty-four PF keys would crowd out everything else. Type `pf3`,
   `attn`, `erase` or `pa1` to reach them.
-- Commands whose control is hidden are hidden too, so in Business mode
-  the palette does not offer recording or chaos actions.
+- Commands whose control is hidden are hidden too, so while Automation
+  tools is off the palette does not offer recording or exploration actions.
 
 While the palette is open it takes over the keyboard completely, so
 nothing you type leaks through to the 3270 screen underneath.

@@ -62,7 +62,7 @@ Self-hosted and open source. No AI account needed to use the terminal or record 
 
 ## No mainframe? Start here
 
-[Run locally](installation.md#your-first-terminal), open the app and choose **Try the sample terminal**. The bundled Petstore starts without a host address or port decision. Open the catalogue, view a product, then choose **Record a workflow** in the quick-start strip to capture those steps. AI setup is optional.
+[Run locally](installation.md#your-first-terminal), open the app and choose **Try the sample terminal**. The bundled Petstore starts without a host address or port decision. Open the catalogue, view a product, then choose **Start recording** in the quick-start strip to capture those steps. AI setup is optional.
 
 ## See It in Action
 
@@ -191,7 +191,7 @@ several hosts at once — live on the
 2. Open `http://localhost:3270`. If accounts are enabled and this is a fresh instance, use the setup code from the server log to create your first administrator. Existing shared instances require an account from your administrator or organisation SSO.
 3. Choose **Try the sample terminal**, or enter your mainframe hostname and port. Open **Connection options** for TLS, LU, model or code page; **Saved connections** opens your personal and shared hosts.
 4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. On a phone, **Readable terminal** lets you pan without shrinking text; **Fit overview** shows all columns.
-5. Choose **Record a workflow** in the first-session strip, or **Show automation**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
+5. Choose **Start recording** in the first-session strip, or **Show automation tools**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
 
 [:octicons-arrow-right-24: Install and Run](installation.md)
 &nbsp;&nbsp;[:octicons-arrow-right-24: Full setup guide](configuration.md)
