@@ -453,3 +453,52 @@ func TestChaosBusinessFunctionListMasksSecretLiterals(t *testing.T) {
 		t.Errorf("a new literal was not stored: %q", got)
 	}
 }
+
+// A function can type into the same hidden field twice with different
+// values. Saving the masked list back must put each one back where it was.
+func TestChaosBusinessFunctionRoundTripKeepsEachOccurrence(t *testing.T) {
+	app, r, sessID := setupChaosBusinessTestApp(t)
+	run := seedBusinessSavedRun(t, app, sessID)
+	meta := run.MindMap.Areas["form"].FieldMetadata["R2C13L8"]
+	meta.Hidden = true
+	run.MindMap.Areas["form"].FieldMetadata["R2C13L8"] = meta
+
+	save := func(description, first, second string) {
+		t.Helper()
+		body := []byte(`{
+			"name": "Change password",
+			"description": "` + description + `",
+			"steps": [
+				{"screen_hash": "form", "inputs": [{"field_key": "R2C13L8", "value": "` + first + `"}], "aid_key": "Enter"},
+				{"screen_hash": "menu", "inputs": [{"field_key": "R20C1L2", "value": "9"}], "aid_key": "Enter"},
+				{"screen_hash": "form", "inputs": [{"field_key": "R2C13L8", "value": "` + second + `"}], "aid_key": "Enter"}
+			]
+		}`)
+		if w := chaosRequest(r, http.MethodPost, "/chaos/business/functions", body, sessID); w.Code != http.StatusOK {
+			t.Fatalf("save status = %d, body = %s", w.Code, w.Body.String())
+		}
+	}
+	save("first draft", "OLDPASS", "NEWPASS")
+	save("edited description only", chaosHiddenValueMask, chaosHiddenValueMask)
+
+	reloaded, err := chaos.LoadRun(app.chaosRunsDirForSession(""), run.ID)
+	if err != nil {
+		t.Fatalf("LoadRun: %v", err)
+	}
+	for _, fn := range chaos.BusinessFunctionsOf(reloaded.MindMap) {
+		if fn.Name != "Change password" {
+			continue
+		}
+		if fn.Description != "edited description only" {
+			t.Errorf("the edit was not stored: %q", fn.Description)
+		}
+		if got := fn.Steps[0].Inputs[0].Value; got != "OLDPASS" {
+			t.Errorf("first occurrence = %q, want OLDPASS", got)
+		}
+		if got := fn.Steps[2].Inputs[0].Value; got != "NEWPASS" {
+			t.Errorf("second occurrence = %q, want NEWPASS", got)
+		}
+		return
+	}
+	t.Fatal("function not stored")
+}

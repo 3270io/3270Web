@@ -621,43 +621,67 @@ func maskedBusinessFunctions(mm *chaos.MindMap, fns []chaos.BusinessFunction) []
 }
 
 // restoreMaskedBusinessLiterals replaces a mask sent for a secret field with
-// the value the stored function of the same name holds for that screen and
-// field. Where there is none, the mask is dropped rather than stored: a
-// function that types eight asterisks is worse than one that types nothing.
+// the value the stored function of the same name holds at that point. Where
+// there is none, the mask is dropped rather than stored: a function that
+// types eight asterisks is worse than one that types nothing.
+//
+// "That point" is the occurrence, not just the screen and field. A function
+// can type into the same field twice — the old password at sign-on and the
+// new one where it is changed — and restoring by field alone would hand
+// both steps whichever value came last.
 func restoreMaskedBusinessLiterals(mm *chaos.MindMap, fn *chaos.BusinessFunction) {
 	if mm == nil || fn == nil {
 		return
 	}
-	stored := map[string]string{}
-	storedExample := map[string]string{}
+	var existing *chaos.BusinessFunction
 	want := strings.ToLower(strings.Join(strings.Fields(fn.Name), " "))
-	for _, existing := range chaos.BusinessFunctionsOf(mm) {
-		if strings.ToLower(strings.Join(strings.Fields(existing.Name), " ")) != want {
-			continue
+	for _, candidate := range chaos.BusinessFunctionsOf(mm) {
+		if strings.ToLower(strings.Join(strings.Fields(candidate.Name), " ")) == want {
+			c := candidate
+			existing = &c
+			break
 		}
+	}
+
+	// The stored literals for one screen and field, in step order, so the
+	// nth masked occurrence in the request takes the nth stored value. A
+	// client that only edited a description sends the steps as it read them,
+	// and one that added or removed an unrelated step still lines up.
+	stored := map[string][]string{}
+	storedExample := map[string]string{}
+	if existing != nil {
 		for _, step := range existing.Steps {
 			for _, in := range step.Inputs {
-				stored[step.ScreenHash+"|"+in.FieldKey] = in.Value
+				key := step.ScreenHash + "|" + in.FieldKey
+				stored[key] = append(stored[key], in.Value)
 			}
 		}
 		for _, p := range existing.Parameters {
-			storedExample[p.ScreenHash+"|"+p.FieldKey] = p.Example
+			storedExample[p.Name+"|"+p.ScreenHash+"|"+p.FieldKey] = p.Example
 		}
 	}
+	seen := map[string]int{}
 	for i := range fn.Steps {
 		step := &fn.Steps[i]
 		area := mm.Areas[step.ScreenHash]
 		for k := range step.Inputs {
 			in := &step.Inputs[k]
-			if in.Value == chaosHiddenValueMask && chaosFieldIsSecret(area, in.FieldKey) {
-				in.Value = stored[step.ScreenHash+"|"+in.FieldKey]
+			key := step.ScreenHash + "|" + in.FieldKey
+			n := seen[key]
+			seen[key]++
+			if in.Value != chaosHiddenValueMask || !chaosFieldIsSecret(area, in.FieldKey) {
+				continue
+			}
+			in.Value = ""
+			if n < len(stored[key]) {
+				in.Value = stored[key][n]
 			}
 		}
 	}
 	for j := range fn.Parameters {
 		p := &fn.Parameters[j]
 		if p.Example == chaosHiddenValueMask && chaosFieldIsSecret(mm.Areas[p.ScreenHash], p.FieldKey) {
-			p.Example = storedExample[p.ScreenHash+"|"+p.FieldKey]
+			p.Example = storedExample[p.Name+"|"+p.ScreenHash+"|"+p.FieldKey]
 		}
 	}
 }
