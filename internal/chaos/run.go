@@ -536,6 +536,7 @@ func (e *Engine) runStep(rs *runState) (stop bool) {
 		e.afterAttempt(rs, attempt)
 		return true
 	}
+	connectsBefore := hostConnectCount(e.h)
 	sendRetries, err := e.retryHostOp(func() error { return e.h.SendKey(aidKey) })
 	attempt.Retries += sendRetries
 	if err == nil {
@@ -586,7 +587,13 @@ func (e *Engine) runStep(rs *runState) (stop bool) {
 
 	// Record the step and any state transition.
 	e.mu.Lock()
-	if attempt.Transitioned && e.firstScreenIsGate && newHash == e.firstScreenHash && currentHash != e.firstScreenHash {
+	// The terminal dialling again during the press is the direct evidence of
+	// a session the host dropped. It covers what the first-screen test below
+	// cannot: a run that started already signed in, or a sign-on screen with
+	// no hidden field to recognise it by.
+	reconnected := connectsBefore >= 0 && hostConnectCount(e.h) > connectsBefore
+	backAtGate := attempt.Transitioned && e.firstScreenIsGate && newHash == e.firstScreenHash && currentHash != e.firstScreenHash
+	if reconnected || backAtGate {
 		// Back on the sign-on screen from somewhere deeper: whatever was
 		// just submitted ended the session. That is the opposite of a
 		// value that works, and it must not be learned as one.
@@ -815,4 +822,13 @@ func sortFieldsByPosition(fields []*host.Field) {
 			fields[j-1], fields[j] = fields[j], fields[j-1]
 		}
 	}
+}
+
+// hostConnectCount returns how many connects the host has completed, or -1
+// for a host that does not count them.
+func hostConnectCount(h host.Host) int64 {
+	if c, ok := h.(interface{ ConnectCount() int64 }); ok {
+		return c.ConnectCount()
+	}
+	return -1
 }

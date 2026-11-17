@@ -119,6 +119,15 @@ func (h *GoSampleAppHost) IsConnected() bool {
 	return h.client.IsConnected()
 }
 
+// ConnectCount returns how many connects the terminal behind this host has
+// completed. See S3270.ConnectCount.
+func (h *GoSampleAppHost) ConnectCount() int64 {
+	if h.client == nil {
+		return 0
+	}
+	return h.client.ConnectCount()
+}
+
 func (h *GoSampleAppHost) UpdateScreen() error {
 	if h.client == nil {
 		return fmt.Errorf(sampleAppClientNotStarted)
