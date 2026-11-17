@@ -343,11 +343,19 @@ That memory is used, and never shown:
 - A field you annotate as **sensitive** is treated the same way, whatever
   the host says about it.
 
-Two things follow. A map exported from one session and imported into
+Three things follow. A map exported from one session and imported into
 another arrives without the hidden values, so the new session has to be
-given them again (a hint, or a recording). And the saved run files on the
-server do contain them, because continuing a run needs them: protect the
-chaos runs directory as you would any file holding credentials.
+given them again (a hint, or a recording). The saved run files on the
+server hold the mask, not the value: the real value lives only in the
+memory of the run that typed it, so a run continued after it has ended
+needs the value given again in the same way. And a workflow downloaded from
+a saved run does not type the mask. Each hidden fill becomes a reference to
+a variable named for its position, such as `${hidden_r12_c21}`, listed
+under the workflow's `Parameters` as sensitive. Replaying the file as it
+stands stops at that step and names the variable; add a `SetVariable` step
+for it first. A workflow downloaded while the run is still live carries
+the real values, so treat that file as you would any file holding
+credentials.
 
 When a recording is loaded into chaos, the fills it marks sensitive — a
 parameter flagged *Sensitive*, or a value taken from a sensitive variable —

@@ -551,6 +551,10 @@ func (app *App) ChaosBusinessFunctionSaveHandler(c *gin.Context) {
 		return
 	}
 	fn := req.toBusinessFunction()
+	// The list answers with secret literals masked. A client that read the
+	// list, changed something else and saved it back is sending the mask,
+	// not a new value: put back what was there.
+	restoreMaskedBusinessLiterals(app.sessionChaosMindMap(s), &fn)
 	if err := app.applyChaosBusinessWrite(s.ID, func(eng *chaos.Engine) error {
 		return eng.UpsertBusinessFunction(fn)
 	}, func(run *chaos.SavedRun) error {
@@ -574,7 +578,88 @@ func (app *App) ChaosBusinessFunctionsListHandler(c *gin.Context) {
 	if fns == nil {
 		fns = []chaos.BusinessFunction{}
 	}
-	c.JSON(http.StatusOK, gin.H{"functions": fns})
+	c.JSON(http.StatusOK, gin.H{"functions": maskedBusinessFunctions(mm, fns)})
+}
+
+// maskedBusinessFunctions returns the functions with every literal typed into
+// a secret field, and every example given for one, replaced by the mask.
+//
+// A function is something a client reads, edits and saves back, which is why
+// this list once carried its step values as they were. A literal in a
+// password field is still a password, and this list goes to the model and to
+// the browser like every other description of what exploration learned.
+// restoreMaskedBusinessLiterals is the other half: it keeps a round trip from
+// storing the mask.
+func maskedBusinessFunctions(mm *chaos.MindMap, fns []chaos.BusinessFunction) []chaos.BusinessFunction {
+	if mm == nil {
+		return fns
+	}
+	out := make([]chaos.BusinessFunction, len(fns))
+	for i, fn := range fns {
+		out[i] = fn
+		out[i].Steps = make([]chaos.BusinessFunctionStep, len(fn.Steps))
+		for j, step := range fn.Steps {
+			out[i].Steps[j] = step
+			area := mm.Areas[step.ScreenHash]
+			out[i].Steps[j].Inputs = make([]chaos.BusinessFunctionInput, len(step.Inputs))
+			for k, in := range step.Inputs {
+				if in.Value != "" && chaosFieldIsSecret(area, in.FieldKey) {
+					in.Value = chaosHiddenValueMask
+				}
+				out[i].Steps[j].Inputs[k] = in
+			}
+		}
+		out[i].Parameters = make([]chaos.BusinessParameter, len(fn.Parameters))
+		for j, p := range fn.Parameters {
+			if p.Example != "" && chaosFieldIsSecret(mm.Areas[p.ScreenHash], p.FieldKey) {
+				p.Example = chaosHiddenValueMask
+			}
+			out[i].Parameters[j] = p
+		}
+	}
+	return out
+}
+
+// restoreMaskedBusinessLiterals replaces a mask sent for a secret field with
+// the value the stored function of the same name holds for that screen and
+// field. Where there is none, the mask is dropped rather than stored: a
+// function that types eight asterisks is worse than one that types nothing.
+func restoreMaskedBusinessLiterals(mm *chaos.MindMap, fn *chaos.BusinessFunction) {
+	if mm == nil || fn == nil {
+		return
+	}
+	stored := map[string]string{}
+	storedExample := map[string]string{}
+	want := strings.ToLower(strings.Join(strings.Fields(fn.Name), " "))
+	for _, existing := range chaos.BusinessFunctionsOf(mm) {
+		if strings.ToLower(strings.Join(strings.Fields(existing.Name), " ")) != want {
+			continue
+		}
+		for _, step := range existing.Steps {
+			for _, in := range step.Inputs {
+				stored[step.ScreenHash+"|"+in.FieldKey] = in.Value
+			}
+		}
+		for _, p := range existing.Parameters {
+			storedExample[p.ScreenHash+"|"+p.FieldKey] = p.Example
+		}
+	}
+	for i := range fn.Steps {
+		step := &fn.Steps[i]
+		area := mm.Areas[step.ScreenHash]
+		for k := range step.Inputs {
+			in := &step.Inputs[k]
+			if in.Value == chaosHiddenValueMask && chaosFieldIsSecret(area, in.FieldKey) {
+				in.Value = stored[step.ScreenHash+"|"+in.FieldKey]
+			}
+		}
+	}
+	for j := range fn.Parameters {
+		p := &fn.Parameters[j]
+		if p.Example == chaosHiddenValueMask && chaosFieldIsSecret(mm.Areas[p.ScreenHash], p.FieldKey) {
+			p.Example = storedExample[p.ScreenHash+"|"+p.FieldKey]
+		}
+	}
 }
 
 // chaosBusinessGenerateRequest is the JSON body for POST /chaos/business/generate-workflow.

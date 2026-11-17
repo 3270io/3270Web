@@ -231,12 +231,19 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.GET("/chaos/screens", app.ChaosScreensListHandler)
 	g.POST("/chaos/screens/annotate", app.ChaosScreenAnnotateHandler)
 	g.GET("/chaos/insights", app.ChaosInsightsHandler)
+	// Naming a run and moving a map between runs are part of working with
+	// what exploration found. Deleting a run is not offered here; see above.
+	g.POST("/chaos/runs/label", app.ChaosLabelRunHandler)
+	g.GET("/chaos/mindmap/export", app.ChaosMindMapExportHandler)
+	g.POST("/chaos/mindmap/import", app.ChaosMindMapImportHandler)
+	g.POST("/chaos/mindmap/compare", app.ChaosMindMapCompareHandler)
 
 	// Business understanding.
 	g.GET("/chaos/business/functions", app.ChaosBusinessFunctionsListHandler)
 	g.POST("/chaos/business/functions", app.ChaosBusinessFunctionSaveHandler)
 	g.POST("/chaos/business/generate-workflow", app.ChaosBusinessGenerateWorkflowHandler)
 	g.GET("/chaos/business/overview", app.ChaosBusinessOverviewHandler)
+	g.GET("/chaos/business/task-draft", app.ChaosBusinessToTaskHandler)
 }
 
 // apiSessionFromPath resolves the session referenced by the :id path

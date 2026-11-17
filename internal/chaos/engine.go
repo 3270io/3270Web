@@ -762,14 +762,61 @@ func ExportWorkflowFromSavedRun(run *SavedRun, hostName string, port int, succes
 	if len(steps) == 0 && len(run.Steps) > 0 {
 		steps = append([]session.WorkflowStep(nil), run.Steps...)
 	}
-	return marshalChaosWorkflowExport(hostName, port, steps, run.WorkflowHeader, WorkflowDiscoveryMetadataFromSavedRun(run))
+	steps, parameters := parameteriseMaskedFills(steps)
+	return marshalChaosWorkflowExportWith(hostName, port, steps, parameters, run.WorkflowHeader, WorkflowDiscoveryMetadataFromSavedRun(run))
+}
+
+// parameteriseMaskedFills replaces every fill whose text is the mask with a
+// reference to a variable, and describes each one as a sensitive parameter.
+//
+// A saved run does not hold what was typed into a hidden field, only the
+// mask. Exporting that as it stands produced a workflow that types eight
+// asterisks into a password field: a wrong value entered with confidence,
+// and on a real host one more failed sign-on against the account. A variable
+// nobody has set stops the replay at that step and says which one, which is
+// the honest outcome for a value the file never had.
+func parameteriseMaskedFills(steps []session.WorkflowStep) ([]session.WorkflowStep, []session.WorkflowParameter) {
+	var out []session.WorkflowStep
+	var params []session.WorkflowParameter
+	seen := map[string]bool{}
+	for i, step := range steps {
+		if step.Type != "FillString" || step.Text != maskedFieldValue || step.Coordinates == nil {
+			continue
+		}
+		if out == nil {
+			out = append([]session.WorkflowStep(nil), steps...)
+		}
+		name := fmt.Sprintf("hidden_r%d_c%d", step.Coordinates.Row, step.Coordinates.Column)
+		out[i].Text = "${" + name + "}"
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		params = append(params, session.WorkflowParameter{
+			Name: name,
+			Description: "The value for the hidden field at this position. It was not kept with the saved run. " +
+				"Add a SetVariable step for it before this workflow is replayed.",
+			Row:       step.Coordinates.Row,
+			Column:    step.Coordinates.Column,
+			Sensitive: true,
+		})
+	}
+	if out == nil {
+		return steps, nil
+	}
+	return out, params
 }
 
 func marshalChaosWorkflowExport(hostName string, port int, steps []session.WorkflowStep, header *WorkflowHeader, discovery *WorkflowDiscoveryMetadata) ([]byte, error) {
+	return marshalChaosWorkflowExportWith(hostName, port, steps, nil, header, discovery)
+}
+
+func marshalChaosWorkflowExportWith(hostName string, port int, steps []session.WorkflowStep, parameters []session.WorkflowParameter, header *WorkflowHeader, discovery *WorkflowDiscoveryMetadata) ([]byte, error) {
 	export := exportedWorkflow{
 		Host:           hostName,
 		Port:           port,
 		Steps:          steps,
+		Parameters:     parameters,
 		ChaosDiscovery: discovery,
 	}
 	if header != nil {

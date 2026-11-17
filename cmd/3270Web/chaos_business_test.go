@@ -386,3 +386,70 @@ func TestResolveChaosScreenHintsPrecedence(t *testing.T) {
 		t.Fatalf("request hint should win, got %v", got)
 	}
 }
+
+// A function's steps can carry a literal for a hidden field. The list used to
+// answer with it as stored; it goes to the model and the browser like every
+// other description of the application, so it is masked — and a client that
+// saves the list back must not thereby store the mask.
+func TestChaosBusinessFunctionListMasksSecretLiterals(t *testing.T) {
+	app, r, sessID := setupChaosBusinessTestApp(t)
+	run := seedBusinessSavedRun(t, app, sessID)
+	meta := run.MindMap.Areas["form"].FieldMetadata["R2C13L8"]
+	meta.Hidden = true
+	run.MindMap.Areas["form"].FieldMetadata["R2C13L8"] = meta
+
+	save := func(value string) {
+		t.Helper()
+		body := []byte(`{
+			"name": "Unlock account",
+			"steps": [
+				{"screen_hash": "menu", "inputs": [{"field_key": "R20C1L2", "value": "1"}], "aid_key": "Enter"},
+				{"screen_hash": "form", "inputs": [{"field_key": "R2C13L8", "value": "` + value + `"}], "aid_key": "Enter"}
+			]
+		}`)
+		if w := chaosRequest(r, http.MethodPost, "/chaos/business/functions", body, sessID); w.Code != http.StatusOK {
+			t.Fatalf("save status = %d, body = %s", w.Code, w.Body.String())
+		}
+	}
+	stored := func() string {
+		t.Helper()
+		reloaded, err := chaos.LoadRun(app.chaosRunsDirForSession(""), run.ID)
+		if err != nil {
+			t.Fatalf("LoadRun: %v", err)
+		}
+		for _, fn := range chaos.BusinessFunctionsOf(reloaded.MindMap) {
+			if fn.Name == "Unlock account" {
+				return fn.Steps[1].Inputs[0].Value
+			}
+		}
+		t.Fatal("function not stored")
+		return ""
+	}
+
+	save("S3CR3T")
+	w := chaosRequest(r, http.MethodGet, "/chaos/business/functions", nil, sessID)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "S3CR3T") {
+		t.Errorf("the list carries the secret literal: %s", body)
+	}
+	if !strings.Contains(body, chaosHiddenValueMask) {
+		t.Errorf("the list does not show that a value is held: %s", body)
+	}
+	if !strings.Contains(body, `"value":"1"`) {
+		t.Errorf("an ordinary literal was masked too: %s", body)
+	}
+
+	// Saving the list back, mask and all, keeps the real value.
+	save(chaosHiddenValueMask)
+	if got := stored(); got != "S3CR3T" {
+		t.Errorf("after a round trip the stored literal is %q, want the original", got)
+	}
+	// A deliberate new value still replaces it.
+	save("N3WPASS")
+	if got := stored(); got != "N3WPASS" {
+		t.Errorf("a new literal was not stored: %q", got)
+	}
+}

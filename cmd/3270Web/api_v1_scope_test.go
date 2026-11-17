@@ -119,6 +119,21 @@ func TestAPIv1DenyList(t *testing.T) {
 		t.Error("GET /api/v1/sessions/:id/printer should be part of the token API")
 	}
 
+	// Working with what exploration found — naming a run, moving a map
+	// between runs, drafting a task from a function — is on the token
+	// surface. Deleting a run is in the list above and stays off it.
+	for _, route := range []struct{ method, path string }{
+		{http.MethodPost, "/chaos/runs/label"},
+		{http.MethodGet, "/chaos/mindmap/export"},
+		{http.MethodPost, "/chaos/mindmap/import"},
+		{http.MethodPost, "/chaos/mindmap/compare"},
+		{http.MethodGet, "/chaos/business/task-draft"},
+	} {
+		if w := doScoped(r, route.method, "/api/v1/sessions/"+sess.ID+route.path, token); w.Code == http.StatusNotFound && !strings.Contains(w.Body.String(), "error") {
+			t.Errorf("%s /api/v1/sessions/:id%s should be part of the token API", route.method, route.path)
+		}
+	}
+
 	for _, d := range denied {
 		// Both the bare path under /api/v1 and the session-scoped form.
 		for _, p := range []string{"/api/v1" + d.path, "/api/v1/sessions/" + sess.ID + d.path} {

@@ -103,6 +103,11 @@ cookie is never involved.
 | `GET` | `/api/v1/sessions/:id/printer/jobs` | List the print jobs, or download one with `?name=` |
 | `DELETE` | `/api/v1/sessions/:id/printer/jobs?name=` | Drop one print job |
 | `POST` | `/api/v1/sessions/:id/hllapi` | Drive the terminal with HLLAPI-shaped calls: function numbers, one-based positions, return codes |
+| `POST` | `/api/v1/sessions/:id/chaos/runs/label` | Name a saved exploration run. Body: `{"id", "label"}` |
+| `GET` | `/api/v1/sessions/:id/chaos/mindmap/export` | Download the session's exploration map, hidden-field values left out |
+| `POST` | `/api/v1/sessions/:id/chaos/mindmap/import` | Merge a map into the session's finished or loaded run |
+| `POST` | `/api/v1/sessions/:id/chaos/mindmap/compare` | Compare two maps, or two saved runs by id |
+| `GET` | `/api/v1/sessions/:id/chaos/business/task-draft` | Turn a discovered business function into a task draft |
 | `GET` | `/api/v1/tasks` | List the Guided Business Task catalogue |
 | `POST` | `/api/v1/tasks` | Add or replace a task |
 | `POST` | `/api/v1/sessions/:id/tasks/run` | Run a task in a session and return the result |
@@ -1002,7 +1007,7 @@ that already drive 3270Web through the cookie.
 | `GET` | `/workflow/status` | Recording and playback state for the current session: the step a run is on, its recent events, and `playbackVariables` — what a recording that makes decisions has read so far. See [Recordings and Playback](workflow.md#decisions-variables-and-loops). |
 | `POST` | `/workflow/import-macro` | Translate an uploaded macro file and load the result as this session's recording. Returns the same report as the API route, without the recording itself. See [Recordings and Playback](workflow.md#importing-a-macro-file). |
 | `POST` | `/chaos/report` | Markdown discovery report for the current or most recently loaded chaos run: TL;DR, Mermaid flow map, and per-screen detail including working keys, untried keys and field discovery. |
-| `GET` | `/chaos/insights` | Machine-readable exploration guidance: per-screen productive/dead/untried keys, unproductive fields, conditional transitions, a `frontierScreens` count, ranked `suggestedExperiments`, and live saturation/termination diagnostics. |
+| `GET` | `/chaos/insights` | Machine-readable exploration guidance: per-screen productive/dead/untried keys, unproductive fields, conditional transitions, a `frontierScreens` count, ranked `suggestedExperiments`, and saturation/termination diagnostics. Answers for a finished or loaded run as well as a live one. |
 | `POST` | `/chaos/mindmap/compare` | Diff two previously-exported chaos mind maps. JSON by default; pass `Accept: text/html` (or `?format=html`) for the HTML report. See [Chaos Mind-Map Compare](chaos-compare.md). |
 | `GET` | `/chaos/screens` | Every screen discovered by chaos: fields, learned values, key destinations, business annotations, and a truncated preview. `?include_previews=false` omits previews. |
 | `POST` | `/chaos/screens/annotate` | Record a screen's business purpose and field semantics. Body: `{"screen_hash", "business_purpose", "notes", "field_semantics": {"R5C20L8": {"name", "description", "example", "sensitive"}}}`. |
