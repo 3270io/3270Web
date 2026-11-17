@@ -108,7 +108,7 @@
     { label: "Keyboard mapping", group: "Terminal", sel: "[data-keymap-open]", icon: "gear", hint: "Rebind keys; import a keymap file" },
     { label: "Connection details", group: "Terminal", sel: "[data-host-details-open]", icon: "bulb", hint: "Telnet options, TLS, LU name — what the screen cannot show" },
     { label: "Toggle virtual keypad", group: "Terminal", sel: "[data-keypad-toggle]", icon: "gear" },
-    { label: "Switch workspace mode", group: "Terminal", sel: "[data-workspace-toggle]", icon: "gear", hint: "Business ↔ Engineering" }
+    { label: "Turn automation tools on or off", group: "Terminal", sel: "[data-workspace-toggle]", icon: "gear", hint: "Shows or hides the Automation menu" }
   ];
 
   /* Host keys, as palette entries. There is no reasonable way to show

@@ -60,10 +60,10 @@
   //
   // "Record a workflow" is the Automation menu's own Start recording item —
   // its form is submitted, not re-implemented — so this and the menu cannot
-  // drift apart. That menu is hidden in Business mode, and it is also where a
-  // recording is stopped and saved as a task, so starting one without it would
-  // leave the operator recording with no way to finish. Hence the switch to
-  // Engineering mode first, and the sentence that says so.
+  // drift apart. That menu is hidden while Automation tools is off, and it is
+  // also where a recording is stopped and saved as a task, so starting one
+  // without it would leave the operator recording with no way to finish. Hence
+  // turning Automation tools on first, and the sentence that says so.
   function renderEmpty() {
     var startForm = document.querySelector("form[data-recording-start]");
     var stopForm = document.querySelector("form[data-recording-stop]");
@@ -86,7 +86,7 @@
       if (needsEngineering && (recording || !startForm)) {
         var show = document.createElement("p");
         show.className = "subtle task-empty";
-        show.textContent = "The Automation menu is hidden in Business mode; Engineering tools shows it.";
+        show.textContent = "The Automation menu is hidden while Automation tools is off; turn it on in the Account and settings menu.";
         listEl.appendChild(show);
       }
       return;
@@ -97,8 +97,8 @@
       var note = document.createElement("p");
       note.className = "subtle task-empty";
       note.textContent =
-        "Recording turns on Engineering mode, which adds the Automation menu where you stop " +
-        "the recording and save it as a task.";
+        "Starting a recording turns Automation tools on, which adds the Automation menu where " +
+        "you stop the recording and save it as a task.";
       listEl.appendChild(note);
     }
     var actions = document.createElement("div");
@@ -114,7 +114,7 @@
       if (needsEngineering) {
         workspace.setMode("engineering");
         // Starting the recording reloads the page, which can cancel a save
-        // still in flight; wait for the mode to be stored so the Automation
+        // still in flight; wait for the choice to be stored so the Automation
         // menu is there to stop it with.
         var prefs = window.ThreeSeventyWeb.preferences;
         if (prefs && typeof prefs.save === "function") {

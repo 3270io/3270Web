@@ -955,8 +955,8 @@
     // the active-run row is on screen. The row lingers after a run finishes to
     // offer its result — a thin toolbar strip, which is fine — but leaving a
     // 360x320 status panel open over the terminal after the work is done is
-    // exactly the clutter this replaced. A live run shows it in either
-    // workspace mode, including Business, where Copilot can start one:
+    // exactly the clutter this replaced. A live run shows it whether or not
+    // Automation tools is on, including when it is off and Copilot starts one:
     // watching your terminal move with no readout of what is driving it is
     // worse than any amount of clutter.
     setWidgetPresent(recordingActive || playbackActive || chaosActive);

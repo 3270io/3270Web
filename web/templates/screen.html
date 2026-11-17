@@ -281,10 +281,11 @@
                     </div>
 
                     <!-- ─────────────── Automation ───────────────
-                         Recording, playback and chaos: the surface for
+                         Recording, playback and exploration: the surface for
                          somebody whose job is to explore or drive the
                          application rather than use it. workspace-mode.js
-                         hides this whole menu in Business mode. -->
+                         hides this whole menu while Automation tools is
+                         off. -->
                     <div class="appmenu" role="none" data-app-menu data-menu-automation>
                         <button type="button" class="appmenu-trigger" role="menuitem" aria-haspopup="true" aria-expanded="false" aria-controls="appmenu-automation" data-app-menu-trigger>Automation</button>
                         <div class="appmenu-panel appmenu-panel-wide" id="appmenu-automation" role="menu" aria-label="Automation" data-app-menu-panel hidden>
@@ -506,12 +507,13 @@
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
                             {{ end }}
-                            <!-- Business mode is the default surface and hides
-                                 the Automation menu; Engineering restores it.
+                            <!-- Automation tools is off by default, which hides the
+                                 Automation menu; turning it on restores it. The
+                                 sub-label shows the current state (On or Off).
                                  The choice persists per browser. -->
                             <button type="button" class="appmenu-item" role="menuitemcheckbox" aria-checked="false" data-workspace-toggle aria-pressed="false">
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5zm0 7.6L4.8 6 12 4.2 19.2 6 12 9.6zM2 17l10 5 10-5-2.1-1.1L12 19.8 4.1 15.9 2 17zm0-5 10 5 10-5-2.1-1.1L12 14.8 4.1 10.9 2 12z"/></svg>
-                                <span class="appmenu-label">Engineering tools<span class="appmenu-sub" data-workspace-label>Business</span></span>
+                                <span class="appmenu-label">Automation tools<span class="appmenu-sub" data-workspace-label>Off</span></span>
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
                             <button type="button" class="appmenu-item" role="menuitem" data-about-open>
@@ -600,7 +602,7 @@
                     <div class="terminal-view-bar" aria-label="Terminal view">
                         <button type="button" data-terminal-view-choice="readable" aria-pressed="false">Readable terminal</button>
                         <button type="button" data-terminal-view-choice="overview" aria-pressed="false">Fit overview</button>
-                        <button type="button" data-show-automation>Show automation</button>
+                        <button type="button" data-show-automation>Show automation tools</button>
                         <span class="subtle" data-terminal-position aria-live="polite"></span>
                     </div>
 
@@ -700,7 +702,8 @@
             {{ if .SampleAppName }}
             <!-- Sample-app provenance is a development detail: which local
                  test server this is and on what port. It told a business user
-                 nothing, so it is a compact chip and only in Engineering mode. -->
+                 nothing, so it is a compact chip and only shown while
+                 Automation tools is on. -->
             <div class="sample-status" data-sample-status>
                 <span class="sample-app-title">{{ .SampleAppName }}</span>
                 <span class="subtle">port {{ .SampleAppPort }}</span>

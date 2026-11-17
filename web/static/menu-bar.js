@@ -152,9 +152,9 @@
   }
 
   // Left and right move along the bar, the way a desktop menu bar does, and
-  // skip whichever menus are hidden — Automation is not there in Business
-  // mode, and arrowing into an invisible panel is the kind of dead end that
-  // makes people stop using the keyboard.
+  // skip whichever menus are hidden — Automation is not there while
+  // Automation tools is off, and arrowing into an invisible panel is the kind
+  // of dead end that makes people stop using the keyboard.
   function siblingMenu(menu, delta) {
     var index = menuIndex(menu);
     if (index === -1) {
@@ -530,8 +530,8 @@
       { passive: true, capture: true }
     );
 
-    // Collapsing the bar, entering focus mode or switching workspace mode all
-    // move or remove the triggers underneath an open panel.
+    // Collapsing the bar, entering focus mode or turning Automation tools on
+    // or off all move or remove the triggers underneath an open panel.
     document.addEventListener("workspacemodechange", function () {
       closeAll(false);
     });
