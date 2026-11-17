@@ -99,7 +99,7 @@
     }
 
     function refreshTerminal() {
-        refreshTerminal();
+        if (typeof window.refreshScreenContent === "function") window.refreshScreenContent();
     }
 
     // Tools that change what the Automation menu and the run strip show. The

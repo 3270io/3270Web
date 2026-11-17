@@ -976,6 +976,10 @@
         if (!list) return;
         const es = list.querySelector(".copilot-empty-state");
         if (es) es.remove();
+        // The one-line reminder of how approvals work is first-run help; once
+        // a conversation is under way the space is the transcript's.
+        const panel = ensurePanel();
+        if (panel) panel.classList.add("copilot-has-history");
     }
 
     // -- Announcements ------------------------------------------------------
@@ -1332,6 +1336,8 @@
     function renderEmptyState() {
         const list = messageList();
         if (!list || list.querySelector(".copilot-empty-state")) return;
+        const panel = ensurePanel();
+        if (panel) panel.classList.remove("copilot-has-history");
         // Nothing to invite while the provider is not set up: the connect
         // prompt below is the only thing that can be done.
         if (!connected) return;
@@ -1356,10 +1362,9 @@
     // composer rather than in the empty state, because the screen worth
     // asking about is rarely the first one.
     const QUICK_ASKS = [
-        { label: "Explain screen", kind: "screen", title: "Explain this screen" },
         { label: "Explain field", kind: "field", title: "Explain the field under the cursor" },
         { label: "Explain message", kind: "message", title: "Explain the message on this screen" },
-        { label: "What can I do here?", kind: "next", title: "What can I do from here?" },
+        { label: "What can I do?", kind: "next", title: "What can I do from here?" },
     ];
 
     function renderQuickAsks() {
@@ -1605,6 +1610,8 @@
 
     function tidyLabel(text) {
         const s = String(text || "")
+            // Unwritten positions come back as NULs.
+            .replace(/[\u0000-\u001f]/g, " ")
             .replace(/(\s*\.){2,}/g, " ")
             .replace(/\s+/g, " ")
             .replace(/[\s.:=>_-]+$/, "")

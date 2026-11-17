@@ -5496,6 +5496,11 @@ body.copilot-open .page-wrap {
   font-weight: 600;
 }
 
+/* The transcript is a flex column, and flex items shrink by default: once it
+   overflowed, every card gave up a little height and clipped its own
+   content instead of the list scrolling. */
+.copilot-panel-messages > * { flex-shrink: 0; }
+.copilot-panel.copilot-has-history:not(.copilot-automode-on) .copilot-panel-hint { display: none; }
 .copilot-panel-messages:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
