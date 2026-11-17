@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jnnngs/3270Web/internal/session"
 )
 
 func TestValidateRunID(t *testing.T) {
@@ -257,5 +259,45 @@ func TestPruneRuns(t *testing.T) {
 	// Pruning again is a no-op when the count is already within the limit.
 	if removed, err := PruneRuns(dir, 2); err != nil || removed != 0 {
 		t.Fatalf("PruneRuns(second) = (%d, %v), want (0, nil)", removed, err)
+	}
+}
+
+// A saved run holds the mask where a hidden field was typed into. Exporting
+// that as a fill types asterisks at a password prompt; a variable nobody has
+// set stops the replay there instead.
+func TestExportFromSavedRunDoesNotTypeTheMask(t *testing.T) {
+	steps := []session.WorkflowStep{
+		{Type: "FillString", Coordinates: &session.WorkflowCoordinates{Row: 11, Column: 21}, Text: "ADMIN"},
+		{Type: "FillString", Coordinates: &session.WorkflowCoordinates{Row: 12, Column: 21}, Text: maskedFieldValue},
+		{Type: "PressEnter"},
+	}
+	out, params := parameteriseMaskedFills(steps)
+	if out[0].Text != "ADMIN" {
+		t.Errorf("an ordinary fill was changed to %q", out[0].Text)
+	}
+	if out[1].Text != "${hidden_r12_c21}" {
+		t.Errorf("the masked fill is %q, want a variable reference", out[1].Text)
+	}
+	if steps[1].Text != maskedFieldValue {
+		t.Error("the caller's steps were modified")
+	}
+	if len(params) != 1 || !params[0].Sensitive || params[0].Name != "hidden_r12_c21" || params[0].Value != "" {
+		t.Errorf("parameters = %+v, want one sensitive parameter with no value", params)
+	}
+
+	run := &SavedRun{Steps: steps}
+	data, err := ExportWorkflowFromSavedRun(run, "host", 23, 0)
+	if err != nil {
+		t.Fatalf("ExportWorkflowFromSavedRun: %v", err)
+	}
+	if strings.Contains(string(data), maskedFieldValue) {
+		t.Errorf("the exported workflow still types the mask:\n%s", data)
+	}
+	if !strings.Contains(string(data), "hidden_r12_c21") {
+		t.Errorf("the exported workflow does not name the missing value:\n%s", data)
+	}
+
+	if same, none := parameteriseMaskedFills(steps[:1]); none != nil || &same[0] != &steps[0] {
+		t.Error("steps with nothing masked should come back untouched")
 	}
 }
