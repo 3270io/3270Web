@@ -100,6 +100,18 @@ page does not scroll horizontally.
 built-in themes ship, and a custom theme editor allows any palette — a theme
 of your own making is your own to check.
 
+**Terminal blue.** Pure 3270 blue (`#0000FF`) is only 2.1–2.4:1 against the
+near-black screens the dark themes draw, which is where a host puts its screen
+id, its date and its rules — the text nobody notices is missing until they
+need it. In every dark theme except Authentic 3270, text the host draws in
+blue is shown as a lighter blue (`#5C7CFF`, about 5:1 on each theme's
+background; measured 5.35:1 in the default theme) that is still plainly blue.
+Only the text is lifted. A blue *background* attribute keeps the real colour,
+because white or yellow text on it is legible as it stands, and the light
+themes keep their own darker blues. **Authentic 3270** is deliberately left on
+pure blue: reproducing the original palette is what that theme is for, and the
+cost is stated under [Known issues](#known-issues).
+
 **Reduced motion (2.3.3).** Animation is suppressed under
 `prefers-reduced-motion`.
 
@@ -149,6 +161,10 @@ area a few pixels wider than the viewport. No visible content sits in that
 region — every element renders inside the viewport — so nothing is cut off or
 unreachable, but a horizontal scrollbar can appear. Being tracked; it is a
 layout artifact rather than content that requires scrolling to read.
+
+**Authentic 3270 shows blue text at about 2.3:1.** The theme exists to look
+like the original terminal, so it keeps pure blue on near-black, which is under
+4.5:1 (and under 3:1). Choose any other theme for legible blue text.
 
 **Custom themes are unverified.** The default and built-in themes were
 checked. The theme editor lets an operator choose any foreground and

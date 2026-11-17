@@ -142,7 +142,12 @@ body[data-focus="on"] [data-focus-rail-zone] .appbar-menus {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 26ch;
+  /* 26ch cut "sampleapp:petstore:3270x" to "sampleapp:petstore:32…" — the part
+     that says which host is the part that was lost. The chip is the only item
+     in the bar that can shrink (flex-shrink 1; everything else is fixed), so
+     it can be allowed to grow into whatever room the bar has and gives it back
+     first when the bar is tight. The full address is also its title. */
+  max-width: min(44ch, 32vw);
 }
 
 .appbar-host-port {

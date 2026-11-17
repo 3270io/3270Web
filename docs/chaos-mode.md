@@ -117,6 +117,7 @@ Chaos Hints let you guide generated input values during exploration.
 
 Notes:
 
+- Two fields block keys. **Blocked keys, on every screen** applies throughout the run; **Blocked on the first screen only** applies just to the first screen of a start or resume, and is for the key that is fine later but not at the sign-on screen. The grey italic text in an empty field is an example (it starts "e.g."), not a value.
 - Hints are saved to `chaos-hints.json`.
 - Saved hints are automatically applied when starting or resuming chaos if request-level hints are not explicitly supplied.
 - Transaction hints are preferred for early field writes, while known data values are reused across fields when they fit field constraints.

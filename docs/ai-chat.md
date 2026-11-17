@@ -34,6 +34,13 @@ Drag the panel's left edge to resize it, or focus the edge and use
 ++left++ / ++right++ (hold ++shift++ for larger steps). The width is
 remembered between sessions.
 
+On a phone — a viewport narrower than 600 pixels — the panel does not sit
+beside the terminal; it covers the screen as a full-width sheet, clear of the
+notch and the home indicator, and the page behind it is left alone. The header
+buttons (Auto, Provider, Clear, and the close cross) wrap rather than run off
+the edge and are each at least 44 pixels tall. On a touch device the sheet ends
+where the terminal key bar begins, so the message box stays reachable.
+
 ## Connect a Provider
 
 The panel starts on **GitHub Copilot**. Before the first message you need
