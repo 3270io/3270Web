@@ -3935,15 +3935,17 @@
     const KEY_LEGEND = /\bP?F\d{1,2}\s*[=:\-]/i;
 
     // Where a 3270 application says what went wrong: near the bottom, above
-    // or below the key legend. Returns the likeliest line, or "".
-    function messageLine(text) {
+    // or below the key legend. Returns the lines it could be, nearest the
+    // bottom first — which of them is the message is the model's call, with
+    // the whole screen in front of it.
+    function messageLines(text) {
         const lines = String(text || "").split("\n");
-        const tail = [];
-        for (let i = lines.length - 1; i >= 0 && tail.length < 5; i--) {
-            if (lines[i].trim()) tail.push({ row: i, text: lines[i].replace(/\s+/g, " ").trim() });
+        const out = [];
+        for (let i = lines.length - 1; i >= 0 && out.length < 3; i--) {
+            const line = lines[i].replace(/\s+/g, " ").trim();
+            if (line && !KEY_LEGEND.test(line)) out.push({ row: i, text: line });
         }
-        const candidate = tail.find(function (l) { return !KEY_LEGEND.test(l.text); });
-        return candidate ? candidate : null;
+        return out;
     }
 
     // buildPinnedBlock formats the captured display for the model. Returns ""
@@ -3995,10 +3997,11 @@
         } else if (kind === "message") {
             lines.push("");
             lines.push("## The message the operator is asking about");
-            const found = messageLine(data.text);
-            if (found) {
-                lines.push("Most likely this line (row " + found.row + "): " + found.text);
-                lines.push("If another line on the screen is the real message, explain that one instead.");
+            const found = messageLines(data.text);
+            if (found.length) {
+                lines.push("Applications put their message near the bottom of the screen. The candidates, lowest first:");
+                found.forEach(function (l) { lines.push("- row " + l.row + ": " + l.text); });
+                lines.push("Explain the one that is a message to the operator; if none of them is, say so.");
             } else {
                 lines.push("No obvious message line was found; look for one near the bottom of the screen.");
             }

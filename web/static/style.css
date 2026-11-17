@@ -5738,12 +5738,26 @@ body.copilot-open .page-wrap {
    left-aligned bullets under centred paragraphs. */
 .copilot-connect-prompt { align-items: stretch; text-align: left; overflow-y: auto; }
 .copilot-connect-prompt p { margin: 0; }
+.copilot-connect-prompt .subtle,
+.copilot-connect-prompt .ai-prerequisites { font-size: 13px; line-height: 1.45; }
 .copilot-connect-prompt .ai-prerequisites { margin: 0; padding-left: 18px; }
 .copilot-connect-prompt .ai-prerequisites li { margin: 3px 0; }
 .copilot-connect-btn { align-self: flex-start; }
 .copilot-modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
 .copilot-modal-footer button[hidden] { display: none; }
 .copilot-modal-footer .copilot-modal-restart { border-color: var(--accent); color: var(--accent); }
+
+/* "Latest" floats over the foot of the transcript. It used to be pinned a
+   fixed distance above the bottom of the panel, which put it on top of
+   whatever sat between the transcript and the composer. */
+.copilot-jump-btn {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  align-self: flex-end;
+  flex-shrink: 0;
+  margin: -34px 16px 8px 0;
+}
 
 /* Below ~900px there is no room for a terminal and a side panel, so the
    panel becomes a sheet over the lower part of the screen: full width, the
@@ -5765,6 +5779,13 @@ body.copilot-open .page-wrap {
   .copilot-resize-handle { display: none; }
   .copilot-close-label { display: inline; }
   .copilot-panel-title { font-size: 12px; }
+}
+/* A sheet has little height to spare: while a turn is running the transcript
+   and the approval cards get the room the context line and quick asks had. */
+@media (max-width: 900px) {
+  .copilot-panel.copilot-running .copilot-context,
+  .copilot-panel.copilot-running .copilot-quick,
+  .copilot-panel.copilot-running .copilot-model-bar { display: none; }
 }
 @media (max-width: 900px) and (max-height: 560px) {
   .copilot-panel { height: 100dvh; border-radius: 0; }
