@@ -80,7 +80,7 @@ they are read once, when 3270Web starts, so a change to one needs a restart.
 
 1. **Session** — profiles, connection details, reconnect, print, disconnect
 2. **Terminal** — find, copy, screen history, file transfer, keyboard mapping
-3. **View** — focus mode, hotspots, virtual keypad, terminal size, theme
+3. **View** — focus mode, hotspots, virtual keypad, theme
 4. **Automation** — recording, playback and exploration
 5. **Tasks** — run a guided business task
 6. **AI chat** — show or hide the AI side panel

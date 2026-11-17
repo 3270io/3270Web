@@ -47,15 +47,24 @@
     }
   }
 
-  // refit asks the terminal to grow into whatever space it now has. Clicking
-  // the existing fit control rather than reimplementing the maths keeps one
-  // definition of "fit" in the codebase.
+  // refit asks the terminal to grow into whatever space it now has. Asking the
+  // size control to refit, rather than reimplementing the maths, keeps one
+  // definition of "fit" in the codebase. It only acts while the size control
+  // is on Fit: someone who chose Readable or Custom picked a size, and
+  // entering Focus mode does not get to override it.
   function refit() {
     window.dispatchEvent(new CustomEvent("h3270:layout-changed", { detail: { source: "focus" } }));
     window.requestAnimationFrame(function () {
-      var fit = document.querySelector("[data-terminal-fit]");
-      if (fit) {
-        fit.click();
+      var size = window.ThreeSeventyWeb && window.ThreeSeventyWeb.terminalSize;
+      if (size && typeof size.refit === "function") {
+        size.refit();
+      } else {
+        // No size control on this page: the Fit control, if there is one,
+        // still answers a click by refitting.
+        var fit = document.querySelector("[data-terminal-fit]");
+        if (fit) {
+          fit.click();
+        }
       }
       if (typeof window.sizeScreenContainer === "function") {
         window.sizeScreenContainer();

@@ -25,7 +25,7 @@ the right, and the session tabs beneath.
 |---|---|
 | **Session** | Connection profiles, connection details, reconnect, print screen, disconnect |
 | **Terminal** | Find on screen, copy screen, screen history, file transfer, keyboard mapping |
-| **View** | Focus mode, hotspots, virtual keypad, terminal size, theme |
+| **View** | Focus mode, hotspots, virtual keypad, theme |
 | **Automation** | Recording, playback and exploration (shown while Automation tools is on) |
 
 To the right of the menus: **Tasks**, the AI chat panel, the command palette,
@@ -52,6 +52,37 @@ the keyboard goes straight back to the screen.
 **Collapse the bar** with the chevron at the right-hand end when you want the
 height back. A single chevron stays behind to bring it out again, and the
 choice is remembered per browser. For the whole screen, use focus mode below.
+
+### Terminal size
+
+The terminal's size is one control, in the strip directly above the terminal.
+It is not in a menu. It has three choices, and exactly one is selected:
+
+| Choice | What it does |
+|---|---|
+| **Fit** | Picks the largest size at which the whole screen is in view. It keeps doing so as the window changes shape, and re-fits when a screen of a different size (a Model 4 after a Model 2, say) arrives. The default on a desktop. |
+| **Readable** | The text at 100%, the size it was designed at. If the screen is wider than the window it pans inside its own box, and a note beside the control says which columns you are looking at. The default on a phone. |
+| **Custom** | A size you set. Choosing it shows **−**, a slider and **+** beside the control, with the size as a percentage of 100%. Like Readable, a screen that is wider than the window pans rather than being shrunk. |
+
+Choosing **Custom** starts from the size you were looking at, so the text does
+not jump. Moving the slider or pressing **−** or **+** is itself a choice of
+Custom. To go back to the designed size, choose **Readable**; to let 3270Web
+size it for you, choose **Fit**. The slider and percentage are shown only for
+Custom — in the other two there is nothing to adjust.
+
+Your choice is remembered. On a signed-in account it is saved with your other
+display preferences and follows you to another browser; otherwise it is kept
+in this browser. The Custom size itself is always kept in the browser, because
+a size in pixels only means something on the display it was set on.
+
+From the keyboard, tab to the group, then use ++left++ / ++right++ (or
+++up++ / ++down++) to move between the choices — each one takes effect as you
+reach it — and ++home++ / ++end++ to jump to the first or last. In Custom, tab
+on to the slider and step it with the arrow keys. The keys are the control's
+own while it has focus; they are not sent to the host.
+
+[Focus mode](#focus-mode) refits the terminal to the display when Fit is
+selected. If you chose Readable or Custom, focus mode leaves your size alone.
 
 ### Focus mode
 
@@ -538,9 +569,10 @@ still the browser's, which is what opens the software keyboard for typing.
 **Reading an 80-column screen on a narrow display.** The screen scrolls
 sideways and pinch-zooms. It does not reflow, and it does not shrink to fit:
 which column a character sits in is part of what a 3270 screen means, so a
-line that wrapped would be a line that lied. Use the zoom control in the
-terminal tools for a size that suits the device — it scales the grid, which
-keeps it a grid.
+line that wrapped would be a line that lied. Use the [terminal-size
+control](#terminal-size) above the terminal for a size that suits the device:
+**Custom** to set it, or **Fit** to see all 80 columns at once at a smaller
+size. Either way it scales the grid, which keeps it a grid.
 
 **The landscape suggestion.** A phone held upright fits those 80 columns into
 about 320 pixels, which works out at a four-pixel character cell. Turned
@@ -870,4 +902,4 @@ Cursor movement, insert mode and field validation are handled locally
 
 ## Readable mobile terminal
 
-On narrow screens, **Readable terminal** keeps legible text and confines horizontal panning to the terminal. The column indicator shows where you are, and focused fields are brought into view. **Fit overview** displays the full fixed-column screen at a smaller size. Your explicit choice is retained; opening the software keyboard does not shrink the terminal. Landscape remains optional.
+On narrow screens the terminal opens in **Readable**, which keeps legible text and confines horizontal panning to the terminal. The column indicator shows where you are, and focused fields are brought into view. **Fit** displays the full fixed-column screen at a smaller size, and **Custom** lets you choose the size. All three are the [terminal-size control](#terminal-size) above the terminal. Your explicit choice is retained; opening the software keyboard does not shrink the terminal. Landscape remains optional.

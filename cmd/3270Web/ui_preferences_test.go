@@ -51,6 +51,46 @@ func TestUIPreferencesFollowOnlyTheirAuthenticatedOwner(t *testing.T) {
 	}
 }
 
+// The terminal-size control has three choices — Fit, Readable and Custom — and
+// the account stores which one a person last picked, so it follows them to
+// another browser. Fit has always been stored as "overview" and Readable as
+// "readable"; those two values must keep meaning what they meant, because
+// they are already sitting in saved accounts. "custom" is the third.
+func TestUIPreferencesStoreEveryTerminalSizeChoice(t *testing.T) {
+	app, router := newAuthTestApp(t, "local")
+	alice := addUser(t, app, "alice", authz.RoleUser, false)
+	cookie := authCookieFrom(doLogin(t, router, alice.Username, loginTestPassword, "10.0.0.1"))
+
+	patch := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPatch, "/api/preferences", strings.NewReader(body))
+		req.Host = "example.test"
+		req.Header.Set("Origin", "http://example.test")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.AddCookie(&http.Cookie{Name: authCookieName, Value: cookie})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	for _, choice := range []string{"overview", "readable", "custom", ""} {
+		if w := patch(`{"terminalView":"` + choice + `"}`); w.Code != http.StatusOK {
+			t.Errorf("terminalView %q was refused: %d %s", choice, w.Code, w.Body.String())
+			continue
+		}
+		stored, _, _ := app.userStore().ByID(alice.ID)
+		if stored.UIPreferences.TerminalView != choice {
+			t.Errorf("terminalView %q was saved as %q", choice, stored.UIPreferences.TerminalView)
+		}
+	}
+
+	// A value the control does not offer is still rejected rather than stored
+	// and handed back to the page to puzzle over.
+	if w := patch(`{"terminalView":"zoomed"}`); w.Code != http.StatusBadRequest {
+		t.Errorf("unknown terminalView accepted: %d", w.Code)
+	}
+}
+
 func TestAccessHelpRejectsExecutableURLs(t *testing.T) {
 	for _, value := range []string{"javascript:alert(1)", "data:text/html,bad", "http://helpdesk.example"} {
 		t.Setenv("AUTH_HELP_URL", value)
