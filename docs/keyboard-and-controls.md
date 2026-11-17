@@ -194,7 +194,9 @@ Two details worth knowing:
   cannot tell you" are different answers.
 - The longest values (copyright, proxy list, running tasks) are abbreviated
   by the terminal itself and carry a **Show** button that fetches them in
-  full.
+  full. Each button is named for the value it reveals — a screen reader
+  announces "Show Copyright", not six buttons that all say "Show" — and focus
+  moves to the value once it appears.
 
 **Copy** puts the whole list on the clipboard as plain text, for pasting
 into a ticket. **Refresh** re-reads it — the byte counts always move, and
@@ -220,8 +222,9 @@ session you have and a **+ New session** button at the end of the row.
   tab has no **×** — closing your only session is a disconnect, and
   **Session → Disconnect** is where that lives.
 - **Disconnect** ends only the session you are looking at — the confirmation
-  names it. If other tabs are open you land on one of them rather than back at
-  the connect page.
+  names it, and starts with **Cancel** focused, so pressing Enter or Space as
+  it appears keeps the session. If other tabs are open you land on one of them
+  rather than back at the connect page.
 
     Disconnecting your last session leaves you at the connect page even where
     signing in would normally put you straight onto a host. Disconnect means
@@ -362,6 +365,17 @@ Keypad features:
 - A whole keyboard, letters and number pad included, in MAX
 
 The keypad visibility preference can be saved in Settings (`Use keypad`).
+
+### The welcome banner
+
+The first time you open a terminal, a **Your terminal is ready** banner sits
+above it. Its PF-key line follows the keypad: while the keypad is hidden — the
+default on a desktop — it says to use F1–F12, or to show the on-screen keypad,
+and offers a **Show keypad** button that does what **View → Virtual keypad**
+does. The banner hides itself at your first action in the terminal, meaning the
+first key sent to the host or the start of a recording, playback, chaos run or
+task, and stays hidden afterwards. **Dismiss** hides it sooner. Typing into a
+field, or moving between fields, is not yet an action: nothing has been sent.
 
 ### Sizes
 
@@ -680,6 +694,11 @@ screen you had not yet seen is a hazard, not a convenience.
     `Clear` on the first ++esc++ and only sends it if you press ++esc++
     again within two seconds. Any other key — or letting the window
     elapse — cancels it.
+
+    Only a fresh press counts. The ++esc++ that closes a menu or dialog, or
+    that clears a marked block, is spent on that and does not arm `Clear`; and
+    holding the key down does not arm or confirm it either, so dismissing a
+    dialog with a slightly long press cannot wipe the host screen.
 
 ### Moving focus out of the terminal
 

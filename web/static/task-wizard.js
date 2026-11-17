@@ -298,7 +298,16 @@
     if (state.stage < STAGES.length - 1) {
       var next = el("button", "task-run-btn", "Next: " + STAGES[state.stage + 1].title);
       next.type = "button";
-      next.addEventListener("click", function () { goTo(state.stage + 1); });
+      next.addEventListener("click", function () {
+        // The name is the one thing the task cannot exist without. Finding that
+        // out on Review, four stages later, is how the wizard used to let
+        // somebody all the way through before refusing.
+        if (state.stage === 0 && !nameIsValid()) {
+          showNameError();
+          return;
+        }
+        goTo(state.stage + 1);
+      });
       actions.appendChild(next);
     } else {
       var saveButton = el("button", "task-run-btn", "Save task");
@@ -306,6 +315,78 @@
       saveButton.setAttribute("data-wizard-save", "");
       saveButton.addEventListener("click", saveTask);
       actions.appendChild(saveButton);
+      updateSaveState();
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Whether the task can be saved, and saying why not                */
+  /* ---------------------------------------------------------------- */
+
+  function nameIsValid() {
+    return !!state && (state.task.name || "").trim() !== "";
+  }
+
+  // Marks the Task name field as missing: the message beside it, aria-invalid,
+  // and focus, so neither a keyboard nor a screen-reader user is left to work
+  // out why nothing happened. Shown by Next and by a Save that finds no name;
+  // typing clears it again (see textField).
+  function showNameError() {
+    var input = modal && modal.querySelector("[data-wizard-name]");
+    var message = modal && modal.querySelector("[data-wizard-name-error]");
+    if (!input || !message) {
+      return;
+    }
+    message.hidden = false;
+    input.setAttribute("aria-invalid", "true");
+    input.focus();
+  }
+
+  // The reason the task cannot be saved right now, or "". The Save button is
+  // off while there is one, with the reason beside it. It used to stay on and,
+  // pressed, send the operator back to the first stage with nothing said there.
+  var CHECKING = "Checking the task…";
+  var shownBlocker = "";
+
+  function saveBlocker() {
+    if (!state) {
+      return "";
+    }
+    if (!nameIsValid()) {
+      return "Give the task a name on the Details stage before saving.";
+    }
+    var preview = state.preview;
+    if (!preview) {
+      return CHECKING;
+    }
+    // A check that could not be made is not a verdict: the server validates
+    // again on save and its answer is the one that counts.
+    if (!preview.transportError && !preview.ok) {
+      return "Fix the problem listed above before saving.";
+    }
+    return "";
+  }
+
+  function updateSaveState() {
+    var save = modal && modal.querySelector("[data-wizard-save]");
+    if (!save) {
+      return;
+    }
+    var reason = saveBlocker();
+    save.disabled = !!reason;
+    if (reason) {
+      save.setAttribute("aria-describedby", "wizard-status");
+      status(reason, reason !== CHECKING);
+      shownBlocker = reason;
+    } else {
+      save.removeAttribute("aria-describedby");
+      // Only take back what this put there: the status line is also where
+      // "Saving…" and the server's refusal are shown.
+      var line = modal.querySelector("[data-wizard-status]");
+      if (shownBlocker && line && line.textContent === shownBlocker) {
+        status("");
+      }
+      shownBlocker = "";
     }
   }
 
@@ -321,7 +402,8 @@
       "to run it. Write it as the question somebody is asking."));
 
     wrap.appendChild(textField("Task name", state.task.name, 64, "Account balance enquiry",
-      function (value) { state.task.name = value; }, "data-wizard-name"));
+      function (value) { state.task.name = value; }, "data-wizard-name",
+      { required: true, requiredMessage: "Enter a task name to continue." }));
     wrap.appendChild(textField("What it does", state.task.description || "", 200,
       "Retrieves the current cleared balance for an account.",
       function (value) { state.task.description = value; }, "data-wizard-description"));
@@ -351,9 +433,19 @@
     }).length;
   }
 
-  function textField(labelText, value, maxLength, placeholder, onChange, hook) {
+  // options.required marks the field as one the task cannot do without: the
+  // word "required" beside the label (the same one the task run form uses),
+  // aria-required, and an error message that Next or Save shows when it is
+  // empty. The message sits outside the <label> so it is not read as part of
+  // the field's name, and typing takes it away.
+  function textField(labelText, value, maxLength, placeholder, onChange, hook, options) {
+    var required = !!(options && options.required);
     var label = el("label", "task-field");
-    label.appendChild(el("span", "task-field-label", labelText));
+    var caption = el("span", "task-field-label", labelText);
+    if (required) {
+      caption.appendChild(el("span", "task-field-required", "required"));
+    }
+    label.appendChild(caption);
     var input = document.createElement("input");
     input.type = "text";
     input.maxLength = maxLength;
@@ -362,9 +454,30 @@
     if (hook) {
       input.setAttribute(hook, "");
     }
-    input.addEventListener("input", function () { onChange(input.value); });
     label.appendChild(input);
-    return label;
+    if (!required) {
+      input.addEventListener("input", function () { onChange(input.value); });
+      return label;
+    }
+
+    input.setAttribute("aria-required", "true");
+    var error = el("span", "wizard-warning is-error", options.requiredMessage || "This is required.");
+    error.id = hook ? hook.replace(/^data-/, "") + "-error" : "wizard-required-error";
+    error.setAttribute(hook ? hook + "-error" : "data-wizard-required-error", "");
+    error.setAttribute("role", "alert");
+    error.hidden = true;
+    input.setAttribute("aria-describedby", error.id);
+    input.addEventListener("input", function () {
+      onChange(input.value);
+      if (input.value.trim() !== "") {
+        error.hidden = true;
+        input.removeAttribute("aria-invalid");
+      }
+    });
+    var field = el("div", "wizard-field");
+    field.appendChild(label);
+    field.appendChild(error);
+    return field;
   }
 
   // The notes are the server saying what it assumed. Showing them is the
@@ -1348,6 +1461,9 @@
     var summary = el("div", "wizard-review", null);
     summary.setAttribute("data-wizard-review", "");
     body.appendChild(summary);
+    // What was checked last time is not a check of what is here now; showing it
+    // would leave Save on for a task that has changed since.
+    state.preview = null;
     renderReviewBody();
     runPreview(renderReviewBody);
   }
@@ -1358,6 +1474,7 @@
       return;
     }
     host.innerHTML = "";
+    updateSaveState();
 
     var task = collect();
     var head = el("div", "wizard-review-head");
@@ -1632,8 +1749,12 @@
     }
     var task = collect();
     if (!task.name) {
-      status("Give the task a name on the Details stage.", true);
+      // The Save button is off while there is no name, so this is only a
+      // backstop. It still has to say something where the operator lands:
+      // render() clears the status line, which is how the old message here
+      // was never seen.
       goTo(0);
+      showNameError();
       return;
     }
     status("Saving…");
@@ -1669,7 +1790,7 @@
       '  <nav class="wizard-stepper" data-wizard-stepper aria-label="Task authoring stages"></nav>',
       '  <div class="wizard-body" data-wizard-body></div>',
       '  <div class="wizard-actions">',
-      '    <span class="task-form-status" data-wizard-status aria-live="polite"></span>',
+      '    <span class="task-form-status" id="wizard-status" data-wizard-status aria-live="polite"></span>',
       '    <span class="wizard-nav" data-wizard-nav></span>',
       "  </div>",
       "</div>"

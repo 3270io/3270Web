@@ -574,11 +574,12 @@
             </header>
             </div><!-- /rail zone -->
                     <section class="quick-start" data-quick-start hidden aria-label="Get started">
-                        <div><strong>Your terminal is ready</strong><p>Tab moves between fields. Enter submits. PF keys use the on-screen keypad.</p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
+                        <div><strong>Your terminal is ready</strong><p>Tab moves between fields. Enter submits. <span data-quick-start-keys>{{ if .UseKeypad }}Use F1–F12 for PF keys, or the on-screen keypad.{{ else }}Use F1–F12 for PF keys, or show the on-screen keypad.{{ end }}</span></p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
                         <div class="quick-start-actions">
                             <button type="button" data-start-goal="terminal">Use terminal</button>
                             <button type="button" data-start-goal="record">Record a workflow</button>
                             <button type="button" data-start-goal="explore">Explore screens</button>
+                            <button type="button" data-quick-start-show-keypad {{ if .UseKeypad }}hidden{{ end }}>Show keypad</button>
                             <button type="button" class="quiet-action" data-quick-start-dismiss>Dismiss</button>
                         </div>
                     </section>
@@ -1275,12 +1276,25 @@ Select = Enter"></textarea>
             </div>
             <div class="settings-confirm-modal" data-settings-restart-confirm hidden>
                 <div class="settings-confirm-backdrop" data-settings-restart-cancel></div>
-                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="settings-restart-title">
+                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="settings-restart-title" aria-describedby="settings-restart-desc">
                     <h4 id="settings-restart-title">Restart 3270Web?</h4>
-                    <p>Settings saved. Restart now to apply changes?</p>
+                    <p id="settings-restart-desc" data-settings-restart-message aria-live="polite">Settings saved. Restarting ends every open terminal session, including other people's on a shared instance.</p>
                     <div class="settings-confirm-actions">
                         <button type="button" data-settings-restart-cancel>Not now</button>
                         <button type="button" data-settings-restart-accept>Restart now</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Closing Settings with edits that were never saved. Opened by
+                 ui.js, which also puts focus on "Keep editing". -->
+            <div class="settings-confirm-modal" data-settings-discard-confirm hidden>
+                <div class="settings-confirm-backdrop" data-settings-discard-keep></div>
+                <div class="settings-confirm-content" role="dialog" aria-modal="true" aria-labelledby="settings-discard-title" aria-describedby="settings-discard-desc">
+                    <h4 id="settings-discard-title">Discard unsaved changes?</h4>
+                    <p id="settings-discard-desc">You have edited settings that are not saved yet. Closing now throws those edits away.</p>
+                    <div class="settings-confirm-actions">
+                        <button type="button" data-settings-discard-keep>Keep editing</button>
+                        <button type="button" data-settings-discard-accept>Discard changes</button>
                     </div>
                 </div>
             </div>

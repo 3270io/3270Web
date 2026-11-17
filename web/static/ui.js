@@ -114,9 +114,21 @@
     const restartConfirmModal = modal.querySelector('[data-settings-restart-confirm]');
     const restartConfirmButton = modal.querySelector('[data-settings-restart-accept]');
     const restartCancelButtons = modal.querySelectorAll('[data-settings-restart-cancel]');
+    // The "Not now" beside the accept button. The backdrop carries the same
+    // attribute, so it cannot be picked by attribute alone.
+    const restartDeclineButton = modal.querySelector('.settings-confirm-actions [data-settings-restart-cancel]');
+    const restartMessage = modal.querySelector('[data-settings-restart-message]');
+    const discardConfirmModal = modal.querySelector('[data-settings-discard-confirm]');
+    const discardKeepButtons = modal.querySelectorAll('[data-settings-discard-keep]');
+    const discardAcceptButton = modal.querySelector('[data-settings-discard-accept]');
     const maximizedStorageKey = 'h3270SettingsModalMaximized';
     const extraOptionsPrefix = 'APP_SETTINGS_OPTIONS_';
 
+    // What "Reset to defaults" puts back. Mirrors settingsDefaults() in
+    // cmd/3270Web/main.go, which is the source of truth: a value that drifts
+    // from it makes Reset write something the server would not have chosen.
+    // ALLOW_LOG_ACCESS did — it said 'true' here and "false" there, so Reset on
+    // the App tab switched log access ON.
     const defaults = {
         S3270_PORT: '23',
         S3270_PREFER_IPV4: 'false',
@@ -157,7 +169,7 @@
         S3270_HELP: 'false',
         S3270_VERSION: 'false',
         S3270_UTENV: 'false',
-        ALLOW_LOG_ACCESS: 'true',
+        ALLOW_LOG_ACCESS: 'false',
         APP_USE_KEYPAD: 'false',
         CHAOS_MAX_STEPS: '100',
         CHAOS_TIME_BUDGET_SEC: '300',
@@ -355,6 +367,15 @@
     let activeGroupId = '';
     let maximized = false;
     let restartConfirmResolver = null;
+    let discardConfirmResolver = null;
+    // True from the moment the operator accepts a restart until the page is
+    // reloaded or the restart fails; nothing in the dialog is actionable then.
+    let restartInFlight = false;
+    // What the form held when it was last loaded from, or saved to, the server.
+    // The baseline for "has anything been edited?" (closing the dialog) and for
+    // "which keys did this save change?" (whether to offer a restart). Null
+    // until a load has succeeded.
+    let savedValues = null;
     let chaosDefaultsHintsList = null;
     let chaosDefaultsKeyBlacklistInput = null;
     let chaosDefaultsStatus = null;
@@ -900,9 +921,11 @@
     };
 
     const openSettingsModal = () => {
+        // Nothing to compare against until this open's load has finished.
+        savedValues = null;
         modal.hidden = false;
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
-            window.ThreeSeventyWeb.pushModal(modal, closeSettingsModal);
+            window.ThreeSeventyWeb.pushModal(modal, closeSettingsModal, { confirmClose: confirmCloseSettings });
         }
         ensureSettingsTooltips();
         if (typeof loadSettings === 'function') {
@@ -912,6 +935,7 @@
 
     const closeSettingsModal = () => {
         closeChaosDefaultsSubModal();
+        closeDiscardConfirm(false);
         closeRestartConfirm(false);
         modal.hidden = true;
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
@@ -920,6 +944,89 @@
         setStatus('');
     };
 
+    // Whether the form holds an edit that has not been saved. The Theme tab is
+    // not part of this: it has its own save, and applies a choice as it is made.
+    const isFormDirty = () => {
+        if (modal.hidden || !savedValues) {
+            return false;
+        }
+        const current = collectSettings();
+        const keys = new Set(Object.keys(savedValues).concat(Object.keys(current)));
+        for (const key of keys) {
+            if (savedValues[key] !== current[key]) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // Close, the backdrop and Escape all end up here. Closing used to throw the
+    // form's unsaved edits away without a word, which is how a long list of
+    // changes was lost to a stray Escape.
+    const requestCloseSettings = async () => {
+        if (restartInFlight || discardConfirmResolver) {
+            return;
+        }
+        if (!isFormDirty()) {
+            closeSettingsModal();
+            return;
+        }
+        if (await askDiscardConfirmation()) {
+            closeSettingsModal();
+        }
+    };
+
+    // Escape reaches this dialog through modal-utils, which would close it
+    // outright; this is the veto it asks for first.
+    const confirmCloseSettings = () => {
+        if (restartInFlight) {
+            return false;
+        }
+        if (!isFormDirty()) {
+            return true;
+        }
+        requestCloseSettings();
+        return false;
+    };
+
+    const closeDiscardConfirm = (discard) => {
+        if (discardConfirmModal && !discardConfirmModal.hidden) {
+            discardConfirmModal.hidden = true;
+            if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.popModal) {
+                window.ThreeSeventyWeb.popModal(discardConfirmModal);
+            }
+        }
+        if (discardConfirmResolver) {
+            const resolve = discardConfirmResolver;
+            discardConfirmResolver = null;
+            resolve(!!discard);
+        }
+    };
+
+    // Resolves true to discard, false to keep editing. Focus starts on
+    // "Keep editing": the edits cannot be got back, so the key that is pressed
+    // by reflex must not be the one that throws them away.
+    const askDiscardConfirmation = () => {
+        if (!discardConfirmModal || !discardAcceptButton) {
+            return Promise.resolve(true);
+        }
+        closeDiscardConfirm(false);
+        discardConfirmModal.hidden = false;
+        const keepButton = discardConfirmModal.querySelector('.settings-confirm-actions [data-settings-discard-keep]');
+        if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+            window.ThreeSeventyWeb.pushModal(discardConfirmModal, () => closeDiscardConfirm(false),
+                { initialFocus: keepButton || undefined });
+        } else if (keepButton) {
+            keepButton.focus();
+        }
+        return new Promise((resolve) => {
+            discardConfirmResolver = resolve;
+        });
+    };
+
+    // Closes the restart prompt without restarting. Accepting is a separate
+    // path (acceptRestartConfirm) because the dialog has to stay up, showing
+    // progress, once somebody says yes.
     const closeRestartConfirm = (confirmed) => {
         if (!restartConfirmModal || restartConfirmModal.hidden) {
             if (restartConfirmResolver) {
@@ -940,23 +1047,132 @@
         }
     };
 
-    const askRestartConfirmation = () => {
+    const acceptRestartConfirm = () => {
+        if (!restartConfirmResolver) {
+            return;
+        }
+        const resolve = restartConfirmResolver;
+        restartConfirmResolver = null;
+        resolve(true);
+    };
+
+    const restartConsequence = "Restarting ends every open terminal session, including other people's on a shared instance.";
+
+    // Focus starts on "Not now". A restart cannot be undone and takes other
+    // people's sessions with it, so the default has to be the one that does
+    // nothing.
+    const askRestartConfirmation = (labels) => {
         if (!restartConfirmModal || !restartConfirmButton) {
             return Promise.resolve(false);
         }
         if (restartConfirmResolver) {
             closeRestartConfirm(false);
         }
+        if (restartMessage) {
+            restartMessage.textContent = labels
+                ? `Settings saved. Changes to ${labels} take effect after a restart. ${restartConsequence}`
+                : `Settings saved. ${restartConsequence}`;
+        }
         restartConfirmModal.hidden = false;
         if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
             window.ThreeSeventyWeb.pushModal(restartConfirmModal, () => closeRestartConfirm(false),
-                { initialFocus: restartConfirmButton });
-        } else {
-            restartConfirmButton.focus();
+                { initialFocus: restartDeclineButton || undefined, confirmClose: () => !restartInFlight });
+        } else if (restartDeclineButton) {
+            restartDeclineButton.focus();
         }
         return new Promise((resolve) => {
             restartConfirmResolver = resolve;
         });
+    };
+
+    // While the restart is under way the dialog says so and offers nothing: the
+    // POST is answered before the process goes away, and for a few seconds
+    // after that there is no server to talk to. Without this the dialog just
+    // closed and the page sat there looking as if nothing had happened.
+    const showRestartProgress = () => {
+        restartInFlight = true;
+        const dialog = restartConfirmModal ? restartConfirmModal.querySelector('[role="dialog"]') : null;
+        if (dialog) {
+            dialog.setAttribute('aria-busy', 'true');
+            // The buttons are about to be disabled, so focus has to be somewhere
+            // that stays: the dialog itself.
+            dialog.setAttribute('tabindex', '-1');
+            dialog.focus();
+        }
+        if (restartMessage) {
+            restartMessage.textContent = '';
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            spinner.setAttribute('aria-hidden', 'true');
+            restartMessage.appendChild(spinner);
+            restartMessage.appendChild(document.createTextNode('Restarting 3270Web...'));
+        }
+        if (restartConfirmButton) {
+            restartConfirmButton.disabled = true;
+        }
+        if (restartDeclineButton) {
+            restartDeclineButton.disabled = true;
+        }
+    };
+
+    const hideRestartProgress = () => {
+        restartInFlight = false;
+        const dialog = restartConfirmModal ? restartConfirmModal.querySelector('[role="dialog"]') : null;
+        if (dialog) {
+            dialog.removeAttribute('aria-busy');
+        }
+        if (restartConfirmButton) {
+            restartConfirmButton.disabled = false;
+        }
+        if (restartDeclineButton) {
+            restartDeclineButton.disabled = false;
+        }
+        closeRestartConfirm(false);
+    };
+
+    const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+    // Waits for the new process to answer /healthz. The old one still answers
+    // for a moment after the restart POST returns, so a first success proves
+    // nothing: wait until it has been seen to go away, or give it long enough
+    // that it cannot still be the old one. Resolves false after a minute.
+    const waitForRestart = async () => {
+        const started = Date.now();
+        let sawDown = false;
+        while (Date.now() - started < 60000) {
+            await sleep(500);
+            let up = false;
+            try {
+                const response = await fetch('/healthz', { cache: 'no-store' });
+                up = response.ok;
+            } catch (error) {
+                up = false;
+            }
+            if (!up) {
+                sawDown = true;
+            } else if (sawDown || Date.now() - started > 5000) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const restartAndReload = async () => {
+        showRestartProgress();
+        setStatus('Restarting 3270Web...');
+        try {
+            const response = await fetch('/app/restart', { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Failed to restart 3270Web.');
+            }
+            if (!(await waitForRestart())) {
+                throw new Error('3270Web did not come back within a minute. Reload this page to check.');
+            }
+        } catch (error) {
+            hideRestartProgress();
+            throw error;
+        }
+        window.location.reload();
     };
 
     if (openButton) {
@@ -964,7 +1180,7 @@
     }
 
     closeButtons.forEach((button) => {
-        button.addEventListener('click', closeSettingsModal);
+        button.addEventListener('click', requestCloseSettings);
     });
 
     const setFieldValue = (field, value) => {
@@ -1224,16 +1440,32 @@
             resetButton.className = 'settings-group-reset';
             resetButton.textContent = 'Reset to defaults';
             resetButton.addEventListener('click', () => {
+                const left = [];
                 group.fields.forEach((field) => {
                     const entry = fieldMap.get(field.key);
+                    if (!entry) {
+                        return;
+                    }
                     // A read-only field is not this form's to reset: it would
                     // show a value the save cannot deliver.
-                    if (entry && !readOnlyKeys.has(field.key)) {
-                        setFieldValue(entry.input, defaults[field.key] ?? '');
-                        entry.error.textContent = '';
+                    if (readOnlyKeys.has(field.key)) {
+                        left.push(field.label);
+                        return;
                     }
+                    setFieldValue(entry.input, defaults[field.key] ?? '');
+                    entry.error.textContent = '';
                 });
-                setStatus(`${group.title} reset to defaults.`);
+                // Reset only edits the form. It used to say "reset to
+                // defaults", which reads as done; nothing changes on the server
+                // until Save, so say that, and name whatever was left alone.
+                let message = `${group.title} reset in this form. Save settings to apply.`;
+                if (left.length > 0) {
+                    message += ` Not reset, because they are set outside the web interface: ${left.join(', ')}.`;
+                }
+                if (group.id === 'chaos') {
+                    message += ' Hints and blocked keys are saved separately and were not changed.';
+                }
+                setStatus(message);
             });
 
             header.appendChild(title);
@@ -1526,6 +1758,7 @@
             const data = await response.json();
             populateSettings(data.settings || {});
             applyReadOnly(data.readOnly);
+            savedValues = collectSettings();
             setStatus('Settings loaded.');
             loadChaosDefaultsFromServer();
         } catch (error) {
@@ -1552,6 +1785,34 @@
             }
         });
         return settings;
+    };
+
+    // Whether a saved setting needs 3270Web restarted before it takes effect.
+    //
+    // The server does not say, so this mirrors how it treats each key. Saving
+    // writes every key to .env (updateSettings in cmd/3270Web/main.go), but only
+    // applyRuntimeSetting changes the running process, and only for
+    // ALLOW_LOG_ACCESS and APP_USE_KEYPAD. The CHAOS_* keys are read from .env
+    // afresh at the start of each run (applyChaosEnvSettings in chaos.go).
+    // What is left is the S3270_* options, which s3270 is launched with from the
+    // process environment, and that is filled from .env once, at startup. If the
+    // server grows another setting that is only read at startup, add it here;
+    // asking for a restart that is not needed is the safer way to be wrong than
+    // not asking for one that is.
+    const settingNeedsRestart = (key) => key.startsWith('S3270_');
+
+    // The labels of the saved settings that need a restart, comma-separated, or
+    // '' when none changed. Compared with what the form held when it loaded, so
+    // saving without an edit does not ask for a restart.
+    const describeRestartKeys = (submitted) => {
+        const before = savedValues || {};
+        const labels = Object.keys(submitted)
+            .filter((key) => settingNeedsRestart(key) && submitted[key] !== before[key])
+            .map((key) => (fieldMetaMap.get(key) || {}).label || key);
+        if (labels.length > 4) {
+            return `${labels.slice(0, 4).join(', ')} and ${labels.length - 4} more`;
+        }
+        return labels.join(', ');
     };
 
     const saveSettings = async () => {
@@ -1595,21 +1856,25 @@
                 throw new Error(data.error || 'Failed to save settings.');
             }
 
+            // Worked out before the baseline moves: it is the difference
+            // between what the form held when it loaded and what was just saved.
+            const restartLabels = describeRestartKeys(payload.settings);
             populateSettings(data.settings || payload.settings);
             applyReadOnly(data.readOnly);
+            savedValues = collectSettings();
             setStatus('Settings saved.');
             if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
                 window.ThreeSeventyWeb.notify('Settings saved.', 'success');
             }
-            const onConnectScreen = window.location.pathname === '/';
-            if (onConnectScreen) {
-                const restartNow = await askRestartConfirmation();
+            if (restartLabels) {
+                // Only the connect page offers the restart: from a live
+                // terminal it would end the session being worked in.
+                const onConnectScreen = window.location.pathname === '/';
+                const restartNow = onConnectScreen ? await askRestartConfirmation(restartLabels) : false;
                 if (restartNow) {
-                    setStatus('Restarting 3270Web...');
-                    const restartResponse = await fetch('/app/restart', { method: 'POST' });
-                    if (!restartResponse.ok) {
-                        throw new Error('Failed to restart 3270Web.');
-                    }
+                    await restartAndReload();
+                } else {
+                    setStatus(`Settings saved. Changes to ${restartLabels} take effect after 3270Web restarts.`);
                 }
             }
         } catch (error) {
@@ -1669,11 +1934,23 @@
     }
 
     restartCancelButtons.forEach((button) => {
-        button.addEventListener('click', () => closeRestartConfirm(false));
+        button.addEventListener('click', () => {
+            if (!restartInFlight) {
+                closeRestartConfirm(false);
+            }
+        });
     });
 
     if (restartConfirmButton) {
-        restartConfirmButton.addEventListener('click', () => closeRestartConfirm(true));
+        restartConfirmButton.addEventListener('click', acceptRestartConfirm);
+    }
+
+    discardKeepButtons.forEach((button) => {
+        button.addEventListener('click', () => closeDiscardConfirm(false));
+    });
+
+    if (discardAcceptButton) {
+        discardAcceptButton.addEventListener('click', () => closeDiscardConfirm(true));
     }
 
 })();
