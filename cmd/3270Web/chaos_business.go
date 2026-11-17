@@ -81,6 +81,9 @@ func (app *App) ChaosScreensListHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no screens discovered yet; run chaos exploration first"})
 		return
 	}
+	// Values learned for hidden fields are masked; mm is this request's own
+	// copy (sessionChaosMindMap clones), so it is scrubbed in place.
+	scrubMindMapSecrets(mm, chaosHiddenValueMask)
 	includePreviews := c.DefaultQuery("include_previews", "true") != "false"
 
 	screens := make([]gin.H, 0, len(mm.Areas))
@@ -189,6 +192,8 @@ func (app *App) ChaosBusinessOverviewHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no screens discovered yet; run chaos exploration first"})
 		return
 	}
+	// A read-only summary: mask what was learned about hidden fields first.
+	scrubMindMapSecrets(mm, chaosHiddenValueMask)
 	c.JSON(http.StatusOK, buildBusinessAppOverview(mm))
 }
 
@@ -375,12 +380,16 @@ func overviewKeyFields(area *chaos.MindMapArea) []gin.H {
 		if sem, ok := area.FieldSemantics[k]; ok {
 			f["name"] = sem.Name
 			if sem.Example != "" {
-				f["example"] = sem.Example
+				if sem.Sensitive || meta.Hidden {
+					f["example"] = chaosHiddenValueMask
+				} else {
+					f["example"] = sem.Example
+				}
 			}
 			if sem.Sensitive {
 				f["sensitive"] = true
 			}
-		} else if vals, ok := area.KnownWorkingValues[k]; ok && len(vals) > 0 && !meta.Hidden {
+		} else if vals, ok := area.KnownWorkingValues[k]; ok && len(vals) > 0 && !chaosFieldIsSecret(area, k) {
 			// No business name yet, but we know a value that worked.
 			f["exampleWorkingValue"] = vals[len(vals)-1]
 		}

@@ -272,6 +272,56 @@ type ChaosState struct {
 	RecentAttempts []ChaosAttempt
 	MindMap        json.RawMessage
 	Error          string
+
+	// TerminationReason is why the run ended (one of the engine's
+	// termination reasons, e.g. "max_steps", "saturated", "stopped"). It is
+	// kept here because the engine that knew it is discarded moments after
+	// the run ends, and "why did it stop?" is the first thing anyone asks.
+	TerminationReason string
+	// SaturatedNoProgress is set when the run saturated without discovering
+	// a single transition: continuing it would only saturate again.
+	SaturatedNoProgress bool
+	// TargetHost is the host the run explored ("host:port").
+	TargetHost string
+	// FirstScreenHash is the screen the run started on.
+	FirstScreenHash string
+	// Config is a summary of the configuration the run was started with, so
+	// a report written after the engine has gone can still say what the run
+	// was allowed to do. Nil when unknown (a run loaded from disk).
+	Config *ChaosRunConfig
+}
+
+// ChaosRunConfig summarises the configuration of a chaos run: the limits it
+// ran under and the keys it was and was not allowed to press. It carries no
+// hint values, only how many there were.
+type ChaosRunConfig struct {
+	MaxSteps        int
+	TimeBudget      time.Duration
+	StepDelay       time.Duration
+	Seed            int64
+	SaturationSteps int
+	DedupMode       string
+	// CandidateKeys is the set of AID keys the run could press;
+	// BlockedKeys the ones it was told never to press.
+	CandidateKeys     []string
+	BlockedKeys       []string
+	AutoBlockExitKeys bool
+	HintCount         int
+	ScreenHintCount   int
+	// Continued is true when the run continued an earlier run rather than
+	// starting from nothing.
+	Continued bool
+}
+
+// Clone returns a deep copy.
+func (c *ChaosRunConfig) Clone() *ChaosRunConfig {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.CandidateKeys = append([]string(nil), c.CandidateKeys...)
+	out.BlockedKeys = append([]string(nil), c.BlockedKeys...)
+	return &out
 }
 
 // ChaosFieldWrite captures one field write operation attempted in a chaos step.
