@@ -8,32 +8,68 @@ description: >-
 
 # Chaos Mind-Map Compare
 
-`POST /chaos/mindmap/compare` diffs two previously-exported chaos mind
-maps and returns the deltas. Use it to surface divergence between two
-hosts (typically an IBM z/OS mainframe and a Rocket Enterprise Server
-stand-in, or two builds of the same host) or to confirm that a fix or
-migration did not regress an existing transaction.
+`POST /chaos/mindmap/compare` diffs two chaos mind maps and returns the
+deltas. Use it to surface divergence between two hosts (typically a
+mainframe and the platform standing in for it, or two builds of the same
+host) or to confirm that a fix or migration did not regress an existing
+transaction.
 
-The endpoint is a pure function on two supplied JSON blobs — no active
-chaos run is required. Pair it with
+No active chaos run is required: the comparison works on saved runs and on
+exported files. Pair it with
 [Host Compatibility Profiler](host-profiler.md) for the wire-level view
 of the same comparison.
 
-## Capturing the inputs
+## In the browser
 
-Run chaos exploration against each host and export its mind map:
+1. Explore the first host. The run is saved when it ends.
+2. Connect to the second host and explore it the same way.
+3. Open **Automation → Saved chaos runs**. Each run shows the host it
+   explored; give the two a name if that makes them easier to tell apart.
+4. Select both and choose **Compare**.
+
+## Capturing the inputs over HTTP
+
+There are two ways to say what to compare.
+
+**By saved run.** Every run is saved when it ends, and `GET /chaos/runs`
+lists them with the host each explored. Nothing needs exporting: note the
+two IDs.
 
 ```sh
-# Baseline (z/OS)
+curl -H "Authorization: Bearer $API_TOKEN" http://127.0.0.1:3270/chaos/runs
+```
+
+**By exported map.** Export the map after each run. This works once the
+run has finished — it does not have to be caught while the run is still
+going — and for a run loaded from the saved list.
+
+```sh
+# Baseline: explore the first host, then
 curl -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:3270/chaos/mindmap/export > baseline.json
 
-# Candidate (Rocket Enterprise Server, after switching the connection)
+# Candidate: connect to the second host, explore it, then
 curl -H "Authorization: Bearer $API_TOKEN" \
   http://127.0.0.1:3270/chaos/mindmap/export > candidate.json
 ```
 
+Exported maps are the form to use when the two runs were made on
+different 3270Web deployments, or when the baseline is kept in version
+control. Values typed into hidden fields are left out of an export, so the
+files are safe to store alongside code.
+
 ## Request
+
+Two saved runs:
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"baseRunId": "20260301-090000-ab12cd34", "candidateRunId": "20260308-090000-ef34ab56"}' \
+  http://127.0.0.1:3270/chaos/mindmap/compare
+```
+
+Two exported maps:
 
 ```sh
 curl -X POST \
@@ -41,6 +77,24 @@ curl -X POST \
   -d "{\"baseline\": $(cat baseline.json), \"candidate\": $(cat candidate.json)}" \
   http://127.0.0.1:3270/chaos/mindmap/compare
 ```
+
+The forms mix — a stored baseline file against the run that has just
+finished, for example:
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d "{\"baseline\": $(cat baseline.json), \"candidateRunId\": \"current\"}" \
+  http://127.0.0.1:3270/chaos/mindmap/compare
+```
+
+| Field | Meaning |
+|---|---|
+| `baseline`, `candidate` | A mind map, as returned by `GET /chaos/mindmap/export`. |
+| `baseRunId`, `candidateRunId` | The ID of a saved run, or `current` for the run the session holds. |
+
+A document wins when both are given for the same side. A run ID that does
+not exist answers `404`, naming the side.
 
 Areas are matched on their **stable dedup signature**, not on the raw
 hash, so cosmetic differences between hosts do not cause false-positive

@@ -30,6 +30,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -70,6 +72,17 @@ type Policy struct {
 
 	// Timeout bounds one TCP connect attempt. Zero means 10 seconds.
 	Timeout time.Duration
+
+	// DenyCrossHostRedirects refuses a redirect that leaves the host the
+	// request was sent to.
+	//
+	// The dialer vets the address of every hop, which stops a redirect
+	// reaching somewhere forbidden. It does not stop one reaching somewhere
+	// merely different: a request carrying an API key for one service,
+	// redirected to another permitted host, delivers the key there. A client
+	// that sends credentials has no business following a redirect off the
+	// host it chose, so it can say so.
+	DenyCrossHostRedirects bool
 }
 
 // ErrBlocked marks a refusal by policy rather than a failure to connect, so a
@@ -248,9 +261,31 @@ func (p Policy) HTTPClient(timeout time.Duration) *http.Client {
 					Reason: fmt.Sprintf("redirect to unsupported scheme %q", req.URL.Scheme),
 				}
 			}
+			if p.DenyCrossHostRedirects && len(via) > 0 {
+				origin := via[0].URL
+				if !strings.EqualFold(req.URL.Hostname(), origin.Hostname()) ||
+					effectivePort(req.URL) != effectivePort(origin) ||
+					(origin.Scheme == "https" && req.URL.Scheme != "https") {
+					return &ErrBlocked{
+						Host:   req.URL.Host,
+						Reason: fmt.Sprintf("redirect away from %s is not followed", origin.Host),
+					}
+				}
+			}
 			return nil
 		},
 	}
+}
+
+// effectivePort is the port a URL addresses, filling in the scheme's default.
+func effectivePort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 // Default is the policy every outbound client in this program uses.

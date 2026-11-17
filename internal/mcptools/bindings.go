@@ -169,6 +169,14 @@ func bindings() map[string]Tool {
 				return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/chaos/screens"), q, nil)
 			},
 		},
+		"chaos_get_screen": {
+			Tier: TierRead, HostData: true, NeedsSession: true,
+			Handle: func(c Call) (string, error) {
+				q := url.Values{}
+				q.Set("hash", stringArg(c.Args, "hash"))
+				return passthrough(c, http.MethodGet, sessionPath(c.SessionID, "/known-screen"), q, nil)
+			},
+		},
 		"chaos_get_hints": {
 			Tier: TierRead, NeedsSession: true,
 			Handle: func(c Call) (string, error) {

@@ -3,44 +3,27 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/3270Web/internal/chaos"
-	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/safepath"
 	"github.com/jnnngs/3270Web/internal/session"
 )
-
-// isSampleAppSession reports whether a session is talking to one of the
-// bundled sample applications served from inside this process.
-//
-// The terminal page asks before it starts a chaos exploration, because an
-// exploration fills fields with generated values and presses keys and so can
-// create or change data on a real host. The bundled samples are demonstration
-// screens with nothing behind them, so they are exempt, and the page needs to
-// know which kind it is looking at.
-//
-// It is decided by what serves the session rather than by how its target is
-// spelled. "mock" and "demo" are the pet store under another name and carry no
-// "sampleapp:" prefix; and a name that does carry it but is dialled as an
-// ordinary host (an application served by somebody else's
-// `3270Web sampleapp`) is a host like any other as far as this process can
-// tell, and gets the question.
-func isSampleAppSession(h host.Host) bool {
-	_, ok := h.(*host.GoSampleAppHost)
-	return ok
-}
 
 // maxSavedChaosRuns caps how many auto-saved chaos run files are retained on
 // disk. The newest runs are kept and older ones are pruned so the runs
@@ -244,7 +227,17 @@ func (s *chaosEngineStore) withEngine(sessionID string, fn func(*chaos.Engine) e
 // read and map write"). The returned bytes are ready for WriteRunFile,
 // keeping the actual file I/O out of the critical section.
 // Returns (nil, nil, nil) if no engine is registered for the session.
+//
+// finish, when not nil, is given the snapshot before it is installed and
+// encoded, so the caller can stamp it with what only the handler layer knows
+// (the target host, the reason the run ended) and have that land in both the
+// loaded run and the saved file.
 func (s *chaosEngineStore) completeEngine(sessionID, runID string) (*chaos.SavedRun, []byte, error) {
+	return s.completeEngineWith(sessionID, runID, nil)
+}
+
+// completeEngineWith is completeEngine with the finish hook described above.
+func (s *chaosEngineStore) completeEngineWith(sessionID, runID string, finish func(*chaos.SavedRun)) (*chaos.SavedRun, []byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	eng, ok := s.engines[sessionID]
@@ -252,6 +245,9 @@ func (s *chaosEngineStore) completeEngine(sessionID, runID string) (*chaos.Saved
 		return nil, nil, nil
 	}
 	snapshot := eng.Snapshot(runID)
+	if finish != nil {
+		finish(snapshot)
+	}
 	s.loadedRuns[sessionID] = snapshot
 	delete(s.engines, sessionID)
 	encoded, err := chaos.EncodeRun(snapshot)
@@ -287,13 +283,6 @@ func (s *chaosEngineStore) upsertScreenHint(sessionID, screenHash string, hint c
 	return cloneChaosScreenHintsMap(s.screenHints[sessionID])
 }
 
-// getLoadedRun returns a clone of the session's loaded run, made under the
-// store lock. Handing back the shared pointer instead (as this used to)
-// let callers range over/marshal MindMap.Areas/BusinessFunctions outside
-// any lock, racing a concurrent business-annotation write to the same
-// maps — CloneRun's cost (one MindMap deep-copy) is proven cheap enough
-// elsewhere in this package (Engine.Snapshot/MindMapSnapshot do the same
-// clone on every call).
 // getLoadedRun returns a clone of the session's loaded run, made under the
 // store lock. Handing back the shared pointer instead (as this used to)
 // let callers range over/marshal MindMap.Areas/BusinessFunctions outside
@@ -419,7 +408,13 @@ func (r *chaosStartRequest) UnmarshalJSON(data []byte) error {
 		TransitionLogPath           string            `json:"transitionLogPath"`
 		ExtendLimits                bool              `json:"extendLimits"`
 	}
-	_ = json.Unmarshal(data, &camel)
+	// The same document is read twice, once per spelling. A wrongly typed
+	// camelCase option is as much an error as a wrongly typed snake_case
+	// one; ignoring it here is how {"maxSteps":"50"} used to start a run
+	// with the default limit.
+	if err := json.Unmarshal(data, &camel); err != nil {
+		return err
+	}
 
 	r.MaxSteps = firstNonZeroInt(snake.MaxSteps, camel.MaxSteps)
 	r.TimeBudgetSec = firstNonZeroFloat(snake.TimeBudgetSec, camel.TimeBudgetSec)
@@ -553,6 +548,85 @@ func applyChaosStartRequestToConfig(cfg *chaos.Config, req chaosStartRequest) {
 	}
 }
 
+// bindChaosStartRequest reads the optional JSON body of /chaos/start and
+// /chaos/resume. An empty body means "use the defaults" and is not an error;
+// a body that is present but does not parse is.
+//
+// It used to be `if err := c.ShouldBindJSON(&req); err == nil { apply }`,
+// which treated the two the same. A caller that sent
+// {"max_steps":"50","key_blacklist":["PF3"]} — a number as a string, the kind
+// of thing a hand-written script or a model produces — got a 200 and a run
+// with the default limits and nothing blocked, typing into a live host with
+// the one key they had asked it never to press. A request that cannot be
+// understood must not be answered by doing something else.
+func bindChaosStartRequest(c *gin.Context, req *chaosStartRequest) error {
+	if c.Request == nil || c.Request.Body == nil {
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxChaosRequestBodyBytes+1))
+	if err != nil {
+		return fmt.Errorf("could not read the request body: %w", err)
+	}
+	if len(body) > maxChaosRequestBodyBytes {
+		return fmt.Errorf("request body is larger than %d bytes", maxChaosRequestBodyBytes)
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(body, req); err != nil {
+		return describeChaosBodyError(err)
+	}
+	return nil
+}
+
+// maxChaosRequestBodyBytes bounds a start/resume body. Hints are the only
+// part of it that can be long, and a megabyte of hints is already absurd.
+const maxChaosRequestBodyBytes = 1 << 20
+
+// describeChaosBodyError turns a JSON decoding error into something a person
+// can act on: which option was wrong and what it should have been.
+func describeChaosBodyError(err error) error {
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) && typeErr.Field != "" {
+		return fmt.Errorf("option %q must be a %s, not a %s", typeErr.Field, chaosJSONKindName(typeErr.Type), typeErr.Value)
+	}
+	return fmt.Errorf("body is not valid JSON: %v", err)
+}
+
+func chaosJSONKindName(t reflect.Type) string {
+	if t == nil {
+		return "different type"
+	}
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return "number"
+	case reflect.Bool:
+		return "boolean (true or false)"
+	case reflect.String:
+		return "string"
+	case reflect.Slice, reflect.Array:
+		return "list"
+	case reflect.Map, reflect.Struct:
+		return "object"
+	default:
+		return t.String()
+	}
+}
+
+// rejectChaosBody answers a start/resume request whose body could not be
+// understood. Nothing has been started when this is called.
+func rejectChaosBody(c *gin.Context, err error) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": "invalid chaos options, nothing was started: " + err.Error(),
+		"code":  "chaos_invalid_options",
+	})
+}
+
 // ChaosStartHandler handles POST /chaos/start.
 func (app *App) ChaosStartHandler(c *gin.Context) {
 	s := app.getSession(c)
@@ -560,15 +634,18 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	app.chaosEngines.clearRemoved(s.ID)
 
-	// Parse optional body; fall back to defaults if empty.
+	// Parse the optional body before touching any state: an empty body means
+	// the defaults, a body that does not parse starts nothing.
 	cfg := chaos.DefaultConfig()
 	app.applyChaosEnvSettings(&cfg)
 	var req chaosStartRequest
-	if err := c.ShouldBindJSON(&req); err == nil {
-		applyChaosStartRequestToConfig(&cfg, req)
+	if err := bindChaosStartRequest(c, &req); err != nil {
+		rejectChaosBody(c, err)
+		return
 	}
+	applyChaosStartRequestToConfig(&cfg, req)
+	app.chaosEngines.clearRemoved(s.ID)
 	var savedHints chaosHintsPayload
 	if saved, err := app.loadChaosHintsPayload(s.OwnerID); err == nil {
 		savedHints = saved
@@ -585,6 +662,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 		cfg.ExportHost = s.TargetHost
 		cfg.ExportPort = s.TargetPort
 	})
+	runConfig := chaosRunConfigSummary(cfg, false)
 
 	var h interface{ IsConnected() bool }
 	withSessionLock(s, func() { h = s.Host })
@@ -610,7 +688,7 @@ func (app *App) ChaosStartHandler(c *gin.Context) {
 	}
 
 	// Kick off a background goroutine that syncs Status back to the session.
-	app.startChaosSync(s, eng)
+	app.startChaosSync(s, eng, runConfig)
 
 	c.JSON(http.StatusOK, gin.H{"status": "started"})
 }
@@ -669,21 +747,27 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 		return
 	}
 	if app.chaosEngines.isRemoved(s.ID) {
-		c.JSON(http.StatusOK, gin.H{
+		resp := gin.H{
 			"active":        false,
 			"stepsRun":      0,
 			"transitions":   0,
 			"uniqueScreens": 0,
 			"uniqueInputs":  0,
 			"screenHints":   app.chaosEngines.getScreenHints(s.ID),
-		})
+		}
+		finishChaosStatusTarget(resp, sessionChaosTargetHost(s))
+		c.JSON(http.StatusOK, resp)
 		return
 	}
 
 	verbose := parseBoolFormValue(c.DefaultQuery("verbose", ""))
+	sessionTarget := sessionChaosTargetHost(s)
 
 	eng, ok := app.chaosEngines.get(s.ID)
 	if !ok {
+		// No engine: the run is over (or was loaded, or never happened).
+		// Everything the engine used to answer is answered from what was
+		// kept — the session's last snapshot and the finished/loaded run.
 		snapshot := chaosStateSnapshot(s)
 		resp := chaosStateToJSON(snapshot)
 		if snapshot == nil {
@@ -695,43 +779,62 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 				"uniqueInputs":  0,
 			}
 		}
-		// Include loaded run info if present.
-		if loaded, ok2 := app.chaosEngines.getLoadedRun(s.ID); ok2 {
+		mindMapSet := false
+		// Read the loaded run under the store lock rather than cloning it:
+		// this is a polled endpoint, and the default (non-verbose) answer
+		// needs four fields per screen, not a deep copy of the whole map.
+		_, _ = app.chaosEngines.withLoadedRun(s.ID, func(loaded *chaos.SavedRun) error {
 			resp["loadedRunID"] = loaded.ID
-			if loaded.StepsRun > 0 {
-				if cur, ok := resp["stepsRun"].(int); !ok || loaded.StepsRun > cur {
-					resp["stepsRun"] = loaded.StepsRun
-				}
-			}
-			if loaded.Transitions > 0 {
-				if cur, ok := resp["transitions"].(int); !ok || loaded.Transitions > cur {
-					resp["transitions"] = loaded.Transitions
-				}
-			}
-			if loaded.UniqueScreens > 0 {
-				if cur, ok := resp["uniqueScreens"].(int); !ok || loaded.UniqueScreens > cur {
-					resp["uniqueScreens"] = loaded.UniqueScreens
-				}
-			}
-			if loaded.UniqueInputs > 0 {
-				if cur, ok := resp["uniqueInputs"].(int); !ok || loaded.UniqueInputs > cur {
-					resp["uniqueInputs"] = loaded.UniqueInputs
-				}
-			}
+			raiseStatusCounter(resp, "stepsRun", loaded.StepsRun)
+			raiseStatusCounter(resp, "transitions", loaded.Transitions)
+			raiseStatusCounter(resp, "uniqueScreens", loaded.UniqueScreens)
+			raiseStatusCounter(resp, "uniqueInputs", loaded.UniqueInputs)
 			// Prefer the finalized saved-run mind map over any stale session snapshot.
-			if mindMapJSON := chaosMindMapToJSON(loaded.MindMap); mindMapJSON != nil {
+			if loaded.MindMap != nil {
 				if verbose {
-					resp["mindMap"] = mindMapJSON
+					resp["mindMap"] = redactedMindMap(loaded.MindMap)
 				} else {
 					resp["mindMap"] = slimMindMapForStatus(loaded.MindMap)
 				}
+				mindMapSet = true
 			}
-			if _, hasFirst := resp["firstScreenHash"]; !hasFirst {
-				if firstHash := chaosFirstScreenHashFromAttempts(loaded.Attempts); firstHash != "" {
+			if _, has := resp["firstScreenHash"]; !has {
+				if firstHash := strings.TrimSpace(loaded.FirstScreenHash); firstHash != "" {
+					resp["firstScreenHash"] = firstHash
+				} else if firstHash := chaosFirstScreenHashFromAttempts(loaded.Attempts); firstHash != "" {
 					resp["firstScreenHash"] = firstHash
 				}
 			}
+			if _, has := resp["terminationReason"]; !has && loaded.TerminationReason != "" {
+				resp["terminationReason"] = loaded.TerminationReason
+			}
+			if _, has := resp["targetHost"]; !has && loaded.TargetHost != "" {
+				resp["targetHost"] = loaded.TargetHost
+			}
+			if loaded.Label != "" {
+				resp["label"] = loaded.Label
+			}
+			if _, has := resp["error"]; !has && loaded.Error != "" {
+				resp["error"] = loaded.Error
+			}
+			return nil
+		})
+		if !mindMapSet && snapshot != nil && len(snapshot.MindMap) > 0 {
+			// Only reached when the finished run is no longer held (it was
+			// deleted, say): fall back to the copy made when the run ended.
+			if verbose {
+				resp["mindMap"] = snapshot.MindMap
+			} else {
+				var kept chaos.MindMap
+				if err := json.Unmarshal(snapshot.MindMap, &kept); err == nil {
+					resp["mindMap"] = slimMindMapForStatus(&kept)
+				}
+			}
 		}
+		if reason, _ := resp["terminationReason"].(string); reason != "" {
+			resp["terminationSummary"] = chaosTerminationSummary(reason, resp["saturatedNoProgress"] == true)
+		}
+		finishChaosStatusTarget(resp, sessionTarget)
 		if hints := app.chaosEngines.getScreenHints(s.ID); len(hints) > 0 {
 			resp["screenHints"] = hints
 		}
@@ -740,20 +843,193 @@ func (app *App) ChaosStatusHandler(c *gin.Context) {
 	}
 
 	st := eng.Status()
-	resp := chaosStatusToJSON(st)
-	if !verbose {
+	slim := gin.H(nil)
+	if !verbose && st.MindMap != nil {
 		// Replace the full mind map with a slim summary so /chaos/status
 		// stays cheap when polled. Pass ?verbose=true to get the full graph.
-		if st.MindMap != nil {
-			resp["mindMap"] = slimMindMapForStatus(st.MindMap)
+		slim = slimMindMapForStatus(st.MindMap)
+	}
+	resp := chaosStatusToJSON(st)
+	if !verbose {
+		if slim != nil {
+			resp["mindMap"] = slim
 		}
 		// Also drop RecentAttempts (only keep LastAttempt) when not verbose.
 		delete(resp, "recentAttempts")
 	}
+	if cfg := chaosRunConfigOf(s); cfg != nil {
+		resp["config"] = chaosRunConfigToJSON(cfg)
+	}
+	finishChaosStatusTarget(resp, sessionTarget)
 	if hints := app.chaosEngines.getScreenHints(s.ID); len(hints) > 0 {
 		resp["screenHints"] = hints
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// raiseStatusCounter lifts a counter in a status response to the saved run's
+// value when that is higher (the session snapshot can lag the final save).
+func raiseStatusCounter(resp gin.H, key string, value int) {
+	if value <= 0 {
+		return
+	}
+	if cur, ok := resp[key].(int); !ok || value > cur {
+		resp[key] = value
+	}
+}
+
+// finishChaosStatusTarget makes sure a status response says which host it is
+// about. targetHost is the host the run explored when a run is known, and
+// otherwise the host the session is connected to (what a run started now
+// would explore). sessionTargetHost is always the latter, so a client showing
+// a loaded run can tell when it came from somewhere else.
+func finishChaosStatusTarget(resp gin.H, sessionTarget string) {
+	if sessionTarget != "" {
+		resp["sessionTargetHost"] = sessionTarget
+	}
+	if got, _ := resp["targetHost"].(string); got == "" && sessionTarget != "" {
+		resp["targetHost"] = sessionTarget
+	}
+}
+
+// sessionChaosTargetHost names the host a session is connected to, as
+// "host:port" (or just the host when the port is unknown).
+func sessionChaosTargetHost(s *session.Session) string {
+	if s == nil {
+		return ""
+	}
+	var hostName string
+	var port int
+	withSessionLock(s, func() {
+		hostName = strings.TrimSpace(s.TargetHost)
+		port = s.TargetPort
+	})
+	if hostName == "" {
+		return ""
+	}
+	if port > 0 {
+		return fmt.Sprintf("%s:%d", hostName, port)
+	}
+	return hostName
+}
+
+// chaosRunConfigOf returns a copy of the configuration summary of the
+// session's current or last run, or nil when none is known.
+func chaosRunConfigOf(s *session.Session) *session.ChaosRunConfig {
+	if s == nil {
+		return nil
+	}
+	var cfg *session.ChaosRunConfig
+	withSessionLock(s, func() {
+		if s.Chaos != nil {
+			cfg = s.Chaos.Config.Clone()
+		}
+	})
+	return cfg
+}
+
+// chaosRunConfigSummary reduces an engine configuration to what is worth
+// keeping after the engine has gone: the limits, and which keys the run could
+// and could not press. Hint values are not kept, only how many there were.
+func chaosRunConfigSummary(cfg chaos.Config, continued bool) *session.ChaosRunConfig {
+	blocked := normalizedChaosKeys(cfg.KeyBlacklist)
+	return &session.ChaosRunConfig{
+		MaxSteps:          cfg.MaxSteps,
+		TimeBudget:        cfg.TimeBudget,
+		StepDelay:         cfg.StepDelay,
+		Seed:              cfg.Seed,
+		SaturationSteps:   cfg.SaturationSteps,
+		DedupMode:         cfg.DedupMode,
+		CandidateKeys:     chaosKeysWithout(chaos.CandidateKeys(cfg.AIDKeyWeights), blocked),
+		BlockedKeys:       blocked,
+		AutoBlockExitKeys: cfg.AutoBlockExitKeys,
+		HintCount:         len(cfg.Hints),
+		ScreenHintCount:   len(cfg.ScreenHints),
+		Continued:         continued,
+	}
+}
+
+// normalizedChaosKeys returns keys in the engine's own spelling ("PF3"
+// becomes "PF(3)"), sorted and without duplicates.
+func normalizedChaosKeys(keys []string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+	weights := make(map[string]int, len(keys))
+	for _, k := range keys {
+		if strings.TrimSpace(k) != "" {
+			weights[k] = 1
+		}
+	}
+	if len(weights) == 0 {
+		return nil
+	}
+	return chaos.CandidateKeys(weights)
+}
+
+// chaosKeysWithout returns keys minus blocked, preserving order.
+func chaosKeysWithout(keys, blocked []string) []string {
+	if len(blocked) == 0 {
+		return keys
+	}
+	drop := make(map[string]struct{}, len(blocked))
+	for _, k := range blocked {
+		drop[k] = struct{}{}
+	}
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if _, isBlocked := drop[k]; !isBlocked {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+func chaosRunConfigToJSON(cfg *session.ChaosRunConfig) gin.H {
+	if cfg == nil {
+		return nil
+	}
+	return gin.H{
+		"maxSteps":          cfg.MaxSteps,
+		"timeBudgetSec":     cfg.TimeBudget.Seconds(),
+		"stepDelaySec":      cfg.StepDelay.Seconds(),
+		"seed":              cfg.Seed,
+		"saturationSteps":   cfg.SaturationSteps,
+		"dedupMode":         cfg.DedupMode,
+		"candidateKeys":     append([]string{}, cfg.CandidateKeys...),
+		"blockedKeys":       append([]string{}, cfg.BlockedKeys...),
+		"autoBlockExitKeys": cfg.AutoBlockExitKeys,
+		"hintCount":         cfg.HintCount,
+		"screenHintCount":   cfg.ScreenHintCount,
+		"continued":         cfg.Continued,
+	}
+}
+
+// chaosTerminationSummary says in plain English why a run ended. The reason
+// codes are the engine's; an unknown one is passed through rather than
+// guessed at.
+func chaosTerminationSummary(reason string, saturatedNoProgress bool) string {
+	switch strings.TrimSpace(reason) {
+	case "":
+		return ""
+	case chaos.TerminationReasonMaxSteps:
+		return "It reached its step limit. There may be more to find: continue exploring to give it more steps."
+	case chaos.TerminationReasonTimeBudget:
+		return "It ran out of time. There may be more to find: continue exploring to give it more time."
+	case chaos.TerminationReasonSaturated:
+		if saturatedNoProgress {
+			return "It stopped because nothing it tried moved the application off the first screen. Continuing as it is will end the same way: give it a value or key that works on that screen (a hint, or a recording) first."
+		}
+		return "It stopped because it had stopped finding anything new: many steps in a row led only to screens and transitions it had already seen."
+	case chaos.TerminationReasonStopped:
+		return "It was stopped by hand before it finished."
+	case chaos.TerminationReasonBlocked:
+		return "It stopped because every key it could press on the current screen is blocked. Unblock a key for that screen, or start from a different one."
+	case chaos.TerminationReasonError:
+		return "It stopped because of an error talking to the host."
+	default:
+		return fmt.Sprintf("It ended with reason %q.", reason)
+	}
 }
 
 // slimMindMapForStatus returns a compact mind-map summary suitable for the
@@ -832,29 +1108,61 @@ func (app *App) ChaosExportHandler(c *gin.Context) {
 }
 
 // ChaosMindMapExportHandler handles GET /chaos/mindmap/export – returns the
-// engine's mind map as JSON so it can be imported into a future session.
+// session's mind map as JSON so it can be compared with another run or
+// imported into a later session.
+//
+// The map comes from wherever the session's run currently lives: the engine
+// while a run is active, and the finished or loaded run afterwards. It used
+// to insist on the engine, which is discarded within half a second of the run
+// ending — so the one moment anybody wants to export a map, after the run,
+// was the moment it answered 404.
+//
+// Values learned for hidden fields are left out of the document; see
+// chaos_redact.go.
 func (app *App) ChaosMindMapExportHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
 		return
 	}
-	eng, ok := app.chaosEngines.get(s.ID)
-	if !ok || eng == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos engine for this session"})
+	var mm *chaos.MindMap
+	if !app.chaosEngines.isRemoved(s.ID) {
+		mm = app.sessionChaosMindMap(s)
+	}
+	if mm == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "there is no chaos run in this session to export a map from; run an exploration or load a saved run first",
+			"code":  "chaos_no_run",
+		})
 		return
 	}
-	data, err := eng.ExportMindMap()
+	// sessionChaosMindMap hands back a private copy, so it can be scrubbed
+	// in place.
+	scrubMindMapSecrets(mm, "")
+	data, err := json.MarshalIndent(mm, "", "  ")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.Header("Content-Disposition", `attachment; filename="chaos-mindmap.json"`)
 	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
 // ChaosMindMapImportHandler handles POST /chaos/mindmap/import – merges a
-// previously exported mind map into the current engine. Rejected while a run
-// is active.
+// previously exported mind map into the session's run, so that the next
+// "continue exploring" starts from what an earlier session already learned.
+//
+// Where the map goes depends on what the session has:
+//
+//   - an engine that is not running (the brief window after a run ends):
+//     merged into the engine;
+//   - a finished or loaded run: merged into that run;
+//   - nothing at all: the imported map becomes a new loaded run.
+//
+// It is refused only while a run is active, because the run loop is writing
+// the same map. Before this it required an engine and refused an active one,
+// and since an engine only exists while a run is active (give or take half a
+// second) there was no state in which it could succeed.
 func (app *App) ChaosMindMapImportHandler(c *gin.Context) {
 	s := app.getSession(c)
 	if s == nil {
@@ -863,19 +1171,113 @@ func (app *App) ChaosMindMapImportHandler(c *gin.Context) {
 	}
 	var mm chaos.MindMap
 	if err := c.ShouldBindJSON(&mm); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "the body is not a mind map exported by GET /chaos/mindmap/export: " + err.Error()})
 		return
 	}
-	eng, ok := app.chaosEngines.get(s.ID)
-	if !ok || eng == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chaos engine for this session; start or load a run first"})
+	dropMaskedMindMapValues(&mm)
+	imported := 0
+	for hash, area := range mm.Areas {
+		if area != nil && strings.TrimSpace(hash) != "" {
+			imported++
+		}
+	}
+
+	const activeMsg = "a chaos run is active; stop it (or let it finish) before importing a map"
+	target := ""
+	runID := ""
+	total := 0
+	active := false
+	found, _ := app.chaosEngines.withEngine(s.ID, func(eng *chaos.Engine) error {
+		if !eng.ImportMindMap(&mm) {
+			active = true
+			return nil
+		}
+		target = "engine"
+		if merged := eng.MindMapSnapshot(); merged != nil {
+			total = len(merged.Areas)
+		}
+		return nil
+	})
+	if active {
+		c.JSON(http.StatusConflict, gin.H{"error": activeMsg, "code": "chaos_run_active"})
 		return
 	}
-	if !eng.ImportMindMap(&mm) {
-		c.JSON(http.StatusConflict, gin.H{"error": "cannot import while chaos exploration is running"})
-		return
+	if !found {
+		// Make sure a run saved by this session but no longer held in memory
+		// is the thing merged into, rather than replaced by a new one.
+		_, _ = app.sessionChaosRun(s)
+		runID, total, target = app.chaosEngines.importMindMapIntoLoadedRun(s.ID, &mm)
+		if target == "" {
+			c.JSON(http.StatusConflict, gin.H{"error": activeMsg, "code": "chaos_run_active"})
+			return
+		}
+		app.chaosEngines.clearRemoved(s.ID)
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "areasImported": len(mm.Areas)})
+
+	resp := gin.H{
+		"ok":            true,
+		"areasImported": imported,
+		"areasTotal":    total,
+		"target":        target,
+	}
+	if runID != "" {
+		resp["runID"] = runID
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// importMindMapIntoLoadedRun merges imported into the session's loaded run,
+// creating one to hold it when the session has none. It returns the run's ID,
+// the number of areas the run's map now has, and which of the two happened
+// ("loadedRun" or "newRun"); target is empty when an engine turned up in the
+// meantime, which the caller reports as a conflict.
+func (s *chaosEngineStore) importMindMapIntoLoadedRun(sessionID string, imported *chaos.MindMap) (runID string, total int, target string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if eng, ok := s.engines[sessionID]; ok && eng != nil {
+		return "", 0, ""
+	}
+	run, ok := s.loadedRuns[sessionID]
+	target = "loadedRun"
+	if !ok || run == nil {
+		run = &chaos.SavedRun{
+			SavedRunMeta: chaos.SavedRunMeta{
+				ID:        "imported-map-" + chaos.NewRunID(),
+				StartedAt: time.Now(),
+			},
+			ScreenHashes:      map[string]bool{},
+			TransitionList:    []chaos.Transition{},
+			Steps:             []session.WorkflowStep{},
+			AIDKeyCounts:      map[string]int{},
+			UniqueInputValues: map[string]bool{},
+			Attempts:          []chaos.Attempt{},
+		}
+		s.loadedRuns[sessionID] = run
+		target = "newRun"
+	}
+	run.MindMap = mergeChaosMindMaps(run.MindMap, imported)
+	if run.MindMap != nil {
+		total = len(run.MindMap.Areas)
+	}
+	delete(s.removed, sessionID)
+	return run.ID, total, target
+}
+
+// mergeChaosMindMaps returns base with imported merged into it, by the
+// engine's own rules (counters and learned values add up; where both sides
+// describe a screen, base's description wins). Neither argument is modified.
+//
+// The merge itself belongs to the engine and is only reachable through one,
+// so this borrows a throwaway engine that is never started.
+func mergeChaosMindMaps(base, imported *chaos.MindMap) *chaos.MindMap {
+	scratch := chaos.New(nil, chaos.DefaultConfig())
+	if base != nil {
+		scratch.ImportMindMap(cloneChaosMindMap(base))
+	}
+	if imported != nil {
+		scratch.ImportMindMap(cloneChaosMindMap(imported))
+	}
+	return scratch.MindMapSnapshot()
 }
 
 // overriding only fields whose corresponding setting is non-empty. Request body
@@ -1006,13 +1408,16 @@ const chaosSyncInterval = 500 * time.Millisecond
 // which is why this surfaced as "TempDir RemoveAll cleanup: directory not
 // empty" on a loaded CI runner rather than as anything anyone could
 // reproduce.
-func (app *App) startChaosSync(s *session.Session, eng *chaos.Engine) {
+//
+// runConfig is the summary of the configuration the run was started with; it
+// is kept on the session so it outlives the engine. Nil is allowed.
+func (app *App) startChaosSync(s *session.Session, eng *chaos.Engine, runConfig *session.ChaosRunConfig) {
 	stop := app.chaosEngines.beginSync(s.ID)
 	app.chaosSync.Add(1)
 	go func() {
 		defer app.chaosSync.Done()
 		defer app.chaosEngines.endSync(s.ID, stop)
-		app.syncChaosStatus(s, eng, stop)
+		app.syncChaosStatus(s, eng, stop, runConfig)
 	}()
 }
 
@@ -1041,10 +1446,24 @@ func (app *App) waitForChaosSync(timeout time.Duration) bool {
 // reflects the latest values. It removes the engine from the store once the
 // run completes to avoid memory growth.
 //
+// While the run is going it copies counters and the recent attempts only.
+// The mind map is not copied: nothing reads the session's copy during a run
+// (status asks the engine directly), and marshalling tens of kilobytes of map
+// twice a second for the length of a run to keep an unread copy fresh was
+// most of what this goroutine cost. The map is marshalled exactly once, when
+// the run ends, which is the only moment the session's copy becomes the one
+// that is read.
+//
+// What is left per tick is whatever Engine.Status itself does to produce a
+// snapshot. That belongs to the engine; if Status grows a way to say whether
+// the map has changed (a version counter), chaosStateFromStatus is the one
+// place that needs to know.
+//
 // It returns when the run completes, when the session's engine is marked
 // removed, or when stop is closed — whichever comes first. Launch it through
 // startChaosSync rather than directly, so it is counted.
-func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-chan struct{}) {
+func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-chan struct{}, runConfig *session.ChaosRunConfig) {
+	targetHost := sessionChaosTargetHost(s)
 	for {
 		select {
 		case <-stop:
@@ -1058,27 +1477,12 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-ch
 		if app.chaosEngines.isRemoved(s.ID) {
 			return
 		}
+		state := chaosStateFromStatus(st, runConfig, targetHost)
 		withSessionLock(s, func() {
 			if app.chaosEngines.isRemoved(s.ID) {
 				return
 			}
-			s.Chaos = &session.ChaosState{
-				Active:         st.Active,
-				StepsRun:       st.StepsRun,
-				StartedAt:      st.StartedAt,
-				StoppedAt:      st.StoppedAt,
-				MaxSteps:       st.MaxSteps,
-				TimeBudget:     st.TimeBudget,
-				Transitions:    st.Transitions,
-				UniqueScreens:  st.UniqueScreens,
-				UniqueInputs:   st.UniqueInputs,
-				AIDKeyCounts:   st.AIDKeyCounts,
-				LoadedRunID:    st.LoadedRunID,
-				LastAttempt:    toSessionChaosAttempt(st.LastAttempt),
-				RecentAttempts: toSessionChaosAttempts(st.RecentAttempts),
-				MindMap:        marshalChaosMindMap(st.MindMap),
-				Error:          st.Error,
-			}
+			s.Chaos = state
 		})
 		if !st.Active {
 			if app.chaosEngines.isRemoved(s.ID) {
@@ -1090,7 +1494,17 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-ch
 			// business writes are never lost between the snapshot and the
 			// engine removal, and never race the encode itself (see
 			// completeEngine's doc comment).
-			snapshot, encoded, encodeErr := app.chaosEngines.completeEngine(s.ID, runID)
+			//
+			// The hook stamps the run with what the engine does not know or
+			// may not have recorded — where it ran and why it ended — so the
+			// saved file answers those questions long after this session has
+			// gone. It also takes the one marshalled copy of the map, under
+			// the same lock that guards the run it is read from.
+			var finalMap json.RawMessage
+			snapshot, encoded, encodeErr := app.chaosEngines.completeEngineWith(s.ID, runID, func(run *chaos.SavedRun) {
+				stampChaosRun(run, st, targetHost)
+				finalMap = marshalChaosMindMap(redactedMindMap(run.MindMap))
+			})
 			if snapshot == nil {
 				return
 			}
@@ -1115,6 +1529,7 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-ch
 			withSessionLock(s, func() {
 				if s.Chaos != nil {
 					s.Chaos.LoadedRunID = runID
+					s.Chaos.MindMap = finalMap
 				}
 			})
 			return
@@ -1126,6 +1541,64 @@ func (app *App) syncChaosStatus(s *session.Session, eng *chaos.Engine, stop <-ch
 		case <-stop:
 			return
 		case <-time.After(chaosSyncInterval):
+		}
+	}
+}
+
+// chaosStateFromStatus builds the session's view of a run from one engine
+// status snapshot: counters, the recent attempts (with anything typed into a
+// hidden field masked on the way in, so the session never holds it), and why
+// the run ended once it has. It deliberately leaves MindMap empty; see
+// syncChaosStatus.
+func chaosStateFromStatus(st chaos.Status, runConfig *session.ChaosRunConfig, targetHost string) *session.ChaosState {
+	firstHash := strings.TrimSpace(st.FirstScreenHash)
+	if firstHash == "" {
+		firstHash = chaosFirstScreenHashFromAttempts(st.RecentAttempts)
+	}
+	var last *chaos.Attempt
+	if st.LastAttempt != nil {
+		masked := redactedChaosAttempt(st.MindMap, *st.LastAttempt)
+		last = &masked
+	}
+	return &session.ChaosState{
+		Active:              st.Active,
+		StepsRun:            st.StepsRun,
+		StartedAt:           st.StartedAt,
+		StoppedAt:           st.StoppedAt,
+		MaxSteps:            st.MaxSteps,
+		TimeBudget:          st.TimeBudget,
+		Transitions:         st.Transitions,
+		UniqueScreens:       st.UniqueScreens,
+		UniqueInputs:        st.UniqueInputs,
+		AIDKeyCounts:        st.AIDKeyCounts,
+		LoadedRunID:         st.LoadedRunID,
+		LastAttempt:         toSessionChaosAttempt(last),
+		RecentAttempts:      toSessionChaosAttempts(redactedChaosAttempts(st.MindMap, st.RecentAttempts)),
+		Error:               st.Error,
+		TerminationReason:   st.TerminationReason,
+		SaturatedNoProgress: st.SaturatedNoProgress,
+		TargetHost:          targetHost,
+		FirstScreenHash:     firstHash,
+		Config:              runConfig.Clone(),
+	}
+}
+
+// stampChaosRun records on a finished run where it ran and why it ended.
+// Anything the engine already filled in is left as the engine wrote it.
+func stampChaosRun(run *chaos.SavedRun, st chaos.Status, targetHost string) {
+	if run == nil {
+		return
+	}
+	if run.TargetHost == "" {
+		run.TargetHost = targetHost
+	}
+	if run.TerminationReason == "" {
+		run.TerminationReason = st.TerminationReason
+	}
+	if run.FirstScreenHash == "" {
+		run.FirstScreenHash = strings.TrimSpace(st.FirstScreenHash)
+		if run.FirstScreenHash == "" {
+			run.FirstScreenHash = chaosFirstScreenHashFromAttempts(run.Attempts)
 		}
 	}
 }
@@ -1148,6 +1621,106 @@ func (app *App) ChaosListRunsHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, metas)
 }
+
+// chaosLabelRunRequest is the JSON body for POST /chaos/runs/label.
+type chaosLabelRunRequest struct {
+	ID    string `json:"id"`
+	RunID string `json:"runID"`
+	Label string `json:"label"`
+}
+
+// maxChaosRunLabelRunes bounds a run's label: it is a name for a list, not a
+// description.
+const maxChaosRunLabelRunes = 80
+
+// sanitizeChaosRunLabel reduces a label to one line of printable text.
+func sanitizeChaosRunLabel(raw string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, raw)
+	cleaned = strings.Join(strings.Fields(cleaned), " ")
+	if runes := []rune(cleaned); len(runes) > maxChaosRunLabelRunes {
+		cleaned = strings.TrimSpace(string(runes[:maxChaosRunLabelRunes]))
+	}
+	return cleaned
+}
+
+// ChaosLabelRunHandler handles POST /chaos/runs/label – gives a saved run a
+// name, so a list of them is more than a column of timestamps. An empty label
+// clears it. Body: {"id": "<run id>", "label": "<name>"}.
+func (app *App) ChaosLabelRunHandler(c *gin.Context) {
+	s := app.getSession(c)
+	if s == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session not found"})
+		return
+	}
+	var req chaosLabelRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be JSON of the form {\"id\": \"<run id>\", \"label\": \"<name>\"}"})
+		return
+	}
+	runID := strings.TrimSpace(firstNonEmptyString(req.ID, req.RunID))
+	if runID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required: the ID of the saved run to name"})
+		return
+	}
+	label := sanitizeChaosRunLabel(req.Label)
+	runsDir := app.chaosRunsDirForSession(s.OwnerID)
+
+	// When the run is the one this session holds, label that copy and write
+	// it out: it may carry annotations newer than the file's.
+	var encoded []byte
+	held, err := app.chaosEngines.withLoadedRun(s.ID, func(run *chaos.SavedRun) error {
+		if run.ID != runID {
+			return errChaosRunNotHeld
+		}
+		run.Label = label
+		data, encErr := chaos.EncodeRun(run)
+		if encErr != nil {
+			return encErr
+		}
+		encoded = data
+		return nil
+	})
+	switch {
+	case held && err == nil:
+		if _, loadErr := chaos.LoadRun(runsDir, runID); loadErr != nil {
+			// Held in memory but never saved (a recording seed, say): the
+			// label lives with the session's copy only.
+			c.JSON(http.StatusOK, gin.H{"status": "labelled", "id": runID, "label": label, "saved": false})
+			return
+		}
+		if writeErr := chaos.WriteRunFile(runsDir, runID, encoded); writeErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": writeErr.Error()})
+			return
+		}
+	case held && !errors.Is(err, errChaosRunNotHeld):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	default:
+		run, loadErr := chaos.LoadRun(runsDir, runID)
+		if loadErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": loadErr.Error()})
+			return
+		}
+		run.Label = label
+		if saveErr := chaos.SaveRun(runsDir, run); saveErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": saveErr.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "labelled", "id": runID, "label": label, "saved": true})
+}
+
+// errChaosRunNotHeld reports that the session's loaded run is not the one a
+// request named.
+var errChaosRunNotHeld = errors.New("run is not the one held by this session")
 
 // chaosLoadRequest is the JSON body for POST /chaos/load.
 type chaosLoadRequest struct {
@@ -1178,21 +1751,43 @@ func (app *App) ChaosLoadHandler(c *gin.Context) {
 		return
 	}
 
-	app.chaosEngines.clearRemoved(s.ID)
-	app.chaosEngines.setLoadedRun(s.ID, run)
+	// Refused while a run is active, under the same lock the start path
+	// takes. Loading used to go ahead regardless: it replaced the session's
+	// loaded run and wiped its status while the engine carried on typing
+	// into the host, and when that run finished it overwrote what had just
+	// been loaded.
+	display := redactedMindMap(run.MindMap)
+	if !app.chaosEngines.loadRecordingIfInactive(s.ID, run) {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "a chaos run is active; stop it (or let it finish) before loading another run",
+			"code":  "chaos_run_active",
+		})
+		return
+	}
 	withSessionLock(s, func() {
 		// Loading a chaos run should clear stale active-run status metadata.
 		s.Chaos = nil
 	})
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"runID":         run.ID,
 		"stepsRun":      run.StepsRun,
 		"transitions":   run.Transitions,
 		"uniqueScreens": run.UniqueScreens,
 		"uniqueInputs":  run.UniqueInputs,
 		"uniqueKeys":    len(run.AIDKeyCounts),
-		"mindMap":       chaosMindMapToJSON(run.MindMap),
-	})
+		"mindMap":       display,
+	}
+	if run.TerminationReason != "" {
+		resp["terminationReason"] = run.TerminationReason
+		resp["terminationSummary"] = chaosTerminationSummary(run.TerminationReason, false)
+	}
+	if run.TargetHost != "" {
+		resp["targetHost"] = run.TargetHost
+	}
+	if run.Label != "" {
+		resp["label"] = run.Label
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ChaosDeleteRunHandler handles POST /chaos/runs/delete – deletes a saved run from disk.
@@ -1272,7 +1867,7 @@ func (app *App) ChaosLoadRecordingHandler(c *gin.Context) {
 		"uniqueScreens": run.UniqueScreens,
 		"uniqueInputs":  run.UniqueInputs,
 		"uniqueKeys":    len(run.AIDKeyCounts),
-		"mindMap":       chaosMindMapToJSON(run.MindMap),
+		"mindMap":       redactedMindMap(run.MindMap),
 	})
 }
 
@@ -1301,12 +1896,18 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		return
 	}
 
-	// Parse optional config overrides (same fields as /chaos/start).
+	// Parse optional config overrides (same fields as /chaos/start), on top
+	// of the same configured defaults a fresh start gets: continuing a run
+	// must not quietly drop the operator's CHAOS_* settings (step delay
+	// included) and fall back to the built-in ones.
 	cfg := chaos.DefaultConfig()
+	app.applyChaosEnvSettings(&cfg)
 	var req chaosStartRequest
-	if err := c.ShouldBindJSON(&req); err == nil {
-		applyChaosStartRequestToConfig(&cfg, req)
+	if err := bindChaosStartRequest(c, &req); err != nil {
+		rejectChaosBody(c, err)
+		return
 	}
+	applyChaosStartRequestToConfig(&cfg, req)
 	var savedHints chaosHintsPayload
 	if saved, err := app.loadChaosHintsPayload(s.OwnerID); err == nil {
 		savedHints = saved
@@ -1330,6 +1931,8 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		cfg.ExportPort = s.TargetPort
 	})
 
+	runConfig := chaosRunConfigSummary(cfg, true)
+
 	eng, err, started := app.chaosEngines.resumeIfAbsent(s.ID, func() (*chaos.Engine, error) {
 		var built *chaos.Engine
 		withSessionLock(s, func() {
@@ -1347,7 +1950,7 @@ func (app *App) ChaosResumeHandler(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "chaos exploration is already running"})
 		return
 	}
-	app.startChaosSync(s, eng)
+	app.startChaosSync(s, eng, runConfig)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "resumed",
@@ -1914,6 +2517,9 @@ func (app *App) saveChaosHintsPayload(ownerID string, payload chaosHintsPayload)
 	return nil
 }
 
+// chaosStatusToJSON renders a live engine status. Values typed into hidden
+// fields are masked in the attempts and in the mind map; st.MindMap is the
+// caller's own copy (Engine.Status clones it), so it is scrubbed in place.
 func chaosStatusToJSON(st chaos.Status) gin.H {
 	resp := gin.H{
 		"active":        st.Active,
@@ -1939,24 +2545,32 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 	if !st.StoppedAt.IsZero() {
 		resp["stoppedAt"] = st.StoppedAt.Format(time.RFC3339)
 	}
+	if st.MaxSteps > 0 {
+		resp["maxSteps"] = st.MaxSteps
+	}
+	if st.TimeBudget > 0 {
+		resp["timeBudgetSec"] = st.TimeBudget.Seconds()
+	}
 	if st.LastAttempt != nil {
-		resp["lastAttempt"] = chaosAttemptToJSON(*st.LastAttempt)
+		resp["lastAttempt"] = chaosAttemptToJSON(redactedChaosAttempt(st.MindMap, *st.LastAttempt))
 	}
 	if len(st.RecentAttempts) > 0 {
 		attempts := make([]gin.H, 0, len(st.RecentAttempts))
 		for _, attempt := range st.RecentAttempts {
-			attempts = append(attempts, chaosAttemptToJSON(attempt))
+			attempts = append(attempts, chaosAttemptToJSON(redactedChaosAttempt(st.MindMap, attempt)))
 		}
 		resp["recentAttempts"] = attempts
 	}
-	if mindMapJSON := chaosMindMapToJSON(st.MindMap); mindMapJSON != nil {
-		resp["mindMap"] = mindMapJSON
+	if st.MindMap != nil {
+		scrubMindMapSecrets(st.MindMap, chaosHiddenValueMask)
+		resp["mindMap"] = st.MindMap
 	}
 	// Surface why the run stopped so the UI and Copilot agent can react
 	// (e.g. "blocked" -> relax the key blacklist; "saturated" with
 	// saturatedNoProgress -> stop resuming and update hints instead).
 	if st.TerminationReason != "" {
 		resp["terminationReason"] = st.TerminationReason
+		resp["terminationSummary"] = chaosTerminationSummary(st.TerminationReason, st.SaturatedNoProgress)
 	}
 	if st.SaturatedNoProgress {
 		resp["saturatedNoProgress"] = true
@@ -1968,6 +2582,8 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 			"newTransitionsLast10Steps": cov.NewTransitionsInWindow,
 			"saturationStreak":          cov.SaturationStreak,
 			"saturationThresholdSteps":  cov.SaturationThresholdSteps,
+			"frontierAreas":             cov.FrontierAreas,
+			"untriedKeysTotal":          cov.UntriedKeysTotal,
 		}
 	}
 	if st.Error != "" {
@@ -1976,6 +2592,14 @@ func chaosStatusToJSON(st chaos.Status) gin.H {
 	return resp
 }
 
+// chaosStateToJSON renders the session's kept view of a run — what status
+// answers from once the engine has gone. It carries the same end-of-run
+// fields the live status does (terminationReason, saturatedNoProgress,
+// targetHost), because "why did it stop?" is asked after the run, which is
+// exactly when the engine is no longer there to say.
+//
+// The mind map is not included: the caller decides where the map comes from
+// and how much of it to send.
 func chaosStateToJSON(state *session.ChaosState) gin.H {
 	if state == nil {
 		return nil
@@ -1993,7 +2617,9 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 	if state.LoadedRunID != "" {
 		resp["loadedRunID"] = state.LoadedRunID
 	}
-	if firstHash := sessionChaosFirstScreenHashFromAttempts(state.RecentAttempts); firstHash != "" {
+	if state.FirstScreenHash != "" {
+		resp["firstScreenHash"] = state.FirstScreenHash
+	} else if firstHash := sessionChaosFirstScreenHashFromAttempts(state.RecentAttempts); firstHash != "" {
 		resp["firstScreenHash"] = firstHash
 	}
 	if !state.StartedAt.IsZero() {
@@ -2001,6 +2627,12 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 	}
 	if !state.StoppedAt.IsZero() {
 		resp["stoppedAt"] = state.StoppedAt.Format(time.RFC3339)
+	}
+	if state.MaxSteps > 0 {
+		resp["maxSteps"] = state.MaxSteps
+	}
+	if state.TimeBudget > 0 {
+		resp["timeBudgetSec"] = state.TimeBudget.Seconds()
 	}
 	if state.LastAttempt != nil {
 		resp["lastAttempt"] = sessionChaosAttemptToJSON(*state.LastAttempt)
@@ -2012,8 +2644,17 @@ func chaosStateToJSON(state *session.ChaosState) gin.H {
 		}
 		resp["recentAttempts"] = attempts
 	}
-	if decoded := rawJSONToInterface(state.MindMap); decoded != nil {
-		resp["mindMap"] = decoded
+	if state.TerminationReason != "" {
+		resp["terminationReason"] = state.TerminationReason
+	}
+	if state.SaturatedNoProgress {
+		resp["saturatedNoProgress"] = true
+	}
+	if state.TargetHost != "" {
+		resp["targetHost"] = state.TargetHost
+	}
+	if state.Config != nil {
+		resp["config"] = chaosRunConfigToJSON(state.Config)
 	}
 	if state.Error != "" {
 		resp["error"] = state.Error
@@ -2185,8 +2826,16 @@ func chaosStateSnapshot(s *session.Session) *session.ChaosState {
 			UniqueScreens: s.Chaos.UniqueScreens,
 			UniqueInputs:  s.Chaos.UniqueInputs,
 			LoadedRunID:   s.Chaos.LoadedRunID,
-			MindMap:       append(json.RawMessage(nil), s.Chaos.MindMap...),
-			Error:         s.Chaos.Error,
+			// Shared, not copied: the bytes are written once when a run
+			// ends and replaced wholesale, never edited in place, and this
+			// snapshot is taken on every status poll.
+			MindMap:             s.Chaos.MindMap,
+			Error:               s.Chaos.Error,
+			TerminationReason:   s.Chaos.TerminationReason,
+			SaturatedNoProgress: s.Chaos.SaturatedNoProgress,
+			TargetHost:          s.Chaos.TargetHost,
+			FirstScreenHash:     s.Chaos.FirstScreenHash,
+			Config:              s.Chaos.Config.Clone(),
 		}
 		if len(s.Chaos.AIDKeyCounts) > 0 {
 			snapshot.AIDKeyCounts = make(map[string]int, len(s.Chaos.AIDKeyCounts))
@@ -2233,7 +2882,11 @@ func chaosSeedRunFromWorkflow(workflow *WorkflowConfig) *chaos.SavedRun {
 		}
 		uniqueInputs[text] = true
 	}
-	mindMap := buildChaosSeedMindMap(steps)
+	var parameters []session.WorkflowParameter
+	if workflow != nil {
+		parameters = workflow.Parameters
+	}
+	mindMap := buildChaosSeedMindMap(steps, parameters)
 
 	return &chaos.SavedRun{
 		SavedRunMeta: chaos.SavedRunMeta{
@@ -2302,10 +2955,47 @@ func chaosSeedWorkflowHeader(workflow *WorkflowConfig) *chaos.WorkflowHeader {
 	return header
 }
 
-func buildChaosSeedMindMap(steps []session.WorkflowStep) *chaos.MindMap {
+// buildChaosSeedMindMap turns a recording into a starting mind map: one area
+// per screen the recording passed through, with the values it typed recorded
+// as known to work.
+//
+// A recording does not say which of its fields were hidden on the screen, so
+// a password typed during recording would arrive here looking like any other
+// value and be shown as one. What a recording does carry is used to mark such
+// fields hidden, which is all the serializers need to withhold them (see
+// chaos_redact.go):
+//
+//   - a parameter marked Sensitive names the row and column it fills;
+//   - a fill whose text is a ${variable} set by a Sensitive SetVariable step
+//     is a fill from a field the recording itself said not to write down.
+func buildChaosSeedMindMap(steps []session.WorkflowStep, parameters []session.WorkflowParameter) *chaos.MindMap {
 	mindMap := &chaos.MindMap{Areas: map[string]*chaos.MindMapArea{}}
 	if len(steps) == 0 {
 		return mindMap
+	}
+	type position struct{ row, column int }
+	sensitiveAt := make(map[position]bool)
+	for _, p := range parameters {
+		if p.Sensitive && p.Row > 0 && p.Column > 0 {
+			sensitiveAt[position{p.Row, p.Column}] = true
+		}
+	}
+	sensitiveVars := make(map[string]bool)
+	for _, step := range steps {
+		if step.Sensitive && strings.TrimSpace(step.Variable) != "" {
+			sensitiveVars[strings.TrimSpace(step.Variable)] = true
+		}
+	}
+	fillIsSensitive := func(row, column int, text string) bool {
+		if sensitiveAt[position{row, column}] {
+			return true
+		}
+		for name := range sensitiveVars {
+			if strings.Contains(text, "${"+name+"}") {
+				return true
+			}
+		}
+		return false
 	}
 	now := time.Now().UTC()
 	areaSeq := 1
@@ -2377,10 +3067,23 @@ func buildChaosSeedMindMap(steps []session.WorkflowStep) *chaos.MindMap {
 				length = 1
 			}
 			fieldKey := fmt.Sprintf("R%dC%dL%d", row, col, length)
+			hidden := fillIsSensitive(row, col, text)
+			if existing, ok := area.FieldMetadata[fieldKey]; ok && existing.Hidden {
+				hidden = true
+			}
 			area.FieldMetadata[fieldKey] = chaos.MindMapFieldMetadata{
 				Row:    row,
 				Column: col,
 				Length: length,
+				Hidden: hidden,
+			}
+			if hidden {
+				area.HiddenFieldCount = 0
+				for _, meta := range area.FieldMetadata {
+					if meta.Hidden {
+						area.HiddenFieldCount++
+					}
+				}
 			}
 			area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], text, 12)
 			area.InputFieldCount = len(area.FieldMetadata)

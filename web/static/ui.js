@@ -252,8 +252,8 @@
         },
         {
             id: 'chaos',
-            title: 'Chaos Explorer',
-            description: 'Configuration for chaos exploration runs. Values are used when starting a chaos run from the toolbar.',
+            title: 'Exploration',
+            description: 'Defaults for exploration runs (the CHAOS_* settings). The step and time limits can be changed for a single run in the start dialog.',
             sections: [
                 { id: 'chaos_limits', title: 'Run Limits', fieldKeys: ['CHAOS_MAX_STEPS', 'CHAOS_TIME_BUDGET_SEC', 'CHAOS_STEP_DELAY_SEC', 'CHAOS_SEED'] },
                 { id: 'chaos_explore', title: 'Exploration Behavior', fieldKeys: ['CHAOS_MAX_FIELD_LENGTH', 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', 'CHAOS_SCREEN_DEDUP_SIMILARITY'] },
@@ -270,8 +270,8 @@
                 { key: 'CHAOS_FORCE_OVERRIDE_EXISTING_INPUTS', label: 'Force override existing inputs', type: 'checkbox', helper: 'Overwrite prefilled input fields more aggressively to maximise exploration (clear trailing text and avoid reusing the same visible value).' },
                 { key: 'CHAOS_LEARNED_INPUT_REUSE_BIAS', label: 'Learned input reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working input values. Range 0..1 (0 = explore more, 1 = reuse learned inputs more often).' },
                 { key: 'CHAOS_LEARNED_KEY_REUSE_BIAS', label: 'Learned key reuse bias', type: 'text', helper: 'Balance between exploration and reuse of learned working keys (Enter/PF/etc.). Range 0..1 (0 = explore more keys, 1 = reuse learned keys more often).' },
-                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the chaos discovery map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.95 merges value-echo variants more aggressively). Default 0.95 is a balanced starting point.' },
-                { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Exclude attempts with no screen transition from chaos event history and attempt detail views.' },
+                { key: 'CHAOS_SCREEN_DEDUP_SIMILARITY', label: 'Screen dedup similarity', type: 'text', helper: 'Similarity threshold (0-1] for merging near-duplicate screens in the screen map. Higher = stricter (0.995 keeps more separate screens), lower = more merging (0.95 merges value-echo variants more aggressively). Default 0.95 is a balanced starting point.' },
+                { key: 'CHAOS_EXCLUDE_NO_PROGRESS_EVENTS', label: 'Exclude no-progress events', type: 'checkbox', helper: 'Leave steps that changed nothing on screen out of the exploration event history and step details.' },
                 { key: 'CHAOS_EXPORT_SUCCESS_BALANCE', label: 'Export success balance', type: 'text', helper: 'Workflow export balance (0-1]. 1 exports only successful navigation steps. Lower values add sampled unsuccessful attempts as safe CheckValue steps while preserving the successful path.' },
                 { key: 'CHAOS_OUTPUT_FILE', label: 'Output file', type: 'text', helper: 'Path to save the learned workflow JSON on stop (leave empty to skip).' },
             ],
@@ -566,7 +566,7 @@
         txInput.placeholder = 'Transaction (e.g., CEMT)';
         txInput.value = hint.transaction || '';
         txInput.dataset.settingsChaosHintTransaction = '1';
-        txInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        txInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved changes to the default hints.'));
         txLabel.setAttribute('for', txInput.id);
         txField.appendChild(txLabel);
         txField.appendChild(txInput);
@@ -581,7 +581,7 @@
         dataInput.placeholder = 'Known data values (comma or newline separated)';
         dataInput.value = Array.isArray(hint.knownData) ? hint.knownData.join('\n') : '';
         dataInput.dataset.settingsChaosHintData = '1';
-        dataInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        dataInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved changes to the default hints.'));
         dataLabel.setAttribute('for', dataInput.id);
         dataField.appendChild(dataLabel);
         dataField.appendChild(dataInput);
@@ -596,7 +596,7 @@
         keysInput.placeholder = 'Label = Key (one per line)\nReturn = PF3\nConfirm = Enter';
         keysInput.value = formatChaosDefaultsKeyAssignments(hint.keyAssignments || {});
         keysInput.dataset.settingsChaosHintKeyAssignments = '1';
-        keysInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved chaos default hints changes.'));
+        keysInput.addEventListener('input', () => setChaosDefaultsStatus('Unsaved changes to the default hints.'));
         keysLabel.setAttribute('for', keysInput.id);
         keysField.appendChild(keysLabel);
         keysField.appendChild(keysInput);
@@ -610,7 +610,7 @@
             if (!chaosDefaultsHintsList.children.length) {
                 createChaosDefaultsHintRow();
             }
-            setChaosDefaultsStatus('Unsaved chaos default hints changes.');
+            setChaosDefaultsStatus('Unsaved changes to the default hints.');
         });
 
         row.appendChild(txField);
@@ -664,14 +664,14 @@
     });
 
     const markChaosDefaultsDirty = () => {
-        setChaosDefaultsStatus('Unsaved chaos default hints changes.');
+        setChaosDefaultsStatus('Unsaved changes to the default hints.');
     };
 
     const loadChaosDefaultsFromServer = async () => {
         if (!chaosDefaultsHintsList) {
             return;
         }
-        setChaosDefaultsStatus('Loading chaos defaults...');
+        setChaosDefaultsStatus('Loading the default hints...');
         try {
             const response = await fetch('/chaos/hints');
             let payload = {};
@@ -681,12 +681,12 @@
                 payload = {};
             }
             if (!response.ok) {
-                throw new Error(payload.error || 'Failed to load chaos defaults.');
+                throw new Error(payload.error || 'Failed to load the default hints.');
             }
             renderChaosDefaultsEditorPayload(payload);
-            setChaosDefaultsStatus('Chaos defaults loaded.');
+            setChaosDefaultsStatus('Default hints loaded.');
         } catch (error) {
-            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to load chaos defaults.', true);
+            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to load the default hints.', true);
         }
     };
 
@@ -695,7 +695,7 @@
             return;
         }
         const payload = collectChaosDefaultsEditorPayload();
-        setChaosDefaultsStatus('Saving chaos defaults...');
+        setChaosDefaultsStatus('Saving the default hints...');
         try {
             const response = await fetch('/chaos/hints', {
                 method: 'POST',
@@ -711,12 +711,12 @@
                 data = {};
             }
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to save chaos defaults.');
+                throw new Error(data.error || 'Failed to save the default hints.');
             }
             renderChaosDefaultsEditorPayload(data);
-            setChaosDefaultsStatus('Chaos defaults saved.');
+            setChaosDefaultsStatus('Default hints saved.');
         } catch (error) {
-            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to save chaos defaults.', true);
+            setChaosDefaultsStatus((error && error.message) ? error.message : 'Failed to save the default hints.', true);
         }
     };
 
@@ -731,7 +731,7 @@
 
         const help = document.createElement('div');
         help.className = 'settings-helper';
-        help.textContent = 'Saved separately from .env settings via /chaos/hints. These defaults are used by chaos runs when request-level hints/blacklist are not provided.';
+        help.textContent = 'Saved separately from .env settings via /chaos/hints. Explorations use these defaults when a request brings no hints or blocked keys of its own.';
         wrapper.appendChild(help);
 
         const openBtn = document.createElement('button');
@@ -763,7 +763,7 @@
         header.className = 'modal-header';
         const h3 = document.createElement('h3');
         h3.id = 'settings-chaos-defaults-modal-title';
-        h3.textContent = 'Default Chaos Hints';
+        h3.textContent = 'Default exploration hints';
         const headerClose = document.createElement('button');
         headerClose.type = 'button';
         headerClose.className = 'modal-close';
@@ -778,7 +778,7 @@
 
         const modalHelp = document.createElement('p');
         modalHelp.className = 'subtle chaos-hints-help';
-        modalHelp.textContent = 'Edit saved default chaos hints and blocked keys. These are used when a chaos run starts without request-level overrides.';
+        modalHelp.textContent = 'Edit the saved default hints and blocked keys. An exploration uses these when it is started without its own.';
         stack.appendChild(modalHelp);
 
         const blockedField = document.createElement('div');
@@ -790,7 +790,7 @@
         const blockedInput = document.createElement('textarea');
         blockedInput.id = 'settings-chaos-key-blacklist';
         blockedInput.rows = 6;
-        blockedInput.placeholder = 'Keys chaos must never press (one per line)\nPF3\nPF12';
+        blockedInput.placeholder = 'Keys exploration must never press (one per line)\nPF3\nPF12';
         blockedInput.addEventListener('input', markChaosDefaultsDirty);
         chaosDefaultsKeyBlacklistInput = blockedInput;
         blockedField.appendChild(blockedLabel);
@@ -826,7 +826,7 @@
 
         const loadBtn = document.createElement('button');
         loadBtn.type = 'button';
-        loadBtn.textContent = 'Load Chaos Defaults';
+        loadBtn.textContent = 'Load default hints';
         loadBtn.dataset.settingsChaosDefaultsLoad = '1';
         loadBtn.addEventListener('click', () => {
             loadChaosDefaultsFromServer();
@@ -835,7 +835,7 @@
 
         const saveBtn = document.createElement('button');
         saveBtn.type = 'button';
-        saveBtn.textContent = 'Save Chaos Defaults';
+        saveBtn.textContent = 'Save default hints';
         saveBtn.addEventListener('click', () => {
             saveChaosDefaultsToServer();
         });
@@ -1970,7 +1970,8 @@
     const loadBtn = document.querySelector('[data-chaos-load]');
     const loadRecordingBtn = document.querySelector('[data-chaos-load-recording]');
     const resumeBtn = document.querySelector('[data-chaos-resume]');
-    const extendBtn = document.querySelector('[data-chaos-extend]');
+    const flowMenuOpenBtn = document.querySelector('[data-chaos-flow-menu-open]');
+    const taskOpenBtn = document.querySelector('[data-chaos-task-open]');
     const indicator = document.querySelector('[data-chaos-indicator]');
     const completeIndicator = document.querySelector('[data-chaos-complete-indicator]');
     const statsIndicator = document.querySelector('[data-chaos-stats-indicator]');
@@ -1981,11 +1982,38 @@
     const runsSelectAllBtn = document.querySelector('[data-chaos-runs-select-all]');
     const runsClearSelectionBtn = document.querySelector('[data-chaos-runs-clear-selection]');
     const runsDeleteSelectedBtn = document.querySelector('[data-chaos-runs-delete-selected]');
+    const runsCompareBtn = document.querySelector('[data-chaos-runs-compare]');
+    const runsStatus = document.querySelector('[data-chaos-runs-status]');
+    const compareModal = document.querySelector('[data-chaos-compare-modal]');
+    const compareModalClose = document.querySelectorAll('[data-chaos-compare-close]');
+    const compareStatus = document.querySelector('[data-chaos-compare-status]');
+    const compareContent = document.querySelector('[data-chaos-compare-content]');
+    const compareTitle = document.querySelector('#chaos-compare-modal-title');
     const confirmModal = document.querySelector('[data-chaos-confirm-modal]');
     const confirmTitle = document.querySelector('[data-chaos-confirm-title]');
     const confirmMessage = document.querySelector('[data-chaos-confirm-message]');
     const confirmCancelButtons = document.querySelectorAll('[data-chaos-confirm-cancel]');
     const confirmOkButton = document.querySelector('[data-chaos-confirm-ok]');
+    const confirmAltButton = document.querySelector('[data-chaos-confirm-alt]');
+    const confirmCancelLabelButton = document.querySelector('[data-chaos-confirm-cancel-label]');
+    const startModal = document.querySelector('[data-chaos-start-modal]');
+    const startForm = document.querySelector('[data-chaos-start-form]');
+    const startModalTitle = document.querySelector('[data-chaos-start-title]');
+    const startModalCancelButtons = document.querySelectorAll('[data-chaos-start-cancel]');
+    const startModalConfirmBtn = document.querySelector('[data-chaos-start-confirm]');
+    const startModalHost = document.querySelector('[data-chaos-start-host]');
+    const startModalRunRow = document.querySelector('[data-chaos-start-run-row]');
+    const startModalRun = document.querySelector('[data-chaos-start-run]');
+    const startModalMaxSteps = document.querySelector('[data-chaos-start-max-steps]');
+    const startModalStepsLabel = document.querySelector('[data-chaos-start-steps-label]');
+    const startModalStepsHelp = document.querySelector('[data-chaos-start-steps-help]');
+    const startModalTimeBudget = document.querySelector('[data-chaos-start-time-budget]');
+    const startModalBlockedKeys = document.querySelector('[data-chaos-start-blocked-keys]');
+    const startModalBlockedWarning = document.querySelector('[data-chaos-start-blocked-warning]');
+    const startModalKeys = document.querySelector('[data-chaos-start-keys]');
+    const startModalKeysDefaultBtn = document.querySelector('[data-chaos-start-keys-default]');
+    const startModalKeysAllBtn = document.querySelector('[data-chaos-start-keys-all]');
+    const startModalStatus = document.querySelector('[data-chaos-start-status]');
     const hintsOpenBtn = document.querySelector('[data-chaos-hints-open]');
     const hintsModal = document.querySelector('[data-chaos-hints-modal]');
     const hintsModalClose = document.querySelectorAll('[data-chaos-hints-close]');
@@ -2012,6 +2040,26 @@
     const mapList = document.querySelector('[data-chaos-map-list]');
     const mapStatus = document.querySelector('[data-chaos-map-status]');
     const mapRefreshBtn = document.querySelector('[data-chaos-map-refresh]');
+    const mapExportBtn = document.querySelector('[data-chaos-map-export]');
+    const mapImportBtn = document.querySelector('[data-chaos-map-import]');
+    const mapImportInput = document.querySelector('[data-chaos-map-import-input]');
+    const mapTaskBtn = document.querySelector('[data-chaos-map-task]');
+    const activeRunContainer = document.querySelector('[data-active-run-container]');
+    const activeRunStopBtn = document.querySelector('[data-active-run-stop]');
+    const activeRunContinueBtn = document.querySelector('[data-active-run-extend]');
+    const momentumEl = document.querySelector('[data-chaos-momentum]');
+    const chaosLiveRegion = document.querySelector('[data-chaos-live]');
+    const runPanel = document.querySelector('[data-chaos-run-panel]');
+    const runPanelIcon = document.querySelector('[data-chaos-run-panel-icon]');
+    const runPanelTitle = document.querySelector('[data-chaos-run-panel-title]');
+    const runPanelReason = document.querySelector('[data-chaos-run-panel-reason]');
+    const runPanelCounts = document.querySelector('[data-chaos-run-panel-counts]');
+    const runPanelReportBtn = document.querySelector('[data-chaos-run-panel-report]');
+    const runPanelMapBtn = document.querySelector('[data-chaos-run-panel-map]');
+    const runPanelExportBtn = document.querySelector('[data-chaos-run-panel-export]');
+    const runPanelContinueBtn = document.querySelector('[data-chaos-run-panel-continue]');
+    const runPanelNext = document.querySelector('[data-chaos-run-panel-next]');
+    const runPanelNextList = document.querySelector('[data-chaos-run-panel-next-list]');
     const flowModal = document.querySelector('[data-chaos-flow-modal]');
     const flowModalClose = document.querySelectorAll('[data-chaos-flow-close]');
     const flowMaximizeBtn = document.querySelector('[data-chaos-flow-maximize]');
@@ -2045,12 +2093,6 @@
     const startLogConfirmContinueBtn = document.querySelector('[data-chaos-start-log-confirm-continue]');
     const startLogConfirmDisableBtn = document.querySelector('[data-chaos-start-log-confirm-disable]');
     const startLogConfirmMessage = document.querySelector('[data-chaos-start-log-confirm-message]');
-    const hostConfirmModal = document.querySelector('[data-chaos-host-confirm-modal]');
-    const hostConfirmCancelButtons = document.querySelectorAll('[data-chaos-host-confirm-cancel]');
-    const hostConfirmOkBtn = document.querySelector('[data-chaos-host-confirm-ok]');
-    const hostConfirmTitle = document.querySelector('[data-chaos-host-confirm-title]');
-    const hostConfirmHost = document.querySelector('[data-chaos-host-confirm-host]');
-    const hostConfirmBlocked = document.querySelector('[data-chaos-host-confirm-blocked]');
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
@@ -2066,6 +2108,44 @@
     let pollFailureCount = 0;
     const pollBaseDelayMs = 1000;
     const pollMaxDelayMs = 15000;
+    // The run strip is fed by the workflow-status poll (workflow.js), which
+    // already reports whether an exploration is running and how far it has
+    // got, and which tells this module the moment that changes. So this poll
+    // only has to keep the coverage figures and the menu fresh, and need not
+    // run every second to do it.
+    const pollActiveDelayMs = 3000;
+    const pollHiddenDelayMs = 10000;
+    // A run that has ended is polled until it has been written to disk and
+    // comes back with a run ID. If that never happens, stop asking.
+    const pollFinalizeMaxTries = 20;
+    let pollFinalizeTries = 0;
+    let lastWorkflowSyncKey = null;
+    // The limits of the current run as the workflow-status poll reports them,
+    // for working out how a run ended on a server that does not say.
+    const knownRunLimits = { maxSteps: 0, timeBudgetMs: 0, startedAt: '', stoppedAt: '' };
+    let fullMapUnavailable = false;
+    let latestAreaCount = 0;
+    const groupedScreenCount = { areaCount: -1, screens: 0 };
+    let chaosSessionExpired = false;
+    // The full screen map is large and is only fetched when a view that draws
+    // it is open (?verbose=true). latestMindMapIsFull says which kind is held.
+    let latestMindMapIsFull = false;
+    let fullMapFetchedAt = 0;
+    let fullMapFetchInFlight = null;
+    let latestSlimSignature = '';
+    let fullMapSlimSignature = '';
+    const fullMapMinIntervalMs = 3000;
+    let mapRenderPending = false;
+    let flowRenderedSignature = '';
+    let flowPointerActive = false;
+    let userRequestedStop = false;
+    let lastOutcome = null;
+    let lastInsightsKey = '';
+    let lastMomentumText = '';
+    let lastMomentumAnnouncedAt = 0;
+    const momentumAnnounceIntervalMs = 20000;
+    let startDialogMode = 'start';
+    let startDialogBusy = false;
     let hasData = false;
     let loadedRunID = null;
     let lastStatus = { active: false, stepsRun: 0, transitions: 0 };
@@ -2086,7 +2166,6 @@
     // hash, label and counts, with no screen capture and no key-press
     // destinations. The map, the flow and the screen-hints editor need the full
     // one, so they ask for it (see pollStatus).
-    let latestMindMapIsSummary = false;
     let latestFirstScreenHash = '';
     let screenHintsByHash = {};
     let screenHintDrafts = {};
@@ -2096,7 +2175,6 @@
     const chaosModalParentStack = [];
     const chaosModalReturnFocusStack = [];
     let pendingStartLogConfirmResolve = null;
-    let settlePendingHostConfirm = null;
     let pendingChaosConfirmResolve = null;
     let currentRuns = [];
     let selectedChaosRunIDs = new Set();
@@ -2153,6 +2231,23 @@
         }
     };
 
+    // Most of these dialogs are opened from the Automation menu, which has
+    // closed by the time they do: the item that had focus is no longer on
+    // screen, and handing focus back to it dropped it on the page body. Fall
+    // back to the menu's own trigger, which is always there.
+    const restoreChaosFocus = (el) => {
+        const visible = (node) => !!(node && node.isConnected && typeof node.focus === 'function'
+            && !node.disabled && node.getClientRects().length);
+        if (visible(el)) {
+            el.focus();
+            return;
+        }
+        const fallback = document.querySelector('[data-menu-automation] [data-app-menu-trigger]');
+        if (visible(fallback)) {
+            fallback.focus();
+        }
+    };
+
     const closeChaosModal = (modal, options = {}) => {
         if (!modal) {
             return;
@@ -2181,8 +2276,8 @@
                 return;
             }
             activeChaosModal = null;
-            if (restoreFocus && previousChaosFocus && typeof previousChaosFocus.focus === 'function') {
-                previousChaosFocus.focus();
+            if (restoreFocus) {
+                restoreChaosFocus(previousChaosFocus);
             }
             previousChaosFocus = null;
             return;
@@ -2259,7 +2354,7 @@
         }
         if (event.key === 'Escape') {
             event.preventDefault();
-            closeChaosModal(modal);
+            requestCloseChaosModal(modal);
             return;
         }
         if (event.key !== 'Tab') {
@@ -2287,6 +2382,19 @@
             first.focus();
         }
     }, true);
+
+    // Closing by Escape, by the backdrop or by a Close button all ask first
+    // when the dialog has something to lose. Only the hints editor does.
+    const requestCloseChaosModal = (modal) => {
+        if (modal && modal === hintsModal) {
+            requestCloseHintsModal();
+            return;
+        }
+        if (modal && modal === startModal && startDialogBusy) {
+            return;
+        }
+        closeChaosModal(modal);
+    };
 
     const setButtonBusy = (btn, busy) => {
         if (!btn) {
@@ -2324,20 +2432,29 @@
         }
     };
 
-    const setHintsStatus = (message, isError = false) => {
-        if (!hintsStatus) {
+    // Every status line in these dialogs goes through here. An error used to
+    // be the same text in a different colour, which says nothing to anybody
+    // who cannot tell the colours apart or is not looking at the screen: it
+    // now carries the word, and the class adds an icon.
+    const setStatusLine = (el, message, isError = false) => {
+        if (!el) {
             return;
         }
-        hintsStatus.textContent = message || '';
-        hintsStatus.style.color = isError ? '#ff9a5a' : '';
+        const text = String(message || '');
+        const failed = !!isError && !!text;
+        el.style.color = '';
+        el.classList.toggle('is-error', failed);
+        el.textContent = failed && !/^(error|failed|could not|unable)\b/i.test(text) ? `Error: ${text}` : text;
     };
 
-    const notifyUi = (message, type = 'info') => {
+    const setHintsStatus = (message, isError = false) => setStatusLine(hintsStatus, message, isError);
+
+    const notifyUi = (message, type = 'info', options) => {
         if (!message) {
             return;
         }
         if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notify === 'function') {
-            window.ThreeSeventyWeb.notify(message, type);
+            window.ThreeSeventyWeb.notify(message, type, options);
         }
     };
 
@@ -2358,10 +2475,10 @@
         const keys = Number(counts.keys || 0);
         const parts = [];
         if (steps > 0) {
-            parts.push(`Steps ${steps}`);
+            parts.push(`${steps} step${steps === 1 ? '' : 's'}`);
         }
         if (screens > 0) {
-            parts.push(`${screens} screen${screens === 1 ? '' : 's'}`);
+            parts.push(screenCountLabel(screens));
         }
         if (inputs > 0) {
             parts.push(`${inputs} input${inputs === 1 ? '' : 's'}`);
@@ -2372,21 +2489,9 @@
         return parts.join(', ');
     };
 
-    const setFlowStatus = (message, isError = false) => {
-        if (!flowStatus) {
-            return;
-        }
-        flowStatus.textContent = message || '';
-        flowStatus.style.color = isError ? '#ff9a5a' : '';
-    };
+    const setFlowStatus = (message, isError = false) => setStatusLine(flowStatus, message, isError);
 
-    const setFlowScreenHintsStatus = (message, isError = false) => {
-        if (!flowScreenHintsStatus) {
-            return;
-        }
-        flowScreenHintsStatus.textContent = message || '';
-        flowScreenHintsStatus.style.color = isError ? '#ff9a5a' : '';
-    };
+    const setFlowScreenHintsStatus = (message, isError = false) => setStatusLine(flowScreenHintsStatus, message, isError);
 
     const renderFlowScreenHintsDraft = (hint) => {
         const normalized = normalizeScreenHint(hint || {});
@@ -2450,13 +2555,7 @@
         keyAssignments: parseKeyAssignments(flowScreenHintsKeyAssignments ? flowScreenHintsKeyAssignments.value : ''),
     });
 
-    const setReportStatus = (message, isError = false) => {
-        if (!reportStatus) {
-            return;
-        }
-        reportStatus.textContent = message || '';
-        reportStatus.style.color = isError ? '#ff9a5a' : '';
-    };
+    const setReportStatus = (message, isError = false) => setStatusLine(reportStatus, message, isError);
 
     const setStartLogConfirmMessage = (message) => {
         if (!startLogConfirmMessage) {
@@ -2490,7 +2589,7 @@
                 if (canDisable) {
                     const disable = await promptChaosConfirm({
                         title: 'Verbose Logging Enabled',
-                        message: 'Verbose logging is enabled. Disable logging and start Chaos mode?',
+                        message: 'Verbose logging is enabled. Disable logging and start the exploration?',
                         confirmLabel: 'Disable & Start',
                     });
                     if (disable) {
@@ -2499,8 +2598,8 @@
                 }
                 const proceed = await promptChaosConfirm({
                     title: 'Verbose Logging Enabled',
-                    message: 'Start Chaos mode with verbose logging still enabled?',
-                    confirmLabel: 'Start Chaos',
+                    message: 'Start the exploration with verbose logging still enabled?',
+                    confirmLabel: 'Start exploration',
                     danger: false,
                 });
                 return proceed ? 'continue' : 'cancel';
@@ -2511,8 +2610,8 @@
         setStartLogConfirmDisableAvailable(canDisable);
         setStartLogConfirmMessage(
             canDisable
-                ? 'Continue with logging enabled, or disable logging and then start Chaos mode?'
-                : 'Logging is enabled, but log access is disabled, so it cannot be turned off from here. Start Chaos with logging enabled, or cancel?'
+                ? 'Continue with logging enabled, or disable logging and then start the exploration?'
+                : 'Logging is enabled, but log access is disabled, so it cannot be turned off from here. Start the exploration with logging enabled, or cancel?'
         );
 
         if (pendingStartLogConfirmResolve) {
@@ -2527,7 +2626,8 @@
                 startLogConfirmModal,
                 canDisable
                     ? '[data-chaos-start-log-confirm-disable], [data-chaos-start-log-confirm-continue]'
-                    : '[data-chaos-start-log-confirm-continue]'
+                    : '[data-chaos-start-log-confirm-continue]',
+                { keepPrevious: true }
             );
         });
     };
@@ -2607,89 +2707,6 @@
         return { ok: true, enabled: nextEnabled };
     };
 
-    // Exploration fills fields with generated values and presses keys, so
-    // against a real host it can create or change data. It is asked about
-    // before it starts, resumes or extends, and not for the bundled sample
-    // apps, which are demonstration screens with nothing behind them.
-    //
-    // Whether the host is a sample app is the server's call
-    // (data-chaos-sample-app, from isSampleAppSession in Go) and anything but an
-    // explicit "true" is asked about: a page that did not say is not one that
-    // gets to skip the question.
-    const chaosHostNeedsConfirmation = () => !(chaosControls && chaosControls.dataset.chaosSampleApp === 'true');
-
-    // verb is "Start", "Resume" or "Extend": the title and the confirming
-    // button repeat what the operator asked for, so the dialog is never
-    // answering a question about something else.
-    const confirmChaosHostStart = (verb = 'Start') => {
-        if (!chaosHostNeedsConfirmation()) {
-            return Promise.resolve(true);
-        }
-        const targetHost = String((body && body.dataset.targetHost) || '').trim() || 'this host';
-        const action = `${verb} exploration`;
-        const modalApi = window.ThreeSeventyWeb || {};
-        if (!hostConfirmModal || !hostConfirmOkBtn || typeof modalApi.pushModal !== 'function') {
-            // Without the dialog the question is still asked: a safety prompt
-            // that quietly vanishes when its markup does is not a prompt.
-            return Promise.resolve(window.confirm(
-                `${action} on ${targetHost}?\n\nIt fills fields with generated values and presses keys, so it can create or change data on that host.`
-            ));
-        }
-        if (settlePendingHostConfirm) {
-            settlePendingHostConfirm(false);
-        }
-        if (hostConfirmTitle) {
-            hostConfirmTitle.textContent = `${action}?`;
-        }
-        if (hostConfirmHost) {
-            hostConfirmHost.textContent = targetHost;
-        }
-        hostConfirmOkBtn.textContent = action;
-        if (hostConfirmBlocked) {
-            // Only said when there is something to say. An empty list could
-            // just as well be hints that have not loaded yet, and "no keys are
-            // blocked" is not a thing to claim on that evidence.
-            const blocked = Array.isArray(chaosKeyBlacklist) ? chaosKeyBlacklist.filter(Boolean) : [];
-            hostConfirmBlocked.hidden = blocked.length === 0;
-            hostConfirmBlocked.textContent = blocked.length
-                ? `Blocked on every screen right now: ${blocked.map((key) => String(key).replace(/[()]/g, '')).join(', ')}.`
-                : '';
-        }
-        const cancelButton = hostConfirmModal.querySelector('.modal-actions [data-chaos-host-confirm-cancel]');
-        const trigger = document.activeElement;
-        return new Promise((resolve) => {
-            const settle = (answer) => {
-                if (settlePendingHostConfirm !== settle) {
-                    return;
-                }
-                settlePendingHostConfirm = null;
-                hostConfirmModal.hidden = true;
-                // Focus back to whatever had it, the same way every other
-                // dialog does. The menu item that opened this has gone by now
-                // (the menu closes when an item is chosen), so when that
-                // leaves focus nowhere it goes to the menu's own button.
-                if (typeof modalApi.popModal === 'function') {
-                    modalApi.popModal(hostConfirmModal);
-                }
-                const usable = (el) => !!(el && typeof el.focus === 'function' && document.contains(el)
-                    && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-                if (!usable(document.activeElement) || document.activeElement === document.body) {
-                    const menuButton = document.querySelector('[data-menu-automation] [data-app-menu-trigger]');
-                    const target = usable(trigger) ? trigger : menuButton;
-                    if (usable(target)) {
-                        target.focus();
-                    }
-                }
-                resolve(!!answer);
-            };
-            settlePendingHostConfirm = settle;
-            hostConfirmModal.hidden = false;
-            // Cancel takes the focus, so an Enter or Space pressed by reflex as
-            // the dialog appears declines instead of starting a run.
-            modalApi.pushModal(hostConfirmModal, () => settle(false), { initialFocus: cancelButton || undefined });
-        });
-    };
-
     const confirmLoggingBeforeChaosStart = async () => {
         const loggingState = await fetchChaosLoggingState();
         if (!loggingState.known || !loggingState.verboseLogging) {
@@ -2708,7 +2725,7 @@
             } catch (_err) {
                 // fall through to user-facing message
             }
-            notifyUi('Unable to disable verbose logging. Chaos mode was not started.', 'error');
+            setStartStatus('Verbose logging could not be turned off, so the exploration was not started.', true);
             return false;
         }
         return false;
@@ -2925,13 +2942,7 @@
         return out;
     };
 
-    const setChaosMapStatus = (message, isError = false) => {
-        if (!mapStatus) {
-            return;
-        }
-        mapStatus.textContent = message || '';
-        mapStatus.style.color = isError ? '#ff9a5a' : '';
-    };
+    const setChaosMapStatus = (message, isError = false) => setStatusLine(mapStatus, message, isError);
 
     const escapeHtml = (value) => String(value == null ? '' : value)
         .replace(/&/g, '&amp;')
@@ -2946,6 +2957,9 @@
         out = out.replace(/`([^`]+?)`/g, (_m, code) => `<code>${code}</code>`);
         out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
         out = out.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+        // The report writes line breaks inside table cells as <br>. Everything
+        // was escaped above, so the only tag that comes back is this one.
+        out = out.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
         return out;
     };
 
@@ -2954,14 +2968,16 @@
         if (!src.includes('|')) {
             return [];
         }
-        let body = src;
+        // A pipe the report escaped (\|) is part of a cell, not the end of one.
+        const escapedPipe = '\u0000';
+        let body = src.replace(/\\\|/g, escapedPipe);
         if (body.startsWith('|')) {
             body = body.slice(1);
         }
         if (body.endsWith('|')) {
             body = body.slice(0, -1);
         }
-        return body.split('|').map((cell) => cell.trim());
+        return body.split('|').map((cell) => cell.split(escapedPipe).join('|').trim());
     };
 
     const isMarkdownTableSeparator = (line) => {
@@ -3063,6 +3079,19 @@
                 }
                 if (i < lines.length) {
                     i += 1;
+                }
+                if (fenceLang.toLowerCase() === 'mermaid') {
+                    // The report file carries the flow as diagram source for
+                    // tools that can draw it. Shown here it is a page of
+                    // arrows nobody can read, and the same flow is already
+                    // drawn, interactively, one button away.
+                    html.push(`
+                        <div class="chaos-report-flow-callout">
+                            <p><strong>Flow diagram.</strong> The downloaded report includes this as diagram source (${codeLines.length} line${codeLines.length === 1 ? '' : 's'}; see Raw Markdown). Open it here as an interactive diagram instead.</p>
+                            <button type="button" data-chaos-report-open-flow>Open flow diagram</button>
+                        </div>
+                    `);
+                    continue;
                 }
                 const langAttr = fenceLang ? ` data-lang="${escapeHtml(fenceLang)}"` : '';
                 html.push(`<pre><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
@@ -3430,12 +3459,13 @@
         ].join('|');
     };
 
-    const settleChaosConfirm = (confirmed) => {
+    // Settles with 'confirm', 'alt' or false (cancelled, Escape, backdrop).
+    const settleChaosConfirm = (choice) => {
         const resolve = pendingChaosConfirmResolve;
         pendingChaosConfirmResolve = null;
         closeChaosModal(confirmModal);
         if (resolve) {
-            resolve(!!confirmed);
+            resolve(choice === true ? 'confirm' : (choice || false));
         }
     };
 
@@ -3459,7 +3489,18 @@
         }
     };
 
-    const promptChaosConfirm = ({ title, message, confirmLabel = 'Confirm', danger = true } = {}) => {
+    // One confirmation dialog for the whole feature. With altLabel it offers a
+    // third way out (Save / Discard / Keep editing); the promise settles with
+    // 'confirm', 'alt' or false.
+    const promptChaosChoice = ({
+        title,
+        message,
+        confirmLabel = 'Confirm',
+        altLabel = '',
+        cancelLabel = 'Cancel',
+        danger = true,
+        altDanger = false,
+    } = {}) => {
         if (!confirmModal || !confirmOkButton) {
             return Promise.resolve(false);
         }
@@ -3476,17 +3517,41 @@
         }
         confirmOkButton.textContent = confirmLabel || 'Confirm';
         confirmOkButton.classList.toggle('danger', !!danger);
+        if (confirmCancelLabelButton) {
+            confirmCancelLabelButton.textContent = cancelLabel || 'Cancel';
+        }
+        if (confirmAltButton) {
+            confirmAltButton.hidden = !altLabel;
+            confirmAltButton.textContent = altLabel || '';
+            confirmAltButton.classList.toggle('danger', !!altDanger);
+        }
         return new Promise((resolve) => {
             pendingChaosConfirmResolve = resolve;
-            openChaosModal(confirmModal, '[data-chaos-confirm-ok]', { keepPrevious: true });
+            // A destructive confirmation opens on the way out, not on the
+            // button that destroys something: Enter on a dialog nobody read
+            // should not delete anything.
+            openChaosModal(
+                confirmModal,
+                danger ? '[data-chaos-confirm-cancel-label]' : '[data-chaos-confirm-ok]',
+                { keepPrevious: true }
+            );
         });
     };
+
+    const promptChaosConfirm = (options = {}) => promptChaosChoice({ ...options, altLabel: '' })
+        .then((choice) => choice === 'confirm');
 
     const syncRunsSelectionUI = () => {
         const selectedCount = selectedChaosRunIDs.size;
         if (runsDeleteSelectedBtn) {
             runsDeleteSelectedBtn.disabled = selectedCount === 0;
             runsDeleteSelectedBtn.textContent = selectedCount > 0 ? `Delete selected (${selectedCount})` : 'Delete selected';
+        }
+        if (runsCompareBtn) {
+            // Comparing is between two runs, and the button says so until
+            // exactly two are ticked.
+            runsCompareBtn.disabled = selectedCount !== 2;
+            runsCompareBtn.textContent = selectedCount === 2 ? 'Compare the two selected' : 'Compare (select two)';
         }
         if (runsClearSelectionBtn) {
             runsClearSelectionBtn.disabled = selectedCount === 0;
@@ -3525,16 +3590,6 @@
     // exceptions have their own: a screen built from a recording was never
     // seen on a terminal, and the summary the status poll sends carries no
     // captures at all (the map asks for the full one when it opens).
-    const missingChaosPreviewReason = (area) => {
-        if (latestMindMapIsSummary) {
-            return 'Captures load with the full map. Press Refresh.';
-        }
-        if (String((area && area.hash) || '').indexOf('recording:') === 0) {
-            return 'Built from a recording, which keeps no capture.';
-        }
-        return 'Run or extend chaos to capture one'.padEnd(30, ' ');
-    };
-
     const chaosMapCardScreenPreviewMarkup = (area) => {
         if (!area || typeof area !== 'object') {
             return `
@@ -3555,7 +3610,7 @@
             placeholder = true;
             lines = [
                 'No captured screen preview'.padEnd(24, ' '),
-                missingChaosPreviewReason(area),
+                'Continue exploring to capture one'.padEnd(30, ' '),
             ];
         }
 
@@ -4163,7 +4218,7 @@
             const fallbackCols = Math.max(8, Math.min(cfg.maxCols, Math.floor((previewW - (cfg.previewPadX * 2)) / cfg.charWidth)));
             lines = [
                 'No screen snapshot in this run'.slice(0, fallbackCols).padEnd(fallbackCols, ' '),
-                'Start or extend chaos again'.slice(0, fallbackCols).padEnd(fallbackCols, ' '),
+                'Continue exploring to capture it'.slice(0, fallbackCols).padEnd(fallbackCols, ' '),
             ];
         }
 
@@ -4521,8 +4576,7 @@
         }).join('');
 
         const summaryBits = [
-            `${model.totalAreas} unique screen${model.totalAreas === 1 ? '' : 's'}`,
-            model.totalRawAreas > model.totalAreas ? `${model.totalRawAreas - model.totalAreas} variants merged` : '',
+            formatChaosScreenCount(model.totalAreas, model.totalRawAreas),
             `${layout.edges.length} primary flow edge${layout.edges.length === 1 ? '' : 's'} on canvas`,
             primaryGraph.extraEdges.length ? `${primaryGraph.extraEdges.length} additional transition${primaryGraph.extraEdges.length === 1 ? '' : 's'} listed` : '',
             model.truncatedNodes ? `top ${layout.nodes.length} screens displayed` : '',
@@ -4551,12 +4605,12 @@
             .join('');
 
         return `
-            <section class="chaos-map-flow-panel${isModal ? ' is-modal' : ''}" aria-label="Chaos discovery screen flow" data-chaos-flow-canvas="${isModal ? 'modal' : 'inline'}">
+            <section class="chaos-map-flow-panel${isModal ? ' is-modal' : ''}" aria-label="Flow diagram of the discovered screens" data-chaos-flow-canvas="${isModal ? 'modal' : 'inline'}">
                 <div class="chaos-map-flow-header">
                     <div class="chaos-map-flow-header-top">
-                        <strong>${isModal ? 'Discovery Flow (Expanded)' : 'Discovery Flow'}</strong>
+                        <strong>Flow diagram</strong>
                         <div class="chaos-map-flow-header-actions">
-                            <div class="chaos-map-flow-zoom-controls" role="group" aria-label="Discovery flow zoom controls">
+                            <div class="chaos-map-flow-zoom-controls" role="group" aria-label="Flow diagram zoom controls">
                                 <button type="button" data-chaos-flow-zoom-out aria-label="Zoom out" data-tippy-content="Zoom out">-</button>
                                 <button type="button" data-chaos-flow-zoom-in aria-label="Zoom in" data-tippy-content="Zoom in">+</button>
                                 <button type="button" data-chaos-flow-zoom-fit aria-label="Fit graph to viewport" data-tippy-content="Fit graph to viewport">Fit</button>
@@ -4564,14 +4618,14 @@
                                 <button type="button" data-chaos-flow-zoom-reset aria-label="Reset zoom to 100%" data-tippy-content="Reset zoom to 100%">100%</button>
                                 <span class="chaos-map-flow-zoom-value subtle" data-chaos-flow-zoom-value>100%</span>
                             </div>
-                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>View map</button>' : ''}
+                            ${showOpenButton ? '<button type="button" data-chaos-flow-open>Open flow diagram</button>' : ''}
                         </div>
                     </div>
                     <div class="chaos-map-flow-meta-row">
                         <span class="subtle">${escapeHtml(summaryBits)}</span>
                     </div>
                     <div class="chaos-map-flow-meta-row">
-                        <span class="subtle">Screen previews show one captured example for each unique screen. Other visits may differ based on data entered.</span>
+                        <span class="subtle">Each preview is one captured example of a screen. Other visits may differ in the data shown.</span>
                     </div>
                 </div>
                 <div class="chaos-map-flow-viewport" data-chaos-flow-viewport>
@@ -4598,22 +4652,21 @@
     const chaosMapFlowLauncherMarkup = (areas) => {
         const model = buildChaosMapFlowModel(areas);
         const summaryBits = [
-            `${model.totalAreas} unique screen${model.totalAreas === 1 ? '' : 's'}`,
-            model.totalRawAreas > model.totalAreas ? `${model.totalRawAreas - model.totalAreas} variants merged` : '',
+            formatChaosScreenCount(model.totalAreas, model.totalRawAreas),
             `${(Array.isArray(model.edges) ? model.edges.length : 0)} transition${(Array.isArray(model.edges) ? model.edges.length : 0) === 1 ? '' : 's'} discovered`,
             model.truncatedNodes ? `top ${(Array.isArray(model.nodes) ? model.nodes.length : 0)} screens sampled` : '',
         ].filter(Boolean).join(' | ');
 
         return `
-            <section class="chaos-map-flow-panel chaos-map-flow-panel--launcher" aria-label="Chaos discovery flow launcher">
+            <section class="chaos-map-flow-panel chaos-map-flow-panel--launcher" aria-label="Flow diagram">
                 <div class="chaos-map-flow-header">
-                    <strong>Discovery Flow</strong>
+                    <strong>Flow diagram</strong>
                     <div class="chaos-map-flow-header-actions">
-                        <span class="subtle">${escapeHtml(summaryBits || 'No discovery flow data yet.')}</span>
-                        <button type="button" data-chaos-flow-open>View map</button>
+                        <span class="subtle">${escapeHtml(summaryBits || 'No screens mapped yet.')}</span>
+                        <button type="button" data-chaos-flow-open>Open flow diagram</button>
                     </div>
                 </div>
-                <p class="subtle chaos-map-flow-launcher-copy">Open the dedicated Discovery Flow modal for the interactive canvas (pan, drag, zoom) and the full transition list.</p>
+                <p class="subtle chaos-map-flow-launcher-copy">Open the flow diagram for the interactive canvas (pan, drag, zoom) and the full transition list.</p>
             </section>
         `;
     };
@@ -4650,18 +4703,11 @@
     // the starting screen out of its cards and its count, so it said 2 where the
     // flow beside it, the strip and the report said 3 for the same run.
     const getChaosFlowAreas = () => getChaosMapAreas({ includeFirstScreen: true });
+    // The map lists every screen except the one the run started from: that one's
+    // hints live under Exploration hints, and the map's caption says so. The flow
+    // draws it too, so the flow counts one more screen than the map lists.
+    const getChaosMapCardAreas = () => getChaosMapAreas({ includeFirstScreen: false });
 
-    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosFlowAreas()).groups.length;
-
-    // "3 unique screens", or "3 unique screens (2 variants merged)" when screens
-    // that share a layout were drawn as one — as they are with Dedup mode set to
-    // exact, where the run itself counts each exact screen separately.
-    const chaosMapScreenCountLabel = () => {
-        const unique = getChaosMapUniqueScreenCount();
-        const merged = Math.max(0, getChaosFlowAreas().length - unique);
-        return `${unique} unique screen${unique === 1 ? '' : 's'}`
-            + (merged > 0 ? ` (${merged} variant${merged === 1 ? '' : 's'} merged)` : '');
-    };
     const chaosFlowNodePositionOverrides = {
         inline: new Map(),
         modal: new Map(),
@@ -5551,23 +5597,57 @@
         });
     };
 
-    const renderChaosFlowModal = () => {
+    const chaosNoMapMarkup = '<p class="subtle" data-chaos-map-empty>No screens mapped yet. Start an exploration or load a saved run.</p>';
+
+    // force redraws regardless; otherwise the diagram is only rebuilt when the
+    // map behind it changed, and not while somebody is dragging it about.
+    const renderChaosFlowModal = (options = {}) => {
         if (!flowContent) {
             return;
         }
+        const force = options.force !== false;
+        const signature = `${fullMapSlimSignature}|${latestFirstScreenHash}`;
+        if (!force) {
+            if (signature === flowRenderedSignature) {
+                return;
+            }
+            if (flowPointerActive) {
+                return;
+            }
+        }
         const areas = getChaosFlowAreas();
+        flowRenderedSignature = signature;
         if (!areas.length) {
-            flowContent.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
+            flowContent.innerHTML = chaosNoMapMarkup;
             return;
         }
+        // Keep whatever the reader had scrolled to.
+        const scrolled = Array.from(flowContent.querySelectorAll('*'))
+            .filter((el) => el.scrollTop || el.scrollLeft)
+            .map((el) => ({ className: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), top: el.scrollTop, left: el.scrollLeft }));
+        const ownTop = flowContent.scrollTop;
         flowContent.innerHTML = chaosMapFlowMarkup(areas, {
             isModal: true,
             markerId: 'chaos-map-flow-arrow-modal',
         });
         initChaosFlowCanvasInteractions(flowContent);
+        if (!force) {
+            flowContent.scrollTop = ownTop;
+            scrolled.forEach((entry) => {
+                if (!entry.className) {
+                    return;
+                }
+                const match = Array.from(flowContent.querySelectorAll('*'))
+                    .find((el) => String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className) === entry.className);
+                if (match) {
+                    match.scrollTop = entry.top;
+                    match.scrollLeft = entry.left;
+                }
+            });
+        }
     };
 
-    const chaosReportFileName = () => (loadedRunID ? `chaos-discovery-report-${loadedRunID}.md` : 'chaos-discovery-report.md');
+    const chaosReportFileName = () => (loadedRunID ? `discovery-report-${loadedRunID}.md` : 'discovery-report.md');
 
     const setReportRawToggleState = (rawMode) => {
         reportRawMarkdownMode = !!rawMode;
@@ -5593,7 +5673,7 @@
             reportContent.innerHTML = '';
             const textarea = document.createElement('textarea');
             textarea.className = 'chaos-report-raw-textarea';
-            textarea.setAttribute('aria-label', 'Chaos report raw markdown');
+            textarea.setAttribute('aria-label', 'Discovery report, raw Markdown');
             textarea.setAttribute('spellcheck', 'false');
             textarea.readOnly = true;
             textarea.value = text;
@@ -5619,13 +5699,7 @@
     const fetchChaosReportMarkdown = async () => {
         const resp = await fetch('/chaos/report', { method: 'POST' });
         if (!resp.ok) {
-            let errText = '';
-            try {
-                errText = await resp.text();
-            } catch (_err) {
-                errText = '';
-            }
-            throw new Error(errText || `HTTP ${resp.status}`);
+            throw new Error(await chaosErrorMessage(resp, `The server answered ${resp.status}.`));
         }
         return resp.text();
     };
@@ -5634,24 +5708,30 @@
         if (!reportContent) {
             return '';
         }
-        setReportStatus(options.statusMessage || 'Loading chaos report...');
+        setReportStatus(options.statusMessage || 'Loading the discovery report\u2026');
         reportContent.innerHTML = '<p class="subtle">Loading report\u2026</p>';
         try {
             const markdown = await fetchChaosReportMarkdown();
             latestChaosReportMarkdown = String(markdown || '');
             setChaosReportContent(latestChaosReportMarkdown);
-            setReportStatus('Chaos discovery report loaded.');
-            if (options.notify !== false) {
-                notifyUi('Chaos discovery report loaded.', 'success');
-            }
+            // The status line a few pixels above the report already says this.
+            // A toast as well landed on top of the dialog's own buttons.
+            setReportStatus('Discovery report loaded.');
             return latestChaosReportMarkdown;
         } catch (err) {
-            const message = (err && err.message) ? err.message : 'Failed to load chaos report.';
+            const message = (err && err.message) ? err.message : 'Failed to load the discovery report.';
             setReportStatus(message, true);
-            reportContent.innerHTML = `<p class="subtle">${escapeHtml(message)}</p>`;
-            if (options.notify !== false) {
-                notifyUi(message, 'error');
-            }
+            reportContent.classList.remove('is-raw');
+            reportContent.innerHTML = `
+                <div class="chaos-inline-error" role="alert">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    <div>
+                        <strong>The report could not be loaded.</strong>
+                        <p>${escapeHtml(message)}</p>
+                        <p class="subtle">Choose Refresh to try again.</p>
+                    </div>
+                </div>
+            `;
             throw err;
         }
     };
@@ -5688,67 +5768,47 @@
         await refreshChaosReportView();
     };
 
-    const renderChaosMap = () => {
-        if (!mapList) {
-            return;
-        }
-        const areas = getChaosFlowAreas();
-        if (!areas.length) {
-            if (mapViewBtn) {
-                mapViewBtn.disabled = true;
+    // One card of the screen map: its markup, and the wiring that markup needs.
+    const chaosMapCardModel = (group) => {
+        const hash = String(group.representativeHash || '').trim();
+        const cardKey = String(group.templateId || hash || 'screen').trim();
+        const memberHashes = Array.isArray(group.memberHashes) ? group.memberHashes.slice() : (hash ? [hash] : []);
+        const hint = mergeScreenHintsForHashes(memberHashes);
+        const mergedKeyAssignments = normalizeKeyAssignments(hint.keyAssignments || {});
+        const fieldDiscovery = summarizeChaosGroupFieldDiscovery(group);
+        const dirty = memberHashes.some((memberHash) => !!(screenHintDrafts[memberHash] && screenHintDrafts[memberHash]._dirty));
+
+        const edgeRows = [];
+        const keyPresses = group.keyPresses && typeof group.keyPresses === 'object' ? group.keyPresses : {};
+        Object.entries(keyPresses).forEach(([key, kp]) => {
+            if (!kp || typeof kp !== 'object') {
+                return;
             }
-            mapList.innerHTML = '<p class="subtle">No chaos map data yet. Start or load a chaos run.</p>';
-            return;
-        }
-        if (mapViewBtn) {
-            mapViewBtn.disabled = false;
-        }
-        mapList.innerHTML = '';
-        const templateGroups = buildChaosMapTemplateGroups(areas).groups;
-        templateGroups.forEach((group) => {
-            const hash = String(group.representativeHash || '').trim();
-            const cardKey = String(group.templateId || hash || 'screen').trim();
-            const memberHashes = Array.isArray(group.memberHashes) ? group.memberHashes.slice() : (hash ? [hash] : []);
-            const hint = mergeScreenHintsForHashes(memberHashes);
-            const mergedKeyAssignments = normalizeKeyAssignments(hint.keyAssignments || {});
-            const fieldDiscovery = summarizeChaosGroupFieldDiscovery(group);
-            const card = document.createElement('section');
-            card.className = 'chaos-map-card';
-            card.dataset.chaosMapHash = hash;
-            card.dataset.chaosMapTemplate = cardKey;
+            const dests = kp.destinations && typeof kp.destinations === 'object' ? kp.destinations : {};
+            const destList = Object.entries(dests)
+                .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+                .slice(0, 3)
+                .map(([toTemplateID, count]) => {
+                    const destLabel = String((group.destinationLabelByTemplateId && group.destinationLabelByTemplateId[toTemplateID]) || toTemplateID || '').trim();
+                    const compactLabel = destLabel || String(toTemplateID || '').slice(0, 8);
+                    return `${escapeHtml(compactLabel.slice(0, 28))} (${Number(count) || 0})`;
+                })
+                .join(', ');
+            const presses = Number(kp.presses) || 0;
+            const progs = Number(kp.progressions) || 0;
+            edgeRows.push(`<div class="chaos-map-edge"><strong>${escapeHtml(key)}</strong> | ${presses} press${presses === 1 ? '' : 'es'} | ${progs} progression${progs === 1 ? '' : 's'}${destList ? ` | to ${destList}` : ''}</div>`);
+        });
+        edgeRows.sort();
 
-            const edgeRows = [];
-            const keyPresses = group.keyPresses && typeof group.keyPresses === 'object' ? group.keyPresses : {};
-            Object.entries(keyPresses).forEach(([key, kp]) => {
-                if (!kp || typeof kp !== 'object') {
-                    return;
-                }
-                const dests = kp.destinations && typeof kp.destinations === 'object' ? kp.destinations : {};
-                const destList = Object.entries(dests)
-                    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
-                    .slice(0, 3)
-                    .map(([toTemplateID, count]) => {
-                        const destLabel = String((group.destinationLabelByTemplateId && group.destinationLabelByTemplateId[toTemplateID]) || toTemplateID || '').trim();
-                        const compactLabel = destLabel || String(toTemplateID || '').slice(0, 8);
-                        return `${escapeHtml(compactLabel.slice(0, 28))} (${count})`;
-                    })
-                    .join(', ');
-                const presses = Number(kp.presses) || 0;
-                const progs = Number(kp.progressions) || 0;
-                edgeRows.push(`<div class="chaos-map-edge"><strong>${escapeHtml(key)}</strong> | ${presses} press${presses === 1 ? '' : 'es'} | ${progs} progression${progs === 1 ? '' : 's'}${destList ? ` | to ${destList}` : ''}</div>`);
-            });
-            edgeRows.sort();
+        const titleLabel = String(group.label || hash || 'Screen').trim() || 'Screen';
+        const hashMeta = memberHashes.length > 1
+            ? `${memberHashes.length} variants merged`
+            : (hash || 'unknown-hash');
+        const businessPurpose = (group.memberAreas || [])
+            .map((a) => String((a && a.businessPurpose) || '').trim())
+            .find(Boolean) || '';
 
-            const titleLabel = String(group.label || hash || 'Screen').trim() || 'Screen';
-            const isStartingScreen = !!latestFirstScreenHash && memberHashes.includes(latestFirstScreenHash);
-            const hashMeta = group.memberHashes.length > 1
-                ? `${group.memberHashes.length} variants merged`
-                : (hash || 'unknown-hash');
-            const businessPurpose = (group.memberAreas || [])
-                .map((a) => String((a && a.businessPurpose) || '').trim())
-                .find(Boolean) || '';
-
-            card.innerHTML = `
+        const html = `
                 <div class="chaos-map-card-header">
                     <div class="chaos-map-card-title">
                         <strong>${escapeHtml(titleLabel)}</strong>
@@ -5759,12 +5819,11 @@
                 </div>
                 ${chaosMapCardScreenPreviewMarkup(group.representativeArea)}
                 <div class="chaos-map-chip-row">
-                    ${isStartingScreen ? '<span class="chaos-map-chip">Starting screen</span>' : ''}
                     <span class="chaos-map-chip">${Number(group.fieldCount) || 0} fields</span>
                     <span class="chaos-map-chip">${Number(group.inputFieldCount) || 0} inputs</span>
                     <span class="chaos-map-chip">${Number(group.numericFieldCount) || 0} numeric</span>
                     <span class="chaos-map-chip">${Object.keys(keyPresses).length} keys</span>
-                    ${group.memberHashes.length > 1 ? `<span class="chaos-map-chip">${group.memberHashes.length} variants</span>` : ''}
+                    ${memberHashes.length > 1 ? `<span class="chaos-map-chip">${memberHashes.length} variants</span>` : ''}
                     ${fieldDiscovery.fields > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.fields} discovered fields</span>` : ''}
                     ${fieldDiscovery.triedValues > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.triedValues} tried values</span>` : ''}
                     ${fieldDiscovery.workingValues > 0 ? `<span class="chaos-map-chip">${fieldDiscovery.workingValues} working values</span>` : ''}
@@ -5783,52 +5842,200 @@
                     </div>
                 </div>
                 <div class="chaos-map-card-actions">
-                    <span class="subtle" data-chaos-map-card-status></span>
-                    <button type="button" data-chaos-map-save>Save screen hints</button>
+                    <span class="subtle" data-chaos-map-card-status aria-live="polite">${dirty ? 'Unsaved changes' : ''}</span>
+                    <button type="button" data-chaos-map-save aria-label="Save screen hints for ${escapeHtml(titleLabel)}">Save screen hints</button>
                 </div>
             `;
+        return { hash, cardKey, memberHashes, mergedKeyAssignments, html };
+    };
 
-            const knownDataEl = card.querySelector('[data-chaos-map-known-data]');
-            const knownKeysEl = card.querySelector('[data-chaos-map-known-keys]');
-            const saveBtn = card.querySelector('[data-chaos-map-save]');
-            const cardStatus = card.querySelector('[data-chaos-map-card-status]');
+    const buildChaosMapCard = (model) => {
+        const { hash, cardKey, memberHashes, mergedKeyAssignments, html } = model;
+        const card = document.createElement('section');
+        card.className = 'chaos-map-card';
+        card.dataset.chaosMapHash = hash;
+        card.dataset.chaosMapTemplate = cardKey;
+        card.innerHTML = html;
+        card._chaosMarkup = html;
 
-            const collectDraft = () => ({
-                knownData: parseListLines(knownDataEl ? knownDataEl.value : ''),
-                knownKeys: parseListLines(knownKeysEl ? knownKeysEl.value : ''),
-                keyAssignments: mergedKeyAssignments,
-            });
-            const syncDraft = () => {
-                const draft = collectDraft();
-                markScreenHintDraftDirtyForHashes(memberHashes, draft);
-                if (cardStatus) {
-                    cardStatus.textContent = 'Unsaved changes';
-                }
-            };
-            if (knownDataEl) {
-                knownDataEl.addEventListener('input', syncDraft);
-            }
-            if (knownKeysEl) {
-                knownKeysEl.addEventListener('input', syncDraft);
-            }
-            if (saveBtn) {
-                saveBtn.addEventListener('click', async () => {
-                    if (cardStatus) {
-                        cardStatus.textContent = 'Saving...';
-                    }
-                    const draft = collectDraft();
-                    memberHashes.forEach((memberHash) => {
-                        screenHintDrafts[memberHash] = { ...draft, _dirty: false };
-                    });
-                    const saved = await saveScreenHintsForHashes(memberHashes, draft);
-                    if (cardStatus) {
-                        cardStatus.textContent = saved ? 'Saved' : 'Save failed';
-                    }
-                });
-            }
+        const knownDataEl = card.querySelector('[data-chaos-map-known-data]');
+        const knownKeysEl = card.querySelector('[data-chaos-map-known-keys]');
+        const saveBtn = card.querySelector('[data-chaos-map-save]');
+        const cardStatus = card.querySelector('[data-chaos-map-card-status]');
 
-            mapList.appendChild(card);
+        const collectDraft = () => ({
+            knownData: parseListLines(knownDataEl ? knownDataEl.value : ''),
+            knownKeys: parseListLines(knownKeysEl ? knownKeysEl.value : ''),
+            keyAssignments: mergedKeyAssignments,
         });
+        const syncDraft = () => {
+            const draft = collectDraft();
+            markScreenHintDraftDirtyForHashes(memberHashes, draft);
+            if (cardStatus) {
+                cardStatus.textContent = 'Unsaved changes';
+            }
+        };
+        if (knownDataEl) {
+            knownDataEl.addEventListener('input', syncDraft);
+        }
+        if (knownKeysEl) {
+            knownKeysEl.addEventListener('input', syncDraft);
+        }
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                if (cardStatus) {
+                    cardStatus.textContent = 'Saving...';
+                }
+                const draft = collectDraft();
+                memberHashes.forEach((memberHash) => {
+                    screenHintDrafts[memberHash] = { ...draft, _dirty: false };
+                });
+                const saved = await saveScreenHintsForHashes(memberHashes, draft);
+                const liveStatus = card.isConnected
+                    ? cardStatus
+                    : (mapList ? mapList.querySelector(`[data-chaos-map-template="${window.CSS && CSS.escape ? CSS.escape(cardKey) : cardKey}"] [data-chaos-map-card-status]`) : null);
+                if (liveStatus) {
+                    liveStatus.textContent = saved ? 'Saved' : 'Save failed';
+                }
+            });
+        }
+        return card;
+    };
+
+    const chaosMapFocusedCard = () => {
+        const active = document.activeElement;
+        if (!mapList || !active || !mapList.contains(active)) {
+            return null;
+        }
+        return active.closest ? active.closest('.chaos-map-card') : null;
+    };
+
+    // The list is patched, not rebuilt. While an exploration runs this is
+    // called every few seconds, and rebuilding it threw away the caret, the
+    // focus and the scroll position of anybody typing a hint into it. A card
+    // is only replaced when what it shows has changed; the card being edited
+    // is left alone until focus moves on; cards keep their place, with newly
+    // found screens added at the end. reset (opening the dialog, Refresh)
+    // rebuilds from scratch and re-sorts by visits.
+    const renderChaosMap = (options = {}) => {
+        if (!mapList) {
+            return;
+        }
+        const reset = !!options.reset;
+        const areas = getChaosMapCardAreas();
+        const hasAnyAreas = getChaosFlowAreas().length > 0;
+        if (mapViewBtn) {
+            mapViewBtn.disabled = !hasAnyAreas;
+        }
+        if (!areas.length) {
+            if (chaosMapFocusedCard() && !reset) {
+                mapRenderPending = true;
+                return;
+            }
+            mapRenderPending = false;
+            mapList.innerHTML = hasAnyAreas
+                ? '<p class="subtle" data-chaos-map-empty>Only the first screen has been mapped so far. Its hints are set under Exploration hints.</p>'
+                : chaosNoMapMarkup;
+            return;
+        }
+        const focusedCard = reset ? null : chaosMapFocusedCard();
+        if (reset) {
+            mapList.innerHTML = '';
+        } else {
+            mapList.querySelectorAll('[data-chaos-map-empty]').forEach((el) => el.remove());
+        }
+        const existing = new Map();
+        mapList.querySelectorAll('.chaos-map-card').forEach((card) => {
+            existing.set(String(card.dataset.chaosMapTemplate || ''), card);
+        });
+        let pending = false;
+        const seen = new Set();
+        const templateGroups = buildChaosMapTemplateGroups(areas).groups;
+        templateGroups.forEach((group) => {
+            const model = chaosMapCardModel(group);
+            seen.add(model.cardKey);
+            const current = existing.get(model.cardKey);
+            if (!current) {
+                mapList.appendChild(buildChaosMapCard(model));
+                return;
+            }
+            if (current._chaosMarkup === model.html) {
+                return;
+            }
+            if (current === focusedCard) {
+                pending = true;
+                return;
+            }
+            const next = buildChaosMapCard(model);
+            const discovery = current.querySelector('[data-chaos-map-field-discovery]');
+            const showedAllFields = !!(discovery && discovery.dataset.fieldMode === 'all');
+            current.replaceWith(next);
+            if (showedAllFields) {
+                const toggle = next.querySelector('[data-chaos-map-field-toggle]');
+                if (toggle) {
+                    toggle.click();
+                }
+            }
+        });
+        existing.forEach((card, key) => {
+            if (seen.has(key)) {
+                return;
+            }
+            if (card === focusedCard) {
+                pending = true;
+                return;
+            }
+            card.remove();
+        });
+        mapRenderPending = pending;
+    };
+
+    // What the two counts mean, said the same way everywhere: a "screen" is a
+    // layout, and its "variants" are the copies of it that differ only in the
+    // data on them. The server counts variants; the map draws screens.
+    const formatChaosScreenCount = (screens, variants) => {
+        const s = Number(screens) || 0;
+        const v = Number(variants) || 0;
+        if (s <= 0) {
+            return v > 0 ? `${v} screen variant${v === 1 ? '' : 's'}` : '';
+        }
+        return `${s} screen${s === 1 ? '' : 's'}${v > s ? ` (${v} variants)` : ''}`;
+    };
+
+    const chaosMapCountsText = () => {
+        const all = getChaosFlowAreas();
+        if (!all.length) {
+            return '';
+        }
+        if (!latestMindMapIsFull) {
+            return formatChaosScreenCount(0, all.length);
+        }
+        return formatChaosScreenCount(buildChaosMapTemplateGroups(all).groups.length, all.length);
+    };
+
+    const chaosMapStatusText = () => {
+        const counts = chaosMapCountsText();
+        if (!counts) {
+            return 'No screens mapped yet.';
+        }
+        const parts = [`${counts} mapped.`];
+        if (String(latestFirstScreenHash || '').trim()) {
+            parts.push('The first screen is not listed here; its hints are under Exploration hints.');
+        }
+        if (lastStatus && lastStatus.active) {
+            parts.push(mapRenderPending
+                ? 'Still exploring: the screen you are editing updates when you leave it.'
+                : 'Still exploring: this list updates as screens are found.');
+        }
+        return parts.join(' ');
+    };
+
+    const chaosFlowStatusText = () => {
+        const counts = chaosMapCountsText();
+        if (!counts) {
+            return 'No screens mapped yet.';
+        }
+        return `${counts} in the diagram.${lastStatus && lastStatus.active ? ' Still exploring: it redraws as screens are found.' : ''}`;
     };
 
     const normalizeHints = (rawHints) => {
@@ -5895,7 +6102,6 @@
         txInput.type = 'text';
         txInput.placeholder = 'Transaction (e.g., CEMT)';
         txInput.value = hint.transaction || '';
-        txInput.setAttribute('aria-label', 'Chaos hint transaction');
         txInput.id = `chaos-hint-transaction-${rowID}`;
         txInput.dataset.chaosHintTransaction = '1';
         txInput.addEventListener('input', markHintsDirty);
@@ -5912,7 +6118,6 @@
         const knownDataInput = document.createElement('textarea');
         knownDataInput.placeholder = 'Known data values (comma or newline separated)';
         knownDataInput.value = Array.isArray(hint.knownData) ? hint.knownData.join('\n') : '';
-        knownDataInput.setAttribute('aria-label', 'Chaos hint known data');
         knownDataInput.id = `chaos-hint-data-${rowID}`;
         knownDataInput.dataset.chaosHintData = '1';
         knownDataInput.addEventListener('input', markHintsDirty);
@@ -5929,7 +6134,6 @@
         const keyAssignmentsInput = document.createElement('textarea');
         keyAssignmentsInput.placeholder = 'Label = Key (one per line)\nReturn = PF3\nConfirm = Enter';
         keyAssignmentsInput.value = formatKeyAssignments(hint.keyAssignments || {});
-        keyAssignmentsInput.setAttribute('aria-label', 'Chaos hint key assignments');
         keyAssignmentsInput.id = `chaos-hint-keys-${rowID}`;
         keyAssignmentsInput.dataset.chaosHintKeyAssignments = '1';
         keyAssignmentsInput.addEventListener('input', markHintsDirty);
@@ -5941,6 +6145,7 @@
         removeBtn.type = 'button';
         removeBtn.className = 'chaos-hint-remove';
         removeBtn.textContent = 'Remove';
+        removeBtn.setAttribute('aria-label', 'Remove this hint');
         removeBtn.addEventListener('click', () => {
             markHintsDirty();
             row.remove();
@@ -6013,21 +6218,14 @@
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
             renderFirstScreenHint(chaosFirstScreenHint);
-            {
-                const msg = chaosHints.length ? `Loaded ${chaosHints.length} hint(s).` : 'No saved hints yet.';
-                setHintsStatus(msg);
-                if (!quiet) {
-                    notifyUi(msg, 'info');
-                }
+            // The dialog's own status line carries this; quiet is kept for
+            // callers that load in the background.
+            if (!quiet || (hintsModal && !hintsModal.hidden)) {
+                setHintsStatus(chaosHints.length ? `Loaded ${chaosHints.length} saved hint(s).` : 'No saved hints yet.');
             }
             return chaosHints;
         } catch (_err) {
             setHintsStatus('Failed to load hints.', true);
-            // A failure IS worth surfacing even on a quiet load — but only
-            // once chaos is actually in use, not on every page init.
-            if (!quiet) {
-                notifyUi('Failed to load hints.', 'error');
-            }
             return chaosHints;
         }
     };
@@ -6047,7 +6245,7 @@
                 }),
             });
             if (!resp.ok) {
-                throw new Error('request failed');
+                throw new Error(await chaosErrorMessage(resp, 'Failed to save hints.'));
             }
             const payload = await resp.json();
             chaosHints = normalizeHints(payload.hints || []);
@@ -6056,15 +6254,53 @@
             renderHints(chaosHints);
             renderChaosKeyBlacklist(chaosKeyBlacklist);
             renderFirstScreenHint(chaosFirstScreenHint);
-            {
-                const msg = `Saved ${chaosHints.length} hint(s).`;
-                setHintsStatus(msg);
-                notifyUi(msg, 'success');
-            }
+            setHintsStatus(`Saved ${chaosHints.length} hint(s).`);
             hintsDirty = false;
-        } catch (_err) {
-            setHintsStatus('Failed to save hints.', true);
-            notifyUi('Failed to save hints.', 'error');
+            return true;
+        } catch (err) {
+            setHintsStatus((err && err.message) || 'Failed to save hints.', true);
+            return false;
+        }
+    };
+
+    const discardHintEdits = () => {
+        renderHints(chaosHints);
+        renderChaosKeyBlacklist(chaosKeyBlacklist);
+        renderFirstScreenHint(chaosFirstScreenHint);
+        hintsDirty = false;
+        setHintsStatus('');
+    };
+
+    // Closing used to throw unsaved edits away without a word, Blocked Keys
+    // among them, and the next run then used whatever had last been saved.
+    const requestCloseHintsModal = async () => {
+        if (!hintsModal || hintsModal.hidden) {
+            return;
+        }
+        if (!hintsDirty) {
+            closeChaosModal(hintsModal);
+            return;
+        }
+        const choice = await promptChaosChoice({
+            title: 'Save your changes to the hints?',
+            message: 'You have changed the hints or the blocked keys and not saved them. Explorations use the saved version.',
+            confirmLabel: 'Save',
+            altLabel: 'Discard changes',
+            cancelLabel: 'Keep editing',
+            danger: false,
+            altDanger: true,
+        });
+        if (choice === 'confirm') {
+            const saved = await saveHints();
+            if (saved) {
+                closeChaosModal(hintsModal);
+                notifyUi('Hints saved.', 'success');
+            }
+            return;
+        }
+        if (choice === 'alt') {
+            discardHintEdits();
+            closeChaosModal(hintsModal);
         }
     };
 
@@ -6089,22 +6325,18 @@
             }
             const extracted = normalizeHints(payload.hints || []);
             const draft = (hintsModal && !hintsModal.hidden) ? collectHintsFromUI() : chaosHints;
-            chaosHints = mergeHints(draft, extracted);
-            renderHints(chaosHints);
+            const merged = mergeHints(draft, extracted);
+            renderHints(merged);
+            // Shown, not saved: closing now has to ask.
+            hintsDirty = extracted.length > 0 || hintsDirty;
             const source = payload.source === 'loaded' ? 'loaded recording' : 'recording';
             if (extracted.length > 0) {
-                const msg = `Extracted ${extracted.length} hint(s) from ${source}. Save hints to persist.`;
-                setHintsStatus(msg);
-                notifyUi(msg, 'info');
+                setHintsStatus(`Added ${extracted.length} hint(s) from the ${source}. Save hints to keep them.`);
             } else {
-                const msg = `No hint candidates found in ${source}.`;
-                setHintsStatus(msg);
-                notifyUi(msg, 'info');
+                setHintsStatus(`No hint candidates found in the ${source}.`);
             }
         } catch (err) {
-            const msg = (err && err.message) ? err.message : 'Failed to extract hints from recording.';
-            setHintsStatus(msg, true);
-            notifyUi(msg, 'error');
+            setHintsStatus((err && err.message) ? err.message : 'Failed to extract hints from the recording.', true);
         }
     };
 
@@ -6122,24 +6354,182 @@
         }
     };
 
+    // ---- the full screen map ----------------------------------------
+    // The status poll answers with an outline of the map (hash, label and
+    // visit count per screen) so that it stays cheap to ask every few
+    // seconds. The cards and the diagram need the whole thing: the captured
+    // screen, the fields, the keys pressed and where each one led. That comes
+    // from ?verbose=true, fetched when a view that draws it opens, and again
+    // while one stays open and the run has moved on. An outline never
+    // replaces a full map: that was the bug that left both views hollow.
+    const mindMapAreaList = (mm) => (mm && mm.areas && typeof mm.areas === 'object'
+        ? Object.values(mm.areas).filter((a) => a && typeof a === 'object')
+        : []);
+
+    const isSlimMindMap = (mm) => {
+        if (!mm || typeof mm !== 'object') {
+            return false;
+        }
+        if (Array.isArray(mm.areas)) {
+            return true;
+        }
+        const areas = mindMapAreaList(mm);
+        if (!areas.length) {
+            return false;
+        }
+        return !areas.some((a) => a.fieldCount != null || a.numericFieldCount != null
+            || a.keyPresses || a.previewText || a.fieldMetadata);
+    };
+
+    const slimMindMapToKeyed = (mm) => {
+        const areas = {};
+        mindMapAreaList(mm).forEach((area) => {
+            const hash = String(area.hash || '').trim();
+            if (hash) {
+                areas[hash] = area;
+            }
+        });
+        return { areas };
+    };
+
+    const chaosMapSignatureFor = (status, mm) => {
+        const areas = mindMapAreaList(mm);
+        let visits = 0;
+        areas.forEach((a) => {
+            visits += Number(a.visits) || 0;
+        });
+        return [
+            areas.length,
+            visits,
+            Number(status && status.stepsRun) || 0,
+            String((status && status.loadedRunID) || ''),
+        ].join(':');
+    };
+
+    const chaosMapViewOpen = () => !!((mapModal && !mapModal.hidden) || (flowModal && !flowModal.hidden));
+
+    const refreshOpenChaosMapViews = () => {
+        if (mapModal && !mapModal.hidden) {
+            renderChaosMap();
+            setChaosMapStatus(chaosMapStatusText());
+        }
+        if (flowModal && !flowModal.hidden) {
+            renderChaosFlowModal({ force: false });
+            setFlowStatus(chaosFlowStatusText());
+        }
+    };
+
+    const fetchFullChaosMap = (options = {}) => {
+        if (fullMapFetchInFlight) {
+            return fullMapFetchInFlight;
+        }
+        if (!options.force && (Date.now() - fullMapFetchedAt) < fullMapMinIntervalMs) {
+            return Promise.resolve(false);
+        }
+        fullMapFetchInFlight = (async () => {
+            try {
+                const resp = await fetch('/chaos/status?verbose=true', { headers: { Accept: 'application/json' } });
+                if (handleChaosAuthFailure(resp)) {
+                    return false;
+                }
+                if (!resp.ok) {
+                    throw new Error(await chaosErrorMessage(resp, `The server answered ${resp.status}.`));
+                }
+                const status = await resp.json();
+                fullMapFetchedAt = Date.now();
+                fullMapUnavailable = !!(status && status.mindMap && isSlimMindMap(status.mindMap));
+                updateUI(status);
+                return !fullMapUnavailable;
+            } catch (err) {
+                fullMapFetchedAt = Date.now();
+                if (options.onError) {
+                    options.onError((err && err.message) ? err.message : 'The screen map could not be loaded.');
+                }
+                return false;
+            } finally {
+                fullMapFetchInFlight = null;
+            }
+        })();
+        return fullMapFetchInFlight;
+    };
+
+    // After a status poll: is the full map behind what the poll just said?
+    const refreshFullChaosMapIfStale = () => {
+        if (fullMapUnavailable || latestAreaCount <= 0) {
+            return;
+        }
+        if (chaosMapViewOpen()) {
+            if (fullMapSlimSignature !== latestSlimSignature) {
+                fetchFullChaosMap();
+            }
+            return;
+        }
+        // Nothing is drawing the map, so all it is wanted for is the count of
+        // distinct screens the run strip quotes. That only changes when a new
+        // screen turns up, which is rare enough to ask about at leisure.
+        if (groupedScreenCount.areaCount !== latestAreaCount && (Date.now() - fullMapFetchedAt) > 10000) {
+            fetchFullChaosMap();
+        }
+    };
+
+    // "4 screens (7 variants)" when the layouts have been counted for the map
+    // as it now stands, "7 screen variants" when all that is known is how many
+    // distinct screens the server has seen.
+    const screenCountLabel = (variants) => {
+        const v = Number(variants) || 0;
+        if (v <= 0) {
+            return '';
+        }
+        if (groupedScreenCount.screens > 0 && groupedScreenCount.areaCount === latestAreaCount) {
+            return formatChaosScreenCount(groupedScreenCount.screens, Math.max(v, groupedScreenCount.areaCount));
+        }
+        return formatChaosScreenCount(0, v);
+    };
+
     const refreshChaosMapView = async () => {
-        await pollStatus();
-        await loadScreenHints();
-        renderChaosMap();
+        await Promise.all([loadScreenHints(), pollStatus()]);
+        let failure = '';
+        await fetchFullChaosMap({ force: true, onError: (message) => { failure = message; } });
+        renderChaosMap({ reset: true });
+        return failure;
+    };
+
+    const openChaosMapModal = async () => {
+        if (!mapModal) {
+            return false;
+        }
+        openChaosModal(mapModal, chaosMapTopFocusSelector);
+        setChaosMapStatus('Loading the screen map…');
+        if (mapList && !latestMindMapIsFull) {
+            mapList.innerHTML = '<p class="subtle" data-chaos-map-empty>Loading the screen map…</p>';
+        }
+        const failure = await refreshChaosMapView();
+        if (mapList) {
+            mapList.scrollTop = 0;
+        }
+        const modalPanel = mapModal.querySelector('.modal');
+        if (modalPanel) {
+            modalPanel.scrollTop = 0;
+        }
+        const modalStack = mapModal.querySelector('.stack');
+        if (modalStack) {
+            modalStack.scrollTop = 0;
+        }
+        if (failure) {
+            setChaosMapStatus(failure, true);
+        } else {
+            setChaosMapStatus(chaosMapStatusText());
+        }
+        return true;
     };
 
     const openChaosFlowFromMap = () => {
+        if (!flowModal) {
+            return;
+        }
         openChaosModal(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]', { keepPrevious: true });
-        setFlowStatus('Loading discovery flow...');
-        window.requestAnimationFrame(async () => {
-            if (!flowModal || flowModal.hidden) {
-                return;
-            }
-            // The flow is drawn from the full mind map (captures, and the keys
-            // that lead from one screen to the next). Now that this dialog is
-            // open the poll asks for it, so a flow opened by the AI panel, or
-            // before the map was, is not drawn from the summary.
-            await pollStatus();
+        setFlowStatus('Loading the flow diagram…');
+        const draw = (failure) => {
             if (!flowModal || flowModal.hidden) {
                 return;
             }
@@ -6147,14 +6537,19 @@
             if (flowContent) {
                 flowContent.scrollTop = 0;
             }
-            const areaCount = getChaosMapUniqueScreenCount();
-            {
-                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
-                setFlowStatus(msg);
-                notifyUi(msg, areaCount ? 'info' : 'info');
+            if (failure) {
+                setFlowStatus(failure, true);
+            } else {
+                setFlowStatus(chaosFlowStatusText());
             }
-            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
-        });
+        };
+        if (latestMindMapIsFull && fullMapSlimSignature === latestSlimSignature) {
+            window.requestAnimationFrame(() => draw(''));
+            return;
+        }
+        let failure = '';
+        fetchFullChaosMap({ force: true, onError: (message) => { failure = message; } })
+            .then(() => draw(failure));
     };
 
     const isRecordingActive = () => {
@@ -6198,59 +6593,80 @@
         setButtonDisabledState(
             startBtn,
             !running && blockedByWorkflow,
-            'Stop recording/playback before starting chaos exploration'
-        );
-        setButtonDisabledState(
-            loadBtn,
-            !running && blockedByWorkflow,
-            'Stop recording/playback before loading a chaos run'
+            'Stop recording/playback before starting an exploration'
         );
         setButtonDisabledState(
             loadRecordingBtn,
-            !running && blockedByWorkflow,
-            'Stop recording/playback before loading a recording into chaos'
+            running || blockedByWorkflow,
+            running
+                ? 'Stop the exploration before loading a recording into it'
+                : 'Stop recording/playback before loading a recording into exploration'
         );
         setButtonDisabledState(
             resumeBtn,
             !running && blockedByWorkflow,
-            'Stop recording/playback before resuming chaos exploration'
+            'Stop recording/playback before continuing an exploration'
         );
+        [runPanelContinueBtn, activeRunContinueBtn].forEach((btn) => {
+            if (btn) {
+                btn.disabled = running || blockedByWorkflow || !loadedRunID;
+            }
+        });
         setButtonDisabledState(
-            extendBtn,
-            !running && blockedByWorkflow,
-            'Stop recording/playback before extending chaos exploration'
+            mapImportBtn,
+            running,
+            'Stop the exploration before importing a map'
         );
         setButtonDisabledState(
             recordingStartButton,
             running,
-            'Stop chaos exploration before starting recording'
+            'Stop the exploration before starting a recording'
         );
         setButtonDisabledState(
             workflowLoadButton,
             running,
-            'Stop chaos exploration before loading a recording'
+            'Stop the exploration before loading a recording'
         );
+        syncRunsLoadButtons();
     };
 
     const updateChaosMapFromStatus = (status) => {
-        if (status && status.mindMap && typeof status.mindMap === 'object') {
-            latestMindMap = status.mindMap;
-            latestMindMapIsSummary = typeof status.mindMap.areaCount === 'number';
-        } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+        const cleared = !!(status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0);
+        const incoming = status && status.mindMap && typeof status.mindMap === 'object' ? status.mindMap : null;
+        let fullArrived = false;
+        if (incoming) {
+            const signature = chaosMapSignatureFor(status, incoming);
+            latestSlimSignature = signature;
+            latestAreaCount = mindMapAreaList(incoming).length;
+            if (!isSlimMindMap(incoming)) {
+                latestMindMap = incoming;
+                latestMindMapIsFull = true;
+                fullMapSlimSignature = signature;
+                fullArrived = true;
+            } else if (!latestMindMapIsFull) {
+                // Nothing better is held yet, so keep the outline: it still
+                // carries the labels and the count.
+                latestMindMap = slimMindMapToKeyed(incoming);
+            }
+        } else if (cleared) {
             latestMindMap = null;
-            latestMindMapIsSummary = false;
+            latestMindMapIsFull = false;
+            latestSlimSignature = '';
+            fullMapSlimSignature = '';
+            latestAreaCount = 0;
+            groupedScreenCount.areaCount = -1;
+            groupedScreenCount.screens = 0;
+            fullArrived = true;
         }
         if (status && status.screenHints && typeof status.screenHints === 'object') {
             screenHintsByHash = normalizeScreenHintsMap(status.screenHints);
-        } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+        } else if (cleared) {
             screenHintsByHash = {};
         }
-        if (mapModal && !mapModal.hidden) {
-            renderChaosMap();
-        }
+        return fullArrived;
     };
 
-    const updateLoadedChaosActionTooltips = (status, visibleLoadedRunID, visibleHasData, visibleCompleted) => {
+    const updateLoadedChaosActionTooltips = (status, visibleLoadedRunID, visibleHasData) => {
         const steps = Number((status && status.stepsRun) || 0);
         const screens = Number((status && status.uniqueScreens) || 0);
         const inputs = Number((status && status.uniqueInputs) || 0);
@@ -6274,35 +6690,333 @@
                 setTooltipContent(btn, `${base}${suffix}`);
             }
         };
-        applyBaseWithSuffix(resumeBtn, !!runID && !visibleCompleted);
-        applyBaseWithSuffix(extendBtn, !!runID && !!visibleCompleted);
+        applyBaseWithSuffix(resumeBtn, !!runID);
         applyBaseWithSuffix(reportBtn, !!visibleHasData);
         applyBaseWithSuffix(exportBtn, !!visibleHasData);
         applyBaseWithSuffix(removeBtn, !!visibleHasData);
     };
 
+    // ---- how a run ended, in words ------------------------------------
+    const pluralize = (count, singular, plural) => `${count} ${count === 1 ? singular : (plural || `${singular}s`)}`;
+
+    const formatChaosDuration = (seconds) => {
+        const s = Math.max(0, Math.round(Number(seconds) || 0));
+        if (s < 60) {
+            return pluralize(s, 'second');
+        }
+        const minutes = Math.floor(s / 60);
+        const rest = s % 60;
+        return rest ? `${pluralize(minutes, 'minute')} ${pluralize(rest, 'second')}` : pluralize(minutes, 'minute');
+    };
+
+    // tone is the notification type: an error is not a success, and a run
+    // somebody stopped is neither.
+    const chaosOutcomeFor = (status) => {
+        const st = status || {};
+        const steps = Number(st.stepsRun) || 0;
+        const errorText = String(st.error || '').trim();
+        let reason = String(st.terminationReason || '').trim().toLowerCase();
+        const cov = st.coverageStats && typeof st.coverageStats === 'object' ? st.coverageStats : null;
+        const streak = cov ? Number(cov.saturationStreak) || 0 : 0;
+        if (!reason) {
+            // The server did not say. Work it out from what is known, and
+            // only when st is the run this page has been watching.
+            const threshold = cov ? Number(cov.saturationThresholdSteps) || 0 : 0;
+            const started = Date.parse(knownRunLimits.startedAt || '');
+            const stopped = Date.parse(knownRunLimits.stoppedAt || '');
+            if (errorText) {
+                reason = 'error';
+            } else if (userRequestedStop) {
+                reason = 'stopped';
+            } else if (st === lastStatus && !st.active) {
+                if (knownRunLimits.maxSteps > 0 && steps >= knownRunLimits.maxSteps) {
+                    reason = 'max_steps';
+                } else if (threshold > 0 && streak >= threshold) {
+                    reason = 'saturated';
+                } else if (knownRunLimits.timeBudgetMs > 0 && started && stopped
+                    && (stopped - started) >= knownRunLimits.timeBudgetMs - 1500) {
+                    reason = 'time_budget';
+                }
+            }
+        }
+        const stepWord = pluralize(steps, 'step');
+        switch (reason) {
+        case 'max_steps':
+            return {
+                reason,
+                tone: 'success',
+                label: 'step limit reached',
+                title: 'Exploration finished',
+                sentence: `It reached its step limit after ${stepWord}.`,
+                toast: `Exploration finished: it reached its step limit after ${stepWord}.`,
+            };
+        case 'time_budget':
+            return {
+                reason,
+                tone: 'success',
+                label: 'time limit reached',
+                title: 'Exploration finished',
+                sentence: `It reached its time limit after ${stepWord}.`,
+                toast: `Exploration finished: it reached its time limit after ${stepWord}.`,
+            };
+        case 'saturated':
+            return {
+                reason,
+                tone: 'success',
+                label: 'nothing new left to find',
+                title: 'Exploration finished',
+                sentence: streak > 0
+                    ? `It stopped by itself after ${stepWord}: the last ${pluralize(streak, 'step')} found no new screen or transition.`
+                    : `It stopped by itself after ${stepWord} because it was no longer finding anything new.`,
+                toast: `Exploration finished after ${stepWord}: it was no longer finding anything new.`,
+            };
+        case 'stopped':
+            return {
+                reason,
+                tone: 'info',
+                label: 'stopped',
+                title: 'Exploration stopped',
+                sentence: `It was stopped after ${stepWord}, before it reached a limit.`,
+                toast: `Exploration stopped after ${stepWord}.`,
+            };
+        case 'error':
+            return {
+                reason,
+                tone: 'error',
+                label: 'stopped by an error',
+                title: 'Exploration stopped by an error',
+                sentence: errorText
+                    ? `It failed after ${stepWord}: ${errorText}`
+                    : `It failed after ${stepWord}. Check that the host session is still connected.`,
+                toast: errorText
+                    ? `Exploration stopped by an error after ${stepWord}: ${errorText}`
+                    : `Exploration stopped by an error after ${stepWord}.`,
+            };
+        case 'blocked':
+            return {
+                reason,
+                tone: 'warning',
+                label: 'no key left to press',
+                title: 'Exploration could not go further',
+                sentence: `After ${stepWord} every key it could press on the screen it reached is blocked. Unblock a key under Exploration hints, or move to another screen and continue.`,
+                toast: `Exploration could not go further after ${stepWord}: every key it could press is blocked.`,
+            };
+        default:
+            return {
+                reason: '',
+                tone: 'success',
+                label: steps > 0 ? 'finished' : 'loaded',
+                title: steps > 0 ? 'Exploration results' : 'Saved run loaded',
+                sentence: '',
+                toast: `Exploration finished${steps > 0 ? ` after ${stepWord}` : ''}.`,
+            };
+        }
+    };
+
+    // The server writes its suggestions for a model as well as for a person.
+    const tidyChaosSuggestion = (text) => String(text || '')
+        .replace(/\s*\(chaos_[a-z_]+[^)]*\)/gi, '')
+        .replace(/\bchaos hints\b/gi, 'exploration hints')
+        .replace(/\bchaos exploration\b/gi, 'exploration')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    const renderChaosSuggestions = (items) => {
+        if (!runPanelNext || !runPanelNextList) {
+            return;
+        }
+        const list = (Array.isArray(items) ? items : [])
+            .map(tidyChaosSuggestion)
+            .filter(Boolean)
+            .slice(0, 3);
+        runPanelNextList.innerHTML = '';
+        list.forEach((text) => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            runPanelNextList.appendChild(li);
+        });
+        runPanelNext.hidden = list.length === 0;
+    };
+
+    const loadChaosSuggestions = async (status) => {
+        const key = `${String((status && status.loadedRunID) || loadedRunID || '')}:${Number(status && status.stepsRun) || 0}`;
+        if (key === lastInsightsKey) {
+            return;
+        }
+        lastInsightsKey = key;
+        renderChaosSuggestions([]);
+        try {
+            const resp = await fetch('/chaos/insights', { headers: { Accept: 'application/json' } });
+            if (!resp.ok) {
+                // No insights for this run, or a server without the endpoint:
+                // the panel simply goes without them.
+                return;
+            }
+            const data = await resp.json();
+            if (key !== lastInsightsKey) {
+                return;
+            }
+            renderChaosSuggestions(data && data.suggestedExperiments);
+        } catch (_err) {
+            // optional
+        }
+    };
+
+    const chaosRunPanelIcons = {
+        success: '<svg viewBox="0 0 24 24" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>',
+        info: '<svg viewBox="0 0 24 24" focusable="false"><path d="M6 6h12v12H6z"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" focusable="false"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+        error: '<svg viewBox="0 0 24 24" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+    };
+
+    // The state a run leaves on the strip: why it ended, what it found, and
+    // the four things somebody does next.
+    const renderChaosRunPanel = (status, visible) => {
+        if (!runPanel) {
+            return;
+        }
+        if (!visible) {
+            runPanel.hidden = true;
+            return;
+        }
+        const st = status || {};
+        const outcome = chaosOutcomeFor(st);
+        lastOutcome = outcome;
+        runPanel.dataset.tone = outcome.tone;
+        if (runPanelIcon) {
+            runPanelIcon.innerHTML = chaosRunPanelIcons[outcome.tone] || chaosRunPanelIcons.success;
+        }
+        if (runPanelTitle) {
+            runPanelTitle.textContent = outcome.title;
+        }
+        if (runPanelReason) {
+            runPanelReason.textContent = outcome.sentence;
+            runPanelReason.hidden = !outcome.sentence;
+        }
+        if (runPanelCounts) {
+            const steps = Number(st.stepsRun) || 0;
+            const transitions = Number(st.transitions) || 0;
+            const inputs = Number(st.uniqueInputs) || 0;
+            const host = String(st.targetHost || '').trim();
+            const runName = String(st.label || '').trim() || String(st.loadedRunID || loadedRunID || '').trim();
+            runPanelCounts.textContent = [
+                steps > 0 ? pluralize(steps, 'step') : '',
+                screenCountLabel(st.uniqueScreens),
+                transitions > 0 ? pluralize(transitions, 'transition') : '',
+                inputs > 0 ? pluralize(inputs, 'input') : '',
+                host ? `on ${host}` : '',
+                runName ? `run ${runName}` : 'saving…',
+            ].filter(Boolean).join(' · ');
+        }
+        const hasRun = !!String(st.loadedRunID || loadedRunID || '').trim();
+        if (runPanelContinueBtn) {
+            runPanelContinueBtn.title = hasRun ? '' : 'Available once the run has been saved';
+        }
+        runPanel.hidden = false;
+        loadChaosSuggestions(st);
+    };
+
+    // ---- progress while it runs ----------------------------------------
+    const chaosMomentumText = (status) => {
+        const cov = status && status.coverageStats && typeof status.coverageStats === 'object'
+            ? status.coverageStats
+            : null;
+        if (!cov) {
+            return '';
+        }
+        const streak = Number(cov.saturationStreak) || 0;
+        const threshold = Number(cov.saturationThresholdSteps) || 0;
+        const windowSteps = Number(cov.windowSteps) || 10;
+        const newScreens = Number(cov.newScreensLast10Steps) || 0;
+        const newTransitions = Number(cov.newTransitionsLast10Steps) || 0;
+        if (streak > 0) {
+            return threshold > 0
+                ? `nothing new for ${streak} of ${pluralize(threshold, 'step')}`
+                : `nothing new for ${pluralize(streak, 'step')}`;
+        }
+        const lastSteps = windowSteps === 1 ? 'the last step' : `the last ${windowSteps} steps`;
+        if (newScreens > 0) {
+            return `${pluralize(newScreens, 'new screen')} in ${lastSteps}`;
+        }
+        if (newTransitions > 0) {
+            return `${pluralize(newTransitions, 'new transition')} in ${lastSteps}`;
+        }
+        return '';
+    };
+
+    const announceChaos = (message) => {
+        if (!chaosLiveRegion || !message) {
+            return;
+        }
+        chaosLiveRegion.textContent = message;
+    };
+
+    const updateChaosMomentum = (status, running) => {
+        const text = running ? chaosMomentumText(status) : '';
+        if (momentumEl) {
+            momentumEl.textContent = text;
+            momentumEl.hidden = !text;
+            const cov = status && status.coverageStats;
+            const threshold = cov ? Number(cov.saturationThresholdSteps) || 0 : 0;
+            momentumEl.title = text && threshold > 0
+                ? `The exploration stops by itself after ${threshold} steps in a row that find nothing new.`
+                : '';
+        }
+        if (!running) {
+            lastMomentumText = '';
+            return;
+        }
+        // Spoken at a fraction of the rate it is drawn: a counter that ticks
+        // every half second is not something to read out as it ticks.
+        const now = Date.now();
+        if (text && text !== lastMomentumText && (now - lastMomentumAnnouncedAt) >= momentumAnnounceIntervalMs) {
+            lastMomentumAnnouncedAt = now;
+            lastMomentumText = text;
+            const steps = Number(status && status.stepsRun) || 0;
+            announceChaos(`Exploring: ${pluralize(steps, 'step')} so far, ${text}.`);
+        }
+    };
+
     const updateUI = (status) => {
         const wasRunning = lastChaosRunning;
-        lastStatus = status || { active: false, stepsRun: 0, transitions: 0 };
-        updateChaosMapFromStatus(status || {});
-        const running = !!(status && status.active);
-        lastChaosRunning = running;
-        hasData = !!(status && (status.stepsRun > 0 || status.loadedRunID));
-        const completed = !running && hasData;
-        if (status && status.loadedRunID) {
-            loadedRunID = status.loadedRunID;
+        const previous = lastStatus || {};
+        const next = status || { active: false, stepsRun: 0, transitions: 0 };
+        // A partial update (one the page makes for itself, between polls) must
+        // not forget what the server last said about the run.
+        // The same run, that is: one that has just been saved gains its run
+        // ID between two polls and is still the same run.
+        const sameRun = !!next.active === !!previous.active
+            && (String(next.loadedRunID || '') === String(previous.loadedRunID || '')
+                || (!String(previous.loadedRunID || '') && (Number(previous.stepsRun) || 0) > 0
+                    && (Number(next.stepsRun) || 0) === (Number(previous.stepsRun) || 0)));
+        ['terminationReason', 'targetHost', 'label', 'coverageStats', 'error'].forEach((key) => {
+            if ((next[key] == null || next[key] === '') && previous[key] != null && sameRun) {
+                next[key] = previous[key];
+            }
+        });
+        lastStatus = next;
+        const fullMapArrived = updateChaosMapFromStatus(next);
+        if (fullMapArrived && latestMindMapIsFull) {
+            const all = getChaosFlowAreas();
+            groupedScreenCount.areaCount = all.length;
+            groupedScreenCount.screens = all.length ? buildChaosMapTemplateGroups(all).groups.length : 0;
         }
-        if (status && typeof status.firstScreenHash === 'string') {
-            latestFirstScreenHash = status.firstScreenHash.trim();
-        } else if (running && (Number(status.stepsRun) || 0) === 0) {
+        const running = !!next.active;
+        lastChaosRunning = running;
+        hasData = !!(next.stepsRun > 0 || next.loadedRunID);
+        if (next.loadedRunID) {
+            loadedRunID = next.loadedRunID;
+        }
+        if (typeof next.firstScreenHash === 'string') {
+            latestFirstScreenHash = next.firstScreenHash.trim();
+        } else if (running && (Number(next.stepsRun) || 0) === 0) {
             latestFirstScreenHash = '';
-        } else if (status && !running && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
+        } else if (!running && !(next.loadedRunID) && (Number(next.stepsRun) || 0) === 0) {
             latestFirstScreenHash = '';
         }
         const suppressStoredChaosDisplay = !running && isPlaybackActive();
         const visibleLoadedRunID = suppressStoredChaosDisplay ? null : loadedRunID;
         const visibleHasData = suppressStoredChaosDisplay ? false : hasData;
-        const visibleCompleted = suppressStoredChaosDisplay ? false : completed;
 
         if (startBtn) {
             startBtn.hidden = running;
@@ -6310,17 +7024,18 @@
         if (stopBtn) {
             stopBtn.hidden = !running;
         }
+        // One "Continue exploring", offered whenever there is a run to carry on.
         if (resumeBtn) {
-            resumeBtn.hidden = running || !visibleLoadedRunID || visibleCompleted;
-        }
-        if (extendBtn) {
-            extendBtn.hidden = running || !visibleCompleted || !visibleLoadedRunID;
+            resumeBtn.hidden = running || !visibleLoadedRunID;
         }
         if (exportBtn) {
             exportBtn.hidden = running || !visibleHasData;
         }
         if (reportBtn) {
             reportBtn.hidden = running || !visibleHasData;
+        }
+        if (taskOpenBtn) {
+            taskOpenBtn.hidden = running || !visibleHasData;
         }
         if (removeBtn) {
             removeBtn.hidden = running || !visibleHasData;
@@ -6329,42 +7044,88 @@
             indicator.hidden = !running;
         }
         if (completeIndicator) {
-            completeIndicator.hidden = !visibleCompleted;
+            completeIndicator.hidden = !visibleHasData || running;
         }
         if (statsIndicator) {
-            const hasStats = !suppressStoredChaosDisplay && !!(status && (status.stepsRun > 0 || status.transitions > 0));
+            const hasStats = !suppressStoredChaosDisplay && !!(next.stepsRun > 0 || next.transitions > 0);
             statsIndicator.hidden = !hasStats;
             if (statsText && hasStats) {
-                let txt = visibleCompleted ? `Complete: ${status.stepsRun} attempts` : `${status.stepsRun} attempts`;
-                if (status.transitions > 0) {
-                    txt += ` | ${status.transitions} transitions`;
-                }
-                if (status.uniqueScreens > 0) {
-                    txt += ` | ${status.uniqueScreens} screens`;
-                }
-                if (status.uniqueInputs > 0) {
-                    txt += ` | ${status.uniqueInputs} inputs`;
-                }
-                if (status.error) {
-                    txt += ' | error';
-                }
-                if (visibleCompleted && visibleLoadedRunID) {
-                    txt += ` | run ${visibleLoadedRunID}`;
-                }
-                statsText.textContent = txt;
+                statsText.textContent = [
+                    pluralize(Number(next.stepsRun) || 0, 'step'),
+                    next.transitions > 0 ? pluralize(Number(next.transitions), 'transition') : '',
+                    screenCountLabel(next.uniqueScreens),
+                    next.uniqueInputs > 0 ? pluralize(Number(next.uniqueInputs), 'input') : '',
+                    next.error ? 'error' : '',
+                    !running && visibleLoadedRunID ? `run ${visibleLoadedRunID}` : '',
+                ].filter(Boolean).join(' | ');
             }
         }
         syncChaosSectionLayout();
         applyChaosInterlocks();
-        updateLoadedChaosActionTooltips(status, visibleLoadedRunID, visibleHasData, visibleCompleted);
-        // Fire completion notification when chaos transitions running → completed
-        if (wasRunning && !running && hasData && window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
-            const steps = status && status.stepsRun ? status.stepsRun : 0;
-            window.ThreeSeventyWeb.notify(
-                'Chaos exploration complete' + (steps > 0 ? ': ' + steps + ' attempt' + (steps === 1 ? '' : 's') : '') + '.',
-                'success'
-            );
+        updateLoadedChaosActionTooltips(next, visibleLoadedRunID, visibleHasData);
+        updateChaosMomentum(next, running);
+        renderChaosRunPanel(next, !running && visibleHasData);
+        if (fullMapArrived) {
+            refreshOpenChaosMapViews();
         }
+        if (running) {
+            userRequestedStop = userRequestedStop && wasRunning;
+        }
+        // One notification when a run ends, and it says how it ended: an
+        // error is not announced as a success, and stopping a run yourself
+        // does not get you two toasts.
+        if (wasRunning && !running) {
+            if (hasData) {
+                const outcome = chaosOutcomeFor(next);
+                lastOutcome = outcome;
+                if (!next.terminationReason && outcome.reason) {
+                    // Worked out here because the server did not say; keep
+                    // it, so the panel goes on saying what the toast said.
+                    next.terminationReason = outcome.reason;
+                }
+                renderChaosRunPanel(next, runPanel ? !runPanel.hidden : false);
+                notifyUi(outcome.toast, outcome.tone);
+                // The panel quotes the number of distinct screens, which
+                // needs the full map as it stood at the end.
+                fetchFullChaosMap({ force: true });
+            }
+            userRequestedStop = false;
+            if (typeof window.refreshWorkflowStatus === 'function') {
+                window.refreshWorkflowStatus();
+            }
+        }
+    };
+
+    // 401/403 means the session behind this page has gone. Say so once and
+    // stop asking: the poll used to carry on at full rate against a server
+    // that had already answered. It starts again when the window is next
+    // focused, or when anything else calls pollStatus().
+    const handleChaosAuthFailure = (resp) => {
+        if (!resp || (resp.status !== 401 && resp.status !== 403)) {
+            return false;
+        }
+        clearTimeout(pollTimer);
+        pollTimer = null;
+        if (!chaosSessionExpired) {
+            chaosSessionExpired = true;
+            const ui = window.ThreeSeventyWeb || {};
+            const status = resp.status;
+            if (typeof ui.handleAccessFailure === 'function') {
+                resp.clone().json().catch(() => ({})).then((payload) => {
+                    ui.handleAccessFailure(status, payload || {});
+                });
+            } else if (typeof ui.notifySessionExpired === 'function') {
+                ui.notifySessionExpired();
+            } else {
+                notifyUi('Your session has ended. Reload the page to carry on.', 'warning');
+            }
+        }
+        return true;
+    };
+
+    const scheduleChaosPoll = (delay) => {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(pollStatus, delay);
     };
 
     // The default /chaos/status carries a summary of the mind map to stay cheap
@@ -6373,41 +7134,124 @@
     // out — so while any of them is open the poll asks for the whole map.
     // Without this every card said "No captured screen preview" and the flow
     // drew no edges, for a run that had just finished.
-    const chaosMapDialogOpen = () => [mapModal, flowModal, flowScreenHintsModal].some((m) => m && !m.hidden);
-
     const pollStatus = async () => {
         clearTimeout(pollTimer);
+        pollTimer = null;
         try {
-            const resp = await fetch(chaosMapDialogOpen() ? '/chaos/status?verbose=true' : '/chaos/status');
-            if (resp.status === 401 || resp.status === 403) {
-                if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
-                    window.ThreeSeventyWeb.notifySessionExpired();
-                }
+            const resp = await fetch('/chaos/status', { headers: { Accept: 'application/json' } });
+            if (handleChaosAuthFailure(resp)) {
+                return null;
             }
             if (!resp.ok) {
-                throw new Error('chaos status request failed: ' + resp.status);
+                throw new Error('exploration status request failed: ' + resp.status);
             }
             const status = await resp.json();
             pollFailureCount = 0;
+            chaosSessionExpired = false;
             updateUI(status);
+            refreshFullChaosMapIfStale();
             const finalizingCompletedRun = !status.active
                 && (Number(status.stepsRun) || 0) > 0
                 && !String(status.loadedRunID || '').trim();
-            if (status.active || finalizingCompletedRun) {
-                pollTimer = setTimeout(pollStatus, pollBaseDelayMs);
+            if (status.active) {
+                pollFinalizeTries = 0;
+                scheduleChaosPoll(document.visibilityState === 'visible' ? pollActiveDelayMs : pollHiddenDelayMs);
+            } else if (finalizingCompletedRun) {
+                if (pollFinalizeTries < pollFinalizeMaxTries) {
+                    pollFinalizeTries += 1;
+                    scheduleChaosPoll(pollBaseDelayMs);
+                }
+            } else {
+                pollFinalizeTries = 0;
             }
+            return status;
         } catch (_err) {
             // A transient failure (network blip, momentary 5xx) shouldn't
-            // permanently freeze the displayed status until the user happens
-            // to trigger another chaos action that calls pollStatus() again.
-            // Back off and keep retrying instead of giving up after one miss.
+            // freeze the displayed status until the user happens to trigger
+            // another action. Back off and keep retrying while a run is
+            // believed to be going; with nothing running, a handful of tries
+            // is enough, and the next action polls again anyway.
             pollFailureCount += 1;
-            const delay = Math.min(pollBaseDelayMs * Math.pow(2, pollFailureCount), pollMaxDelayMs);
-            pollTimer = setTimeout(pollStatus, delay);
+            if ((lastStatus && lastStatus.active) || pollFailureCount <= 5) {
+                scheduleChaosPoll(Math.min(pollBaseDelayMs * Math.pow(2, pollFailureCount), pollMaxDelayMs));
+            }
+            return null;
         }
     };
 
-    // Open/close the runs modal.
+    // ---- saved runs ------------------------------------------------------
+    const setRunsStatus = (message, isError = false) => setStatusLine(runsStatus, message, isError);
+
+    const chaosRunDisplayName = (run) => {
+        const id = String((run && run.id) || '').trim();
+        const label = String((run && run.label) || '').trim();
+        return label ? `${label} (${id})` : id;
+    };
+
+    const chaosRunEndText = (run) => {
+        if (!run) {
+            return '';
+        }
+        const outcome = chaosOutcomeFor({
+            terminationReason: run.terminationReason,
+            error: run.error,
+            stepsRun: run.stepsRun,
+        });
+        if (outcome.reason) {
+            return `Ended: ${outcome.label}`;
+        }
+        return '';
+    };
+
+    const syncRunsLoadButtons = () => {
+        if (!runsList) {
+            return;
+        }
+        const running = !!(lastStatus && lastStatus.active);
+        runsList.querySelectorAll('[data-load-run-id]').forEach((btn) => {
+            btn.disabled = running;
+            btn.title = running ? 'Stop the exploration before loading a saved run' : '';
+        });
+    };
+
+    const chaosRunRowMarkup = (r) => {
+        const id = String(r.id || '');
+        const name = chaosRunDisplayName(r);
+        const date = r.startedAt ? new Date(r.startedAt).toLocaleString() : '';
+        const host = String(r.targetHost || '').trim();
+        const stats = [
+            r.stepsRun > 0 ? pluralize(Number(r.stepsRun), 'step') : null,
+            r.uniqueScreens > 0 ? formatChaosScreenCount(0, r.uniqueScreens) : null,
+            r.transitions > 0 ? pluralize(Number(r.transitions), 'transition') : null,
+        ].filter(Boolean).join(' · ');
+        const end = chaosRunEndText(r);
+        const isLoaded = !!loadedRunID && String(loadedRunID) === id;
+        const safeID = escapeHtml(id);
+        const safeName = escapeHtml(name);
+        return `<div class="chaos-run-item" data-run-id="${safeID}">
+                    <div class="chaos-run-item-top">
+                        <input type="checkbox" class="chaos-run-select" data-chaos-run-select="${safeID}" aria-label="Select run ${safeName}">
+                        <div class="chaos-run-item-body">
+                            <div class="chaos-run-meta">
+                                <strong class="chaos-run-id">${safeID}</strong>
+                                ${isLoaded ? '<span class="chaos-run-loaded-chip">Loaded</span>' : ''}
+                                <span class="subtle">${escapeHtml(date)}</span>
+                            </div>
+                            <div class="chaos-run-stats subtle">${escapeHtml([host, stats].filter(Boolean).join(' · '))}</div>
+                            ${end ? `<div class="chaos-run-end${r.error || r.terminationReason === 'error' ? ' is-error' : ''}">${escapeHtml(end)}${r.error ? `: ${escapeHtml(String(r.error))}` : ''}</div>` : ''}
+                            <div class="chaos-run-label-row">
+                                <label class="chaos-hint-field-label" for="chaos-run-label-${safeID}">Name</label>
+                                <input type="text" id="chaos-run-label-${safeID}" class="chaos-run-label-input" data-chaos-run-label="${safeID}" value="${escapeHtml(String(r.label || ''))}" maxlength="80" placeholder="Give this run a name" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chaos-run-actions">
+                        <button type="button" class="chaos-run-load-btn" data-load-run-id="${safeID}" aria-label="Load run ${safeName}">Load</button>
+                        <button type="button" class="chaos-run-delete-btn" data-delete-run-id="${safeID}" aria-label="Delete run ${safeName}">Delete</button>
+                    </div>
+                </div>`;
+    };
+
     const openRunsModal = async () => {
         if (!runsModal || !runsList) {
             return;
@@ -6415,56 +7259,217 @@
         currentRuns = [];
         selectedChaosRunIDs = new Set();
         syncRunsSelectionUI();
-        runsList.innerHTML = '<p class="subtle">Loading\u2026</p>';
+        setRunsStatus('');
+        runsList.innerHTML = '<p class="subtle">Loading…</p>';
         openChaosModal(runsModal, '[data-chaos-runs-close]');
         try {
-            const resp = await fetch('/chaos/runs');
+            const resp = await fetch('/chaos/runs', { headers: { Accept: 'application/json' } });
             if (!resp.ok) {
-                runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
+                const message = await chaosErrorMessage(resp, 'The saved runs could not be loaded.');
+                runsList.innerHTML = '';
+                setRunsStatus(message, true);
                 return;
             }
             const runs = await resp.json();
-            if (!runs || runs.length === 0) {
-                currentRuns = [];
-                selectedChaosRunIDs = new Set();
-                syncRunsSelectionUI();
-                runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
+            if (!Array.isArray(runs) || runs.length === 0) {
+                runsList.innerHTML = '<p class="subtle">No saved runs yet. A run is saved here when an exploration ends.</p>';
                 return;
             }
-            currentRuns = Array.isArray(runs) ? runs.slice() : [];
-            const items = runs.map((r) => {
-                const date = r.startedAt ? new Date(r.startedAt).toLocaleString() : '';
-                const meta = [
-                    r.stepsRun > 0 ? `${r.stepsRun} steps` : null,
-                    r.transitions > 0 ? `${r.transitions} transitions` : null,
-                    r.uniqueScreens > 0 ? `${r.uniqueScreens} screens` : null,
-                ].filter(Boolean).join(', ');
-                return `<div class="chaos-run-item" data-run-id="${escapeHtml(r.id)}">
-                    <div class="chaos-run-item-top">
-                        <input type="checkbox" class="chaos-run-select" data-chaos-run-select="${escapeHtml(r.id)}" aria-label="Select chaos run ${escapeHtml(r.id)}">
-                        <div>
-                            <div class="chaos-run-meta">
-                                <strong class="chaos-run-id">${escapeHtml(r.id)}</strong>
-                                <span class="subtle">${escapeHtml(date)}</span>
-                            </div>
-                            <div class="chaos-run-stats subtle">${escapeHtml(meta)}</div>
-                        </div>
-                    </div>
-                    <div class="chaos-run-actions">
-                        <button type="button" class="chaos-run-load-btn" data-load-run-id="${escapeHtml(r.id)}">Load</button>
-                        <button type="button" class="chaos-run-delete-btn" data-delete-run-id="${escapeHtml(r.id)}">Delete</button>
-                    </div>
-                </div>`;
-            });
-            runsList.innerHTML = items.join('');
-            selectedChaosRunIDs = new Set();
+            currentRuns = runs.slice();
+            runsList.innerHTML = runs.map(chaosRunRowMarkup).join('');
             syncRunsSelectionUI();
-            focusModalElement(runsModal, '[data-load-run-id], [data-chaos-runs-close]');
+            syncRunsLoadButtons();
+            if (lastStatus && lastStatus.active) {
+                setRunsStatus('An exploration is running. Stop it to load a saved run; naming, comparing and deleting still work.');
+            }
+            focusModalElement(runsModal, '[data-load-run-id]:not([disabled]), [data-chaos-run-select], [data-chaos-runs-close]');
         } catch (_err) {
             currentRuns = [];
-            selectedChaosRunIDs = new Set();
-            syncRunsSelectionUI();
-            runsList.innerHTML = '<p class="subtle">Failed to load saved runs.</p>';
+            runsList.innerHTML = '';
+            setRunsStatus('The saved runs could not be loaded: network error.', true);
+        }
+    };
+
+    const saveChaosRunLabel = async (input) => {
+        const id = String(input.getAttribute('data-chaos-run-label') || '').trim();
+        const run = currentRuns.find((r) => String(r && r.id) === id);
+        if (!id || !run) {
+            return;
+        }
+        const label = input.value.trim();
+        const previousLabel = String(run.label || '');
+        if (label === previousLabel) {
+            input.value = previousLabel;
+            return;
+        }
+        input.disabled = true;
+        setRunsStatus('Saving the name…');
+        try {
+            const resp = await fetch('/chaos/runs/label', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, label }),
+            });
+            if (!resp.ok) {
+                const fallback = resp.status === 404 || resp.status === 405
+                    ? 'This server cannot name saved runs yet.'
+                    : 'The name could not be saved.';
+                const message = resp.status === 404 || resp.status === 405
+                    ? fallback
+                    : await chaosErrorMessage(resp, fallback);
+                input.value = previousLabel;
+                setRunsStatus(message, true);
+                return;
+            }
+            run.label = label;
+            setRunsStatus(label ? `Run ${id} is now named “${label}”.` : `Name removed from run ${id}.`);
+            const row = input.closest('.chaos-run-item');
+            if (row) {
+                const name = chaosRunDisplayName(run);
+                const select = row.querySelector('[data-chaos-run-select]');
+                const load = row.querySelector('[data-load-run-id]');
+                const del = row.querySelector('[data-delete-run-id]');
+                if (select) {
+                    select.setAttribute('aria-label', `Select run ${name}`);
+                }
+                if (load) {
+                    load.setAttribute('aria-label', `Load run ${name}`);
+                }
+                if (del) {
+                    del.setAttribute('aria-label', `Delete run ${name}`);
+                }
+            }
+        } catch (_err) {
+            input.value = previousLabel;
+            setRunsStatus('The name could not be saved: network error.', true);
+        } finally {
+            input.disabled = false;
+        }
+    };
+
+    // ---- comparing two saved runs -----------------------------------------
+    const setCompareStatus = (message, isError = false) => setStatusLine(compareStatus, message, isError);
+
+    const chaosCompareRefLabel = (ref) => {
+        const label = String((ref && ref.label) || '').trim();
+        const hash = String((ref && (ref.hash || ref.candidate_hash || ref.baseline_hash)) || '').trim();
+        return label || (hash ? `Screen ${hash.slice(0, 8)}` : 'Unnamed screen');
+    };
+
+    const chaosCompareFieldText = (delta) => {
+        const where = `row ${Number(delta.row) || 0}, column ${Number(delta.col) || 0}, length ${Number(delta.length) || 0}`;
+        const change = String(delta.change || 'changed');
+        return `Field at ${where}: ${change}`;
+    };
+
+    const chaosCompareTransitionText = (delta) => {
+        const key = String(delta.key || 'key');
+        const from = String(delta.baseline_target || '').trim();
+        const to = String(delta.candidate_target || '').trim();
+        const short = (value) => (value.length > 16 ? `${value.slice(0, 12)}…` : value);
+        switch (String(delta.change || '')) {
+        case 'added':
+            return `${key}: now leads to ${short(to) || 'a screen'}`;
+        case 'removed':
+            return `${key}: no longer leads to ${short(from) || 'a screen'}`;
+        case 'redirected':
+            return `${key}: led to ${short(from) || 'one screen'}, now leads to ${short(to) || 'another'}`;
+        default:
+            return `${key}: ${String(delta.change || 'changed')}`;
+        }
+    };
+
+    const renderChaosCompare = (diff, base, candidate) => {
+        if (!compareContent) {
+            return;
+        }
+        const summary = (diff && diff.summary) || {};
+        const onlyBase = Array.isArray(diff && diff.only_in_baseline) ? diff.only_in_baseline : [];
+        const onlyCandidate = Array.isArray(diff && diff.only_in_candidate) ? diff.only_in_candidate : [];
+        const changed = (Array.isArray(diff && diff.common) ? diff.common : [])
+            .filter((area) => (Array.isArray(area.field_deltas) && area.field_deltas.length)
+                || (Array.isArray(area.transition_deltas) && area.transition_deltas.length));
+        const baseName = escapeHtml(chaosRunDisplayName(base));
+        const candidateName = escapeHtml(chaosRunDisplayName(candidate));
+        const num = (value) => Number(value) || 0;
+        const refList = (refs) => (refs.length
+            ? `<ul>${refs.map((ref) => `<li>${escapeHtml(chaosCompareRefLabel(ref))} <span class="chaos-run-id">${escapeHtml(String(ref.hash || '').slice(0, 8))}</span></li>`).join('')}</ul>`
+            : '<p class="subtle">None.</p>');
+        const changedMarkup = changed.length
+            ? changed.map((area) => {
+                const fields = Array.isArray(area.field_deltas) ? area.field_deltas : [];
+                const transitions = Array.isArray(area.transition_deltas) ? area.transition_deltas : [];
+                const items = fields.map(chaosCompareFieldText).concat(transitions.map(chaosCompareTransitionText));
+                return `<details class="chaos-compare-area">
+                        <summary>${escapeHtml(chaosCompareRefLabel(area))} <span class="subtle">${pluralize(items.length, 'difference')}</span></summary>
+                        <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+                    </details>`;
+            }).join('')
+            : '<p class="subtle">None: every screen both runs found has the same fields and leads to the same places.</p>';
+        compareContent.innerHTML = `
+            <table class="chaos-compare-summary">
+                <caption class="visually-hidden">Summary of the comparison</caption>
+                <thead><tr><th scope="col"></th><th scope="col">Earlier run<br><span class="subtle">${baseName}</span></th><th scope="col">Later run<br><span class="subtle">${candidateName}</span></th></tr></thead>
+                <tbody>
+                    <tr><th scope="row">Screens found</th><td>${num(summary.baseline_areas)}</td><td>${num(summary.candidate_areas)}</td></tr>
+                    <tr><th scope="row">Found by this run only</th><td>${num(summary.areas_only_in_baseline)}</td><td>${num(summary.areas_only_in_candidate)}</td></tr>
+                </tbody>
+            </table>
+            <p class="chaos-compare-line">${pluralize(num(summary.common_areas), 'screen')} found by both · ${pluralize(num(summary.field_changes), 'field change')} · ${pluralize(num(summary.transition_changes), 'transition change')}</p>
+            <h4>Only in the earlier run (${onlyBase.length})</h4>
+            ${refList(onlyBase)}
+            <h4>Only in the later run (${onlyCandidate.length})</h4>
+            ${refList(onlyCandidate)}
+            <h4>Screens that changed (${changed.length})</h4>
+            ${changedMarkup}
+        `;
+    };
+
+    const compareSelectedChaosRuns = async () => {
+        const ids = Array.from(selectedChaosRunIDs);
+        if (ids.length !== 2 || !compareModal) {
+            return;
+        }
+        const picked = ids
+            .map((id) => currentRuns.find((r) => String(r && r.id) === id))
+            .filter(Boolean)
+            .sort((a, b) => (Date.parse(a.startedAt || '') || 0) - (Date.parse(b.startedAt || '') || 0));
+        if (picked.length !== 2) {
+            return;
+        }
+        const [base, candidate] = picked;
+        if (compareTitle) {
+            compareTitle.textContent = 'Compare runs';
+        }
+        if (compareContent) {
+            compareContent.innerHTML = '';
+        }
+        setCompareStatus('Comparing…');
+        openChaosModal(compareModal, '[data-chaos-compare-close]', { keepPrevious: true });
+        try {
+            const resp = await fetch('/chaos/mindmap/compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ baseRunId: base.id, candidateRunId: candidate.id }),
+            });
+            if (!resp.ok) {
+                setCompareStatus(await chaosErrorMessage(resp, 'The runs could not be compared.'), true);
+                return;
+            }
+            const diff = await resp.json();
+            const summary = (diff && diff.summary) || {};
+            const sawNothing = !(Number(summary.baseline_areas) || 0) && !(Number(summary.candidate_areas) || 0);
+            if (sawNothing && ((Number(base.uniqueScreens) || 0) > 0 || (Number(candidate.uniqueScreens) || 0) > 0)) {
+                // A server that does not yet take run IDs here compares two
+                // empty maps and reports, truthfully and uselessly, no
+                // difference. Do not pass that off as a result.
+                setCompareStatus('This server cannot compare saved runs by name yet.', true);
+                return;
+            }
+            setCompareStatus(`Earlier run ${chaosRunDisplayName(base)} against later run ${chaosRunDisplayName(candidate)}.`);
+            renderChaosCompare(diff, base, candidate);
+        } catch (_err) {
+            setCompareStatus('The runs could not be compared: network error.', true);
         }
     };
 
@@ -6500,17 +7505,18 @@
         ids.forEach((id) => selectedChaosRunIDs.delete(id));
         syncRunsSelectionUI();
         if (!runsList.querySelector('.chaos-run-item')) {
-            runsList.innerHTML = '<p class="subtle">No saved runs found.</p>';
+            runsList.innerHTML = '<p class="subtle">No saved runs left.</p>';
         }
     };
 
     const deleteChaosRunsByID = async (runIDs) => {
         const ids = Array.from(new Set((runIDs || []).map((id) => String(id || '').trim()).filter(Boolean)));
         if (!ids.length) {
-            return { deleted: [], failed: [] };
+            return { deleted: [], failed: [], errors: [] };
         }
         const deleted = [];
         const failed = [];
+        const errors = [];
         for (const rid of ids) {
             try {
                 const respDelete = await fetch('/chaos/runs/delete', {
@@ -6520,16 +7526,18 @@
                 });
                 if (!respDelete.ok) {
                     failed.push(rid);
+                    errors.push(await chaosErrorMessage(respDelete, `Run ${rid} could not be deleted.`));
                     continue;
                 }
                 deleted.push(rid);
                 await clearLoadedChaosIfDeletedRun(rid);
             } catch (_e) {
                 failed.push(rid);
+                errors.push(`Run ${rid} could not be deleted: network error.`);
             }
         }
         removeRunRowsFromModal(deleted);
-        return { deleted, failed };
+        return { deleted, failed, errors };
     };
 
     if (runsModal) {
@@ -6550,11 +7558,24 @@
             if (!(target instanceof HTMLInputElement)) {
                 return;
             }
+            if (target.hasAttribute('data-chaos-run-label')) {
+                saveChaosRunLabel(target);
+                return;
+            }
             const rid = target.getAttribute('data-chaos-run-select');
             if (!rid) {
                 return;
             }
             setRunSelected(rid, target.checked);
+        });
+        runsList.addEventListener('keydown', (event) => {
+            const target = event.target;
+            if (event.key === 'Enter' && target instanceof HTMLInputElement && target.hasAttribute('data-chaos-run-label')) {
+                // Enter commits the name; blur() fires the change that saves it.
+                event.preventDefault();
+                target.blur();
+                target.focus();
+            }
         });
         runsList.addEventListener('click', async (event) => {
             const target = event.target instanceof Element ? event.target.closest('button') : null;
@@ -6563,52 +7584,68 @@
             }
             const loadID = target.getAttribute('data-load-run-id');
             if (loadID) {
+                setButtonBusy(target, true);
+                setRunsStatus(`Loading run ${loadID}…`);
                 try {
                     const r2 = await fetch('/chaos/load', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ runID: loadID }),
                     });
-                    if (r2.ok) {
-                        const data = await r2.json();
-                        loadedRunID = data.runID || loadID;
-                        updateUI({
-                            active: false,
-                            stepsRun: data.stepsRun || 0,
-                            transitions: data.transitions || 0,
-                            uniqueScreens: data.uniqueScreens || 0,
-                            uniqueInputs: data.uniqueInputs || 0,
-                            loadedRunID,
-                            mindMap: data.mindMap || null,
-                        });
-                        if (typeof window.refreshWorkflowStatus === 'function') {
-                            await window.refreshWorkflowStatus();
-                        }
-                        const summary = chaosCountsSummary({
-                            steps: data.stepsRun || 0,
-                            screens: data.uniqueScreens || 0,
-                            inputs: data.uniqueInputs || 0,
-                            keys: data.uniqueKeys || 0,
-                        });
-                        notifyUi(
-                            `Loaded chaos run ${loadedRunID}${summary ? ` (${summary})` : ''}.`,
-                            'success'
-                        );
+                    if (!r2.ok) {
+                        // Stays in the dialog, with the reason: a run that
+                        // would not load used to close it as if it had.
+                        setRunsStatus(await chaosErrorMessage(r2, `Run ${loadID} could not be loaded.`), true);
+                        return;
                     }
+                    const data = await r2.json();
+                    const meta = currentRuns.find((r) => String(r && r.id) === String(data.runID || loadID)) || {};
+                    loadedRunID = data.runID || loadID;
+                    updateUI({
+                        active: false,
+                        stepsRun: data.stepsRun || 0,
+                        transitions: data.transitions || 0,
+                        uniqueScreens: data.uniqueScreens || 0,
+                        uniqueInputs: data.uniqueInputs || 0,
+                        loadedRunID,
+                        mindMap: data.mindMap || null,
+                        terminationReason: data.terminationReason || meta.terminationReason || '',
+                        targetHost: data.targetHost || meta.targetHost || '',
+                        label: data.label || meta.label || '',
+                        error: meta.error || '',
+                    });
+                    closeChaosModal(runsModal);
+                    pollStatus();
+                    if (typeof window.refreshWorkflowStatus === 'function') {
+                        await window.refreshWorkflowStatus();
+                    }
+                    const summary = chaosCountsSummary({
+                        steps: data.stepsRun || 0,
+                        screens: data.uniqueScreens || 0,
+                        inputs: data.uniqueInputs || 0,
+                        keys: data.uniqueKeys || 0,
+                    });
+                    notifyUi(
+                        `Loaded run ${chaosRunDisplayName({ id: loadedRunID, label: meta.label })}${summary ? ` (${summary})` : ''}.`,
+                        'success'
+                    );
                 } catch (_e) {
-                    // ignore
+                    setRunsStatus(`Run ${loadID} could not be loaded: network error.`, true);
+                } finally {
+                    setButtonBusy(target, false);
+                    syncRunsLoadButtons();
                 }
-                closeChaosModal(runsModal);
                 return;
             }
             const deleteID = target.getAttribute('data-delete-run-id');
             if (!deleteID) {
                 return;
             }
+            const run = currentRuns.find((r) => String(r && r.id) === deleteID) || { id: deleteID };
             const confirmed = await promptChaosConfirm({
-                title: 'Delete Chaos Run',
-                message: `Delete saved chaos run ${deleteID}?`,
-                confirmLabel: 'Delete',
+                title: 'Delete this saved run?',
+                message: `Run ${chaosRunDisplayName(run)} will be deleted from disk. This cannot be undone.`,
+                confirmLabel: 'Delete run',
             });
             if (!confirmed) {
                 return;
@@ -6616,10 +7653,11 @@
             target.disabled = true;
             const result = await deleteChaosRunsByID([deleteID]);
             if (result.deleted.length) {
-                notifyUi(`Deleted chaos run ${deleteID}.`, 'success');
+                setRunsStatus(`Deleted run ${deleteID}.`);
+                focusModalElement(runsModal, '[data-chaos-run-select], [data-chaos-runs-close]');
             } else {
                 target.disabled = false;
-                notifyUi(`Failed to delete chaos run ${deleteID}.`, 'error');
+                setRunsStatus(result.errors[0] || `Run ${deleteID} could not be deleted.`, true);
             }
         });
     }
@@ -6647,41 +7685,55 @@
                 return;
             }
             const confirmed = await promptChaosConfirm({
-                title: 'Delete Selected Chaos Runs',
-                message: `Delete ${ids.length} selected saved chaos run${ids.length === 1 ? '' : 's'}?`,
-                confirmLabel: `Delete ${ids.length}`,
+                title: ids.length === 1 ? 'Delete the selected run?' : `Delete ${ids.length} selected runs?`,
+                message: `${ids.length === 1 ? 'The selected run' : `The ${ids.length} selected runs`} will be deleted from disk. This cannot be undone.`,
+                confirmLabel: ids.length === 1 ? 'Delete run' : `Delete ${ids.length} runs`,
             });
             if (!confirmed) {
                 return;
             }
             runsDeleteSelectedBtn.disabled = true;
             const result = await deleteChaosRunsByID(ids);
-            if (result.deleted.length) {
-                notifyUi(
-                    `Deleted ${result.deleted.length} chaos run${result.deleted.length === 1 ? '' : 's'}.`,
-                    'success'
-                );
-            }
             if (result.failed.length) {
-                notifyUi(
-                    `Failed to delete ${result.failed.length} chaos run${result.failed.length === 1 ? '' : 's'}.`,
-                    'error'
+                setRunsStatus(
+                    `${result.deleted.length ? `Deleted ${pluralize(result.deleted.length, 'run')}. ` : ''}${pluralize(result.failed.length, 'run')} could not be deleted${result.errors[0] ? `: ${result.errors[0]}` : '.'}`,
+                    true
                 );
+            } else if (result.deleted.length) {
+                setRunsStatus(`Deleted ${pluralize(result.deleted.length, 'run')}.`);
             }
             syncRunsSelectionUI();
+            focusModalElement(runsModal, '[data-chaos-run-select], [data-chaos-runs-close]');
+        });
+    }
+    if (runsCompareBtn) {
+        runsCompareBtn.addEventListener('click', () => {
+            compareSelectedChaosRuns();
+        });
+    }
+    if (compareModal) {
+        compareModalClose.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeChaosModal(compareModal);
+            });
+        });
+        compareModal.addEventListener('click', (event) => {
+            if (event.target === compareModal) {
+                closeChaosModal(compareModal);
+            }
         });
     }
 
     if (hintsOpenBtn) {
         hintsOpenBtn.addEventListener('click', async () => {
-            openChaosModal(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
+            openChaosModal(hintsModal, '[data-chaos-key-blacklist]');
             hintsDirty = false;
             if (hintsList && hintsList.children.length === 0) {
                 renderHints(chaosHints);
             }
             renderChaosKeyBlacklist(chaosKeyBlacklist);
+            renderFirstScreenHint(chaosFirstScreenHint);
             await loadHints({ quiet: true });
-            focusModalElement(hintsModal, '[data-chaos-hint-transaction], [data-chaos-hints-add]');
         });
     }
     if (hintsMaximizeBtn) {
@@ -6697,28 +7749,13 @@
         });
     }
     if (mapOpenBtn) {
-        mapOpenBtn.addEventListener('click', async () => {
-            openChaosModal(mapModal, chaosMapTopFocusSelector);
-            setChaosMapStatus('Loading chaos mapâ€¦');
-            await loadScreenHints();
-            await pollStatus();
-            renderChaosMap();
-            if (mapList) {
-                mapList.scrollTop = 0;
-            }
-            if (mapModal) {
-                const modalPanel = mapModal.querySelector('.modal');
-                if (modalPanel) {
-                    modalPanel.scrollTop = 0;
-                }
-                const modalStack = mapModal.querySelector('.stack');
-                if (modalStack) {
-                    modalStack.scrollTop = 0;
-                }
-            }
-            const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
-            focusModalElement(mapModal, chaosMapTopFocusSelector);
+        mapOpenBtn.addEventListener('click', () => {
+            openChaosMapModal();
+        });
+    }
+    if (flowMenuOpenBtn) {
+        flowMenuOpenBtn.addEventListener('click', () => {
+            openChaosFlowFromMap();
         });
     }
     if (mapViewBtn) {
@@ -6768,33 +7805,12 @@
     if (hintsModal) {
         hintsModalClose.forEach((btn) => {
             btn.addEventListener('click', () => {
-                closeChaosModal(hintsModal);
+                requestCloseHintsModal();
             });
         });
         hintsModal.addEventListener('click', (event) => {
             if (event.target === hintsModal) {
-                closeChaosModal(hintsModal);
-            }
-        });
-    }
-    if (hostConfirmModal) {
-        hostConfirmCancelButtons.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                if (settlePendingHostConfirm) {
-                    settlePendingHostConfirm(false);
-                }
-            });
-        });
-        if (hostConfirmOkBtn) {
-            hostConfirmOkBtn.addEventListener('click', () => {
-                if (settlePendingHostConfirm) {
-                    settlePendingHostConfirm(true);
-                }
-            });
-        }
-        hostConfirmModal.addEventListener('click', (event) => {
-            if (event.target === hostConfirmModal && settlePendingHostConfirm) {
-                settlePendingHostConfirm(false);
+                requestCloseHintsModal();
             }
         });
     }
@@ -6861,12 +7877,121 @@
     }
     if (mapRefreshBtn) {
         mapRefreshBtn.addEventListener('click', async () => {
-            setChaosMapStatus('Refreshing chaos mapâ€¦');
-            await refreshChaosMapView();
-            const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
+            setChaosMapStatus('Refreshing the screen map…');
+            setButtonBusy(mapRefreshBtn, true);
+            try {
+                const failure = await refreshChaosMapView();
+                if (failure) {
+                    setChaosMapStatus(failure, true);
+                } else {
+                    setChaosMapStatus(chaosMapStatusText());
+                }
+            } finally {
+                setButtonBusy(mapRefreshBtn, false);
+            }
         });
     }
+    if (mapList) {
+        // A card left alone while it was being edited is brought up to date
+        // as soon as focus leaves it.
+        mapList.addEventListener('focusout', () => {
+            if (!mapRenderPending) {
+                return;
+            }
+            window.setTimeout(() => {
+                if (mapRenderPending && mapModal && !mapModal.hidden) {
+                    renderChaosMap();
+                    setChaosMapStatus(chaosMapStatusText());
+                }
+            }, 0);
+        });
+    }
+    if (mapExportBtn) {
+        mapExportBtn.addEventListener('click', async () => {
+            setButtonBusy(mapExportBtn, true);
+            try {
+                const resp = await fetch('/chaos/mindmap/export', { headers: { Accept: 'application/json' } });
+                if (!resp.ok) {
+                    setChaosMapStatus(await chaosErrorMessage(resp, 'The screen map could not be exported.'), true);
+                    return;
+                }
+                const text = await resp.text();
+                const name = loadedRunID ? `screen-map-${loadedRunID}.json` : 'screen-map.json';
+                downloadChaosFile(name, text, 'application/json');
+                setChaosMapStatus(`Screen map exported as ${name}.`);
+            } catch (_err) {
+                setChaosMapStatus('The screen map could not be exported: network error.', true);
+            } finally {
+                setButtonBusy(mapExportBtn, false);
+            }
+        });
+    }
+    if (mapImportBtn && mapImportInput) {
+        mapImportBtn.addEventListener('click', () => {
+            mapImportInput.click();
+        });
+        mapImportInput.addEventListener('change', async () => {
+            const file = mapImportInput.files && mapImportInput.files.length ? mapImportInput.files[0] : null;
+            mapImportInput.value = '';
+            if (!file) {
+                return;
+            }
+            setButtonBusy(mapImportBtn, true);
+            setChaosMapStatus(`Importing ${file.name}…`);
+            try {
+                const text = await file.text();
+                try {
+                    JSON.parse(text);
+                } catch (_parseErr) {
+                    setChaosMapStatus(`${file.name} is not a screen map: it is not valid JSON.`, true);
+                    return;
+                }
+                const resp = await fetch('/chaos/mindmap/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: text,
+                });
+                if (!resp.ok) {
+                    setChaosMapStatus(await chaosErrorMessage(resp, 'The screen map could not be imported.'), true);
+                    return;
+                }
+                let imported = 0;
+                try {
+                    imported = Number((await resp.json()).areasImported) || 0;
+                } catch (_err) {
+                    imported = 0;
+                }
+                const failure = await refreshChaosMapView();
+                if (typeof window.refreshWorkflowStatus === 'function') {
+                    window.refreshWorkflowStatus();
+                }
+                setChaosMapStatus(failure || `Imported ${pluralize(imported, 'screen variant')} from ${file.name}. ${chaosMapStatusText()}`, !!failure);
+            } catch (_err) {
+                setChaosMapStatus('The screen map could not be imported: network error.', true);
+            } finally {
+                setButtonBusy(mapImportBtn, false);
+                applyChaosInterlocks();
+            }
+        });
+    }
+    [mapTaskBtn, taskOpenBtn].forEach((btn) => {
+        if (!btn) {
+            return;
+        }
+        btn.addEventListener('click', () => {
+            const wizard = window.ThreeSeventyWeb && window.ThreeSeventyWeb.taskWizard;
+            if (!wizard || typeof wizard.openFromExploration !== 'function') {
+                notifyUi('The task wizard is not available on this page.', 'error');
+                return;
+            }
+            // The wizard is a dialog on the shared stack; the screen map is
+            // on this module's. Close ours so the two do not fight over focus.
+            if (mapModal && !mapModal.hidden) {
+                closeChaosModal(mapModal, { restoreFocus: false });
+            }
+            wizard.openFromExploration();
+        });
+    });
     if (mapMaximizeBtn) {
         mapMaximizeBtn.addEventListener('click', () => {
             setMapModalMaximized(true);
@@ -6881,21 +8006,46 @@
     }
     flowRefreshButtons.forEach((btn) => {
         btn.addEventListener('click', async () => {
-            setFlowStatus('Refreshing discovery flow...');
-            await refreshChaosMapView();
+            setFlowStatus('Refreshing the flow diagram…');
+            await Promise.all([loadScreenHints(), pollStatus()]);
+            let failure = '';
+            await fetchFullChaosMap({ force: true, onError: (message) => { failure = message; } });
             renderChaosFlowModal();
             if (flowContent) {
                 flowContent.scrollTop = 0;
             }
-            const areaCount = getChaosMapUniqueScreenCount();
-            {
-                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
-                setFlowStatus(msg);
-                notifyUi(msg, 'info');
+            if (failure) {
+                setFlowStatus(failure, true);
+            } else {
+                setFlowStatus(chaosFlowStatusText());
             }
-            focusModalElement(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]');
         });
     });
+    if (flowContent) {
+        // The diagram is not redrawn under a drag; it catches up on release.
+        flowContent.addEventListener('pointerdown', () => {
+            flowPointerActive = true;
+        });
+        const releaseFlowPointer = () => {
+            if (!flowPointerActive) {
+                return;
+            }
+            flowPointerActive = false;
+            if (flowModal && !flowModal.hidden) {
+                renderChaosFlowModal({ force: false });
+            }
+        };
+        window.addEventListener('pointerup', releaseFlowPointer);
+        window.addEventListener('pointercancel', releaseFlowPointer);
+    }
+    if (reportContent) {
+        reportContent.addEventListener('click', (event) => {
+            const opener = event.target instanceof Element ? event.target.closest('[data-chaos-report-open-flow]') : null;
+            if (opener) {
+                openChaosFlowFromMap();
+            }
+        });
+    }
     if (flowMaximizeBtn) {
         flowMaximizeBtn.addEventListener('click', () => {
             setFlowModalMaximized(true);
@@ -6912,7 +8062,7 @@
         reportRefreshBtn.addEventListener('click', async () => {
             setButtonBusy(reportRefreshBtn, true);
             try {
-                await refreshChaosReportView({ statusMessage: 'Refreshing chaos report...' });
+                await refreshChaosReportView({ statusMessage: 'Refreshing the discovery report\u2026' });
                 focusModalElement(reportModal, chaosReportTopFocusSelector);
             } catch (_err) {
                 // handled in refreshChaosReportView
@@ -6925,7 +8075,7 @@
         reportRawToggleBtn.addEventListener('click', () => {
             setReportRawToggleState(!reportRawMarkdownMode);
             renderChaosReportCurrentView();
-            setReportStatus(reportRawMarkdownMode ? 'Showing raw markdown for copy/paste.' : 'Showing formatted report view.');
+            setReportStatus(reportRawMarkdownMode ? 'Showing the raw Markdown, for copying.' : 'Showing the formatted report.');
             if (!reportRawMarkdownMode) {
                 focusModalElement(reportModal, chaosReportTopFocusSelector);
             }
@@ -6936,12 +8086,9 @@
             setButtonBusy(reportDownloadBtn, true);
             try {
                 await downloadChaosReportMarkdown();
-                setReportStatus('Report downloaded.');
-                notifyUi('Chaos report downloaded.', 'success');
+                setReportStatus(`Report downloaded as ${chaosReportFileName()}.`);
             } catch (err) {
-                const msg = (err && err.message) ? err.message : 'Failed to download report.';
-                setReportStatus(msg, true);
-                notifyUi(msg, 'error');
+                setReportStatus((err && err.message) ? err.message : 'Failed to download the report.', true);
             } finally {
                 setButtonBusy(reportDownloadBtn, false);
             }
@@ -6952,7 +8099,10 @@
             btn.addEventListener('click', () => settleChaosConfirm(false));
         });
         if (confirmOkButton) {
-            confirmOkButton.addEventListener('click', () => settleChaosConfirm(true));
+            confirmOkButton.addEventListener('click', () => settleChaosConfirm('confirm'));
+        }
+        if (confirmAltButton) {
+            confirmAltButton.addEventListener('click', () => settleChaosConfirm('alt'));
         }
         confirmModal.addEventListener('click', (e) => {
             if (e.target === confirmModal) {
@@ -7173,49 +8323,514 @@
         return cfg;
     };
 
-    const notifyChaosError = async (resp, fallbackMessage) => {
-        if (!window.ThreeSeventyWeb || !window.ThreeSeventyWeb.notify) {
-            return;
+    // The server's own explanation of a failed request, or the fallback when
+    // it gave none. Never the raw body: a JSON object in a toast is not a
+    // message.
+    const chaosErrorMessage = async (resp, fallbackMessage) => {
+        if (!resp) {
+            return fallbackMessage;
         }
-        let message = fallbackMessage;
-        if (resp) {
+        handleChaosAuthFailure(resp);
+        let text = '';
+        try {
+            text = await resp.text();
+        } catch (_err) {
+            text = '';
+        }
+        if (text) {
             try {
-                const body = await resp.json();
-                if (body && body.error) {
-                    message = body.error;
+                const parsed = JSON.parse(text);
+                const detail = parsed && typeof parsed.error === 'string' ? parsed.error.trim() : '';
+                if (detail) {
+                    return detail.charAt(0).toUpperCase() + detail.slice(1);
                 }
             } catch (_err) {
-                // Response wasn't JSON (or already consumed) â€“ fall back to the generic message.
+                // Not JSON: an HTML error page or a proxy's text. Use the fallback.
             }
         }
-        window.ThreeSeventyWeb.notify(message, 'error');
+        return fallbackMessage;
     };
 
-    const startChaosRun = async () => {
-        if (!startBtn) {
+    const notifyChaosError = async (resp, fallbackMessage) => {
+        const message = await chaosErrorMessage(resp, fallbackMessage);
+        if (resp && (resp.status === 401 || resp.status === 403)) {
+            // handleChaosAuthFailure has already put up the sign-in banner.
+            return message;
+        }
+        notifyUi(message, 'error');
+        return message;
+    };
+
+    const downloadChaosFile = (name, text, mime) => {
+        const blob = new Blob([text], { type: mime || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    // ---- the start dialog ----------------------------------------------
+    const chaosStartKeyChoices = [
+        'Enter', 'PF1', 'PF2', 'PF3', 'PF4', 'PF5', 'PF6', 'PF7', 'PF8', 'PF9', 'PF10', 'PF11', 'PF12',
+        'PA1', 'PA2', 'Clear',
+    ];
+    // What an exploration tries when nothing says otherwise.
+    const chaosStartUsualKeys = ['Enter', 'PF1', 'PF2', 'PF4', 'PF12'];
+    let startDialogKeys = new Set(chaosStartUsualKeys);
+
+    const chaosKeyWireName = (key) => {
+        const match = /^(PF|PA)(\d+)$/.exec(key);
+        return match ? `${match[1]}(${match[2]})` : key;
+    };
+
+    const setStartStatus = (message, isError = false) => setStatusLine(startModalStatus, message, isError);
+
+    const buildStartDialogKeys = () => {
+        if (!startModalKeys || startModalKeys.children.length) {
             return;
         }
-        setButtonBusy(startBtn, true);
+        chaosStartKeyChoices.forEach((key) => {
+            const id = `chaos-start-key-${key.toLowerCase()}`;
+            const label = document.createElement('label');
+            label.className = 'chaos-start-key';
+            label.htmlFor = id;
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = id;
+            input.value = key;
+            input.dataset.chaosStartKey = key;
+            const text = document.createElement('span');
+            text.textContent = key;
+            label.appendChild(input);
+            label.appendChild(text);
+            startModalKeys.appendChild(label);
+        });
+    };
+
+    const setStartDialogKeys = (keys) => {
+        if (!startModalKeys) {
+            return;
+        }
+        const wanted = new Set(keys);
+        startModalKeys.querySelectorAll('[data-chaos-start-key]').forEach((input) => {
+            input.checked = wanted.has(input.value);
+        });
+    };
+
+    const readStartDialogKeys = () => (startModalKeys
+        ? Array.from(startModalKeys.querySelectorAll('[data-chaos-start-key]'))
+            .filter((input) => input.checked)
+            .map((input) => input.value)
+        : chaosStartUsualKeys.slice());
+
+    const readStartBlockedKeys = () => {
+        const seen = new Set();
+        return parseListLines(startModalBlockedKeys ? startModalBlockedKeys.value : '').filter((key) => {
+            const normalized = String(key || '').trim();
+            if (!normalized || seen.has(normalized.toUpperCase())) {
+                return false;
+            }
+            seen.add(normalized.toUpperCase());
+            return true;
+        });
+    };
+
+    const syncStartBlockedWarning = () => {
+        if (startModalBlockedWarning) {
+            startModalBlockedWarning.hidden = readStartBlockedKeys().length > 0;
+        }
+    };
+
+    const chaosTargetHost = () => {
+        const fromStatus = String((lastStatus && lastStatus.targetHost) || '').trim();
+        if (fromStatus) {
+            return fromStatus;
+        }
+        return String((body && body.dataset.targetHost) || '').trim();
+    };
+
+    // The limits a run gets when the dialog leaves them empty: whatever
+    // Settings says. Read from the server so the dialog shows the real
+    // figures even when Settings has never been opened on this page.
+    const loadChaosLimitDefaults = async () => {
+        const fromDom = (key) => {
+            const el = document.querySelector(`[data-setting-key="${key}"]`);
+            return el && typeof el.value === 'string' ? el.value.trim() : '';
+        };
+        let settings = null;
         try {
+            const resp = await fetch('/api/settings', { headers: { Accept: 'application/json' } });
+            if (resp.ok) {
+                const data = await resp.json();
+                settings = (data && data.settings) || null;
+            }
+        } catch (_err) {
+            settings = null;
+        }
+        const read = (key) => String((settings && settings[key] != null ? settings[key] : fromDom(key)) || '').trim();
+        return {
+            maxSteps: read('CHAOS_MAX_STEPS'),
+            timeBudgetSec: read('CHAOS_TIME_BUDGET_SEC'),
+        };
+    };
+
+    const openStartDialog = async (requestedMode = 'start') => {
+        if (!startModal) {
+            return false;
+        }
+        if (lastStatus && lastStatus.active) {
+            notifyUi('An exploration is already running.', 'info');
+            return false;
+        }
+        if (isRecordingActive() || isPlaybackActive()) {
+            notifyUi('Stop recording or playback before starting an exploration.', 'warning');
+            return false;
+        }
+        const mode = requestedMode === 'continue' && loadedRunID ? 'continue' : 'start';
+        startDialogMode = mode;
+        const continuing = mode === 'continue';
+        const stepsSoFar = Number(lastStatus && lastStatus.stepsRun) || 0;
+
+        if (startModalTitle) {
+            startModalTitle.textContent = continuing ? 'Continue exploring' : 'Start exploration';
+        }
+        if (startModalConfirmBtn) {
+            startModalConfirmBtn.textContent = continuing ? 'Continue exploring' : 'Start exploration';
+        }
+        if (startModalHost) {
+            startModalHost.textContent = chaosTargetHost() || 'The host this session is connected to';
+        }
+        if (startModalRunRow && startModalRun) {
+            startModalRunRow.hidden = !continuing;
+            const runName = String((lastStatus && lastStatus.label) || '').trim();
+            startModalRun.textContent = continuing
+                ? `Run ${runName ? `${runName} (${loadedRunID})` : loadedRunID}, ${pluralize(stepsSoFar, 'step')} so far. It carries on from the screen you are on now, with everything it has already learned.`
+                : '';
+        }
+        if (startModalStepsLabel) {
+            startModalStepsLabel.textContent = continuing ? 'Extra steps' : 'Step limit';
+        }
+        if (startModalStepsHelp) {
+            startModalStepsHelp.textContent = continuing
+                ? `How many more times it may press a key, on top of the ${stepsSoFar} it has already used. Leave empty for 100 more.`
+                : 'How many times it may press a key. Leave empty to use the limit from Settings.';
+        }
+        const timeHelp = document.getElementById('chaos-start-time-budget-help');
+        if (timeHelp) {
+            timeHelp.textContent = continuing
+                ? 'It stops when either limit is reached. Leave empty for 5 minutes.'
+                : 'It stops when either limit is reached. Leave empty to use the limit from Settings.';
+        }
+        if (startModalMaxSteps) {
+            startModalMaxSteps.value = '';
+            startModalMaxSteps.placeholder = '';
+        }
+        if (startModalTimeBudget) {
+            startModalTimeBudget.value = '';
+            startModalTimeBudget.placeholder = '';
+        }
+        if (startModalBlockedKeys) {
+            startModalBlockedKeys.value = formatListLines(chaosKeyBlacklist);
+        }
+        buildStartDialogKeys();
+        setStartDialogKeys(Array.from(startDialogKeys));
+        syncStartBlockedWarning();
+        setStartStatus('');
+        openChaosModal(startModal, '[data-chaos-start-max-steps]');
+
+        // Fill in the limits once known. A value somebody has already typed
+        // is left alone.
+        const [limits] = await Promise.all([loadChaosLimitDefaults(), loadHints({ quiet: true })]);
+        if (startModal.hidden || startDialogMode !== mode) {
+            return true;
+        }
+        const fill = (input, raw, fallback) => {
+            if (!input || input.value !== '') {
+                return;
+            }
+            const n = Number(raw);
+            if (raw !== '' && Number.isFinite(n) && n > 0) {
+                input.value = String(n);
+            } else if (continuing) {
+                input.value = String(fallback);
+            } else {
+                input.placeholder = raw === '0' ? 'No limit' : 'From Settings';
+            }
+        };
+        fill(startModalMaxSteps, limits.maxSteps, 100);
+        fill(startModalTimeBudget, limits.timeBudgetSec, 300);
+        if (startModalBlockedKeys && document.activeElement !== startModalBlockedKeys
+            && startModalBlockedKeys.value === '') {
+            startModalBlockedKeys.value = formatListLines(chaosKeyBlacklist);
+        }
+        syncStartBlockedWarning();
+        return true;
+    };
+
+    // Blocked keys changed in the start dialog become the saved default: the
+    // server falls back to the saved list whenever a request carries none, so
+    // an emptied list sent only with the request would be quietly ignored.
+    const saveStartBlockedKeys = async (keys) => {
+        const resp = await fetch('/chaos/hints', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                hints: chaosHints,
+                keyBlacklist: keys,
+                firstScreenHint: chaosFirstScreenHint,
+            }),
+        });
+        if (!resp.ok) {
+            throw new Error(await chaosErrorMessage(resp, 'The blocked keys could not be saved.'));
+        }
+        const payload = await resp.json();
+        chaosHints = normalizeHints(payload.hints || []);
+        chaosKeyBlacklist = parseListLines(payload.keyBlacklist || []);
+        chaosFirstScreenHint = normalizeScreenHint(payload.firstScreenHint || {});
+        if (!(hintsModal && !hintsModal.hidden)) {
+            renderChaosKeyBlacklist(chaosKeyBlacklist);
+        }
+    };
+
+    const readStartLimit = (input, name) => {
+        const raw = input ? input.value.trim() : '';
+        if (raw === '') {
+            return { value: null };
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n < 1 || Math.floor(n) !== n) {
+            return { error: `${name} must be a whole number of 1 or more, or left empty.`, input };
+        }
+        return { value: n };
+    };
+
+    const submitStartDialog = async () => {
+        if (startDialogBusy || !startModal || startModal.hidden) {
+            return;
+        }
+        const mode = startDialogMode;
+        const continuing = mode === 'continue';
+        const steps = readStartLimit(startModalMaxSteps, continuing ? 'Extra steps' : 'Step limit');
+        const time = readStartLimit(startModalTimeBudget, 'Time limit');
+        const invalid = steps.error ? steps : (time.error ? time : null);
+        if (invalid) {
+            setStartStatus(invalid.error, true);
+            invalid.input.setAttribute('aria-invalid', 'true');
+            invalid.input.focus();
+            return;
+        }
+        [startModalMaxSteps, startModalTimeBudget].forEach((input) => {
+            if (input) {
+                input.removeAttribute('aria-invalid');
+            }
+        });
+        const keys = readStartDialogKeys();
+        if (!keys.length) {
+            setStartStatus('Tick at least one key for the exploration to try.', true);
+            const first = startModalKeys ? startModalKeys.querySelector('[data-chaos-start-key]') : null;
+            if (first) {
+                first.focus();
+            }
+            return;
+        }
+        const blocked = readStartBlockedKeys();
+
+        startDialogBusy = true;
+        setButtonBusy(startModalConfirmBtn, true);
+        setStartStatus(continuing ? 'Continuing…' : 'Starting…');
+        try {
+            if (blocked.join('\n') !== chaosKeyBlacklist.join('\n')) {
+                try {
+                    await saveStartBlockedKeys(blocked);
+                } catch (err) {
+                    setStartStatus((err && err.message) || 'The blocked keys could not be saved.', true);
+                    return;
+                }
+            }
+            const proceed = await confirmLoggingBeforeChaosStart();
+            if (!proceed) {
+                setStartStatus('');
+                return;
+            }
             const cfg = readChaosConfig();
-            const resp = await fetch('/chaos/start', {
+            if (steps.value !== null) {
+                cfg.maxSteps = steps.value;
+            }
+            if (time.value !== null) {
+                cfg.timeBudgetSec = time.value;
+            }
+            if (blocked.length) {
+                cfg.keyBlacklist = blocked;
+            } else {
+                delete cfg.keyBlacklist;
+            }
+            const usual = chaosStartUsualKeys.slice().sort().join(',');
+            if (keys.slice().sort().join(',') !== usual) {
+                // Enter carries most of the weight, as it does by default:
+                // it is the key that submits a screen.
+                const weights = {};
+                keys.forEach((key) => {
+                    weights[chaosKeyWireName(key)] = key === 'Enter' ? 70 : 5;
+                });
+                cfg.aidKeyWeights = weights;
+            }
+            if (continuing) {
+                cfg.extendLimits = true;
+            }
+            const resp = await fetch(continuing ? '/chaos/resume' : '/chaos/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(cfg),
             });
-            if (resp.ok) {
-                updateUI({ active: true, stepsRun: 0, transitions: 0 });
-                pollStatus();
-                if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
-                    window.ThreeSeventyWeb.notify('Chaos exploration started.', 'info');
-                }
+            if (!resp.ok) {
+                setStartStatus(await chaosErrorMessage(
+                    resp,
+                    continuing ? 'The exploration could not be continued.' : 'The exploration could not be started.'
+                ), true);
+                return;
+            }
+            startDialogKeys = new Set(keys);
+            startDialogBusy = false;
+            closeChaosModal(startModal, { restoreFocus: false });
+            if (!continuing) {
+                // A new run starts a new map.
+                loadedRunID = null;
+                latestMindMap = null;
+                latestMindMapIsFull = false;
+                latestSlimSignature = '';
+                fullMapSlimSignature = '';
+                latestAreaCount = 0;
+                groupedScreenCount.areaCount = -1;
+                groupedScreenCount.screens = 0;
+            }
+            lastInsightsKey = '';
+            userRequestedStop = false;
+            updateUI(continuing
+                ? { active: true, stepsRun: stepsSoFarForContinue(), transitions: 0, loadedRunID }
+                : { active: true, stepsRun: 0, transitions: 0 });
+            pollStatus();
+            const message = continuing ? 'Exploration continuing.' : 'Exploration started.';
+            notifyUi(message, 'info');
+            if (typeof window.refreshWorkflowStatus === 'function') {
+                await window.refreshWorkflowStatus();
+            }
+            // The strip has just appeared with the one control that matters
+            // now; put focus on it rather than leave it on the page body.
+            if (activeRunStopBtn && activeRunStopBtn.getClientRects().length) {
+                activeRunStopBtn.focus();
             } else {
-                await notifyChaosError(resp, 'Failed to start chaos exploration.');
+                restoreChaosFocus(null);
             }
         } catch (_err) {
-            await notifyChaosError(null, 'Failed to start chaos exploration: network error.');
+            setStartStatus(continuing
+                ? 'The exploration could not be continued: network error.'
+                : 'The exploration could not be started: network error.', true);
         } finally {
-            setButtonBusy(startBtn, false);
+            startDialogBusy = false;
+            setButtonBusy(startModalConfirmBtn, false);
+            applyChaosInterlocks();
+        }
+    };
+
+    const stepsSoFarForContinue = () => Number(lastStatus && lastStatus.stepsRun) || 0;
+
+    if (startModal) {
+        startModalCancelButtons.forEach((btn) => {
+            btn.addEventListener('click', () => requestCloseChaosModal(startModal));
+        });
+        startModal.addEventListener('click', (event) => {
+            if (event.target === startModal) {
+                requestCloseChaosModal(startModal);
+            }
+        });
+        if (startForm) {
+            startForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                submitStartDialog();
+            });
+        }
+        if (startModalBlockedKeys) {
+            startModalBlockedKeys.addEventListener('input', syncStartBlockedWarning);
+        }
+        if (startModalKeysDefaultBtn) {
+            startModalKeysDefaultBtn.addEventListener('click', () => setStartDialogKeys(chaosStartUsualKeys));
+        }
+        if (startModalKeysAllBtn) {
+            startModalKeysAllBtn.addEventListener('click', () => setStartDialogKeys(chaosStartKeyChoices));
+        }
+    }
+
+    const stopChaosRun = async () => {
+        const buttons = [stopBtn, activeRunStopBtn].filter(Boolean);
+        buttons.forEach((btn) => setButtonBusy(btn, true));
+        userRequestedStop = true;
+        try {
+            const resp = await fetch('/chaos/stop', { method: 'POST' });
+            if (!resp.ok) {
+                userRequestedStop = false;
+                await notifyChaosError(resp, 'The exploration could not be stopped.');
+            }
+            // No toast from here: the run ending is announced once, by the
+            // status change, with how many steps it took.
+            await pollStatus();
+            if (typeof window.refreshWorkflowStatus === 'function') {
+                window.refreshWorkflowStatus();
+            }
+        } catch (_err) {
+            userRequestedStop = false;
+            await notifyChaosError(null, 'The exploration could not be stopped: network error.');
+        } finally {
+            buttons.forEach((btn) => setButtonBusy(btn, false));
+            applyChaosInterlocks();
+        }
+    };
+
+    const exportChaosWorkflow = async (button) => {
+        setButtonBusy(button, true);
+        try {
+            const resp = await fetch('/chaos/export', { method: 'POST' });
+            if (!resp.ok) {
+                await notifyChaosError(resp, 'The workflow could not be exported.');
+                return;
+            }
+            const data = await resp.text();
+            const name = loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json';
+            if (typeof window.openWorkflowJsonEditor === 'function') {
+                window.openWorkflowJsonEditor({
+                    title: 'Exploration workflow JSON',
+                    name,
+                    downloadName: name,
+                    content: data,
+                    editable: true,
+                    saveMode: 'chaos-workflow',
+                    showSave: false,
+                    showLoad: true,
+                    showDownload: true,
+                });
+            } else {
+                downloadChaosFile(name, data, 'application/json');
+                notifyUi('Workflow JSON downloaded.', 'success');
+            }
+        } catch (_err) {
+            await notifyChaosError(null, 'The workflow could not be exported: network error.');
+        } finally {
+            setButtonBusy(button, false);
+            applyChaosInterlocks();
+        }
+    };
+
+    const openChaosReportFrom = async (button) => {
+        setButtonBusy(button, true);
+        try {
+            await openChaosReportModal();
+        } catch (_err) {
+            // The dialog is open and says what went wrong.
+        } finally {
+            setButtonBusy(button, false);
             applyChaosInterlocks();
         }
     };
@@ -7281,44 +8896,17 @@
     pollStatus();
 
     if (startBtn) {
-        startBtn.addEventListener('click', async () => {
+        startBtn.addEventListener('click', () => {
             if (startBtn.disabled || startBtn.getAttribute('aria-busy') === 'true') {
                 return;
             }
-            // First, and before anything is awaited: the dialog is on screen
-            // before the menu has finished closing behind the click.
-            if (!(await confirmChaosHostStart('Start'))) {
-                applyChaosInterlocks();
-                return;
-            }
-            const proceed = await confirmLoggingBeforeChaosStart();
-            if (!proceed) {
-                applyChaosInterlocks();
-                return;
-            }
-            await startChaosRun();
+            openStartDialog('start');
         });
     }
 
     if (stopBtn) {
-        stopBtn.addEventListener('click', async () => {
-            setButtonBusy(stopBtn, true);
-            try {
-                const resp = await fetch('/chaos/stop', { method: 'POST' });
-                await pollStatus();
-                if (resp.ok) {
-                    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
-                        window.ThreeSeventyWeb.notify('Chaos exploration stopped.', 'info');
-                    }
-                } else {
-                    await notifyChaosError(resp, 'Failed to stop chaos exploration.');
-                }
-            } catch (_err) {
-                await notifyChaosError(null, 'Failed to stop chaos exploration: network error.');
-            } finally {
-                setButtonBusy(stopBtn, false);
-                applyChaosInterlocks();
-            }
+        stopBtn.addEventListener('click', () => {
+            stopChaosRun();
         });
     }
 
@@ -7333,34 +8921,36 @@
             setButtonBusy(loadRecordingBtn, true);
             try {
                 const resp = await fetch('/chaos/load-recording', { method: 'POST' });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    loadedRunID = data.runID || loadedRunID;
-                    updateUI({
-                        active: false,
-                        stepsRun: data.stepsRun || 0,
-                        transitions: data.transitions || 0,
-                        uniqueScreens: data.uniqueScreens || 0,
-                        uniqueInputs: data.uniqueInputs || 0,
-                        loadedRunID,
-                        mindMap: data.mindMap || null,
-                    });
-                    if (typeof window.refreshWorkflowStatus === 'function') {
-                        await window.refreshWorkflowStatus();
-                    }
-                    const summary = chaosCountsSummary({
-                        steps: data.stepsRun || data.stepsSeeded || 0,
-                        screens: data.uniqueScreens || 0,
-                        inputs: data.uniqueInputs || 0,
-                        keys: data.uniqueKeys || 0,
-                    });
-                    notifyUi(
-                        `Loaded recording into chaos${summary ? ` (${summary})` : ''}.`,
-                        'success'
-                    );
+                if (!resp.ok) {
+                    await notifyChaosError(resp, 'The recording could not be loaded into exploration.');
+                    return;
                 }
+                const data = await resp.json();
+                loadedRunID = data.runID || loadedRunID;
+                updateUI({
+                    active: false,
+                    stepsRun: data.stepsRun || 0,
+                    transitions: data.transitions || 0,
+                    uniqueScreens: data.uniqueScreens || 0,
+                    uniqueInputs: data.uniqueInputs || 0,
+                    loadedRunID,
+                    mindMap: data.mindMap || null,
+                });
+                if (typeof window.refreshWorkflowStatus === 'function') {
+                    await window.refreshWorkflowStatus();
+                }
+                const summary = chaosCountsSummary({
+                    steps: data.stepsRun || data.stepsSeeded || 0,
+                    screens: data.uniqueScreens || 0,
+                    inputs: data.uniqueInputs || 0,
+                    keys: data.uniqueKeys || 0,
+                });
+                notifyUi(
+                    `Recording loaded into exploration${summary ? ` (${summary})` : ''}.`,
+                    'success'
+                );
             } catch (_err) {
-                // Ignore
+                await notifyChaosError(null, 'The recording could not be loaded into exploration: network error.');
             } finally {
                 setButtonBusy(loadRecordingBtn, false);
                 applyChaosInterlocks();
@@ -7368,176 +8958,95 @@
         });
     }
 
-    if (resumeBtn) {
-        resumeBtn.addEventListener('click', async () => {
+    // "Continue exploring", from the menu, the strip and the results panel.
+    [resumeBtn, runPanelContinueBtn].forEach((btn) => {
+        if (!btn) {
+            return;
+        }
+        btn.addEventListener('click', () => {
+            if (btn.disabled || btn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
             if (!loadedRunID) {
+                notifyUi('There is no saved run to continue yet. Wait for the run to be saved, or load one from Saved runs.', 'info');
                 return;
             }
-            if (resumeBtn.disabled || resumeBtn.getAttribute('aria-busy') === 'true') {
-                return;
-            }
-            if (!(await confirmChaosHostStart('Resume'))) {
-                applyChaosInterlocks();
-                return;
-            }
-            const proceed = await confirmLoggingBeforeChaosStart();
-            if (!proceed) {
-                applyChaosInterlocks();
-                return;
-            }
-            setButtonBusy(resumeBtn, true);
-            try {
-                const cfg = readChaosConfig();
-                const resp = await fetch('/chaos/resume', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cfg),
-                });
-                if (resp.ok) {
-                    updateUI({ active: true, stepsRun: 0, transitions: 0, loadedRunID });
-                    pollStatus();
-                }
-            } catch (_err) {
-                // Ignore
-            } finally {
-                setButtonBusy(resumeBtn, false);
-                applyChaosInterlocks();
-            }
+            openStartDialog('continue');
         });
-    }
+    });
 
-    if (extendBtn) {
-        extendBtn.addEventListener('click', async () => {
-            if (!loadedRunID) {
-                return;
-            }
-            if (extendBtn.disabled || extendBtn.getAttribute('aria-busy') === 'true') {
-                return;
-            }
-            if (!(await confirmChaosHostStart('Extend'))) {
-                applyChaosInterlocks();
-                return;
-            }
-            const proceed = await confirmLoggingBeforeChaosStart();
-            if (!proceed) {
-                applyChaosInterlocks();
-                return;
-            }
-            setButtonBusy(extendBtn, true);
-            try {
-                const cfg = readChaosConfig();
-                cfg.extendLimits = true;
-                const resp = await fetch('/chaos/resume', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cfg),
-                });
-                if (resp.ok) {
-                    updateUI({ active: true, stepsRun: 0, transitions: 0, loadedRunID });
-                    pollStatus();
-                }
-            } catch (_err) {
-                // Ignore
-            } finally {
-                setButtonBusy(extendBtn, false);
-                applyChaosInterlocks();
-            }
-        });
-    }
+    [exportBtn, runPanelExportBtn].forEach((btn) => {
+        if (btn) {
+            btn.addEventListener('click', () => {
+                exportChaosWorkflow(btn);
+            });
+        }
+    });
 
-    if (exportBtn) {
-        exportBtn.addEventListener('click', async () => {
-            setButtonBusy(exportBtn, true);
-            try {
-                const resp = await fetch('/chaos/export', { method: 'POST' });
-                if (resp.ok) {
-                    const data = await resp.text();
-                    if (typeof window.openWorkflowJsonEditor === 'function') {
-                        window.openWorkflowJsonEditor({
-                            title: 'Chaos Workflow JSON',
-                            name: loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json',
-                            downloadName: loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json',
-                            content: data,
-                            editable: true,
-                            saveMode: 'chaos-workflow',
-                            showSave: false,
-                            showLoad: true,
-                            showDownload: true,
-                        });
-                    } else {
-                        const blob = new Blob([data], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = loadedRunID ? `chaos-workflow-${loadedRunID}.json` : 'chaos-workflow.json';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        notifyUi('Chaos workflow JSON downloaded.', 'success');
-                    }
-                } else {
-                    let message = 'Failed to export chaos workflow JSON.';
-                    try {
-                        const bodyText = await resp.text();
-                        if (bodyText) {
-                            message = bodyText;
-                        }
-                    } catch (_err) {
-                        // ignore response parse failures
-                    }
-                    notifyUi(message, 'error');
-                }
-            } catch (err) {
-                notifyUi((err && err.message) ? err.message : 'Failed to export chaos workflow JSON.', 'error');
-            } finally {
-                setButtonBusy(exportBtn, false);
-                applyChaosInterlocks();
-            }
-        });
-    }
+    [reportBtn, runPanelReportBtn].forEach((btn) => {
+        if (btn) {
+            btn.addEventListener('click', () => {
+                openChaosReportFrom(btn);
+            });
+        }
+    });
 
-    if (reportBtn) {
-        reportBtn.addEventListener('click', async () => {
-            setButtonBusy(reportBtn, true);
-            try {
-                await openChaosReportModal();
-            } catch (err) {
-                notifyUi((err && err.message) ? err.message : 'Failed to open chaos report.', 'error');
-            } finally {
-                setButtonBusy(reportBtn, false);
-                applyChaosInterlocks();
-            }
+    if (runPanelMapBtn) {
+        runPanelMapBtn.addEventListener('click', () => {
+            openChaosMapModal();
         });
     }
 
     if (removeBtn) {
         removeBtn.addEventListener('click', async () => {
+            const saved = String(loadedRunID || '').trim();
+            const confirmed = await promptChaosConfirm({
+                title: 'Remove this run from the session?',
+                message: saved
+                    ? `The screen map, report and workflow for run ${saved} will be closed here. The saved copy stays under Saved runs and can be loaded again.`
+                    : 'This run has not been saved yet. Its screen map, report and workflow will be lost.',
+                confirmLabel: 'Remove run',
+            });
+            if (!confirmed) {
+                return;
+            }
             setButtonBusy(removeBtn, true);
             try {
                 const resp = await fetch('/chaos/remove', { method: 'POST' });
-                if (resp.ok) {
-                    loadedRunID = null;
-                    updateUI({
-                        active: false,
-                        stepsRun: 0,
-                        transitions: 0,
-                        uniqueScreens: 0,
-                        uniqueInputs: 0,
-                    });
-                    await pollStatus();
-                    if (typeof window.refreshWorkflowStatus === 'function') {
-                        await window.refreshWorkflowStatus();
-                    }
+                if (!resp.ok) {
+                    await notifyChaosError(resp, 'The run could not be removed.');
+                    return;
                 }
+                loadedRunID = null;
+                updateUI({
+                    active: false,
+                    stepsRun: 0,
+                    transitions: 0,
+                    uniqueScreens: 0,
+                    uniqueInputs: 0,
+                });
+                await pollStatus();
+                if (typeof window.refreshWorkflowStatus === 'function') {
+                    await window.refreshWorkflowStatus();
+                }
+                notifyUi('Run removed from this session.', 'info');
             } catch (_err) {
-                // Ignore
+                await notifyChaosError(null, 'The run could not be removed: network error.');
             } finally {
                 setButtonBusy(removeBtn, false);
                 applyChaosInterlocks();
             }
         });
     }
+
+    // A session that expired stops the status poll; coming back to the
+    // window is the natural moment to find out whether it is back.
+    window.addEventListener('focus', () => {
+        if (chaosSessionExpired) {
+            chaosSessionExpired = false;
+            pollStatus();
+        }
+    });
 
     if (body && typeof MutationObserver !== 'undefined') {
         const obs = new MutationObserver(() => {
@@ -7552,30 +9061,78 @@
     // Expose integration surface for the AI chat panel so tool results can
     // drive UI updates without duplicating state or bypassing existing logic.
     window.ChaosUI = {
+        // A status object somebody else fetched (the assistant's chaos_status
+        // tool). It goes through the same door as the poll, so the menu, the
+        // strip and any open view all follow.
         updateFromStatus: function (status) {
             if (!status || typeof status !== 'object') return;
-            updateChaosMapFromStatus(status);
-            if (status.stepsRun != null) {
-                lastStatus = status;
-                hasData = !!(status.stepsRun > 0 || status.loadedRunID);
-                if (status.loadedRunID) loadedRunID = status.loadedRunID;
+            if (typeof status.active === 'boolean' || status.stepsRun != null) {
+                updateUI(status);
+                if (status.active && !pollTimer) {
+                    scheduleChaosPoll(pollActiveDelayMs);
+                }
+                return;
             }
+            if (updateChaosMapFromStatus(status)) {
+                refreshOpenChaosMapViews();
+            }
+        },
+        // Ask the server now. For anything that starts, stops or loads a run
+        // without going through this module: the assistant, another tab.
+        refresh: function () {
+            return pollStatus();
+        },
+        // Called by the workflow-status poll with each payload. That poll
+        // already knows whether an exploration is running; when its answer
+        // changes, this module catches up instead of waiting to be asked.
+        syncFromWorkflowStatus: function (payload) {
+            if (!payload || typeof payload !== 'object') return;
+            const active = !!payload.chaosActive;
+            const limitsBefore = `${knownRunLimits.maxSteps}|${knownRunLimits.stoppedAt}`;
+            knownRunLimits.maxSteps = Number(payload.chaosMaxSteps || 0);
+            knownRunLimits.timeBudgetMs = Number(payload.chaosTimeBudgetMs || 0);
+            knownRunLimits.startedAt = String(payload.chaosStartedAt || '');
+            knownRunLimits.stoppedAt = String(payload.chaosStoppedAt || '');
+            if (!active && lastStatus && !lastStatus.active && hasData
+                && limitsBefore !== `${knownRunLimits.maxSteps}|${knownRunLimits.stoppedAt}`) {
+                renderChaosRunPanel(lastStatus, runPanel ? !runPanel.hidden : false);
+            }
+            const key = [active, String(payload.chaosLoadedRunID || ''), active ? '' : Number(payload.chaosStepsRun || 0)].join('|');
+            if (key === lastWorkflowSyncKey) return;
+            lastWorkflowSyncKey = key;
+            const known = lastStatus || {};
+            if (active === !!known.active
+                && String(payload.chaosLoadedRunID || '') === String(loadedRunID || '')
+                && (active || Number(payload.chaosStepsRun || 0) === Number(known.stepsRun || 0))) {
+                return;
+            }
+            pollStatus();
+        },
+        openStartDialog: function (mode) {
+            return openStartDialog(mode === 'continue' ? 'continue' : 'start');
+        },
+        stop: function () {
+            return stopChaosRun();
+        },
+        // "4 screens (7 variants)" for a count of distinct screens the server
+        // reported, so the strip and the map say the same thing.
+        screenCountLabel: function (variants) {
+            return screenCountLabel(variants);
+        },
+        // How the last run ended: { reason, tone, label, title, sentence }.
+        outcome: function () {
+            if (lastStatus && lastStatus.active) return null;
+            return lastOutcome;
+        },
+        canContinue: function () {
+            return !!loadedRunID && !(lastStatus && lastStatus.active) && !isPlaybackActive() && !isRecordingActive();
         },
         setChaosReport: function (markdown) {
             setChaosReportContent(String(markdown || ''));
         },
         openChaosMap: function () {
             if (!mapModal) return false;
-            openChaosModal(mapModal, chaosMapTopFocusSelector);
-            const draw = () => {
-                renderChaosMap();
-                const areaCount = getChaosMapUniqueScreenCount();
-                setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
-            };
-            draw();
-            // Drawn at once from what is already known, then again from the full
-            // mind map, which the poll asks for now that the dialog is open.
-            pollStatus().then(draw);
+            openChaosMapModal();
             return true;
         },
         openChaosFlow: function () {
@@ -7595,7 +9152,7 @@
             const name = runID ? `chaos-workflow-${runID}.json` : 'chaos-workflow.json';
             if (typeof window.openWorkflowJsonEditor === 'function') {
                 window.openWorkflowJsonEditor({
-                    title: 'Chaos Workflow JSON',
+                    title: 'Exploration workflow JSON',
                     name,
                     downloadName: name,
                     content: jsonText,
@@ -7615,7 +9172,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                notifyUi('Chaos workflow JSON downloaded.', 'success');
+                notifyUi('Workflow JSON downloaded.', 'success');
             }
         },
     };

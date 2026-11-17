@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
@@ -24,7 +25,7 @@ const streamIdleTimeout = 60 * time.Second
 
 // errStreamStalled is returned when the upstream stops sending for longer
 // than streamIdleTimeout.
-var errStreamStalled = errors.New("upstream stalled (no data received for 60s)")
+var errStreamStalled = aipolicy.ErrStreamStalled
 
 // APIError is returned when a provider answers with a non-2xx status.
 type APIError struct {
@@ -39,6 +40,9 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("%s: status %d: %s", e.Provider, e.Status, truncate(e.Body, 300))
 }
+
+// Upstream implements aipolicy.UpstreamError.
+func (e *APIError) Upstream() (string, int, string) { return e.Provider, e.Status, e.Body }
 
 // openaiClient speaks the OpenAI /chat/completions protocol. Every provider
 // except Anthropic and Copilot goes through here.
@@ -104,6 +108,10 @@ func (c *openaiClient) StreamChat(ctx context.Context, payload map[string]any, o
 			RetryAfter: copilot.ParseRetryAfter(resp.Header, time.Now()),
 		}
 	}
+	// Nothing is relayed until the response has said it is an event stream.
+	if err := aipolicy.CheckContentType(resp, aipolicy.ContentEventStream); err != nil {
+		return fmt.Errorf("%s chat response: %w", c.provider.Label, err)
+	}
 	if err := copyWithIdleTimeout(out, resp.Body, streamIdleTimeout, cancelStream); err != nil {
 		return fmt.Errorf("%s stream: %w", c.provider.Label, err)
 	}
@@ -127,6 +135,9 @@ func (c *openaiClient) ListModels(ctx context.Context) ([]string, error) {
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode/100 != 2 {
 		return nil, &APIError{Provider: c.provider.Label, Status: resp.StatusCode, Body: string(b)}
+	}
+	if err := aipolicy.CheckContentType(resp, aipolicy.ContentJSON); err != nil {
+		return nil, fmt.Errorf("%s models response: %w", c.provider.Label, err)
 	}
 	var payload struct {
 		Data []struct {

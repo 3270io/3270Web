@@ -6,13 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
@@ -46,14 +49,66 @@ func NewHandlers(config *ConfigStore, copilotStore *copilot.Store) *Handlers {
 //	POST /api/ai/chat        (SSE proxy)
 func (h *Handlers) Register(r gin.IRouter) {
 	g := r.Group("/api/ai")
+	// Status and the catalogue answer whether or not the feature is on: they
+	// are how the page finds out that it is off.
 	g.GET("/providers", h.ListProviders)
 	g.GET("/status", h.Status)
-	g.GET("/config", h.GetConfig)
-	g.POST("/config", h.SaveConfig)
+	// Forgetting a credential is always allowed. Turning the feature off
+	// should not strand a stored key.
 	g.POST("/forget", h.Forget)
-	g.GET("/models", h.Models)
-	g.GET("/tools", h.Tools)
-	g.POST("/chat", h.Chat)
+
+	on := g.Group("", RequireEnabled())
+	on.GET("/config", h.GetConfig)
+	on.POST("/config", h.SaveConfig)
+	on.GET("/models", h.Models)
+	on.GET("/tools", h.Tools)
+	on.POST("/chat", h.Chat)
+}
+
+// RequireEnabled refuses a request when the operator has turned the AI chat
+// off (AI_CHAT_DISABLED). The answer is 403 with "disabled": true, so a client
+// can tell "not available here" from "not configured yet".
+func RequireEnabled() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if aipolicy.Disabled() {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":    aipolicy.DisabledMessage,
+				"disabled": true,
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+// allowedProviders is the catalogue with the providers the operator has not
+// permitted left out.
+func allowedProviders() []Provider {
+	all := Providers()
+	out := make([]Provider, 0, len(all))
+	for _, p := range all {
+		if aipolicy.ProviderAllowed(p.ID) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// providerRefusal answers a request for a provider the operator has not
+// permitted. It reports whether it wrote a response.
+func providerRefusal(c *gin.Context, id string) bool {
+	if aipolicy.ProviderAllowed(id) {
+		return false
+	}
+	label := id
+	if p, ok := Lookup(id); ok {
+		label = p.Label
+	}
+	c.JSON(http.StatusForbidden, gin.H{
+		"error":            fmt.Sprintf("%s is not one of the AI providers this instance permits (see %s).", label, aipolicy.EnvAllowedProviders),
+		"providerDisabled": true,
+	})
+	return true
 }
 
 // ListProviders returns the catalogue plus the caller's saved settings, so
@@ -61,8 +116,9 @@ func (h *Handlers) Register(r gin.IRouter) {
 func (h *Handlers) ListProviders(c *gin.Context) {
 	id := copilot.Identity(c)
 	c.JSON(http.StatusOK, gin.H{
-		"providers": Providers(),
+		"providers": allowedProviders(),
 		"settings":  h.config.Public(id),
+		"disabled":  aipolicy.Disabled(),
 	})
 }
 
@@ -97,9 +153,21 @@ func (h *Handlers) SaveConfig(c *gin.Context) {
 	// somebody can act on.
 	if req.BaseURL != nil {
 		if err := checkBaseURLDestination(c.Request.Context(), *req.BaseURL); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			status, msg := aipolicy.PublicError(err, false)
+			if status != http.StatusForbidden {
+				status = http.StatusBadRequest
+			}
+			c.JSON(status, gin.H{"error": msg})
 			return
 		}
+	}
+	// A provider the operator has not permitted can be neither selected nor
+	// configured.
+	if req.Provider != nil && providerRefusal(c, strings.TrimSpace(*req.Provider)) {
+		return
+	}
+	if target := strings.TrimSpace(req.Target); target != "" && providerRefusal(c, target) {
+		return
 	}
 
 	id := copilot.Identity(c)
@@ -136,12 +204,14 @@ func (h *Handlers) Forget(c *gin.Context) {
 	if IsCopilot(target) {
 		auth, _ := h.copilot.Get(id)
 		if err := auth.Logout(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			log.Printf("[ai] sign-out failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not clear the stored sign-in. The server log has the details."})
 			return
 		}
 	}
 	if err := h.config.Forget(id, target); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("[ai] forgetting provider settings failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not clear the stored settings. The server log has the details."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"provider": target, "ready": false})
@@ -175,19 +245,36 @@ func (h *Handlers) Status(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"provider":      prov.ID,
-		"providerLabel": prov.Label,
-		"auth":          prov.Auth,
-		"ready":         ready,
-		"needs":         needs,
-		"missing":       missing,
-		"model":         cfg.Model,
-		"baseUrl":       cfg.BaseURL,
-		// logged_in keeps the shape of the older /api/copilot/status response
-		// so existing scripts and the panel's connect prompt keep working.
-		"logged_in": ready,
-	})
+	// What the operator has decided comes last, so it wins over whatever the
+	// user has configured.
+	out := gin.H{"disabled": false}
+	switch {
+	case aipolicy.Disabled():
+		ready, needs = false, "disabled"
+		out["disabled"] = true
+		out["message"] = aipolicy.DisabledMessage
+	case !aipolicy.ProviderAllowed(prov.ID):
+		ready, needs = false, "provider"
+		out["providerDisabled"] = true
+		out["message"] = fmt.Sprintf("%s is not one of the AI providers this instance permits. Choose another in AI provider settings.", prov.Label)
+	}
+	if allowed := aipolicy.AllowedProviders(); len(allowed) > 0 {
+		out["allowedProviders"] = allowed
+	}
+
+	out["provider"] = prov.ID
+	out["providerLabel"] = prov.Label
+	out["auth"] = prov.Auth
+	out["ready"] = ready
+	out["needs"] = needs
+	// What is missing, so the panel can name it instead of guessing.
+	out["missing"] = missing
+	out["model"] = cfg.Model
+	out["baseUrl"] = cfg.BaseURL
+	// logged_in keeps the shape of the older /api/copilot/status response
+	// so existing scripts and the panel's connect prompt keep working.
+	out["logged_in"] = ready
+	c.JSON(http.StatusOK, out)
 }
 
 // Tools exposes the tool definitions and system prompt to the frontend. These
@@ -196,14 +283,7 @@ func (h *Handlers) Status(c *gin.Context) {
 func (h *Handlers) Tools(c *gin.Context) {
 	id := copilot.Identity(c)
 	_, cfg, _ := h.config.Resolve(id)
-	c.JSON(http.StatusOK, gin.H{
-		"tools":         copilot.DefaultTools(),
-		"model":         cfg.Model,
-		"system_prompt": copilot.SystemPrompt(),
-		// The panel used to carry its own copy of this list, which meant the
-		// rule only existed where the browser ran the tool loop.
-		"dangerous_send_keys": copilot.DangerousSendKeys(),
-	})
+	c.JSON(http.StatusOK, copilot.ToolsPayload(cfg.Model))
 }
 
 // Models returns the model IDs available from the selected provider, falling
@@ -218,6 +298,10 @@ func (h *Handlers) Models(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"models": prov.Models, "provider": prov.ID, "model": cfg.Model})
 	}
 
+	if !aipolicy.ProviderAllowed(prov.ID) {
+		fallback()
+		return
+	}
 	if IsCopilot(prov.ID) {
 		auth, client := h.copilot.Get(id)
 		if !auth.LoggedIn() {
@@ -247,6 +331,9 @@ func (h *Handlers) Models(c *gin.Context) {
 func (h *Handlers) listModels(ctx context.Context, prov Provider, cfg ProviderConfig) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	if err := aipolicy.CheckEndpoint(ctx, cfg.BaseURL, isCustomEndpoint(prov, cfg)); err != nil {
+		return nil, err
+	}
 	if prov.Wire == WireAnthropic {
 		return newAnthropicClient(prov, cfg).ListModels(ctx)
 	}
@@ -261,14 +348,18 @@ func (h *Handlers) Chat(c *gin.Context) {
 	id := copilot.Identity(c)
 	prov, cfg, resolveErr := h.config.Resolve(id)
 
+	if providerRefusal(c, prov.ID) {
+		return
+	}
+
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "read body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "could not read the request body"})
 		return
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "the request body is not valid JSON"})
 		return
 	}
 	if msgs, ok := payload["messages"].([]any); !ok || len(msgs) == 0 {
@@ -279,6 +370,9 @@ func (h *Handlers) Chat(c *gin.Context) {
 	// Resolve the streamer before writing any headers, so a misconfigured
 	// provider produces a clean JSON error rather than an SSE error frame.
 	var stream func(context.Context, io.Writer) error
+	// trusted: the request goes to a provider's own published endpoint, so
+	// what it says about a failure is an error message and can be quoted.
+	trusted := true
 	switch {
 	case IsCopilot(prov.ID):
 		auth, client := h.copilot.Get(id)
@@ -292,6 +386,16 @@ func (h *Handlers) Chat(c *gin.Context) {
 	default:
 		if resolveErr != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": resolveErr.Error()})
+			return
+		}
+		custom := isCustomEndpoint(prov, cfg)
+		trusted = !custom
+		// The saved endpoint is checked again here, not only when it was
+		// saved: the allowlist may have been tightened since, and a name can
+		// resolve somewhere new.
+		if err := aipolicy.CheckEndpoint(c.Request.Context(), cfg.BaseURL, custom); err != nil {
+			status, msg := aipolicy.PublicError(err, false)
+			c.JSON(status, gin.H{"error": msg})
 			return
 		}
 		if prov.Wire == WireAnthropic {
@@ -317,22 +421,25 @@ func (h *Handlers) Chat(c *gin.Context) {
 	if err := stream(ctx, pw); err != nil {
 		// Nothing written yet means we can still emit a clean JSON error;
 		// otherwise the frontend understands an `event: error` SSE frame.
+		// The browser gets a sentence written here; the detail — a dial error
+		// with the address a name resolved to, an upstream's response body —
+		// goes to the server log. See aipolicy.PublicError.
+		status, msg := aipolicy.PublicError(err, trusted)
 		if pw.bytes == 0 {
 			c.Writer.Header().Set("Content-Type", "application/json")
-			status := http.StatusBadGateway
+			// A rate-limited upstream says how long to wait; pass that on so the
+			// panel can tell the person instead of guessing.
 			var apiErr *APIError
 			var copilotErr *copilot.APIError
-			if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 600 {
-				status = apiErr.Status
+			if errors.As(err, &apiErr) {
 				copilot.SetRetryAfter(c.Writer.Header(), apiErr.RetryAfter)
-			} else if errors.As(err, &copilotErr) && copilotErr.Status >= 400 && copilotErr.Status < 600 {
-				status = copilotErr.Status
+			} else if errors.As(err, &copilotErr) {
 				copilot.SetRetryAfter(c.Writer.Header(), copilotErr.RetryAfter)
 			}
-			c.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(status, gin.H{"error": msg})
 			return
 		}
-		writeErrEvent(pw, err.Error())
+		writeErrEvent(pw, msg)
 	}
 }
 

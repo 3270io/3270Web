@@ -34,13 +34,6 @@ Drag the panel's left edge to resize it, or focus the edge and use
 ++left++ / ++right++ (hold ++shift++ for larger steps). The width is
 remembered between sessions.
 
-On a phone — a viewport narrower than 600 pixels — the panel does not sit
-beside the terminal; it covers the screen as a full-width sheet, clear of the
-notch and the home indicator, and the page behind it is left alone. The header
-buttons (Auto, Provider, Clear, and the close cross) wrap rather than run off
-the edge and are each at least 44 pixels tall. On a touch device the sheet ends
-where the terminal key bar begins, so the message box stays reachable.
-
 ## Connect a Provider
 
 The panel starts on **GitHub Copilot**. Before the first message you need
@@ -52,14 +45,6 @@ panel prompts for whichever the selected provider needs.
 2. Pick a provider, fill in whatever it asks for, and click **Save**.
 3. The panel header shows the provider you are talking to, and the model
    dropdown reloads with that provider's models.
-
-Until a provider is ready, the panel shows a **Sign in to GitHub Copilot**
-button and, beside it, **Use an API key or local model**, which opens the
-same provider dialog. The starter prompts do not start a sign-in on their
-own: while no provider is ready, choosing one opens the provider dialog
-with a line saying why, and once you save a working provider the prompt you
-chose runs. Backing out of a sign-in shows a neutral note ("Sign-in
-cancelled. Nothing was sent."), not an error.
 
 To disconnect, click **Sign out** in the panel header. For Copilot that
 clears the OAuth token; for every other provider it forgets the stored
@@ -132,59 +117,46 @@ Each AI action requires explicit approval:
 - Click **Run** to approve it, or **Skip** to decline it.
 - This prevents unintended writes or key presses.
 
-Every tool call is a card. It opens with a plain-language line saying what
-will happen — *Read the current screen*, *Press PF3*, *Type "ADMIN" in the
-User id field*, *Run the saved task "Balance enquiry"* — and a status badge.
-Under **Details** are the technical tool name and its arguments. The text
-typed into a field is only spelled out in the line when the screen shows the
-field is not hidden. For a hidden (password) field the line says *Type a
-hidden value in the Password field* and the arguments under **Details** leave
-the value out too; where the field cannot be identified, the line says *Type
-text in the field at row 12, column 21* and does not repeat the text.
-
-When a card needs your decision, keyboard focus moves to its **Run** button,
-so ++enter++ or ++space++ approves it and ++tab++ reaches **Skip**. If you
-are in the middle of typing a message, focus stays where it is and the
-panel announces the waiting action instead. The **Run** and **Skip**
-buttons are named for the action ("Run: Press PF3"), and while an action
-is waiting a line under the message box says *Waiting for you to Run or Skip
-the pending action*, because the box cannot send until you decide. **Stop**
-skips anything still waiting and ends the turn.
-
-When a call has run, its result is folded under **Result** with a one-line
-summary (for a screen: its size and how many input fields it has). Open it
-to read the full text; padding characters the host sends are not shown. The
-assistant still receives the whole result.
-
-The badge and the card's left edge are colour-coded so you can scan a long
-exchange quickly:
+Every tool call is a card carrying its name, arguments, result, and a
+status badge. The badge and the card's left edge are colour-coded so you
+can scan a long exchange quickly:
 
 | Status | Meaning |
 |---|---|
 | **Pending approval** (amber) | Waiting for you to click **Run** |
-| **Queued** | Auto-run will run it when the calls before it have finished |
 | **Running** (blue) | Executing against the session |
 | **Done** (green) | Completed successfully |
 | **Failed** (red) | The call returned an error |
 | **Skipped** (grey) | You declined it |
 
-### Auto-run
+To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
 
-To let the AI proceed without pausing, turn on **Auto-run** (the button in the
-panel header). While it is on, the button reads **Auto-run: on** and the panel
-runs tool calls without waiting for you to click **Run** each time.
+### What still asks in Auto Mode
 
-The first time you turn it on in a browser, 3270Web asks you to confirm, with
-focus on **Cancel**: the tools that read and drive the terminal will run
-without asking. The answer is remembered in that browser, so turning it off and
-on again does not ask a second time.
+Auto Mode does not mean everything runs unattended. Every tool has a class,
+reported by the server alongside the tool definitions, and the class decides
+how much a call can change:
 
-Two things always wait for you, even with Auto-run on:
+| Class | Means | Examples |
+|---|---|---|
+| `read` | Observes. Nothing on the host or in the session is different afterwards | `get_screen`, `chaos_status`, `chaos_get_screen`, `list_skills`, `snapshot_diff` |
+| `write` | Changes something a person watching can see: a field, the cursor, the screen the host shows next, a note or a hint | `write_field`, `send_key` with an ordinary key, `submit_screen`, `chaos_annotate_screen` |
+| `destructive` | Ends or replaces the session, discards something held, or starts automation nobody watches step by step | `connect_session`, `chaos_start`, `chaos_resume`, `run_task`, `snapshot_delete`, `printer_stop` — and `send_key` when the key is PF3 or Clear |
 
-- `send_key` with **PF3** or **Clear**, which commonly log the session off or
-  discard the screen. The card shows **Needs your approval** and waits for
-  **Run** or **Skip**.
-- Questions the AI asks you (`ask_user`), which have nothing to run.
+Two keys are always put in front of a person: **PF3**, which commonly logs
+the session off, and **Clear**, which discards what is on the screen. That
+holds in Auto Mode, and it holds in every spelling the terminal accepts —
+`PF3`, `pf(3)`, `F3`, `f03`.
+
+**The server enforces it, not only the panel.** `POST /screen/key` — and
+`POST /screen/submit` when it names a key — refuses one of those keys with
+`409` and `"requiresApproval": true` unless the request carries
+`"confirmed": true`, which the panel sends only after you click **Run**. The
+model cannot set that flag; it is not part of the tool it is given. So a
+script holding your session cookie, or a model that finds an unusual way to
+spell a key, gets a refusal rather than a logged-off session.
+
+`ask_user` always waits for you, in any mode.
 
 ## Choose a Model
 
@@ -207,10 +179,53 @@ The AI can perform the following actions on your 3270 session:
 
 | Action | Description |
 |--------|-------------|
-| Read screen | Returns the current screen as ASCII text with a full field map (row, col, value, protection flags) |
-| Send key | Sends any AID key: `Enter`, `PF1`–`PF24`, `PA1`–`PA3`, `Tab`, `BackTab`, `Clear`, `Reset`, `Home`, arrow keys, and more |
-| Write field | Writes text into an unprotected field at a given row and column |
-| Submit screen | Writes modified fields then presses `Enter` |
+| Read screen | Returns the current screen as text with a full field map (row, col, length, value, protection flags), a label for each input field, the keyboard state, and the screen's hash |
+| Send key | Presses one key and returns the screen that results. AID keys — `Enter`, `PF1`–`PF24`, `PA1`–`PA3`, `Clear` — send the screen to the host and wait for it to answer. `Tab`, `BackTab`, `Home`, the arrow keys, `EraseEOF`, `EraseInput` and `Reset` act on the terminal only |
+| Write field | Types text into one unprotected field, replacing what was there |
+| Submit screen | Presses `Enter`, waits for the host, and returns the screen that results |
+| Wait for unlock | Waits for a host that is still processing. Needed only when a result says the keyboard is still `locked` |
+
+### What the driving tools guarantee
+
+The assistant works by row and column, without sight of the screen, so the
+tools check what a person would see for themselves.
+
+**Write field** looks before it types:
+
+- The position must be inside an unprotected field. A write aimed at a label
+  is refused with a message saying what is there, rather than locking the
+  keyboard.
+- Text longer than the room left in the field is refused whole, not typed
+  until it spills.
+- The field is erased from the position to its end first, so `LEE` written
+  over `SMITH` leaves `LEE`, not `LEETH`. Pass `erase: false` to overtype.
+- An empty string clears the field.
+- The answer reports the field as it now stands. A hidden field's value comes
+  back masked.
+- If the terminal still rejects a keystroke — a letter in a numeric field —
+  the keyboard is reset, so the next action is not refused for a reason
+  unrelated to it.
+
+Rows and columns are 0-indexed, as `get_screen` reports them. The terminal's
+own status bar counts from 1, and so does a field key such as `R5C10L8`; the
+server converts a field key, and the assistant is told not to convert
+anything itself.
+
+**Send key** and **Submit screen** wait for the host and return the new
+screen, so the assistant sees the outcome of every action — whether the
+screen changed, any message the host put up, and the keyboard state — without
+a separate read. The keyboard is one of:
+
+| State | Meaning |
+|---|---|
+| `unlocked` | Input is accepted |
+| `locked` | The host is still processing. `wait_for_unlock` waits it out |
+| `error` | The terminal rejected a keystroke and refuses everything until `Reset` is sent |
+
+**Recording.** Start a [workflow recording](workflow.md) and what the
+assistant does is recorded exactly as if you had done it: each write as a
+fill step, each key as a key step. A recording of an assisted session replays
+the whole of it.
 
 ## Beyond the Screen
 
@@ -247,7 +262,13 @@ The AI can run and monitor chaos exploration directly from the chat panel. This 
 | Save hints | `chaos_save_screen_hint` / `chaos_update_hints` | Adds known transaction codes, data values, or key assignments to guide exploration |
 | Export workflow | `chaos_export_workflow` | Downloads learned paths as 3270Connect-compatible JSON |
 
-The default system prompt uses a five-phase workflow: read the screen → review existing hints → ask you to choose run mode → start exploration → export results. You can override this by writing your own instructions.
+How a run is set up — which keys to block first, what to check when it
+stops — is a [skill](skills.md) the assistant loads when you ask for an
+exploration, not something fixed in the prompt. Whatever the skill says, two
+things hold: exploration types into a live host unattended, so the assistant
+is told to propose a run and agree the keys that must never be pressed before
+starting one; and `chaos_start` is a destructive-class tool, so it is put in
+front of you.
 
 The Automation menu and the AI panel share the same run state — you can freely mix both. See [Chaos Mode](chaos-mode.md) for full details on the menu controls, settings, and the discovery report format, and see [Running Chaos via AI Chat](chaos-mode.md#running-chaos-via-ai-chat) for a side-by-side comparison.
 
@@ -258,10 +279,25 @@ Chaos exploration discovers *what works* — screens, key presses, and input val
 | Chat command | Tool used | What it does |
 |---|---|---|
 | Review discovered screens | `chaos_list_screens` | Lists every screen with previews, fields, learned values, key destinations, and existing annotations |
+| Look at one screen | `chaos_get_screen` | Everything known about a single screen, by hash: purpose and notes, each field with its meaning and the values found to work, where each key leads, the keys that did nothing, and a preview |
 | Annotate a screen | `chaos_annotate_screen` | Records a business purpose (e.g. *"Customer account inquiry"*) and per-field semantics (e.g. `R5C20L8` → `account_number`) |
 | Catalog a business function | `business_save_function` | Saves a named multi-screen operation (steps + parameters), e.g. *"Account inquiry"* |
 | List the catalog | `business_list_functions` | Returns all cataloged business functions with their parameters |
 | Generate a workflow | `business_generate_workflow` | Turns a cataloged function plus parameter values into a downloadable, business-focused workflow JSON |
+
+### Recognising the screen you are on
+
+Every screen the assistant is shown carries a `screenHash` — the identifier
+exploration files that screen under. When the screen is one exploration has
+already seen, the result also carries `knownScreen`: its label, its business
+purpose, what its fields mean, and which keys led somewhere from it. So what
+was learned is applied to the screen in front of you rather than only listed:
+the assistant knows that PF8 pages forward *here* because exploration saw it
+do so, not because that is what PF8 usually does.
+
+What is typed into the input fields does not change a screen's hash, and a
+screen that differs only in a counter or a date is matched to the area
+exploration folded it into.
 
 Annotations and the function catalog are stored inside the chaos run's mind map, so they persist with [saved runs](chaos-mode.md) and travel through mind-map export/import. Knowledge is **per run**: load the annotated run (or import its mind map) in a new session to reuse it.
 
@@ -274,18 +310,53 @@ Once functions are cataloged you can drive them in plain language:
 
 Generated business workflows carry `Name`, `Description`, `BusinessFunction`, and `Parameters` metadata so they are self-describing; see [Workflow](workflow.md) for the format.
 
+## What the Model Is Sent
+
+Each turn, the provider you chose receives the system prompt, the tool
+definitions, the conversation so far, and a **session context**: where the
+session stands and the screen as it was when the turn began. The context
+means the assistant does not spend a round reading the screen before it can
+answer.
+
+The context has two parts, and they are kept apart. What 3270Web itself
+writes — whether a host is connected, how many screens have been discovered,
+the current screen's hash — may sit beside the system prompt. What came from
+the host — the screen text, field values, a discovered screen's label and
+purpose — is delivered as data, wrapped in `<untrusted-host-data>` tags, in
+the conversation rather than in the system prompt. A host can put any words
+it likes on a screen, and words in a system prompt read as instructions.
+
+**Hidden fields are masked before anything leaves the server.** That covers
+the screen text and field values in every tool result and in the session
+context, the echo of a write into a hidden field, and what exploration
+learned: a hidden field's working values and examples are left out of
+`chaos_get_screen` and of every screen result. The assistant is told never to
+ask for a password in the chat, and to ask you to type one into the terminal
+yourself — anything said in the chat is sent to the provider.
+
+What is typed into a hidden field is also kept out of the server's verbose
+log.
+
+An administrator can turn the AI chat off for the whole instance, limit which
+providers may be used, and limit where a custom endpoint may point. See
+[Administrator controls](ai-providers.md#administrator-controls).
+
 ## Known Limitations
 
-- Chat requests and tool endpoints are not rate-limited server-side; very long automated loops are bounded only by the per-message tool budget and your provider's own quotas.
+- Chat requests are rate-limited per account on the server: 60 a minute by default (`RATE_LIMIT_AI`), with a separate limit on provider sign-in and settings (`RATE_LIMIT_AICONTROL`); see [Limits](multi-user.md). A single message is also stopped after 150 tool-call rounds. Your provider's own quotas apply on top.
 - Tool calling is required. Every provider listed in [AI Providers](ai-providers.md) supports it, but a small local model served through an OpenAI-compatible endpoint may not, or may do it badly — if the assistant answers in prose instead of reading the screen, that is usually the cause.
 - Reasoning/thinking output is not displayed. Models that think before answering still do so, but only the final answer reaches the panel.
-- If the model stream fails mid-response, that exchange is not added to the history — re-send the prompt.
+- If the model stream fails mid-response — including a provider that closes the connection before finishing — that exchange is not added to the history and no tool call from the partial response is run. Re-send the prompt.
 - Conversation history is persisted in browser localStorage and capped at the most recent 200 messages.
 - Business annotations key on screen hashes, which are specific to the run's mind map. Re-running discovery against a changed application may produce new hashes; re-annotate or re-import the mind map in that case.
 
 ## Clear the Conversation
 
-Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted, with focus on **Cancel**, so a stray ++enter++ keeps your conversation.
+Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted.
+
+Clearing starts a new conversation, not only an empty transcript: skills the
+previous conversation had loaded are sent again when the new one asks for
+them. See [Skills and Extensions](skills.md#loading-and-reloading).
 
 ## Keyboard Shortcut
 

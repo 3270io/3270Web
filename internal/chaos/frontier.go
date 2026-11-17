@@ -3,7 +3,6 @@
 package chaos
 
 import (
-	"slices"
 	"sort"
 )
 
@@ -22,6 +21,7 @@ const frontierProximityBoost = 60
 
 // fallbackChaosKeyCandidates is the ordered key list fallbackChaosKey walks,
 // and the candidate baseline used when no AID key weights are configured.
+// This is the only copy of the list.
 var fallbackChaosKeyCandidates = []string{
 	"Enter", "PF(1)", "PF(2)", "PF(4)", "PF(7)", "PF(8)", "PF(12)", "Tab",
 }
@@ -65,9 +65,23 @@ func (e *Engine) CandidateKeys() []string {
 // from the area, excluding keys the run auto-blocked on that area. A nil area
 // reports every candidate as untried.
 func UntriedCandidateKeys(area *MindMapArea, candidates []string) []string {
+	return UntriedCandidateKeysExcluding(area, candidates, nil)
+}
+
+// UntriedCandidateKeysExcluding is UntriedCandidateKeys with a further set
+// of keys to leave out: the global blacklist and the keys a screen hint
+// blocks. A key that may not be pressed is not "untried" — counting it as
+// such kept an area on the frontier for ever, with the run steered back to
+// it for a key it would never press.
+func UntriedCandidateKeysExcluding(area *MindMapArea, candidates []string, alsoBlocked []string) []string {
 	blocked := make(map[string]struct{})
 	if area != nil {
 		for _, k := range area.AutoBlockedKeys {
+			blocked[k] = struct{}{}
+		}
+	}
+	for _, raw := range alsoBlocked {
+		if k := normalizeChaosKeyName(raw); k != "" {
 			blocked[k] = struct{}{}
 		}
 	}
@@ -87,40 +101,19 @@ func UntriedCandidateKeys(area *MindMapArea, candidates []string) []string {
 }
 
 // untriedCandidateKeyCountLocked counts the candidate keys never pressed from
-// the area, ignoring globally blacklisted keys. Caller must hold e.mu.
+// the area and not blocked there by the blacklist, a screen hint or the
+// run's own auto-blocks. Caller must hold e.mu.
 func (e *Engine) untriedCandidateKeyCountLocked(area *MindMapArea) int {
-	count := 0
-	for _, k := range UntriedCandidateKeys(area, e.candidateKeys) {
-		if isBlacklistedKeyInSet(e.blacklistedKeys, k) {
-			continue
-		}
-		count++
+	if area == nil {
+		return len(e.untriedKeysLocked("", nil))
 	}
-	return count
+	return len(e.untriedKeysLocked(area.Hash, area))
 }
 
 // hasUntriedCandidateKeyLocked reports whether the area has at least one
-// untried, unblocked candidate key, without allocating the list
-// untriedCandidateKeyCountLocked builds to then just compare against zero.
-// frontierKeyBoostsLocked calls this once per discovered area on every
-// step, so on a long run with many discovered areas the allocation-free
-// short-circuit here is what keeps that scan cheap. Caller must hold e.mu.
+// untried, unblocked candidate key. Caller must hold e.mu.
 func (e *Engine) hasUntriedCandidateKeyLocked(area *MindMapArea) bool {
-	for _, k := range e.candidateKeys {
-		if area != nil {
-			if kp, ok := area.KeyPresses[k]; ok && kp != nil && kp.Presses > 0 {
-				continue
-			}
-			if slices.Contains(area.AutoBlockedKeys, k) {
-				continue
-			}
-		}
-		if isBlacklistedKeyInSet(e.blacklistedKeys, k) {
-			continue
-		}
-		return true
-	}
-	return false
+	return e.untriedCandidateKeyCountLocked(area) > 0
 }
 
 // noveltyKeyBoostsLocked returns boosts for candidate keys that have never
@@ -137,7 +130,7 @@ func (e *Engine) noveltyKeyBoostsLocked(hash string) map[string]int {
 		return nil
 	}
 	boosts := make(map[string]int)
-	for _, k := range UntriedCandidateKeys(area, e.candidateKeys) {
+	for _, k := range e.untriedKeysLocked(hash, area) {
 		boosts[k] = noveltyKeyBoost
 	}
 	if len(boosts) == 0 {
@@ -168,13 +161,14 @@ func (e *Engine) frontierKeyBoostsLocked(currentHash string) map[string]int {
 		return nil
 	}
 
-	// Frontier = every other area with at least one untried candidate key.
+	// Frontier = every other area with an untried candidate key or an
+	// untried value read off its screen.
 	frontier := make(map[string]bool)
 	for hash, area := range e.mindMap.Areas {
 		if hash == currentHash || area == nil {
 			continue
 		}
-		if e.hasUntriedCandidateKeyLocked(area) {
+		if e.areaHasUntriedLocked(hash, area) {
 			frontier[hash] = true
 		}
 	}
@@ -266,9 +260,9 @@ func (e *Engine) frontierStatsLocked() (frontierAreas, untriedKeys int) {
 			continue
 		}
 		n := e.untriedCandidateKeyCountLocked(area)
-		if n > 0 {
+		untriedKeys += n
+		if n > 0 || len(e.untriedInputsLocked(area)) > 0 {
 			frontierAreas++
-			untriedKeys += n
 		}
 	}
 	return frontierAreas, untriedKeys

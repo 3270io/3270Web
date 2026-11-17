@@ -5,8 +5,12 @@ package aiprovider
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/jnnngs/3270Web/internal/aipolicy"
+	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 // decodeOpenAIPayload parses an OpenAI-shaped request body the way the chat
@@ -32,8 +36,8 @@ func TestToAnthropicRequestMovesSystemOutOfMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toAnthropicRequest: %v", err)
 	}
-	if req.System != "You drive a 3270 terminal." {
-		t.Errorf("System = %q, want the system turn hoisted out", req.System)
+	if len(req.System) != 1 || req.System[0].Type != "text" || req.System[0].Text != "You drive a 3270 terminal." {
+		t.Errorf("System = %+v, want the system turn hoisted out as one text block", req.System)
 	}
 	if len(req.Messages) != 1 || req.Messages[0].Role != "user" {
 		t.Fatalf("Messages = %+v, want a single user turn", req.Messages)
@@ -365,21 +369,157 @@ func TestTranslateAnthropicStreamSurfacesErrorFrames(t *testing.T) {
 	}
 }
 
-func TestTranslateAnthropicStreamTerminatesOnTruncatedUpstream(t *testing.T) {
-	// No message_stop: the browser's reader loop must still see [DONE]
-	// rather than hanging until the overall stream timeout.
+// An upstream that closes without message_stop has been cut off. It used to
+// be closed out as a clean stop, so whatever had arrived — including a tool
+// call whose arguments stopped mid-JSON — was handed on as a complete answer.
+func TestTranslateAnthropicStreamReportsATruncatedUpstream(t *testing.T) {
 	upstream := strings.Join([]string{
 		`data: {"type":"message_start","message":{"id":"msg_1"}}`,
 		``,
-		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"send_key"}}`,
+		``,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"key\": \"PF"}}`,
 		``,
 	}, "\n")
 	var out strings.Builder
-	if err := translateAnthropicStream(context.Background(), strings.NewReader(upstream), &out, func() {}); err != nil {
-		t.Fatalf("translateAnthropicStream: %v", err)
+	err := translateAnthropicStream(context.Background(), strings.NewReader(upstream), &out, func() {})
+	if !errors.Is(err, aipolicy.ErrStreamIncomplete) {
+		t.Fatalf("err = %v, want ErrStreamIncomplete", err)
 	}
-	if !strings.Contains(out.String(), "[DONE]") {
-		t.Errorf("truncated upstream did not produce [DONE]:\n%s", out.String())
+	if strings.Contains(out.String(), "[DONE]") {
+		t.Errorf("a truncated stream was terminated as though it were complete:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), `"finish_reason"`) {
+		t.Errorf("a truncated stream was given a finish reason:\n%s", out.String())
+	}
+}
+
+// The idle watchdog stops a stalled stream by cancelling the request. What the
+// user is told is that the stream stalled, not "context canceled".
+func TestTranslateAnthropicStreamReportsAStallAsAStall(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	go func() {
+		_, _ = io.WriteString(writer, `data: {"type":"message_start","message":{"id":"msg_1"}}`+"\n\n")
+		// ...and then nothing. The reader is released when the watchdog
+		// cancels the request, as closing the response body would.
+		<-ctx.Done()
+		_ = reader.CloseWithError(ctx.Err())
+	}()
+
+	var out strings.Builder
+	err := translateAnthropicStreamIdle(ctx, reader, &out, cancel, 50*time.Millisecond)
+	if !errors.Is(err, errStreamStalled) {
+		t.Fatalf("err = %v, want the stalled-stream error", err)
+	}
+	if strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("the stall is reported as %q", err)
+	}
+}
+
+// A cancellation that was not the watchdog's is still a cancellation.
+func TestTranslateAnthropicStreamKeepsACallersCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	upstream := `data: {"type":"message_start","message":{"id":"msg_1"}}` + "\n\n"
+	var out strings.Builder
+	err := translateAnthropicStream(ctx, strings.NewReader(upstream), &out, func() {})
+	if !errors.Is(err, context.Canceled) || errors.Is(err, errStreamStalled) {
+		t.Errorf("err = %v, want context.Canceled and not a stall", err)
+	}
+}
+
+// --- prompt caching ---------------------------------------------------------
+
+// Every round of a tool loop resends the tools, the system prompt and the
+// whole conversation. Without breakpoints all of it is billed as new input
+// each time.
+func TestToAnthropicRequestMarksCacheBreakpoints(t *testing.T) {
+	payload := decodeOpenAIPayload(t, `{
+		"model": "claude-opus-5",
+		"messages": [
+			{"role": "system", "content": "STATIC PROMPT"},
+			{"role": "system", "content": "per-turn session context"},
+			{"role": "user", "content": "first question"},
+			{"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_screen", "arguments": "{}"}}]},
+			{"role": "tool", "tool_call_id": "call_1", "content": "screen text"}
+		],
+		"tools": [
+			{"type": "function", "function": {"name": "get_screen", "description": "read", "parameters": {"type": "object", "properties": {}}}},
+			{"type": "function", "function": {"name": "send_key", "description": "press", "parameters": {"type": "object", "properties": {}}}}
+		]
+	}`)
+	req, err := toAnthropicRequest(payload, "")
+	if err != nil {
+		t.Fatalf("toAnthropicRequest: %v", err)
+	}
+
+	// System: one block per system turn, the breakpoint after the static one
+	// so the part that changes every turn does not invalidate it.
+	if len(req.System) != 2 {
+		t.Fatalf("System = %+v, want two blocks", req.System)
+	}
+	if req.System[0].Text != "STATIC PROMPT" || req.System[0].CacheControl == nil || req.System[0].CacheControl.Type != "ephemeral" {
+		t.Errorf("the static prompt should carry the breakpoint: %+v", req.System[0])
+	}
+	if req.System[1].CacheControl != nil {
+		t.Errorf("the per-turn context must sit after the breakpoint, not carry one: %+v", req.System[1])
+	}
+
+	// Tools: the last definition, and only the last.
+	if req.Tools[0].CacheControl != nil || req.Tools[1].CacheControl == nil {
+		t.Errorf("only the last tool should carry a breakpoint: %+v", req.Tools)
+	}
+
+	// Conversation: the last block of the last message, and no other.
+	marked := 0
+	for mi, msg := range req.Messages {
+		for bi, block := range msg.Content {
+			if block.CacheControl == nil {
+				continue
+			}
+			marked++
+			if mi != len(req.Messages)-1 || bi != len(msg.Content)-1 {
+				t.Errorf("a breakpoint is on message %d block %d, not on the end of the conversation", mi, bi)
+			}
+		}
+	}
+	if marked != 1 {
+		t.Errorf("%d conversation breakpoints, want 1", marked)
+	}
+
+	// On the wire: system is an array of blocks and the markers are spelled
+	// the way the API reads them. Four breakpoints at most are allowed.
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := string(raw)
+	if !strings.Contains(wire, `"system":[{"type":"text","text":"STATIC PROMPT","cache_control":{"type":"ephemeral"}}`) {
+		t.Errorf("system is not sent as blocks with a breakpoint:\n%s", wire)
+	}
+	if n := strings.Count(wire, `"cache_control"`); n != 3 {
+		t.Errorf("%d breakpoints on the wire, want 3 (the API allows 4)", n)
+	}
+}
+
+// A request with no tools and no system prompt still gets the conversation
+// breakpoint and nothing malformed.
+func TestCacheBreakpointsWithNothingToMark(t *testing.T) {
+	payload := decodeOpenAIPayload(t, `{"model": "m", "messages": [{"role": "user", "content": "hi"}]}`)
+	req, err := toAnthropicRequest(payload, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(req)
+	if strings.Contains(string(raw), `"system"`) || strings.Contains(string(raw), `"tools"`) {
+		t.Errorf("empty system/tools should be omitted: %s", raw)
+	}
+	if strings.Count(string(raw), `"cache_control"`) != 1 {
+		t.Errorf("want the one conversation breakpoint: %s", raw)
 	}
 }
 

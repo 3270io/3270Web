@@ -53,6 +53,10 @@
     let modalResolve = null;
     let pollTimer = 0;
     let currentLoginId = "";
+    // Bumped whenever the current attempt stops being the one that matters
+    // (dialog closed, or a new code requested). Every async continuation
+    // compares against the value it started with.
+    let loginAttempt = 0;
     let focusTrap = { activate() {}, deactivate() {} };
 
     function buildModal() {
@@ -86,6 +90,7 @@
                     <p class="copilot-modal-status" data-copilot-modal-status>Waiting for sign-in...</p>
                 </div>
                 <div class="copilot-modal-footer">
+                    <button type="button" class="copilot-modal-restart" data-copilot-modal-restart hidden>Get a new code</button>
                     <button type="button" data-copilot-modal-cancel>Cancel</button>
                 </div>
             </div>
@@ -101,6 +106,9 @@
         }
         wrap.querySelector("[data-copilot-modal-close]").addEventListener("click", () => closeModal(false));
         wrap.querySelector("[data-copilot-modal-cancel]").addEventListener("click", () => closeModal(false));
+        wrap.querySelector("[data-copilot-modal-restart]").addEventListener("click", function () {
+            startDeviceLogin(wrap);
+        });
         wrap.querySelector("[data-copilot-copy-code]").addEventListener("click", function () {
             const btn = this;
             const code = wrap.querySelector("[data-copilot-user-code]").textContent || "";
@@ -127,7 +135,20 @@
         if (el) el.textContent = text;
     }
 
+    // Shown once an attempt is over without a sign-in — the code expired, was
+    // denied, was replaced, or never arrived. "Close and try again" was the
+    // only way out before, which from inside a send meant losing the dialog,
+    // the send and the place in the conversation for the sake of a new code.
+    function showRestart(show) {
+        const btn = modalEl && modalEl.querySelector("[data-copilot-modal-restart]");
+        if (btn) btn.hidden = !show;
+    }
+
     function closeModal(success) {
+        // Invalidate the attempt first: a poll already in flight checks this
+        // when its response arrives, and must not re-arm the timer for a
+        // dialog nobody is looking at any more.
+        loginAttempt++;
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = 0; }
         focusTrap.deactivate();
         if (modalEl) {
@@ -153,6 +174,17 @@
         const cancelBtn = wrap.querySelector("[data-copilot-modal-cancel]");
         if (cancelBtn) cancelBtn.focus();
         modalPromise = new Promise((resolve) => { modalResolve = resolve; });
+        startDeviceLogin(wrap);
+        return modalPromise;
+    }
+
+    // startDeviceLogin requests a device code and starts polling for it. It
+    // is also what "Get a new code" runs, so an expired code is replaced in
+    // the dialog that is already open.
+    function startDeviceLogin(wrap) {
+        const attempt = ++loginAttempt;
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = 0; }
+        showRestart(false);
         setStatus("Requesting device code from GitHub...");
         wrap.querySelector("[data-copilot-user-code]").textContent = "----";
         const link = wrap.querySelector("[data-copilot-verify-link]");
@@ -160,38 +192,48 @@
         link.href = "https://github.com/login/device";
 
         jsonPost(ENDPOINTS.loginStart).then(function (data) {
+            if (attempt !== loginAttempt) return; // cancelled, or restarted, meanwhile
             currentLoginId = data.login_id || "";
             wrap.querySelector("[data-copilot-user-code]").textContent = data.user_code || "";
             const verify = data.verification_uri || "https://github.com/login/device";
             link.textContent = verify;
             link.href = verify;
             setStatus("Waiting for you to approve on github.com...");
-            schedulePoll(Math.max(2, data.interval || 5) * 1000);
+            schedulePoll(Math.max(2, data.interval || 5) * 1000, attempt);
         }).catch(function (err) {
+            if (attempt !== loginAttempt) return;
             setStatus("Failed to start login: " + (err && err.message || err));
+            showRestart(true);
         });
-
-        return modalPromise;
     }
 
-    function schedulePoll(intervalMs) {
+    function schedulePoll(intervalMs, attempt) {
         pollTimer = window.setTimeout(async function () {
+            pollTimer = 0;
+            // The dialog was closed while this request was in flight. Before
+            // this check the response re-armed the timer regardless, so a
+            // cancelled sign-in went on polling in the background for as long
+            // as the page stayed open.
+            const stale = function () { return attempt !== loginAttempt; };
+            const ended = function (text) { setStatus(text); showRestart(true); };
             try {
                 const res = await jsonPost(ENDPOINTS.loginPoll, { login_id: currentLoginId });
+                if (stale()) return;
                 if (!res || !res.status) {
-                    schedulePoll(intervalMs);
+                    schedulePoll(intervalMs, attempt);
                     return;
                 }
                 if (res.status === "success") { setStatus("Signed in."); closeModal(true); return; }
-                if (res.status === "pending") { schedulePoll(intervalMs); return; }
-                if (res.status === "slow_down") { schedulePoll(intervalMs + 5000); return; }
-                if (res.status === "expired") { setStatus("Code expired. Close and try again."); return; }
-                if (res.status === "denied") { setStatus("Sign-in denied."); return; }
-                if (res.status === "superseded") { setStatus("This sign-in attempt was replaced by a newer one. Close and try again."); return; }
-                setStatus(res.error || ("Sign-in failed: " + res.status));
+                if (res.status === "pending") { schedulePoll(intervalMs, attempt); return; }
+                if (res.status === "slow_down") { schedulePoll(intervalMs + 5000, attempt); return; }
+                if (res.status === "expired") { ended("That code expired before it was used. Get a new one to carry on."); return; }
+                if (res.status === "denied") { ended("Sign-in was denied on github.com."); return; }
+                if (res.status === "superseded") { ended("This sign-in attempt was replaced by a newer one."); return; }
+                ended(res.error || ("Sign-in failed: " + res.status));
             } catch (err) {
+                if (stale()) return;
                 setStatus("Polling failed: " + (err && err.message || err));
-                schedulePoll(intervalMs);
+                schedulePoll(intervalMs, attempt);
             }
         }, intervalMs);
     }

@@ -129,7 +129,7 @@ environment variable. **The default is `interactive`.**
 
 | `MCP_TOOLS` | Adds | For |
 |---|---|---|
-| `readonly` | `get_screen`, `wait_for_unlock`, `get_connection_details`, `get_display_toggles`, `snapshot_take`, `snapshot_list`, `snapshot_diff`, `printer_status`, `printer_read_job`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_tasks`, `list_sessions` | Reading and reporting on a session someone else is driving |
+| `readonly` | `get_screen`, `wait_for_unlock`, `get_connection_details`, `get_display_toggles`, `snapshot_take`, `snapshot_list`, `snapshot_diff`, `printer_status`, `printer_read_job`, `chaos_status`, `chaos_report`, `chaos_insights`, `chaos_list_screens`, `chaos_get_screen`, `chaos_get_hints`, `business_list_functions`, `business_app_overview`, the export tools, `list_skills`, `load_skill`, `list_tasks`, `list_sessions` | Reading and reporting on a session someone else is driving |
 | `interactive` *(default)* | + `send_key`, `write_field`, `submit_screen`, `move_cursor`, `connect_session`, `use_session`, `set_display_toggle`, `snapshot_delete`, `printer_start`, `printer_stop`, the hint and annotation writes, `run_task` and the generated `task_*` tools | Driving a session the way a person at the keyboard would |
 | `full` | + `chaos_start`, `chaos_stop`, `chaos_resume` | Automated chaos exploration |
 
@@ -146,11 +146,21 @@ Chaos is a tier of its own not because a single key press is safer than
 another, but because a person pressing keys is watching and an unattended
 exploration run is not.
 
-Two keys stop and ask whatever the tier: **PF3** commonly logs the session
-off and **Clear** discards what is on the screen. The AI Chat panel will not
-press either in Auto Mode without someone clicking Run, and `send_key`'s own
-description says so, so a model knows before it builds a plan around one. Over
-MCP the equivalent is your client's tool-approval prompt — leave it on.
+Two keys need a person whatever the tier: **PF3** commonly logs the session
+off and **Clear** discards what is on the screen. In the AI Chat panel the
+server itself refuses either — in any spelling, `F3` included — until someone
+has clicked Run, Auto Mode or not; see
+[What still asks in Auto Mode](ai-chat.md#what-still-asks-in-auto-mode).
+`send_key`'s own description says so, so a model knows before it builds a
+plan around one. Over MCP there is no panel to click in, and the server does
+not ask a second time: the gate is your client's tool-approval prompt, and
+`send_key` is annotated destructive so that prompt appears. Leave it on.
+
+The driving tools behave the same on both surfaces. `write_field` refuses a
+protected position or text that does not fit, erases to the end of the field
+before typing unless `erase` is `false`, and clears the field on an empty
+string; `submit_screen` presses Enter and waits for the host. See
+[What the driving tools guarantee](ai-chat.md#what-the-driving-tools-guarantee).
 
 Set it in the client's config:
 
@@ -216,8 +226,17 @@ PF key, for example. The browser panel applies that marking today; over MCP
 there is no browser in the loop, so the server does it.
 
 Hidden fields are redacted before anything leaves the server: a password's
-value is empty and its characters are replaced in the screen text. See
-[Terminal Capabilities](terminal-capabilities.md).
+value is empty and its characters are replaced in the screen text. The same
+holds for what exploration learned about a hidden field — its working values
+and examples are left out of `chaos_get_screen` and of the `knownScreen`
+attached to a screen. See [Terminal Capabilities](terminal-capabilities.md).
+
+A screen result also says what a person would read off the glass: a `label`
+for each input field, taken from the protected text beside or above it; the
+`keyboard` state (`unlocked`, `locked`, or `error` after a rejected
+keystroke); and a `screenHash`. When exploration has seen the screen before,
+`knownScreen` carries its label, business purpose, field meanings and the
+keys that led somewhere, and `chaos_get_screen` returns the rest.
 
 ## Sample applications
 
@@ -241,6 +260,11 @@ The procedures the assistant follows are files, not prose baked into a prompt.
 `list_skills` shows what is available; `load_skill` fetches one. The built-in
 set covers chaos exploration, business understanding, whole-application
 overview and performing a catalogued business function.
+
+A skill is sent once per conversation. Name the conversation with the
+`X-3270Web-Conversation` header and a repeat request is answered with a short
+reminder instead of the text; ask once more and the text is sent again, for
+a client whose earlier turns have been trimmed.
 
 You can add your own, or replace a built-in with one that knows your
 application — and an extension can contribute saved tasks as well as skills.

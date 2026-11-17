@@ -109,18 +109,34 @@ type Config struct {
 	// "exact" disables structural merging and only the raw hash is used.
 	DedupMode string `json:"dedupMode,omitempty"`
 
-	// SaturationSteps stops chaos when this many consecutive steps yield no
-	// new (fromHash, toHash, aidKey) tuple and no new field value caused a
-	// transition. 0 disables the heuristic. Default 15.
+	// SaturationSteps is the number of consecutive steps that yield nothing
+	// new (no new screen, (fromHash, toHash, aidKey) tuple, productive field
+	// value or screen body) before the run considers itself stuck. Past half
+	// of it the run stops choosing at random and works through what is left:
+	// untried keys and inputs on the current screen, then a planned route to
+	// the nearest screen that still has some. It stops as "saturated" only
+	// once nothing untried can be reached. 0 disables the heuristic.
+	// Default 15.
 	SaturationSteps int `json:"saturationSteps,omitempty"`
 
-	// AutoBlockExitKeys auto-blocks PF keys whose on-screen labels match
-	// Exit/Quit/Cancel/Logoff/Logout/End/Return patterns on first visit to
-	// a new area. Default true.
+	// AutoBlockExitKeys auto-blocks function keys whose legend label is, as
+	// whole words, Exit/Quit/Cancel/Logoff/Logout/Sign off/End/Return or
+	// similar. A key blocked this way stays blocked on that screen for the
+	// rest of the run. Default true.
+	//
+	// Independently of this setting, function keys labelled with an action
+	// that changes data (Delete/Purge/Remove/Confirm/Commit/Update/Save/
+	// Submit) are blocked, a key that throws the run back onto its sign-on
+	// screen is blocked from then on, and none of these is ever boosted.
+	// Naming a key in that screen's hint (KnownKeys or KeyAssignments) lifts
+	// an automatic block; nothing lifts KeyBlacklist. Enter is never blocked
+	// automatically: on most screens it is the only way forward.
 	AutoBlockExitKeys bool `json:"autoBlockExitKeys,omitempty"`
 
-	// AutoPreferNavigationKeys auto-boosts PF keys whose on-screen labels
-	// match Help/Menu/Next/Prev/Forward/Back patterns. Default true.
+	// AutoPreferNavigationKeys auto-boosts keys whose legend labels match
+	// Help/Menu/Next/Prev/Forward/Back patterns. The legend can only
+	// re-weight keys already in AIDKeyWeights; it never adds one. A label
+	// the engine does not recognise earns no boost. Default true.
 	AutoPreferNavigationKeys bool `json:"autoPreferNavigationKeys,omitempty"`
 
 	// TransitionLogPath, when set, makes the engine append one JSON object

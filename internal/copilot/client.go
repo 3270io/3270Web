@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jnnngs/3270Web/internal/egress"
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 )
 
 // streamIdleTimeout is the maximum time the proxied SSE stream may go without
@@ -24,7 +24,7 @@ const streamIdleTimeout = 60 * time.Second
 
 // errStreamStalled is returned when the upstream stops sending data for longer
 // than streamIdleTimeout.
-var errStreamStalled = errors.New("upstream stalled (no data received for 60s)")
+var errStreamStalled = aipolicy.ErrStreamStalled
 
 // ChatRequest is a thin wrapper around the OpenAI-compatible request body
 // the Copilot API expects. We let the frontend supply most of the JSON
@@ -53,7 +53,7 @@ type Client struct {
 func NewClient(auth *AuthManager) *Client {
 	return &Client{
 		auth:                auth,
-		httpClient:          egress.Default().HTTPClient(0),
+		httpClient:          aipolicy.HTTPClient(0),
 		userAgent:           defaultUserAgent,
 		editorVersion:       defaultEditorVersion,
 		editorPluginVersion: defaultEditorPluginVersion,
@@ -121,6 +121,11 @@ func (c *Client) StreamChat(ctx context.Context, req ChatRequest, out io.Writer)
 			Body:       readErrorBody(resp),
 			RetryAfter: ParseRetryAfter(resp.Header, time.Now()),
 		}
+	}
+
+	// Nothing is relayed until the response has said it is an event stream.
+	if err := aipolicy.CheckContentType(resp, aipolicy.ContentEventStream); err != nil {
+		return fmt.Errorf("copilot chat response: %w", err)
 	}
 
 	if err := copyWithIdleTimeout(out, resp.Body, streamIdleTimeout, cancelStream); err != nil {
@@ -237,6 +242,9 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("copilot chat: status %d: %s", e.Status, truncate(e.Body, 200))
 }
+
+// Upstream implements aipolicy.UpstreamError.
+func (e *APIError) Upstream() (string, int, string) { return "GitHub Copilot", e.Status, e.Body }
 
 // initiatorFromMessages returns "user" if the trailing message is a user
 // message, otherwise "agent". This matches the X-Initiator semantics used

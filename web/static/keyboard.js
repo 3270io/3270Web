@@ -2003,6 +2003,21 @@
       return;
     }
 
+    // Focus inside the AI chat panel belongs to the chat panel, whatever the
+    // control. The editable-target check above only covers its textarea: with
+    // focus on one of its buttons, Enter fell through to the host as an AID
+    // key — so pressing Enter on a tool card's Run button submitted the
+    // mainframe screen instead of approving the call, and F3 on a card pressed
+    // PF3. The same goes for a control inside any dialog that isModalOpen()
+    // does not know by name.
+    if (
+      event.target &&
+      typeof event.target.closest === "function" &&
+      event.target.closest('#copilot-panel, [role="dialog"], [role="alertdialog"], dialog[open]')
+    ) {
+      return;
+    }
+
     // Alt+Enter belongs to focus mode, not the host — it is the long-standing
     // full-screen convention for terminal emulators. This handler is on
     // window and so runs before focus-mode.js's document listener, which

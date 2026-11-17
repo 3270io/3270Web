@@ -231,6 +231,24 @@ body.touch-device .copilot-panel {
   bottom: var(--touch-bar-height, 0px);
 }
 
+/* As a bottom sheet (narrow screens, see style.css) the panel keeps a height
+ * of its own instead of stretching from the top, still ending where the bar
+ * begins. */
+@media (max-width: 900px) {
+  body.touch-device .copilot-panel {
+    height: min(72dvh, calc(100dvh - var(--touch-bar-height, 0px)));
+  }
+}
+
+body.touch-device .copilot-quick-chip,
+body.touch-device .copilot-followup-chip,
+body.touch-device .copilot-btn-run,
+body.touch-device .copilot-btn-skip,
+body.touch-device .copilot-panel-menu [role="menuitem"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
 /* Same fix for the other bottom-docked widgets, which are anchored to the
  * viewport rather than to the page and so do not benefit from the padding
  * above. */

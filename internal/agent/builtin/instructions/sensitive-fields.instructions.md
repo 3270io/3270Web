@@ -7,7 +7,19 @@ so anything that renders that buffer verbatim publishes them.
 3270Web redacts on the way out: a hidden field's value is empty in every
 screen serialization, and its characters are replaced with `*` in the screen
 text. You will therefore never see a password in a `get_screen` result, and
-should not ask for one another way.
+should not ask for one another way. The same holds for what exploration
+learned: a hidden field's working values and examples are left out of
+`chaos_get_screen`, the session context and every other screen result.
+
+## When a screen needs a secret
+
+Do not ask the user to give you a password, PIN or passphrase in the chat, and
+do not type one for them: anything said in the chat is sent to the model
+provider and kept in the conversation. Ask the user, with `ask_user`, to type
+it into the hidden field on the terminal themselves and to tell you when they
+have. Then continue from the next step. `write_field` into a hidden field
+works and is not logged, but the value it was given has already been through
+the conversation — which is the thing to avoid.
 
 ## When you are annotating
 

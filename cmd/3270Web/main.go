@@ -564,6 +564,7 @@ func buildRouter(app *App) (*gin.Engine, error) {
 	r.GET("/chaos/runs", app.ChaosListRunsHandler)
 	r.POST("/chaos/load", app.ChaosLoadHandler)
 	r.POST("/chaos/runs/delete", app.ChaosDeleteRunHandler)
+	r.POST("/chaos/runs/label", app.ChaosLabelRunHandler)
 	r.POST("/chaos/load-recording", app.ChaosLoadRecordingHandler)
 	r.POST("/chaos/resume", app.ChaosResumeHandler)
 	r.GET("/chaos/hints", app.ChaosHintsGetHandler)
@@ -1821,7 +1822,6 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"TargetHost":     snap.TargetHost,
 		"TargetPort":     snap.TargetPort,
 		"Version":        appVersion,
-		"IsSampleApp":    isSampleAppSession(h), // chaos starts without asking only here
 	})
 }
 
@@ -2528,13 +2528,13 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 					"time":    attempt.Time.Format("15:04:05"),
 					"message": formatChaosAttemptMessage(attempt),
 				})
-				chaosAttempts = append(chaosAttempts, sessionChaosAttemptToJSON(attempt))
+				chaosAttempts = append(chaosAttempts, workflowStatusChaosAttempt(attempt))
 			}
 		}
 		if chaosState.LastAttempt != nil {
-			chaosLastAttempt = sessionChaosAttemptToJSON(*chaosState.LastAttempt)
+			chaosLastAttempt = workflowStatusChaosAttempt(*chaosState.LastAttempt)
 		} else if n := len(chaosState.RecentAttempts); n > 0 {
-			chaosLastAttempt = sessionChaosAttemptToJSON(chaosState.RecentAttempts[n-1])
+			chaosLastAttempt = workflowStatusChaosAttempt(chaosState.RecentAttempts[n-1])
 		}
 		if chaosState.StepsRun > 0 {
 			if chaosCompleted {
@@ -2581,10 +2581,41 @@ func (app *App) WorkflowStatusHandler(c *gin.Context) {
 		"chaosLastAttempt":        chaosLastAttempt,
 		"chaosAttempts":           chaosAttempts,
 		"chaosEvents":             chaosEvents,
-		"chaosMindMap":            chaosStateMindMap(chaosState),
 		"chaosCompleted":          chaosCompleted,
 		"chaosStoppedAt":          chaosStoppedAt,
+		"chaosTerminationReason":  chaosStateTerminationReason(chaosState),
 	})
+}
+
+// workflowStatusChaosAttempt is one chaos attempt as the workflow-status poll
+// reports it: which key, how many fields, whether the screen changed, and any
+// error. That is everything the status strip shows.
+//
+// It leaves out the per-field writes that GET /chaos/status?verbose=true
+// carries. This endpoint is polled every 700 ms for the life of the page, and
+// up to forty attempts' worth of field values on every poll was payload
+// nothing displayed. (The same poll used to carry the whole mind map as
+// chaosMindMap — tens of kilobytes decoded and re-encoded per request, read
+// by nothing; the map is served by /chaos/status?verbose=true.)
+func workflowStatusChaosAttempt(attempt session.ChaosAttempt) gin.H {
+	return gin.H{
+		"attempt":        attempt.Attempt,
+		"time":           attempt.Time.Format(time.RFC3339),
+		"fromHash":       attempt.FromHash,
+		"toHash":         attempt.ToHash,
+		"aidKey":         attempt.AIDKey,
+		"fieldsTargeted": attempt.FieldsTargeted,
+		"fieldsWritten":  attempt.FieldsWritten,
+		"transitioned":   attempt.Transitioned,
+		"error":          attempt.Error,
+	}
+}
+
+func chaosStateTerminationReason(state *session.ChaosState) string {
+	if state == nil {
+		return ""
+	}
+	return state.TerminationReason
 }
 
 func formatChaosAttemptMessage(attempt session.ChaosAttempt) string {
@@ -2680,17 +2711,6 @@ func chaosStateStartedAt(state *session.ChaosState) string {
 		return ""
 	}
 	return state.StartedAt.Format(time.RFC3339)
-}
-
-func chaosStateMindMap(state *session.ChaosState) interface{} {
-	if state == nil || len(state.MindMap) == 0 {
-		return nil
-	}
-	var decoded interface{}
-	if err := json.Unmarshal(state.MindMap, &decoded); err != nil {
-		return nil
-	}
-	return decoded
 }
 
 type settingsPayload struct {

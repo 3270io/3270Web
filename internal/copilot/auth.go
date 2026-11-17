@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -24,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jnnngs/3270Web/internal/egress"
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 )
 
 // Default identification headers — these match the VS Code Copilot Chat
@@ -83,7 +84,7 @@ func NewAuthManager(path string) *AuthManager {
 		path:       path,
 		clientID:   defaultGitHubClientID,
 		userAgent:  defaultUserAgent,
-		httpClient: egress.Default().HTTPClient(30 * time.Second),
+		httpClient: aipolicy.HTTPClient(30 * time.Second),
 		githubHost: "https://github.com",
 		apiHost:    "https://api.github.com",
 	}
@@ -231,17 +232,69 @@ func isValidEnterpriseHost(host string) bool {
 func (m *AuthManager) SetEnterpriseURL(host string) error {
 	host = strings.TrimSpace(host)
 	if host != "" && !isValidEnterpriseHost(host) {
-		return fmt.Errorf("invalid enterprise host %q: expected a bare hostname, e.g. ghe.example.com", host)
+		return &InvalidEnterpriseHostError{Host: host}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensureLoadedLocked()
+	if !strings.EqualFold(m.cache.EnterpriseURL, host) {
+		// The OAuth token was issued by the host that was configured when the
+		// user signed in, and the next token refresh sends it — as a bearer
+		// credential — to whichever host is configured now. Keeping it across
+		// a change of host meant anyone able to set this value could have a
+		// GitHub login delivered to a server of their choosing. A different
+		// host is a different identity provider; sign in to it.
+		m.cache.OAuth = ""
+	}
 	m.cache.EnterpriseURL = host
 	// Invalidate the Copilot token since it depends on the host.
 	m.cache.CopilotToken = ""
 	m.cache.CopilotExpires = 0
 	m.cache.APIEndpoint = ""
 	return m.saveLocked()
+}
+
+// InvalidEnterpriseHostError is returned for an enterprise host that is not a
+// bare hostname.
+type InvalidEnterpriseHostError struct{ Host string }
+
+func (e *InvalidEnterpriseHostError) Error() string {
+	return fmt.Sprintf("invalid enterprise host %q: expected a bare hostname, e.g. ghe.example.com", e.Host)
+}
+
+// copilotAPIDomain is the domain GitHub serves the Copilot API from.
+const copilotAPIDomain = "githubcopilot.com"
+
+// validCopilotEndpoint reports whether an API endpoint named in a token
+// response is somewhere the Copilot token may be sent.
+//
+// The token response says where the chat API lives, and that value used to be
+// trusted as it came. It decides where every later request — carrying the
+// Copilot token — is delivered, so it is held to what it can legitimately be:
+// HTTPS, with no credentials, query or fragment, on GitHub's Copilot domain
+// or, for an enterprise deployment, on the configured enterprise host or a
+// subdomain of it.
+func validCopilotEndpoint(endpoint, enterpriseHost string) bool {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	within := func(domain string) bool {
+		domain = strings.ToLower(strings.TrimSpace(domain))
+		return domain != "" && (host == domain || strings.HasSuffix(host, "."+domain))
+	}
+	if within(copilotAPIDomain) {
+		return true
+	}
+	if enterpriseHost != "" {
+		ghe := enterpriseHost
+		if i := strings.LastIndex(ghe, ":"); i != -1 {
+			ghe = ghe[:i]
+		}
+		return within(ghe)
+	}
+	return false
 }
 
 // Logout clears the cached OAuth token and Copilot token.
@@ -453,9 +506,15 @@ func (m *AuthManager) refreshCopilotTokenLocked(ctx context.Context) error {
 	if strings.TrimSpace(payload.Token) == "" {
 		return errors.New("copilot token: empty token")
 	}
-	endpoint := strings.TrimSpace(payload.Endpoints.API)
+	endpoint := strings.TrimRight(strings.TrimSpace(payload.Endpoints.API), "/")
 	if endpoint == "" {
 		endpoint = defaultCopilotAPIHost
+	} else if !validCopilotEndpoint(endpoint, m.cache.EnterpriseURL) {
+		// Refused rather than replaced with the default: a token response
+		// naming somewhere unexpected is a sign something is wrong with the
+		// host that issued it, and quietly carrying on would hide that.
+		log.Printf("[copilot] token response named an unexpected API endpoint %q; refusing it", endpoint)
+		return errors.New("copilot token: the response named an API endpoint outside the expected domain")
 	}
 	m.cache.CopilotToken = payload.Token
 	m.cache.APIEndpoint = endpoint

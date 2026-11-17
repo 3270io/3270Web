@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -33,6 +32,11 @@ type Transition struct {
 	// stored explicitly rather than re-derived from Steps so Resume can
 	// rebuild that dedup state without reversing aidKeyToStepType.
 	AIDKey string `json:"aidKey,omitempty"`
+	// HiddenSteps lists the indexes into Steps of fill steps that went into
+	// non-display (password-style) fields. In memory those steps carry the
+	// real text, so a live export can replay the sign-on; everything that
+	// serialises a run masks them (see maskedTransitions).
+	HiddenSteps []int `json:"hiddenSteps,omitempty"`
 }
 
 // Status is a snapshot of the engine's current state.
@@ -59,6 +63,16 @@ type Status struct {
 	// run that will only re-saturate on the same screen.
 	SaturatedNoProgress bool   `json:"saturatedNoProgress,omitempty"`
 	Error               string `json:"error,omitempty"`
+	// MindMapVersion increases every time the mind map changes. A caller
+	// that already holds the mind map for a version need not fetch or diff
+	// it again until the number moves.
+	MindMapVersion uint64 `json:"mindMapVersion"`
+	// OutputFileError is set when the run finished but its workflow could
+	// not be written to Config.OutputFile.
+	OutputFileError string `json:"outputFileError,omitempty"`
+	// Seed is the random seed the run is using (the configured one, or the
+	// one derived from the clock when none was configured).
+	Seed int64 `json:"seed,omitempty"`
 }
 
 // CoverageStats summarises how productive the recent window of chaos steps
@@ -77,6 +91,9 @@ type CoverageStats struct {
 	// is exhausted everywhere the run has been.
 	FrontierAreas    int `json:"frontierAreas"`
 	UntriedKeysTotal int `json:"untriedKeysTotal"`
+	// UntriedInputsTotal counts the values read off discovered screens (menu
+	// options, listed commands) that have not been submitted yet.
+	UntriedInputsTotal int `json:"untriedInputsTotal"`
 }
 
 // Termination reasons reported via Status.TerminationReason.
@@ -107,13 +124,20 @@ const coverageWindowSize = 10
 
 // AttemptFieldWrite captures one field write operation attempted by chaos
 // during a single step.
+//
+// Length is the length of the field, not of what was typed into it: together
+// with Row and Column it forms the same key the mind map files the field's
+// metadata under. TypedLength is the length of the text written. Value is
+// masked, and Masked set, when the field is a non-display one.
 type AttemptFieldWrite struct {
-	Row     int    `json:"row"`
-	Column  int    `json:"column"`
-	Length  int    `json:"length"`
-	Value   string `json:"value,omitempty"`
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+	Row         int    `json:"row"`
+	Column      int    `json:"column"`
+	Length      int    `json:"length"`
+	TypedLength int    `json:"typedLength,omitempty"`
+	Value       string `json:"value,omitempty"`
+	Masked      bool   `json:"masked,omitempty"`
+	Success     bool   `json:"success"`
+	Error       string `json:"error,omitempty"`
 }
 
 // Attempt captures granular details for a single chaos submission cycle:
@@ -135,6 +159,22 @@ type Attempt struct {
 	// succeeding. Zero in the common case; non-zero indicates a flaky host.
 	Retries     int                 `json:"retries,omitempty"`
 	FieldWrites []AttemptFieldWrite `json:"fieldWrites,omitempty"`
+	// Outcome classifies what the key press did (one of the Outcome*
+	// constants). Transitioned says only that the area changed; Outcome also
+	// tells a rejection from a silent no-op and a sign-off from progress.
+	Outcome string `json:"outcome,omitempty"`
+	// ContentChanged: the press stayed on the same area but changed its body.
+	ContentChanged bool `json:"contentChanged,omitempty"`
+	// Rejected: the application answered with an error message.
+	Rejected bool `json:"rejected,omitempty"`
+	// SessionEnded: the press threw the run back onto its first screen.
+	SessionEnded bool `json:"sessionEnded,omitempty"`
+	// Message is the text of the message row(s) that changed, if any.
+	Message string `json:"message,omitempty"`
+	// Plan says why the step was taken when it was not the default weighted
+	// choice: "input" (a value read off the screen), "key" (an untried key)
+	// or "navigate" (a hop back towards unexplored territory).
+	Plan string `json:"plan,omitempty"`
 }
 
 const maxRecentAttempts = 40
@@ -176,18 +216,63 @@ type Engine struct {
 	// novelty and frontier steering measure "untried" against.
 	candidateKeys []string
 
-	mu             sync.Mutex
-	active         bool
-	stopCh         chan struct{}
-	stepsRun       int
-	startedAt      time.Time
-	stoppedAt      time.Time
-	lastErr        string
-	transitions    []Transition
-	steps          []session.WorkflowStep
-	screenHashes   map[string]bool
-	uniqueInputs   map[string]bool
-	aidKeyCounts   map[string]int
+	// seed is the seed the random source was created with.
+	seed int64
+	// builtinHintLabels marks the hintKeyMappings entries that come from the
+	// engine's own defaults rather than from the user.
+	builtinHintLabels map[string]bool
+	// attemptHook, when set, receives every attempt. Tests use it to see the
+	// whole run rather than the capped recent-attempts window.
+	attemptHook func(Attempt)
+
+	mu           sync.Mutex
+	active       bool
+	stopCh       chan struct{}
+	stepsRun     int
+	startedAt    time.Time
+	stoppedAt    time.Time
+	lastErr      string
+	transitions  []Transition
+	steps        []session.WorkflowStep
+	screenHashes map[string]bool
+	aidKeyCounts map[string]int
+	// stepsHidden parallels steps: true where the step's text is the content
+	// of a non-display field.
+	stepsHidden []bool
+
+	// Unique-input accounting: a count, a bounded set of hashes behind it,
+	// and a bounded sample of (displayable) values for saved runs.
+	uniqueInputCount  int
+	uniqueInputSeen   map[uint64]struct{}
+	uniqueInputSample map[string]bool
+	productiveSeen    map[uint64]struct{}
+
+	mindMapVersion   uint64
+	outputFileErr    string
+	sigAliases       map[string]string
+	contentSeen      map[string]map[string]struct{}
+	commandPool      []string
+	identifierPool   []string
+	navPlan          []navStep
+	navTarget        string
+	navFailures      map[string]int
+	lastBounce       *bounceState
+	eraseUnsupported bool
+
+	// firstScreenIsGate is true when the first screen is a sign-on screen
+	// (it has a non-display input field): landing back on it from anywhere
+	// deeper means the session was lost.
+	firstScreenIsGate bool
+	// sessionEndingValues are the values (upper-cased) that ended the
+	// session when submitted; never typed again away from the first screen.
+	sessionEndingValues map[string]struct{}
+	// hiddenValues holds the real content typed into non-display fields
+	// that worked, per area and field key. It exists only in memory, for
+	// reuse within the run; everything serialised carries the mask.
+	hiddenValues map[string]map[string][]string
+	// edgeInputs holds the real inputs behind each observed edge, for
+	// replaying it within the run (see rememberEdgeInputsLocked).
+	edgeInputs     map[string]map[string]string
 	loadedRunID    string
 	attempts       []Attempt
 	mindMap        *MindMap
@@ -204,7 +289,6 @@ type Engine struct {
 
 	// Saturation tracking
 	transitionTuples  map[string]bool // key = fromHash|toHash|aidKey
-	productiveValues  map[string]bool // values that have ever caused a transition
 	saturationStreak  int
 	newScreensWindow  []bool // sliding window: did step add a new screen?
 	newTransWindow    []bool // sliding window: did step add a new transition tuple?
@@ -229,29 +313,34 @@ func New(h host.Host, cfg Config) *Engine {
 	defaultTx, defaultData, defaultKeyMappings := normalizeHints(defaultChaosHints())
 	hintTransactions, hintKnownData, userKeyMappings := normalizeHints(cfg.Hints)
 	hintKeyMappings := make(map[string]string)
+	builtinHintLabels := make(map[string]bool)
 	for k, v := range defaultKeyMappings {
 		hintKeyMappings[k] = v
+		builtinHintLabels[k] = true
 	}
 	for k, v := range userKeyMappings {
 		hintKeyMappings[k] = v
+		delete(builtinHintLabels, k)
 	}
 	if len(hintKeyMappings) == 0 {
 		hintKeyMappings = nil
 	}
 	return &Engine{
-		cfg:              cfg,
-		h:                h,
-		rng:              rand.New(rand.NewSource(seed)), //nolint:gosec
-		candidateKeys:    CandidateKeys(cfg.AIDKeyWeights),
-		stopCh:           make(chan struct{}),
-		workflowHeader:   workflowHeaderFromConfig(cfg),
-		hintTransactions: hintTransactions,
-		hintKnownData:    hintKnownData,
-		defaultHintTx:    defaultTx,
-		defaultHintData:  defaultData,
-		hintKeyMappings:  hintKeyMappings,
-		screenHints:      cloneScreenHints(cfg.ScreenHints),
-		blacklistedKeys:  normalizeChaosKeySet(cfg.KeyBlacklist),
+		cfg:               cfg,
+		h:                 h,
+		rng:               rand.New(rand.NewSource(seed)), //nolint:gosec
+		seed:              seed,
+		builtinHintLabels: builtinHintLabels,
+		candidateKeys:     CandidateKeys(cfg.AIDKeyWeights),
+		stopCh:            make(chan struct{}),
+		workflowHeader:    workflowHeaderFromConfig(cfg),
+		hintTransactions:  hintTransactions,
+		hintKnownData:     hintKnownData,
+		defaultHintTx:     defaultTx,
+		defaultHintData:   defaultData,
+		hintKeyMappings:   hintKeyMappings,
+		screenHints:       cloneScreenHints(cfg.ScreenHints),
+		blacklistedKeys:   normalizeChaosKeySet(cfg.KeyBlacklist),
 	}
 }
 
@@ -293,6 +382,8 @@ func (e *Engine) ImportMindMap(imported *MindMap) bool {
 		return true
 	}
 	normalizeMindMapSignatures(imported)
+	normalizeMindMapFieldKeys(imported)
+	e.touchMindMapLocked()
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}
@@ -437,12 +528,21 @@ func (e *Engine) Start() error {
 	e.transitions = nil
 	e.steps = nil
 	e.lastErr = ""
+	e.stepsHidden = nil
 	e.screenHashes = make(map[string]bool)
-	e.uniqueInputs = make(map[string]bool)
+	e.uniqueInputCount = 0
+	e.uniqueInputSeen = make(map[uint64]struct{})
+	e.uniqueInputSample = make(map[string]bool)
 	e.aidKeyCounts = make(map[string]int)
 	e.loadedRunID = ""
 	e.attempts = nil
 	e.mindMap = newMindMap()
+	e.firstScreenHash = ""
+	e.firstScreenIsGate = false
+	e.sessionEndingValues = nil
+	e.hiddenValues = nil
+	e.edgeInputs = nil
+	e.touchMindMapLocked()
 	e.workflowHeader = workflowHeaderFromConfig(e.cfg)
 	e.stopCh = make(chan struct{})
 	e.resetSaturationStateLocked()
@@ -507,7 +607,7 @@ func (e *Engine) Status() Status {
 		TimeBudget:          e.cfg.TimeBudget,
 		Transitions:         len(e.transitions),
 		UniqueScreens:       len(e.screenHashes),
-		UniqueInputs:        len(e.uniqueInputs),
+		UniqueInputs:        e.uniqueInputCount,
 		AIDKeyCounts:        aidCopy,
 		LoadedRunID:         e.loadedRunID,
 		FirstScreenHash:     e.firstScreenHash,
@@ -518,6 +618,9 @@ func (e *Engine) Status() Status {
 		TerminationReason:   e.terminationReason,
 		SaturatedNoProgress: e.saturatedNoProgress,
 		Error:               e.lastErr,
+		MindMapVersion:      e.mindMapVersion,
+		OutputFileError:     e.outputFileErr,
+		Seed:                e.seed,
 	}
 }
 
@@ -540,6 +643,12 @@ func (e *Engine) coverageStatsSnapshotLocked() *CoverageStats {
 		}
 	}
 	frontierAreas, untriedKeys := e.frontierStatsLocked()
+	untriedInputs := 0
+	if e.mindMap != nil {
+		for _, area := range e.mindMap.Areas {
+			untriedInputs += len(e.untriedInputsLocked(area))
+		}
+	}
 	return &CoverageStats{
 		WindowSteps:              len(e.newScreensWindow),
 		NewScreensInWindow:       newScreens,
@@ -548,6 +657,7 @@ func (e *Engine) coverageStatsSnapshotLocked() *CoverageStats {
 		SaturationThresholdSteps: e.cfg.SaturationSteps,
 		FrontierAreas:            frontierAreas,
 		UntriedKeysTotal:         untriedKeys,
+		UntriedInputsTotal:       untriedInputs,
 	}
 }
 
@@ -607,6 +717,7 @@ func (e *Engine) ExportWorkflowWithSuccessBalance(hostName string, port int, suc
 	mindMap := e.mindMap.clone()
 	header := e.workflowHeader.clone()
 	discovery := e.workflowDiscoveryMetadataLocked()
+	firstHash := e.firstScreenHash
 	e.mu.Unlock()
 
 	if hostName == "" {
@@ -615,7 +726,7 @@ func (e *Engine) ExportWorkflowWithSuccessBalance(hostName string, port int, suc
 	if port == 0 {
 		port = e.cfg.ExportPort
 	}
-	steps := buildExportWorkflowSteps(transitions, attempts, mindMap, successBalance)
+	steps := buildExportWorkflowStepsFrom(firstHash, transitions, attempts, mindMap, successBalance)
 	if len(steps) == 0 && len(rawSteps) > 0 {
 		steps = rawSteps
 	}
@@ -647,7 +758,7 @@ func ExportWorkflowFromSavedRun(run *SavedRun, hostName string, port int, succes
 	copy(transitions, run.TransitionList)
 	attempts := make([]Attempt, len(run.Attempts))
 	copy(attempts, run.Attempts)
-	steps := buildExportWorkflowSteps(transitions, attempts, run.MindMap, successBalance)
+	steps := buildExportWorkflowStepsFrom(run.FirstScreenHash, transitions, attempts, run.MindMap, successBalance)
 	if len(steps) == 0 && len(run.Steps) > 0 {
 		steps = append([]session.WorkflowStep(nil), run.Steps...)
 	}
@@ -672,9 +783,24 @@ func marshalChaosWorkflowExport(hostName string, port int, steps []session.Workf
 }
 
 func buildExportWorkflowSteps(transitions []Transition, attempts []Attempt, mindMap *MindMap, successBalance float64) []session.WorkflowStep {
+	return buildExportWorkflowStepsFrom("", transitions, attempts, mindMap, successBalance)
+}
+
+// buildExportWorkflowStepsFrom builds the exported step list as one connected
+// walk over the discovered edges, starting on the run's first screen.
+//
+// Transitions are stored once per edge, in the order they were discovered.
+// Concatenating them in that order is only replayable while the run never
+// backtracks: A->B, B->A, A->C plays fine, but as soon as a second edge out
+// of B is found later (A->B, B->A, A->C, B->D) the fourth press lands on C,
+// not B. The walk instead follows unvisited edges out of wherever it is and,
+// when there are none, replays known edges to the nearest screen that still
+// has one. Every step it emits is pressed on the screen it was recorded on.
+func buildExportWorkflowStepsFrom(firstHash string, transitions []Transition, attempts []Attempt, mindMap *MindMap, successBalance float64) []session.WorkflowStep {
 	balance := clampExportSuccessBalance(successBalance)
+	walk := orderTransitionsAsWalk(firstHash, transitions)
 	if len(attempts) == 0 {
-		return flattenTransitionSteps(transitions)
+		return flattenTransitionSteps(walk)
 	}
 	if len(transitions) == 0 {
 		if balance >= 0.999999 {
@@ -689,58 +815,138 @@ func buildExportWorkflowSteps(transitions []Transition, attempts []Attempt, mind
 			successCount++
 		}
 	}
-	if successCount != len(transitions) {
-		return flattenTransitionSteps(transitions)
-	}
 	maxUnsuccessful := exportUnsuccessfulBudget(successCount, balance)
 	if maxUnsuccessful <= 0 {
-		return flattenTransitionSteps(transitions)
+		return flattenTransitionSteps(walk)
 	}
 
-	// Build a set of screen hashes that appear in the normal workflow transitions
-	// so that check steps are only generated for screens reachable during clean playback.
-	transitionScreens := make(map[string]bool, len(transitions)*2)
-	for _, tr := range transitions {
-		if tr.FromHash != "" {
-			transitionScreens[tr.FromHash] = true
-		}
-		if tr.ToHash != "" {
-			transitionScreens[tr.ToHash] = true
-		}
-	}
-
-	steps := make([]session.WorkflowStep, 0, len(transitions)*2)
-	transIdx := 0
-	includedUnsuccessful := 0
+	// Unsuccessful attempts become check steps on the screen they were made
+	// from, emitted when the walk is standing on that screen. Screens the
+	// walk never visits get none: a check for a screen playback is not on
+	// can only fail.
+	pendingChecks := make(map[string]int)
 	for _, attempt := range attempts {
 		if isSuccessfulExportAttempt(attempt) {
-			if transIdx < len(transitions) {
-				steps = append(steps, transitions[transIdx].Steps...)
-				transIdx++
-			}
 			continue
 		}
-		if includedUnsuccessful >= maxUnsuccessful {
-			continue
+		if from := strings.TrimSpace(attempt.FromHash); from != "" {
+			pendingChecks[from]++
 		}
-		// Only include check steps for screens that appear in the normal transition
-		// path; this avoids checks for unreachable error-only screens during playback.
-		if !transitionScreens[strings.TrimSpace(attempt.FromHash)] {
-			continue
-		}
-		check, ok := exportCheckStepForAttempt(attempt, mindMap)
-		if !ok {
-			continue
-		}
-		steps = append(steps, check)
-		includedUnsuccessful++
 	}
-	// If attempts history was filtered or truncated, append any remaining
-	// successful transitions so the exported workflow still reaches the same path.
-	for ; transIdx < len(transitions); transIdx++ {
-		steps = append(steps, transitions[transIdx].Steps...)
+
+	steps := make([]session.WorkflowStep, 0, len(walk)*2)
+	includedUnsuccessful := 0
+	for _, tr := range walk {
+		from := strings.TrimSpace(tr.FromHash)
+		for pendingChecks[from] > 0 && includedUnsuccessful < maxUnsuccessful {
+			pendingChecks[from]--
+			if mindMap == nil {
+				break
+			}
+			check, ok := checkStepForArea(mindMap.Areas[from])
+			if !ok {
+				pendingChecks[from] = 0
+				break
+			}
+			steps = append(steps, check)
+			includedUnsuccessful++
+		}
+		steps = append(steps, tr.Steps...)
 	}
 	return steps
+}
+
+// orderTransitionsAsWalk arranges transitions into a connected walk from the
+// first screen. An edge may appear more than once (it is replayed to get
+// back to a screen with something left); an edge that cannot be reached from
+// the first screen over known edges is left out, since there is no way to
+// stand on its starting screen. Transitions without screen hashes (hand-made
+// or from very old runs) cannot be ordered and are returned as they are.
+func orderTransitionsAsWalk(firstHash string, transitions []Transition) []Transition {
+	if len(transitions) == 0 {
+		return nil
+	}
+	outgoing := make(map[string][]int)
+	for i, tr := range transitions {
+		if strings.TrimSpace(tr.FromHash) == "" || strings.TrimSpace(tr.ToHash) == "" {
+			return transitions
+		}
+		outgoing[tr.FromHash] = append(outgoing[tr.FromHash], i)
+	}
+	start := strings.TrimSpace(firstHash)
+	if len(outgoing[start]) == 0 {
+		start = transitions[0].FromHash
+	}
+
+	visited := make([]bool, len(transitions))
+	walk := make([]Transition, 0, len(transitions))
+	current := start
+	for {
+		next := -1
+		for _, idx := range outgoing[current] {
+			if !visited[idx] {
+				next = idx
+				break
+			}
+		}
+		if next >= 0 {
+			visited[next] = true
+			walk = append(walk, transitions[next])
+			current = transitions[next].ToHash
+			continue
+		}
+		// Nothing new from here: replay known edges to the nearest screen
+		// that still has an unvisited edge.
+		bridge := bridgeToUnvisited(current, transitions, outgoing, visited)
+		if len(bridge) == 0 {
+			return walk
+		}
+		for _, idx := range bridge {
+			walk = append(walk, transitions[idx])
+			current = transitions[idx].ToHash
+		}
+	}
+}
+
+// bridgeToUnvisited returns the indexes of the edges to replay, in order, to
+// get from a screen to the nearest one with an unvisited outgoing edge.
+func bridgeToUnvisited(from string, transitions []Transition, outgoing map[string][]int, visited []bool) []int {
+	type visit struct {
+		hash string
+		via  int
+		prev int
+	}
+	queue := []visit{{hash: from, via: -1, prev: -1}}
+	seen := map[string]bool{from: true}
+	for i := 0; i < len(queue); i++ {
+		for _, idx := range outgoing[queue[i].hash] {
+			to := transitions[idx].ToHash
+			if seen[to] {
+				continue
+			}
+			seen[to] = true
+			queue = append(queue, visit{hash: to, via: idx, prev: i})
+			hasUnvisited := false
+			for _, out := range outgoing[to] {
+				if !visited[out] {
+					hasUnvisited = true
+					break
+				}
+			}
+			if !hasUnvisited {
+				continue
+			}
+			var path []int
+			for at := len(queue) - 1; at > 0; at = queue[at].prev {
+				path = append(path, queue[at].via)
+			}
+			for l, r := 0, len(path)-1; l < r; l, r = l+1, r-1 {
+				path[l], path[r] = path[r], path[l]
+			}
+			return path
+		}
+	}
+	return nil
 }
 
 func flattenTransitionSteps(transitions []Transition) []session.WorkflowStep {
@@ -786,7 +992,7 @@ func buildUnsuccessfulCheckSteps(attempts []Attempt, mindMap *MindMap, successBa
 }
 
 func isSuccessfulExportAttempt(attempt Attempt) bool {
-	return attempt.Transitioned && strings.TrimSpace(attempt.Error) == ""
+	return attempt.Transitioned && !attempt.SessionEnded && strings.TrimSpace(attempt.Error) == ""
 }
 
 func clampExportSuccessBalance(v float64) float64 {
@@ -882,7 +1088,7 @@ func (e *Engine) workflowDiscoveryMetadataLocked() *WorkflowDiscoveryMetadata {
 		StepsRun:       e.stepsRun,
 		Transitions:    len(e.transitions),
 		UniqueScreens:  len(e.screenHashes),
-		UniqueInputs:   len(e.uniqueInputs),
+		UniqueInputs:   e.uniqueInputCount,
 		AIDKeyCounts:   aid,
 		RecentAttempts: attempts,
 		MindMap:        mindMap,
@@ -918,6 +1124,11 @@ func WorkflowDiscoveryMetadataFromSavedRun(run *SavedRun) *WorkflowDiscoveryMeta
 
 // Snapshot returns a SavedRun capturing the engine's current accumulated
 // state. It is safe to call while the engine is running.
+//
+// Nothing typed into a non-display field leaves through here: attempts and
+// the mind map never held it, and the fill steps that did are masked on the
+// way out. The price is that a workflow exported from a saved run types the
+// mask where the live engine's export types the real value.
 func (e *Engine) Snapshot(runID string) *SavedRun {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -926,32 +1137,40 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 	for k, v := range e.screenHashes {
 		hashes[k] = v
 	}
-	inputs := make(map[string]bool, len(e.uniqueInputs))
-	for k, v := range e.uniqueInputs {
+	inputs := make(map[string]bool, len(e.uniqueInputSample))
+	for k, v := range e.uniqueInputSample {
 		inputs[k] = v
 	}
 	aid := make(map[string]int, len(e.aidKeyCounts))
 	for k, v := range e.aidKeyCounts {
 		aid[k] = v
 	}
-	transitions := make([]Transition, len(e.transitions))
-	copy(transitions, e.transitions)
+	transitions := maskedTransitions(e.transitions)
 	steps := make([]session.WorkflowStep, len(e.steps))
 	copy(steps, e.steps)
+	for i := range steps {
+		if i < len(e.stepsHidden) && e.stepsHidden[i] {
+			steps[i].Text = maskedFieldValue
+		}
+	}
 	attempts := make([]Attempt, len(e.attempts))
 	copy(attempts, e.attempts)
 	mindMap := e.mindMap.clone()
+	cfg := e.persistableConfigLocked()
 
 	return &SavedRun{
 		SavedRunMeta: SavedRunMeta{
-			ID:            runID,
-			StartedAt:     e.startedAt,
-			StoppedAt:     e.stoppedAt,
-			StepsRun:      e.stepsRun,
-			Transitions:   len(transitions),
-			UniqueScreens: len(hashes),
-			UniqueInputs:  len(inputs),
-			Error:         e.lastErr,
+			ID:                runID,
+			StartedAt:         e.startedAt,
+			StoppedAt:         e.stoppedAt,
+			StepsRun:          e.stepsRun,
+			Transitions:       len(transitions),
+			UniqueScreens:     len(hashes),
+			UniqueInputs:      e.uniqueInputCount,
+			Error:             e.lastErr,
+			TerminationReason: e.terminationReason,
+			FirstScreenHash:   e.firstScreenHash,
+			TargetHost:        e.targetHostLocked(),
 		},
 		ScreenHashes:      hashes,
 		TransitionList:    transitions,
@@ -961,7 +1180,43 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 		UniqueInputValues: inputs,
 		Attempts:          attempts,
 		MindMap:           mindMap,
+		Seed:              e.seed,
+		Config:            &cfg,
 	}
+}
+
+// targetHostLocked names the host the run explored, from the export
+// metadata the caller configured. Caller must hold e.mu.
+func (e *Engine) targetHostLocked() string {
+	hostName := strings.TrimSpace(e.cfg.ExportHost)
+	if hostName == "" {
+		return ""
+	}
+	if e.cfg.ExportPort > 0 {
+		return hostName + ":" + strconv.Itoa(e.cfg.ExportPort)
+	}
+	return hostName
+}
+
+// persistableConfigLocked returns the configuration the run is using, in the
+// form written into a saved run. The effective seed replaces a zero one, so
+// a resume can continue the same random sequence. Hints are left out on
+// purpose: they are where a user puts the credentials for the sign-on
+// screen, and a run file is not the place for those. Whoever resumes the run
+// supplies its hints again. Caller must hold e.mu.
+func (e *Engine) persistableConfigLocked() Config {
+	cfg := e.cfg
+	cfg.Seed = e.seed
+	cfg.Hints = nil
+	cfg.ScreenHints = nil
+	if len(e.cfg.AIDKeyWeights) > 0 {
+		cfg.AIDKeyWeights = make(map[string]int, len(e.cfg.AIDKeyWeights))
+		for k, v := range e.cfg.AIDKeyWeights {
+			cfg.AIDKeyWeights[k] = v
+		}
+	}
+	cfg.KeyBlacklist = append([]string(nil), e.cfg.KeyBlacklist...)
+	return cfg
 }
 
 // resetSaturationStateLocked (re)initializes the per-run saturation-tracking
@@ -972,7 +1227,14 @@ func (e *Engine) Snapshot(runID string) *SavedRun {
 // field write. Callers must hold e.mu.
 func (e *Engine) resetSaturationStateLocked() {
 	e.transitionTuples = make(map[string]bool)
-	e.productiveValues = make(map[string]bool)
+	e.productiveSeen = make(map[uint64]struct{})
+	e.sigAliases = make(map[string]string)
+	e.contentSeen = make(map[string]map[string]struct{})
+	e.navPlan = nil
+	e.navTarget = ""
+	e.navFailures = make(map[string]int)
+	e.lastBounce = nil
+	e.outputFileErr = ""
 	e.saturationStreak = 0
 	e.newScreensWindow = nil
 	e.newTransWindow = nil
@@ -1017,9 +1279,22 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	for k, v := range saved.ScreenHashes {
 		e.screenHashes[k] = v
 	}
-	e.uniqueInputs = make(map[string]bool, len(saved.UniqueInputValues))
+	e.uniqueInputSeen = make(map[uint64]struct{}, len(saved.UniqueInputValues))
+	e.uniqueInputSample = make(map[string]bool, len(saved.UniqueInputValues))
 	for k, v := range saved.UniqueInputValues {
-		e.uniqueInputs[k] = v
+		if !v {
+			continue
+		}
+		e.uniqueInputSeen[hashValue(k)] = struct{}{}
+		if len(e.uniqueInputSample) < maxSavedInputSample {
+			e.uniqueInputSample[k] = true
+		}
+	}
+	// The saved count is authoritative: the sample is bounded and never
+	// holds non-display values, so it can be smaller than the count.
+	e.uniqueInputCount = len(e.uniqueInputSeen)
+	if saved.UniqueInputs > e.uniqueInputCount {
+		e.uniqueInputCount = saved.UniqueInputs
 	}
 	e.aidKeyCounts = make(map[string]int, len(saved.AIDKeyCounts))
 	for k, v := range saved.AIDKeyCounts {
@@ -1029,6 +1304,7 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	copy(e.transitions, saved.TransitionList)
 	e.steps = make([]session.WorkflowStep, len(saved.Steps))
 	copy(e.steps, saved.Steps)
+	e.stepsHidden = make([]bool, len(e.steps))
 	e.attempts = make([]Attempt, len(saved.Attempts))
 	copy(e.attempts, saved.Attempts)
 	if e.cfg.ExcludeNoProgressEvents {
@@ -1044,12 +1320,46 @@ func (e *Engine) Resume(saved *SavedRun) error {
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}
-	e.firstScreenHash = ""
-	if len(saved.Attempts) > 0 {
-		firstHash := strings.TrimSpace(saved.Attempts[0].FromHash)
-		if firstHash != "" {
-			e.firstScreenHash = firstHash
+	// Runs saved before field writes were keyed by field length carry keys
+	// nothing can look up; move what they learned under the real keys.
+	normalizeMindMapSignatures(e.mindMap)
+	normalizeMindMapFieldKeys(e.mindMap)
+	e.touchMindMapLocked()
+	// The first screen is the one the saved run says it started on. Runs
+	// saved before that was recorded fall back to the oldest attempt still
+	// in the (capped) history, which is only right for a short run.
+	e.firstScreenHash = strings.TrimSpace(saved.FirstScreenHash)
+	if e.firstScreenHash == "" && len(saved.Attempts) > 0 {
+		e.firstScreenHash = strings.TrimSpace(saved.Attempts[0].FromHash)
+	}
+	e.firstScreenIsGate = false
+	if area := e.mindMap.Areas[e.firstScreenHash]; area != nil && area.HiddenFieldCount > 0 {
+		e.firstScreenIsGate = true
+	}
+	// Carry over what the saved run learned ends the session.
+	e.sessionEndingValues = nil
+	for _, area := range e.mindMap.Areas {
+		if area == nil {
+			continue
 		}
+		for _, values := range area.SessionEndingValues {
+			for _, v := range values {
+				if e.sessionEndingValues == nil {
+					e.sessionEndingValues = make(map[string]struct{})
+				}
+				e.sessionEndingValues[strings.ToUpper(strings.TrimSpace(v))] = struct{}{}
+			}
+		}
+	}
+	e.hiddenValues = nil
+	e.edgeInputs = nil
+	// A run started without a seed draws one from the clock. Resuming it
+	// with the seed it saved (advanced by the steps already taken, so the
+	// resumed run does not replay the first one's choices) makes the
+	// continuation reproducible.
+	if e.cfg.Seed == 0 && saved.Seed != 0 {
+		e.seed = saved.Seed
+		e.rng = rand.New(rand.NewSource(saved.Seed + int64(saved.StepsRun))) //nolint:gosec
 	}
 
 	e.active = true
@@ -1107,503 +1417,6 @@ func (e *Engine) retryHostOp(fn func() error) (retries int, err error) {
 		backoff *= 2
 	}
 	return hostOpMaxAttempts - 1, err
-}
-
-func (e *Engine) run() {
-	defer func() {
-		e.mu.Lock()
-		if e.terminationReason == "" {
-			if e.lastErr != "" {
-				e.terminationReason = TerminationReasonError
-			} else {
-				e.terminationReason = TerminationReasonStopped
-			}
-		}
-		if e.transitionLog != nil {
-			_ = e.transitionLog.Close()
-			e.transitionLog = nil
-		}
-		outputFile := e.cfg.OutputFile
-		e.mu.Unlock()
-
-		if outputFile != "" {
-			if data, err := e.ExportWorkflow("", 0); err == nil {
-				if dir := filepath.Dir(outputFile); dir != "" {
-					_ = os.MkdirAll(dir, 0750)
-				}
-				_ = os.WriteFile(outputFile, data, 0600)
-			}
-		}
-
-		e.mu.Lock()
-		e.active = false
-		e.stoppedAt = time.Now()
-		e.mu.Unlock()
-	}()
-
-	var deadline time.Time
-	if e.cfg.TimeBudget > 0 {
-		deadline = time.Now().Add(e.cfg.TimeBudget)
-	}
-	firstLoopPass := true
-
-	for {
-		// Check for stop signal.
-		select {
-		case <-e.stopCh:
-			return
-		default:
-		}
-
-		// Check step and time limits.
-		e.mu.Lock()
-		steps := e.stepsRun
-		e.mu.Unlock()
-		isFirstAttempt := firstLoopPass
-
-		if e.cfg.MaxSteps > 0 && steps >= e.cfg.MaxSteps {
-			e.mu.Lock()
-			if e.terminationReason == "" {
-				e.terminationReason = TerminationReasonMaxSteps
-			}
-			e.mu.Unlock()
-			return
-		}
-		if !deadline.IsZero() && time.Now().After(deadline) {
-			e.mu.Lock()
-			if e.terminationReason == "" {
-				e.terminationReason = TerminationReasonTimeBudget
-			}
-			e.mu.Unlock()
-			return
-		}
-
-		// Read the current screen state (retried on transient host errors).
-		if _, err := e.retryHostOp(e.h.UpdateScreen); err != nil {
-			e.mu.Lock()
-			e.lastErr = err.Error()
-			e.mu.Unlock()
-			return
-		}
-		screen := e.screenSnapshot()
-		if screen == nil {
-			return
-		}
-
-		currentHash := hashScreen(screen)
-		e.mu.Lock()
-		currentHash = e.canonicalizeObservedScreenHashLocked(currentHash, screen)
-		// Capture the current screen before any writes/key presses so the mind map
-		// always records the true starting screen for this attempt.
-		e.observeMindMapAreaLocked(currentHash, screen, time.Now())
-		e.mu.Unlock()
-		attempt := Attempt{
-			Attempt:  steps + 1,
-			Time:     time.Now(),
-			FromHash: currentHash,
-		}
-
-		// Fill unprotected fields with random values.
-		var batchSteps []session.WorkflowStep
-		fields := e.selectTargetFieldsForScreen(currentHash, unprotectedFields(screen))
-		attempt.FieldsTargeted = len(fields)
-
-		// Snapshot learned data for this screen area under a brief lock so that
-		// field writes (which may block on I/O) don't race with the recording
-		// code that also holds the lock.
-		e.mu.Lock()
-		knownValues := e.snapshotAreaValuesLocked(currentHash)
-		triedValues := e.snapshotAreaTriedValuesLocked(currentHash)
-		screenHint := e.snapshotScreenHintLocked(currentHash)
-		applyFirstScreenHint, firstScreenHintReason := e.shouldApplyFirstScreenHintForHashLocked(currentHash, isFirstAttempt)
-		if applyFirstScreenHint {
-			firstScreenHint := e.snapshotScreenHintLocked(FirstScreenHintKey)
-			screenHint = mergeScreenHints(firstScreenHint, screenHint)
-			attempt.FirstScreenHintApplied = true
-			attempt.FirstScreenHintReason = firstScreenHintReason
-		}
-		e.mu.Unlock()
-		forceHintValues := applyFirstScreenHint && e.hasUserFieldHints(screenHint)
-
-		if forceHintValues {
-			fields = e.selectFirstScreenTargetFields(unprotectedFields(screen))
-			attempt.FieldsTargeted = len(fields)
-		}
-		// snapshotKeyBoostsLocked reads e.mindMap under the lock; it must be
-		// called with e.mu held. AnnotateArea/UpsertBusinessFunction can mutate
-		// e.mindMap.Areas concurrently (reachable from the Copilot tools while a
-		// run is active), so reading it unlocked is a data race / panic.
-		e.mu.Lock()
-		keyBoosts := e.snapshotKeyBoostsLocked(currentHash, attempt.FieldsTargeted)
-		// Exploration steering is kept separate from the learned boosts: it is
-		// deliberately NOT scaled by LearnedKeyReuseBias, because turning that
-		// bias down means "explore more", which must not also mute the
-		// exploration boosts themselves.
-		explorationBoosts := mergeKeyBoostMaps(e.noveltyKeyBoostsLocked(currentHash), e.frontierKeyBoostsLocked(currentHash))
-		e.mu.Unlock()
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.hintKeyBoostsForScreen(screen))
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, e.screenHintKeyBoostsForScreen(screen, screenHint))
-		helpBoosts := inferScreenHelpKeyBoosts(screen)
-		if !e.cfg.AutoPreferNavigationKeys {
-			// The operator declined the navigation-label steering, not the
-			// protection: penalties for exit/logoff-style labels stay live.
-			helpBoosts = negativeKeyBoostsOnly(helpBoosts)
-		}
-		keyBoosts = mergeKeyBoostMaps(keyBoosts, helpBoosts)
-
-		for idx, f := range fields {
-			value := e.generateValueForFieldWithPolicy(f, idx == 0, knownValues, triedValues, screenHint, forceHintValues)
-			if value == "" {
-				continue
-			}
-			if e.cfg.ForceOverrideExistingInputs {
-				value = e.prepareFieldWriteValueWithPolicy(f, value, forceHintValues)
-				if value == "" {
-					continue
-				}
-			}
-			fieldAttempt := AttemptFieldWrite{
-				Row:    f.StartY + 1,
-				Column: f.StartX + 1,
-				Length: len(value),
-				Value:  value,
-			}
-			if e.cfg.ForceOverrideExistingInputs {
-				if err := e.clearFieldBeforeWrite(f); err != nil {
-					fieldAttempt.Error = fmt.Sprintf("clear field: %v", err)
-					attempt.FieldWrites = append(attempt.FieldWrites, fieldAttempt)
-					continue
-				}
-			}
-			if err := e.h.WriteStringAt(f.StartY, f.StartX, value); err != nil {
-				// Non-fatal: skip this field.
-				fieldAttempt.Error = err.Error()
-				attempt.FieldWrites = append(attempt.FieldWrites, fieldAttempt)
-				continue
-			}
-			fieldAttempt.Success = true
-			attempt.FieldWrites = append(attempt.FieldWrites, fieldAttempt)
-			attempt.FieldsWritten++
-			batchSteps = append(batchSteps, session.WorkflowStep{
-				Type: "FillString",
-				Coordinates: &session.WorkflowCoordinates{
-					Row:    f.StartY + 1, // workflow uses 1-based coordinates
-					Column: f.StartX + 1,
-				},
-				Text: value,
-			})
-		}
-
-		// Choose and send an AID key (adaptive: prefer keys that previously
-		// caused screen transitions from the current area).
-		blocked := e.blacklistedKeysSnapshot()
-		if screenHint != nil && len(screenHint.BlockedKeys) > 0 {
-			blocked = mergeChaosKeySets(blocked, normalizeChaosKeySet(screenHint.BlockedKeys))
-		}
-		var autoBlocked []string
-		if e.cfg.AutoBlockExitKeys {
-			autoBlocked = inferAutoBlockedKeys(screen)
-			if len(autoBlocked) > 0 {
-				blocked = mergeChaosKeySets(blocked, normalizeChaosKeySet(autoBlocked))
-			}
-		}
-		// Record auto-detected exit/nav keys on the area (for chaos_report).
-		autoKnown := inferAutoNavigationKeys(screen)
-		if len(autoBlocked) > 0 || len(autoKnown) > 0 {
-			e.mu.Lock()
-			if area, ok := e.mindMap.Areas[currentHash]; ok && area != nil {
-				if len(autoBlocked) > 0 {
-					area.AutoBlockedKeys = mergeSortedUniqueStrings(area.AutoBlockedKeys, autoBlocked)
-				}
-				if len(autoKnown) > 0 {
-					area.AutoKnownKeys = mergeSortedUniqueStrings(area.AutoKnownKeys, autoKnown)
-				}
-			}
-			e.mu.Unlock()
-		}
-		aidKey := e.chooseAIDKeyWithExploration(keyBoosts, explorationBoosts)
-		if isBlacklistedKeyInSet(blocked, aidKey) {
-			aidKey = fallbackChaosKey(blocked)
-		}
-		attempt.AIDKey = aidKey
-		if strings.TrimSpace(aidKey) == "" {
-			// No usable key for this screen: every candidate is blacklisted.
-			// This is a recoverable, expected stop, not a host failure — mark it
-			// "blocked" (without setting lastErr) so the caller can relax the
-			// blacklist / add hints and resume instead of seeing an error run.
-			attempt.Error = "no non-blacklisted AID key available"
-			e.mu.Lock()
-			if e.terminationReason == "" {
-				e.terminationReason = TerminationReasonBlocked
-			}
-			e.recordMindMapAttemptLocked(attempt)
-			e.appendAttemptLocked(attempt)
-			e.mu.Unlock()
-			return
-		}
-		sendRetries, err := e.retryHostOp(func() error { return e.h.SendKey(aidKey) })
-		attempt.Retries += sendRetries
-		if err != nil {
-			attempt.Error = err.Error()
-			e.mu.Lock()
-			e.lastErr = err.Error()
-			e.recordMindMapAttemptLocked(attempt)
-			e.appendAttemptLocked(attempt)
-			e.mu.Unlock()
-			return
-		}
-		batchSteps = append(batchSteps, session.WorkflowStep{Type: aidKeyToStepType(aidKey)})
-
-		// Refresh the screen after the key press (retried on transient errors).
-		refreshRetries, err := e.retryHostOp(e.h.UpdateScreen)
-		attempt.Retries += refreshRetries
-		if err != nil {
-			attempt.Error = err.Error()
-			e.mu.Lock()
-			e.lastErr = err.Error()
-			e.recordMindMapAttemptLocked(attempt)
-			e.appendAttemptLocked(attempt)
-			e.mu.Unlock()
-			return
-		}
-		newScreen := e.screenSnapshot()
-		newHash := ""
-		if newScreen != nil {
-			newHash = hashScreen(newScreen)
-			e.mu.Lock()
-			newHash = e.canonicalizeObservedScreenHashLocked(newHash, newScreen)
-			e.mu.Unlock()
-		}
-		attempt.ToHash = newHash
-		attempt.Transitioned = newHash != "" && newHash != currentHash
-		recordAttempt := !e.cfg.ExcludeNoProgressEvents || attempt.Transitioned || attempt.Error != ""
-
-		// Record the step and any state transition.
-		e.mu.Lock()
-		newScreenObserved := false
-		if newHash != "" {
-			if _, ok := e.mindMap.Areas[newHash]; !ok {
-				newScreenObserved = true
-			}
-			e.observeMindMapAreaLocked(newHash, newScreen, attempt.Time)
-		}
-		e.recordMindMapAttemptLocked(attempt)
-
-		// A step is "productive" if it added a new screen, a new (from,to,aid)
-		// transition tuple, or a new field value that caused a transition.
-		// Computed before the appends below (rather than after, as it used to
-		// be) so both e.steps and e.transitions can be bounded by it: without
-		// this, a long-running (or many-times-resumed via "extend limits")
-		// exploration re-recorded the same already-discovered transition edge,
-		// and every non-productive repeat step, forever — growing both slices
-		// with the total steps ever taken across a whole campaign instead of
-		// with the size of the actual discovered state graph, which is what
-		// they're used to reconstruct.
-		tupleKey := currentHash + "|" + newHash + "|" + aidKey
-		newTuple := false
-		if attempt.Transitioned {
-			if !e.transitionTuples[tupleKey] {
-				e.transitionTuples[tupleKey] = true
-				newTuple = true
-			}
-		}
-		newProductiveValue := false
-		if attempt.Transitioned {
-			for _, fw := range attempt.FieldWrites {
-				if !fw.Success || fw.Value == "" {
-					continue
-				}
-				if !e.productiveValues[fw.Value] {
-					e.productiveValues[fw.Value] = true
-					newProductiveValue = true
-				}
-			}
-		}
-		productive := newScreenObserved || newTuple || newProductiveValue
-
-		e.stepsRun++
-		// e.steps is an unconditional, flat step log used only as a
-		// last-resort export fallback (see ExportWorkflowWithSuccessBalance)
-		// when neither transitions nor attempts yield anything — e.g. a run
-		// that saturates without ever making progress. 3270Connect's
-		// playback pipeline requires *some* non-empty workflow in that case,
-		// so this can't be limited to productive steps the way e.transitions
-		// is; a trailing window bounds its memory instead.
-		e.steps = append(e.steps, batchSteps...)
-		if len(e.steps) > maxRecentRawSteps {
-			e.steps = e.steps[len(e.steps)-maxRecentRawSteps:]
-		}
-		e.screenHashes[currentHash] = true
-		if newHash != "" {
-			e.screenHashes[newHash] = true
-		}
-		e.aidKeyCounts[aidKey]++
-		for _, bs := range batchSteps {
-			if bs.Type == "FillString" && bs.Text != "" {
-				e.uniqueInputs[bs.Text] = true
-			}
-		}
-		if newTuple {
-			e.transitions = append(e.transitions, Transition{
-				FromHash: currentHash,
-				ToHash:   newHash,
-				Steps:    batchSteps,
-				AIDKey:   aidKey,
-			})
-		}
-		if recordAttempt {
-			e.appendAttemptLocked(attempt)
-		}
-
-		// Saturation tracking: otherwise the streak grows. When the streak
-		// reaches SaturationSteps, the run stops with TerminationReasonSaturated.
-		appendSlidingBool(&e.newScreensWindow, newScreenObserved, coverageWindowSize)
-		appendSlidingBool(&e.newTransWindow, newTuple, coverageWindowSize)
-		if productive {
-			e.saturationStreak = 0
-		} else {
-			e.saturationStreak++
-		}
-		shouldStopForSaturation := e.cfg.SaturationSteps > 0 && e.saturationStreak >= e.cfg.SaturationSteps
-		if shouldStopForSaturation && e.terminationReason == "" {
-			e.terminationReason = TerminationReasonSaturated
-			// If this run discovered no transitions at all, resuming it will
-			// only re-saturate on the same screen. Flag it so the caller stops
-			// the resume loop and switches to updating hints / manual nav.
-			if len(e.transitions) == 0 {
-				e.saturatedNoProgress = true
-			}
-		}
-		if e.transitionLog != nil {
-			if entry, err := json.Marshal(attempt); err == nil {
-				entry = append(entry, '\n')
-				if _, writeErr := e.transitionLog.Write(entry); writeErr != nil {
-					// Disable the log on the first failure (disk full, closed
-					// file, ...) instead of silently dropping every attempt.
-					log.Printf("[chaos] transition log write failed, disabling: %v", writeErr)
-					_ = e.transitionLog.Close()
-					e.transitionLog = nil
-				}
-			}
-		}
-		e.mu.Unlock()
-		if shouldStopForSaturation {
-			return
-		}
-
-		// Inter-step delay (cancellable).
-		if e.cfg.StepDelay > 0 {
-			select {
-			case <-e.stopCh:
-				return
-			case <-time.After(e.cfg.StepDelay):
-			}
-		}
-		firstLoopPass = false
-	}
-}
-
-func (e *Engine) observeMindMapAreaLocked(hash string, screen *host.Screen, seenAt time.Time) {
-	if e.mindMap == nil {
-		e.mindMap = newMindMap()
-	}
-	e.mindMap.observeScreen(hash, screen, seenAt)
-}
-
-func (e *Engine) canonicalizeObservedScreenHashLocked(rawHash string, screen *host.Screen) string {
-	rawHash = strings.TrimSpace(rawHash)
-	if rawHash == "" || screen == nil {
-		return rawHash
-	}
-
-	// Exact mode opts out of structural merging entirely: callers will see
-	// every distinct rawHash as its own area.
-	if strings.EqualFold(strings.TrimSpace(e.cfg.DedupMode), DedupModeExact) {
-		return rawHash
-	}
-
-	// Structural mode (default): derive a deterministic canonical key from
-	// the dedup signature. Two screens with the same signature (i.e. the
-	// same layout once unprotected fields are masked and alphanumerics are
-	// abstracted) collapse into the same area regardless of echoed values
-	// in protected text. This is what the spec calls "structural" dedup.
-	candidateSig := buildAreaDedupSignature(screen)
-	if candidateSig != "" {
-		sigKey := signatureCanonicalKey(candidateSig)
-		// If we've already stored an area under this sig-key, reuse it.
-		if e.mindMap != nil {
-			if _, ok := e.mindMap.Areas[sigKey]; ok {
-				return sigKey
-			}
-		}
-		// Use the sig-key as the canonical hash from here on.
-		rawHash = sigKey
-	}
-
-	if e.mindMap == nil || len(e.mindMap.Areas) == 0 {
-		return rawHash
-	}
-	if _, ok := e.mindMap.Areas[rawHash]; ok {
-		return rawHash
-	}
-
-	if candidateSig == "" {
-		return rawHash
-	}
-	candidateTitleSig := areaTitleDedupSignatureFromScreen(screen)
-	bestHash := ""
-	bestScore := 0.0
-	cw, ch := screenDimensions(screen)
-	candidateFields := len(screen.Fields)
-	// Shared across every candidate area this call scores: the DP row
-	// buffers grow once to the widest signature seen and are reused for
-	// every remaining comparison, instead of two fresh slices per area.
-	var prevRow, currRow []int
-	for areaHash, area := range e.mindMap.Areas {
-		if area == nil || strings.TrimSpace(areaHash) == "" {
-			continue
-		}
-		if areaHash == rawHash {
-			return rawHash
-		}
-		if area.ScreenWidth > 0 && area.ScreenHeight > 0 && (area.ScreenWidth != cw || area.ScreenHeight != ch) {
-			continue
-		}
-		// Coarse structural gate before expensive string compare.
-		if area.FieldCount > 0 || candidateFields > 0 {
-			diff := area.FieldCount - candidateFields
-			if diff < 0 {
-				diff = -diff
-			}
-			if diff > 2 {
-				continue
-			}
-		}
-		bodyScore := similarityRatioBuf(candidateSig, area.DedupSignature, &prevRow, &currRow)
-		score := bodyScore
-		if candidateTitleSig != "" {
-			areaTitleSig := normalizeAreaTitleDedupSignature(area.Label)
-			if areaTitleSig != "" {
-				titleScore := similarityRatioBuf(candidateTitleSig, areaTitleSig, &prevRow, &currRow)
-				// Use the captured title as a light discriminator so screens with
-				// nearly identical layouts but different headings are less likely
-				// to collapse into one "unique screen".
-				score = (bodyScore * 0.9) + (titleScore * 0.1)
-			}
-		}
-		if score > bestScore {
-			bestScore = score
-			bestHash = areaHash
-		}
-	}
-	threshold := e.cfg.ScreenDedupSimilarity
-	if threshold <= 0 || threshold > 1 {
-		threshold = 0.95
-	}
-	if bestHash != "" && bestScore >= threshold {
-		return bestHash
-	}
-	return rawHash
 }
 
 // appendSlidingBool appends v to *win and keeps len(*win) <= maxLen by
@@ -1885,7 +1698,7 @@ func (e *Engine) snapshotKeyBoostsLocked(hash string, targetFieldCount int) map[
 					boosts[key] += (kp.MultiFieldProgressions * 20) / kp.Presses
 				}
 			}
-		} else if kp.Presses >= minPressesForPenalty {
+		} else if kp.Presses >= minPressesForPenalty && kp.ContentChanges == 0 {
 			// Penalise keys pressed many times without causing any transition.
 			boosts[key] -= kp.Presses
 		}
@@ -1909,6 +1722,12 @@ func filterProgressAttempts(attempts []Attempt) []Attempt {
 	return filtered
 }
 
+// defaultChaosHints are the engine's built-in fallback values and key
+// labels. Nothing in here may end a session or change data: no LOGOFF or
+// LOGON among the values (typed into a command line they sign the user off,
+// or sign on as a user called LOGON), and no label that maps to PF3, to a
+// commit action, or to a cursor key. A built-in mapping only ever re-weights
+// a key the configuration already allows (see hintKeyBoostsForScreen).
 func defaultChaosHints() []Hint {
 	return []Hint{
 		{
@@ -1917,14 +1736,12 @@ func defaultChaosHints() []Hint {
 				"TEST", "DEMO", "USER", "ADMIN", "PASS", "HELP",
 				"MENU", "MAIN", "LIST", "DETAIL", "SEARCH", "ALL",
 				"ALICE", "SMITH", "BOB", "CAROL", "JOHN",
-				"LOGON", "LOGOFF", "IPL", "TSO", "CICS", "ISPF",
+				"IPL", "TSO", "CICS", "ISPF",
 				"IKJEFT01", "BPXBATCH",
 				"20240101", "20250101",
 			},
 			KeyAssignments: map[string]string{
 				"HELP":         "PF1",
-				"RETURN":       "PF3",
-				"BACK":         "PF3",
 				"NEXT":         "PF8",
 				"PAGE FORWARD": "PF8",
 				"PREVIOUS":     "PF7",
@@ -1933,13 +1750,7 @@ func defaultChaosHints() []Hint {
 				"REFRESH":      "PF5",
 				"SELECT":       "Enter",
 				"DETAIL":       "Enter",
-				"CONFIRM":      "Enter",
-				"SUBMIT":       "Enter",
 				"ACCEPT":       "Enter",
-				"UP":           "Up",
-				"DOWN":         "Down",
-				"LEFT":         "Left",
-				"RIGHT":        "Right",
 			},
 		},
 		{
@@ -2035,8 +1846,7 @@ func isBlacklistedKeyInSet(blocked map[string]struct{}, key string) bool {
 }
 
 func fallbackChaosKey(blocked map[string]struct{}) string {
-	candidates := []string{"Enter", "PF(1)", "PF(2)", "PF(4)", "PF(7)", "PF(8)", "PF(12)", "Tab"}
-	for _, key := range candidates {
+	for _, key := range fallbackChaosKeyCandidates {
 		if !isBlacklistedKeyInSet(blocked, key) {
 			return key
 		}
@@ -2175,7 +1985,7 @@ func inferScreenHelpKeyAssignments(screen *host.Screen) map[string]string {
 	if screen == nil || screen.Height <= 0 {
 		return nil
 	}
-	startRow := screen.Height - 4
+	startRow := screen.Height - legendRowCount
 	if startRow < 0 {
 		startRow = 0
 	}
@@ -2311,81 +2121,6 @@ func isCommonHelpKey(key string) bool {
 	}
 }
 
-// inferAutoBlockedKeys scans the bottom legend rows for "PFn <Exit-style>"
-// labels and returns the keys that should be treated as blocked. Used by the
-// AutoBlockExitKeys config to prevent chaos from accidentally logging the
-// session out or exiting the screen.
-func inferAutoBlockedKeys(screen *host.Screen) []string {
-	assignments := inferScreenHelpKeyAssignments(screen)
-	if len(assignments) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{})
-	for label, key := range assignments {
-		if key == "" {
-			continue
-		}
-		if labelIsExitStyle(label) {
-			seen[normalizeChaosKeyName(key)] = struct{}{}
-		}
-	}
-	if len(seen) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// inferAutoNavigationKeys returns keys whose help-line labels look like
-// navigation actions (Help/Menu/Next/Prev/Forward/Back). These are surfaced
-// in the mind map so chaos_report can highlight them; the engine's existing
-// chaosHelpLabelBoost path already weights them positively, so no extra
-// boost is needed here.
-func inferAutoNavigationKeys(screen *host.Screen) []string {
-	assignments := inferScreenHelpKeyAssignments(screen)
-	if len(assignments) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{})
-	for label, key := range assignments {
-		if key == "" {
-			continue
-		}
-		if labelIsNavigationStyle(label) {
-			seen[normalizeChaosKeyName(key)] = struct{}{}
-		}
-	}
-	if len(seen) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func labelIsNavigationStyle(label string) bool {
-	n := normalizeHintAssignmentLabel(label)
-	if n == "" {
-		return false
-	}
-	for _, needle := range []string{
-		"HELP", "MENU", "NEXT", "PREV", "PREVIOUS", "FORWARD", "BACK",
-		"PAGE", "SCROLL",
-	} {
-		if strings.Contains(n, needle) {
-			return true
-		}
-	}
-	return false
-}
-
 // mergeSortedUniqueStrings returns a sorted, deduplicated union of base + add.
 func mergeSortedUniqueStrings(base, add []string) []string {
 	seen := make(map[string]struct{}, len(base)+len(add))
@@ -2401,57 +2136,6 @@ func mergeSortedUniqueStrings(base, add []string) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// labelIsExitStyle returns true when a help-line label probably maps to an
-// "exit / quit / cancel / logoff" action that chaos must never trigger.
-func labelIsExitStyle(label string) bool {
-	n := normalizeHintAssignmentLabel(label)
-	if n == "" {
-		return false
-	}
-	for _, needle := range []string{
-		"LOGOFF", "LOGOUT", "SIGNOFF", "SIGN OUT", "DISCONNECT",
-		"EXIT", "QUIT", "CANCEL", "TERMINATE",
-		"END SESSION", "RETURN TO LOGON", "RETURN TO LOGIN",
-	} {
-		if strings.Contains(n, needle) {
-			return true
-		}
-	}
-	return false
-}
-
-func chaosHelpLabelBoost(label string) int {
-	n := normalizeHintAssignmentLabel(label)
-	if n == "" {
-		return 0
-	}
-	if strings.Contains(n, "LOGOFF") || strings.Contains(n, "LOGOUT") ||
-		strings.Contains(n, "SIGNOFF") || strings.Contains(n, "SIGN OUT") ||
-		strings.Contains(n, "DISCONNECT") {
-		return -200
-	}
-	if strings.Contains(n, "EXIT") || strings.Contains(n, "QUIT") ||
-		strings.Contains(n, "CANCEL") || strings.Contains(n, "TERMINATE") {
-		return -40
-	}
-	if strings.Contains(n, "HELP") {
-		return 45
-	}
-	if strings.Contains(n, "NEXT") || strings.Contains(n, "FORWARD") ||
-		strings.Contains(n, "MORE") || strings.Contains(n, "CONTINUE") ||
-		strings.Contains(n, "SELECT") || strings.Contains(n, "DETAIL") ||
-		strings.Contains(n, "OPEN") || strings.Contains(n, "SUBMIT") ||
-		strings.Contains(n, "CONFIRM") || strings.Contains(n, "ENTER") {
-		return 70
-	}
-	if strings.Contains(n, "PAGE") || strings.Contains(n, "SCROLL") ||
-		strings.Contains(n, "UP") || strings.Contains(n, "DOWN") ||
-		strings.Contains(n, "LEFT") || strings.Contains(n, "RIGHT") {
-		return 50
-	}
-	return 20
 }
 
 // negativeKeyBoostsOnly strips the positive entries from a legend-inferred
@@ -2495,11 +2179,24 @@ func mergeKeyBoostMaps(base, extra map[string]int) map[string]int {
 	return out
 }
 
+// hintKeyBoostsForScreen boosts the keys that hint key assignments map to
+// labels shown in the screen's key legend.
+//
+// Labels are matched as whole words and only in the legend rows. Matching
+// them as substrings of the whole screen found "UP" in "GROUP UPDATE" and
+// "RETURN" in any sentence that used the word, and boosted keys on the
+// strength of body text that had nothing to do with keys.
+//
+// A built-in mapping can only re-weight a key the configuration already
+// allows, and only an attention key: the defaults are a guess about what a
+// label means, and a guess must not be what puts PF3, or a cursor key that
+// never reaches the host, into play. A mapping the user supplied is an
+// instruction and is applied as given.
 func (e *Engine) hintKeyBoostsForScreen(screen *host.Screen) map[string]int {
 	if e == nil || screen == nil || len(e.hintKeyMappings) == 0 {
 		return nil
 	}
-	text := normalizeHintAssignmentLabel(screen.Text())
+	text := legendText(screen)
 	if text == "" {
 		return nil
 	}
@@ -2508,11 +2205,17 @@ func (e *Engine) hintKeyBoostsForScreen(screen *host.Screen) map[string]int {
 		if label == "" || key == "" {
 			continue
 		}
-		if strings.Contains(text, label) {
-			// Strongly prefer keys explicitly mapped to labels present on screen,
-			// while still allowing exploration through weighted randomness.
-			boosts[key] += 100
+		if !containsLabelWord(text, label) {
+			continue
 		}
+		if e.builtinHintLabels[label] {
+			if !isAIDKeyName(key) || !containsString(e.candidateKeys, key) || labelIsDenied(label) {
+				continue
+			}
+		}
+		// Strongly prefer keys explicitly mapped to labels present on screen,
+		// while still allowing exploration through weighted randomness.
+		boosts[key] += 100
 	}
 	if len(boosts) == 0 {
 		return nil
@@ -2551,7 +2254,9 @@ func (e *Engine) screenHintKeyBoostsForScreen(screen *host.Screen, screenHint *S
 		if nLabel == "" || nKey == "" {
 			continue
 		}
-		if strings.Contains(text, nLabel) {
+		// A hint scoped to one screen may name a label anywhere on it, but
+		// still as a whole word.
+		if containsLabelWord(text, nLabel) {
 			boosts[nKey] += 140
 		}
 	}
@@ -2738,6 +2443,24 @@ func (e *Engine) generateValueForField(f *host.Field, preferTransaction bool) st
 	return e.generateValueForFieldWith(f, preferTransaction, nil, nil, nil)
 }
 
+// genContext carries what the generator knows about the current screen. It
+// is assembled under the engine lock and then used without it.
+type genContext struct {
+	known          map[string][]string // values that moved the run on
+	tried          map[string][]string // values already written
+	rejected       map[string][]string // values the application refused
+	candidates     map[string][]string // values read off the screen
+	candidateTried map[string][]string
+	commandField   string
+	commandPool    []string
+	screenHint     *ScreenHint
+	forceHints     bool
+	// sessionEnding holds the values (upper-cased) that ended the session
+	// earlier in the run. It is nil on the first screen, where signing on
+	// again with a value typed elsewhere is not the same act.
+	sessionEnding map[string]struct{}
+}
+
 func (e *Engine) generateValueForFieldWithPolicy(
 	f *host.Field,
 	preferTransaction bool,
@@ -2746,73 +2469,174 @@ func (e *Engine) generateValueForFieldWithPolicy(
 	screenHint *ScreenHint,
 	forceHints bool,
 ) string {
+	return e.generateFieldValue(f, preferTransaction, &genContext{
+		known:      knownValues,
+		tried:      triedValues,
+		screenHint: screenHint,
+		forceHints: forceHints,
+	})
+}
+
+// generateFieldValue chooses a value for a field. In order of preference:
+// a value known to work here, a value the screen itself offers, a value
+// tried before, a hint, a length probe, and last a plausible filler. A
+// value that was rejected in this field, or that ended the session, is
+// never chosen.
+func (e *Engine) generateFieldValue(f *host.Field, preferTransaction bool, ctx *genContext) string {
+	if ctx == nil {
+		ctx = &genContext{}
+	}
+	length := fieldLength(f)
+	key := ""
+	if length > 0 {
+		key = mindMapFieldKey(f.StartY+1, f.StartX+1, length)
+	}
+	banned := func(v string) bool {
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return false
+		}
+		if _, ended := ctx.sessionEnding[strings.ToUpper(trimmed)]; ended {
+			return true
+		}
+		return key != "" && containsString(ctx.rejected[key], trimmed)
+	}
+
 	// 1. Prefer values already known to work on this screen / field position.
-	if len(knownValues) > 0 {
-		row := f.StartY + 1
-		col := f.StartX + 1
-		length := fieldLength(f)
-		if length > 0 {
-			key := mindMapFieldKey(row, col, length)
-			if values, ok := knownValues[key]; ok && len(values) > 0 {
-				// Use a known working value 80 % of the time so that the engine
-				// still occasionally explores new inputs rather than repeating.
-				chance := 80
-				if extra := len(values) - 1; extra > 0 {
-					chance += extra * 3
-					if chance > 95 {
-						chance = 95
-					}
+	if key != "" {
+		if values, ok := ctx.known[key]; ok && len(values) > 0 {
+			// Use a known working value 80 % of the time so that the engine
+			// still occasionally explores new inputs rather than repeating.
+			chance := 80
+			if extra := len(values) - 1; extra > 0 {
+				chance += extra * 3
+				if chance > 95 {
+					chance = 95
 				}
-				chance = e.scaleLearnedInputReuseChance(chance)
-				if e.rng.Intn(100) < chance {
-					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
-						return v
-					}
+			}
+			chance = e.scaleLearnedInputReuseChance(chance)
+			if e.rng.Intn(100) < chance {
+				if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" && !banned(v) {
+					return v
 				}
 			}
 		}
 	}
-	// 2. Reuse previously tried values for this screen/field some of the time.
+	// 2. Values the screen offers: its own menu options and listed commands,
+	// and on a command line the commands seen elsewhere in the run.
+	if key != "" && !ctx.forceHints {
+		offered := ctx.candidates[key]
+		if key == ctx.commandField {
+			for _, cmd := range ctx.commandPool {
+				if len([]rune(cmd)) <= length {
+					offered = appendCandidate(offered, cmd)
+				}
+			}
+		}
+		if len(offered) > 0 {
+			var fresh, usable []string
+			for _, v := range offered {
+				if banned(v) {
+					continue
+				}
+				usable = append(usable, v)
+				if !containsString(ctx.candidateTried[key], v) && !containsString(ctx.tried[key], v) {
+					fresh = append(fresh, v)
+				}
+			}
+			roll := e.rng.Intn(100)
+			if len(fresh) > 0 && roll < 75 {
+				return fresh[e.rng.Intn(len(fresh))]
+			}
+			if len(usable) > 0 && roll < 30 {
+				return usable[e.rng.Intn(len(usable))]
+			}
+		}
+	}
+	// 3. Reuse previously tried values for this screen/field some of the time.
 	// This helps chaos continue functional discovery without requiring a prior
 	// successful transition for every field.
-	if len(triedValues) > 0 {
-		row := f.StartY + 1
-		col := f.StartX + 1
-		length := fieldLength(f)
-		if length > 0 {
-			key := mindMapFieldKey(row, col, length)
-			if values, ok := triedValues[key]; ok && len(values) > 0 {
-				// Lower probability than known-working values to preserve breadth.
-				chance := 35
-				if extra := len(values) - 1; extra > 0 {
-					chance += extra * 2
-					if chance > 60 {
-						chance = 60
-					}
+	if key != "" {
+		if values, ok := ctx.tried[key]; ok && len(values) > 0 {
+			// Lower probability than known-working values to preserve breadth.
+			chance := 35
+			if extra := len(values) - 1; extra > 0 {
+				chance += extra * 2
+				if chance > 60 {
+					chance = 60
 				}
-				chance = e.scaleLearnedInputReuseChance(chance)
-				if e.rng.Intn(100) < chance {
-					if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" {
-						return v
-					}
+			}
+			chance = e.scaleLearnedInputReuseChance(chance)
+			if e.rng.Intn(100) < chance {
+				if v := pickHintValueForFieldPool(e.rng, values, length, f.IsNumeric()); v != "" && !banned(v) {
+					return v
 				}
 			}
 		}
 	}
-	// 3. Fall back to user-supplied hints.
-	if hinted := e.hintValueForFieldWithPolicy(f, preferTransaction, screenHint, forceHints); hinted != "" {
-		return hinted
+	// 4. Fall back to user-supplied hints.
+	if hinted := e.hintValueForFieldWithPolicy(f, preferTransaction, ctx.screenHint, ctx.forceHints); hinted != "" {
+		if ctx.forceHints || !banned(hinted) {
+			return hinted
+		}
 	}
-	// 4. Periodically emit a length-probe value to ensure each field exercises
-	// multiple value classes (empty, short, half, exact, overflow) over the
-	// course of a run, even when neither hints nor learned values fire.
-	if !forceHints && e.rng.Intn(100) < 35 {
-		if v := e.lengthProbeValueForField(f, triedValues); v != "" {
+	// 5. Periodically emit a length-probe value to ensure each field exercises
+	// each value class that can actually be written (short, half, exact) over
+	// the course of a run, even when neither hints nor learned values fire.
+	if !ctx.forceHints && e.rng.Intn(100) < 35 {
+		if v := e.lengthProbeValueForField(f, ctx.tried); v != "" && !banned(v) {
 			return v
 		}
 	}
-	// 5. Generate a random value appropriate for the field type.
-	return e.generateValue(f)
+	// 6. A filler value appropriate for the field type.
+	for try := 0; try < 3; try++ {
+		if v := e.fillerValue(f); v != "" && !banned(v) {
+			return v
+		}
+	}
+	return ""
+}
+
+// randomProbeChance is how often, out of 100, the filler is a full-width
+// random string. Forty random characters almost never mean anything to an
+// application, so this is a probe of how it handles noise, not the default.
+const randomProbeChance = 15
+
+// fillerValue produces a value for a field nothing more specific is known
+// about: usually one of the short built-in values that fits, occasionally a
+// full-width random string.
+func (e *Engine) fillerValue(f *host.Field) string {
+	if e.rng.Intn(100) < randomProbeChance {
+		return e.generateValue(f)
+	}
+	length := e.effectiveFieldWriteLength(f)
+	if length <= 0 {
+		return ""
+	}
+	if v := pickHintValueForFieldPool(e.rng, e.defaultHintData, length, f.IsNumeric()); v != "" {
+		return v
+	}
+	return e.generateShortValue(f, length)
+}
+
+// generateShortValue produces a short random value: one to four characters,
+// which is what most command, option and code fields take.
+func (e *Engine) generateShortValue(f *host.Field, length int) string {
+	n := 1 + e.rng.Intn(4)
+	if n > length {
+		n = length
+	}
+	const digits = "0123456789"
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
+	for i := range b {
+		if f.IsNumeric() {
+			b[i] = digits[e.rng.Intn(len(digits))]
+		} else {
+			b[i] = letters[e.rng.Intn(len(letters))]
+		}
+	}
+	return string(b)
 }
 
 // fieldValueClass labels each generated value by length relative to the
@@ -2849,32 +2673,56 @@ func classifyValueForField(value string, fieldLen int) fieldValueClass {
 	}
 }
 
-// lengthProbeValueForField returns a value that exercises a length class
-// (empty, short, half, exact, overflow) that has not yet been tried against
-// the given field. Returns "" when every class has already been seen.
+// probeClassesForField returns the length classes that can actually be
+// written into a field under the current configuration, in exploration
+// order.
+//
+// "empty" and "overflow" used to be on this list unconditionally and could
+// never come off it. An empty value is skipped by the write path (there is
+// nothing to type), and with ForceOverrideExistingInputs on every value is
+// cut to the field's width before it is written, so an overflow probe
+// arrived as an exact-length one. Both stayed "untried" for the whole run
+// and kept being drawn. A class is now only offered when a write can
+// produce it: overflow when values are written as generated and one more
+// character still fits under MaxFieldLength, empty never. A field left
+// blank is still exercised, by every attempt that targets a subset of the
+// screen's fields.
+func (e *Engine) probeClassesForField(length int) []fieldValueClass {
+	classes := []fieldValueClass{fieldValueClassExact, fieldValueClassHalf}
+	if !e.cfg.ForceOverrideExistingInputs {
+		maxLen := e.cfg.MaxFieldLength
+		if maxLen <= 0 {
+			maxLen = 40
+		}
+		if length+1 <= maxLen {
+			classes = append(classes, fieldValueClassOverflow)
+		}
+	}
+	return append(classes, fieldValueClassShort)
+}
+
+// lengthProbeValueForField returns a value that exercises a writable length
+// class (short, half, exact, and overflow where possible) that has not yet
+// been tried against the given field. Returns "" when every such class has
+// already been seen.
 func (e *Engine) lengthProbeValueForField(f *host.Field, triedValues map[string][]string) string {
 	length := fieldLength(f)
 	if length <= 0 {
 		return ""
 	}
+	// Classes are judged against what can be written: a field wider than
+	// MaxFieldLength is only ever filled up to that cap, and judged against
+	// its full width would never count as "exact".
+	width := e.effectiveFieldWriteLength(f)
 	row := f.StartY + 1
 	col := f.StartX + 1
 	tried := triedValues[mindMapFieldKey(row, col, length)]
 	triedClasses := make(map[fieldValueClass]bool, len(tried))
 	for _, v := range tried {
-		triedClasses[classifyValueForField(v, length)] = true
+		triedClasses[classifyValueForField(v, width)] = true
 	}
-	// Candidate classes in exploration order. We deliberately put overflow
-	// before exact so length-limit bugs get probed early in the run.
-	candidates := []fieldValueClass{
-		fieldValueClassExact,
-		fieldValueClassHalf,
-		fieldValueClassOverflow,
-		fieldValueClassShort,
-		fieldValueClassEmpty,
-	}
-	untried := candidates[:0]
-	for _, c := range candidates {
+	var untried []fieldValueClass
+	for _, c := range e.probeClassesForField(width) {
 		if !triedClasses[c] {
 			untried = append(untried, c)
 		}
@@ -2883,13 +2731,11 @@ func (e *Engine) lengthProbeValueForField(f *host.Field, triedValues map[string]
 		return ""
 	}
 	pick := untried[e.rng.Intn(len(untried))]
-	return e.makeProbeValue(f, length, pick)
+	return e.makeProbeValue(f, width, pick)
 }
 
 func (e *Engine) makeProbeValue(f *host.Field, length int, class fieldValueClass) string {
 	switch class {
-	case fieldValueClassEmpty:
-		return " "
 	case fieldValueClassShort:
 		if f.IsNumeric() {
 			return "9"
@@ -3072,14 +2918,11 @@ func (e *Engine) expandWriteValueForField(value string, width int, numeric bool)
 	if !numeric {
 		return string(runes) + strings.Repeat(" ", width-len(runes))
 	}
-	const digits = "0123456789"
-	var sb strings.Builder
-	sb.Grow(width)
-	sb.WriteString(string(runes))
-	for i := len(runes); i < width; i++ {
-		sb.WriteByte(digits[e.rng.Intn(len(digits))])
-	}
-	return sb.String()
+	// A numeric value is written exactly as it is. Padding it out with
+	// random digits turned the hint "1" into "146873" in a six-digit field:
+	// a different number, typed with the confidence of a known-good one.
+	// The rest of the field is erased by the write instead (see writeField).
+	return string(runes)
 }
 
 func fieldCurrentValueForWriteWidth(f *host.Field, width int) string {
@@ -3201,8 +3044,17 @@ func (e *Engine) chooseAIDKeyBoosted(boosts map[string]int) string {
 // verbatim, so turning the reuse bias down genuinely shifts selection toward
 // exploration instead of muting both.
 func (e *Engine) chooseAIDKeyWithExploration(boosts, explorationBoosts map[string]int) string {
+	return e.chooseAIDKeyBlocked(boosts, explorationBoosts, e.blacklistedKeysSnapshot())
+}
+
+// chooseAIDKeyBlocked is chooseAIDKeyWithExploration given the complete set
+// of keys that must not be pressed on the current screen: the blacklist,
+// the screen hint's blocked keys and the run's own auto-blocks. Blocked keys
+// are left out of the draw altogether. Drawing first and swapping a blocked
+// result for the fallback key afterwards turned every blocked draw into
+// Enter, which both skewed the distribution and hid the other keys.
+func (e *Engine) chooseAIDKeyBlocked(boosts, explorationBoosts map[string]int, blocked map[string]struct{}) string {
 	weights := e.cfg.AIDKeyWeights
-	blocked := e.blacklistedKeysSnapshot()
 	if len(weights) == 0 && len(boosts) == 0 && len(explorationBoosts) == 0 {
 		return fallbackChaosKey(blocked)
 	}

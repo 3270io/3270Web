@@ -12,8 +12,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/jnnngs/3270Web/internal/aipolicy"
 	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
@@ -84,7 +86,13 @@ func (c *anthropicClient) StreamChat(ctx context.Context, payload map[string]any
 			RetryAfter: copilot.ParseRetryAfter(resp.Header, time.Now()),
 		}
 	}
-	return translateAnthropicStream(streamCtx, resp.Body, out, cancelStream)
+	if err := aipolicy.CheckContentType(resp, aipolicy.ContentEventStream); err != nil {
+		return fmt.Errorf("%s chat response: %w", c.provider.Label, err)
+	}
+	if err := translateAnthropicStream(streamCtx, resp.Body, out, cancelStream); err != nil {
+		return fmt.Errorf("%s stream: %w", c.provider.Label, err)
+	}
+	return nil
 }
 
 // ListModels asks Anthropic's /v1/models endpoint what this key can serve.
@@ -104,6 +112,9 @@ func (c *anthropicClient) ListModels(ctx context.Context) ([]string, error) {
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode/100 != 2 {
 		return nil, &APIError{Provider: c.provider.Label, Status: resp.StatusCode, Body: string(b)}
+	}
+	if err := aipolicy.CheckContentType(resp, aipolicy.ContentJSON); err != nil {
+		return nil, fmt.Errorf("%s models response: %w", c.provider.Label, err)
 	}
 	var payload struct {
 		Data []struct {
@@ -128,9 +139,11 @@ func (c *anthropicClient) ListModels(ctx context.Context) ([]string, error) {
 // -- request translation ---------------------------------------------------
 
 type anthropicRequest struct {
-	Model      string             `json:"model"`
-	MaxTokens  int                `json:"max_tokens"`
-	System     string             `json:"system,omitempty"`
+	Model     string `json:"model"`
+	MaxTokens int    `json:"max_tokens"`
+	// System is sent as text blocks rather than one string, because only a
+	// block can carry a cache breakpoint.
+	System     []anthropicBlock   `json:"system,omitempty"`
 	Messages   []anthropicMessage `json:"messages"`
 	Tools      []anthropicTool    `json:"tools,omitempty"`
 	ToolChoice map[string]any     `json:"tool_choice,omitempty"`
@@ -153,12 +166,58 @@ type anthropicBlock struct {
 	// tool_result
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   string `json:"content,omitempty"`
+
+	CacheControl *cacheControl `json:"cache_control,omitempty"`
 }
 
 type anthropicTool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	InputSchema  map[string]any `json:"input_schema"`
+	CacheControl *cacheControl  `json:"cache_control,omitempty"`
+}
+
+// cacheControl marks a prompt-cache breakpoint: everything up to and including
+// the block that carries it is cached, and a later request with the same
+// prefix reads it back at a fraction of the input price.
+type cacheControl struct {
+	Type string `json:"type"`
+}
+
+func ephemeral() *cacheControl { return &cacheControl{Type: "ephemeral"} }
+
+// applyCacheBreakpoints marks the three places a chat turn's prefix stops
+// changing.
+//
+// Every request in a tool loop resends the whole conversation: some forty tool
+// definitions, a system prompt of several thousand tokens, and every turn so
+// far. Without breakpoints all of it is billed as fresh input each round — and
+// a single user message can run to dozens of rounds. The prefix is rendered in
+// the order tools, system, messages, and a breakpoint caches everything before
+// it, so:
+//
+//   - the last tool definition: the tool list is the same for every request;
+//   - the first system block: the static prompt. Anything after it in system
+//     (the per-turn session context, when a client sends it there) changes
+//     between turns and must sit after the breakpoint, or it would invalidate
+//     the prompt it follows;
+//   - the last block of the conversation so far: each round then re-reads the
+//     rounds before it instead of paying for them again.
+//
+// Three of the four breakpoints a request may carry. A prefix too short to be
+// cached is simply not cached; the markers cost nothing.
+func applyCacheBreakpoints(req *anthropicRequest) {
+	if n := len(req.Tools); n > 0 {
+		req.Tools[n-1].CacheControl = ephemeral()
+	}
+	if len(req.System) > 0 {
+		req.System[0].CacheControl = ephemeral()
+	}
+	if n := len(req.Messages); n > 0 {
+		if blocks := req.Messages[n-1].Content; len(blocks) > 0 {
+			blocks[len(blocks)-1].CacheControl = ephemeral()
+		}
+	}
 }
 
 // toAnthropicRequest maps an OpenAI chat/completions body onto the Messages
@@ -193,7 +252,9 @@ func toAnthropicRequest(payload map[string]any, defaultModel string) (*anthropic
 	if len(messages) == 0 {
 		return nil, errors.New("messages required")
 	}
-	out.System = system
+	for _, part := range system {
+		out.System = append(out.System, anthropicBlock{Type: "text", Text: part})
+	}
 	out.Messages = messages
 
 	if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
@@ -202,12 +263,13 @@ func toAnthropicRequest(payload map[string]any, defaultModel string) (*anthropic
 	if tc, ok := convertToolChoice(payload["tool_choice"]); ok && len(out.Tools) > 0 {
 		out.ToolChoice = tc
 	}
+	applyCacheBreakpoints(out)
 	return out, nil
 }
 
 // splitMessages pulls the system turns out into Anthropic's dedicated
 // `system` field and converts the rest into content-block messages.
-func splitMessages(raw []any) (string, []anthropicMessage, error) {
+func splitMessages(raw []any) ([]string, []anthropicMessage, error) {
 	var systemParts []string
 	var msgs []anthropicMessage
 
@@ -265,9 +327,9 @@ func splitMessages(raw []any) (string, []anthropicMessage, error) {
 
 	// The Messages API requires the conversation to open with a user turn.
 	if len(msgs) > 0 && msgs[0].Role != "user" {
-		return "", nil, errors.New("conversation must start with a user message")
+		return nil, nil, errors.New("conversation must start with a user message")
 	}
-	return strings.Join(systemParts, "\n\n"), msgs, nil
+	return systemParts, msgs, nil
 }
 
 // assistantBlocks converts one OpenAI assistant message (text and/or
@@ -419,10 +481,33 @@ type anthropicEvent struct {
 // Claude response with exactly the same parser it uses for every other
 // provider.
 func translateAnthropicStream(ctx context.Context, r io.Reader, w io.Writer, onIdle func()) error {
+	return translateAnthropicStreamIdle(ctx, r, w, onIdle, streamIdleTimeout)
+}
+
+// translateAnthropicStreamIdle is translateAnthropicStream with the stall
+// window given, so a test can make a stream stall without waiting a minute.
+func translateAnthropicStreamIdle(ctx context.Context, r io.Reader, w io.Writer, onIdle func(), idleTimeout time.Duration) error {
 	// Reuse the same stall watchdog as the pass-through path: reset it on
 	// every frame, cancel the request if the upstream goes quiet.
-	idle := time.AfterFunc(streamIdleTimeout, onIdle)
+	//
+	// The watchdog stops a stalled stream by cancelling the request, and a
+	// cancelled request reads as "context canceled" — which says nothing about
+	// why, and is what the user was shown. It records that it fired, so the
+	// failure can be reported as the stall it was.
+	var stalled atomic.Bool
+	idle := time.AfterFunc(idleTimeout, func() {
+		stalled.Store(true)
+		if onIdle != nil {
+			onIdle()
+		}
+	})
 	defer idle.Stop()
+	streamErr := func(err error) error {
+		if stalled.Load() {
+			return errStreamStalled
+		}
+		return err
+	}
 
 	sc := bufio.NewScanner(r)
 	// Anthropic tool_use input arrives as many small input_json_delta frames,
@@ -462,7 +547,7 @@ func translateAnthropicStream(ctx context.Context, r io.Reader, w io.Writer, onI
 
 	for sc.Scan() {
 		if err := ctx.Err(); err != nil {
-			return err
+			return streamErr(err)
 		}
 		line := strings.TrimRight(sc.Text(), "\r")
 		if !strings.HasPrefix(line, "data:") {
@@ -470,7 +555,7 @@ func translateAnthropicStream(ctx context.Context, r io.Reader, w io.Writer, onI
 			// own "type" — and blank separators carry nothing.
 			continue
 		}
-		idle.Reset(streamIdleTimeout)
+		idle.Reset(idleTimeout)
 		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		if data == "" {
 			continue
@@ -542,15 +627,18 @@ func translateAnthropicStream(ctx context.Context, r io.Reader, w io.Writer, onI
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return err
+		return streamErr(err)
 	}
-	// Upstream closed without message_stop: still terminate the stream
-	// cleanly so the browser's reader loop finishes instead of hanging.
-	emit(map[string]any{}, finishOrStop(finish))
-	if writeErr == nil {
-		_, writeErr = io.WriteString(w, "data: [DONE]\n\n")
+	if stalled.Load() || ctx.Err() != nil {
+		return streamErr(ctx.Err())
 	}
-	return writeErr
+	// Upstream closed without message_stop. That is a response cut off part
+	// way — a dropped connection, a proxy timeout — and it used to be closed
+	// out as a clean stop. Whatever had arrived was then treated as the whole
+	// answer: a tool call whose arguments stopped mid-JSON was handed to the
+	// tool loop as something to run. It is an error, and the caller reports it
+	// as one, so nothing partial is acted on.
+	return aipolicy.ErrStreamIncomplete
 }
 
 func finishOrStop(finish string) string {

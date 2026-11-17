@@ -31,6 +31,25 @@ anyone had asked for that work.
 Both the [AI Chat panel](ai-chat.md) and the [MCP server](mcp.md) read the
 same catalogue, so a skill you add is available to both.
 
+## Loading and reloading
+
+A skill's text is sent once per conversation. Asking for one the conversation
+already has returns a one-line reminder instead, which keeps a long playbook
+from being added to the context again and again.
+
+"Conversation" means the conversation, not the terminal session. The chat
+panel names each conversation with an `X-3270Web-Conversation` header and
+picks a new id when you click **Clear**, so a fresh conversation against the
+same host is sent the skills it asks for. A client that sends no header is
+tracked by its terminal session, as before; a caller with neither is never
+deduplicated.
+
+A reminder is never the last word. A long conversation has its oldest turns
+trimmed to fit the model's context, and a skill loaded early can be among
+them. If the assistant asks again after being reminded, the full text is sent
+again, marked `reloaded` with a note saying it had been loaded before. The
+same applies to instruction fragments.
+
 ## What ships
 
 | Skill | For |

@@ -173,14 +173,89 @@ reopen the provider dialog and save an empty key.
 Custom endpoint URLs must be plain `http://` or `https://` origins. 3270Web
 rejects URLs carrying credentials, a query string or a fragment.
 
-Where the URL *points* is checked as well, and at the moment the connection is
-made rather than when the URL was saved — a hostname is not an address, and a
-name can resolve wherever its owner likes. Link-local addresses
-(`169.254.0.0/16`, `fe80::/10`) are refused, which is where cloud
-instance-metadata services live, and so is a redirect that leads to one. A
-hostname resolving to one of those is refused just as a literal is. Private and
-loopback addresses are allowed — those are the whole point of the local-Ollama
-and corporate-gateway cases.
+Where the URL *points* is checked as well — when it is saved, again before
+every request, and at the moment the connection is made. A hostname is not an
+address, and a name can resolve wherever its owner likes. Link-local addresses
+(`169.254.0.0/16`, `fe80::/10`) are always refused, which is where cloud
+instance-metadata services live. A hostname resolving to one of those is
+refused just as a literal is.
+
+**Private and loopback addresses depend on who can choose an endpoint.**
+
+- With no sign-in (`AUTH_MODE` unset or `none`) they are allowed. There is
+  one operator, the machine is theirs, and a model running on it is the
+  ordinary case: local Ollama works with nothing configured.
+- With accounts (`AUTH_MODE=local` or `oidc`) they are refused. The person
+  choosing an endpoint is no longer the person who runs the network the
+  server sits in, and an endpoint on a private address is a request the
+  server makes inside that network for whoever asked. An administrator who
+  wants a shared instance to use a model on the LAN sets
+  `AI_ALLOW_PRIVATE_ENDPOINTS=true`.
+
+Three more rules apply to every provider request:
+
+- **A redirect off the host is not followed.** The request is carrying that
+  host's API key; a redirect to somewhere else would deliver the key there.
+- **The response has to be what a chat API returns.** A completion is relayed
+  only once the response has declared itself an event stream, and a model
+  list is read only from JSON. An endpoint that answers with a web page or a
+  file is not relayed at all.
+- **Errors are summarised, not relayed.** When a request fails, the browser is
+  told the status the provider answered with and what that usually means;
+  the detail — the address a name resolved to, the body of the response —
+  goes to the server log. A provider's own error message is quoted only when
+  the request went to that provider's published endpoint, not to a custom
+  one.
+
+## Administrator controls
+
+Four environment variables decide what the AI chat may do on an instance.
+They are read by the server from its environment, set where the rest of
+the [configuration](configuration.md) is set, and cannot be changed from the
+settings page or by the chat itself.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `AI_CHAT_DISABLED` | `false` | `true` turns the AI chat off for everyone. The chat, settings, model and tool routes answer `403` with `"disabled": true`; `GET /api/ai/status` still answers and reports `"disabled": true`, which is how the page knows. Signing out and forgetting a stored key keep working |
+| `AI_ALLOWED_PROVIDERS` | unset (all) | Comma-separated provider ids that may be selected and used, e.g. `anthropic,ollama`. The ids are the ones `GET /api/ai/providers` lists: `github-copilot`, `anthropic`, `openai`, `ollama`, `openai-compatible` and the rest. A provider left out disappears from the catalogue, cannot be selected or configured, and — if someone had already selected it — stops answering, with `"providerDisabled": true` in the status |
+| `AI_ALLOWED_ENDPOINT_HOSTS` | unset (any) | Comma-separated glob list of hosts a **custom** base URL may name, e.g. `*.models.example.com,gateway.example.com`. Providers' own published endpoints are governed by `AI_ALLOWED_PROVIDERS` instead. Same pattern syntax as `ALLOWED_HOSTS` |
+| `AI_ALLOW_PRIVATE_ENDPOINTS` | follows `AUTH_MODE` | Whether an endpoint may be on a loopback or private address. Unset: allowed with no sign-in, refused once people sign in. `true` or `false` decides it either way |
+
+A typical shared instance that should use one hosted provider and nothing
+else:
+
+```bash
+AUTH_MODE=local
+AI_ALLOWED_PROVIDERS=anthropic
+```
+
+One that should use a gateway on the corporate network:
+
+```bash
+AUTH_MODE=oidc
+AI_ALLOWED_PROVIDERS=openai-compatible
+AI_ALLOWED_ENDPOINT_HOSTS=llm-gateway.corp.example.com
+AI_ALLOW_PRIVATE_ENDPOINTS=true
+```
+
+These are in addition to the rate limits (`RATE_LIMIT_AI`,
+`RATE_LIMIT_AICONTROL`) described under [Limits](multi-user.md).
+
+## GitHub Enterprise
+
+Setting or changing the GitHub Enterprise host signs you out of Copilot. The
+sign-in was issued by the host that was configured at the time, and it is not
+sent to a different one; sign in again against the new host. The API endpoint
+GitHub names when it issues a Copilot token is accepted only over HTTPS and
+only on GitHub's Copilot domain or the enterprise host you configured.
+
+## Cost
+
+With Claude selected, the system prompt, the tool definitions and the
+conversation so far are marked for prompt caching. An assistant turn is often
+many requests — one per tool call — each resending everything before it;
+with caching, the repeated part is read back at a fraction of the input price
+instead of being billed in full each time. Nothing needs configuring.
 
 !!! note "Changing the endpoint asks for the key again"
     A key is issued for the endpoint it was entered against. Saving a base URL
@@ -211,10 +286,13 @@ curl http://localhost:3270/api/ai/status
 | Symptom | Cause and fix |
 |---|---|
 | *"… needs an API key"* | No key saved for the selected provider. Open **Provider** and add one. |
-| *"Add an endpoint URL before you can chat"* | The OpenAI-compatible provider has no endpoint saved. Its key is optional; the URL is not. Open **Provider** and enter the URL, for example `http://localhost:11434/v1`. The dialog will not save that provider with the endpoint empty. |
-| *"… rate limit hit. Try again in about 20 seconds"* | The provider is rate-limiting you and said how long to wait (its `Retry-After`). Without that header the message reads *Wait a moment and try again*. |
 | *"… rejected the credentials"* | The key is wrong, expired, or belongs to a different org. Re-paste it. |
-| *"Could not reach … at its configured endpoint"* | The endpoint URL is wrong or the server is not running. For Docker, see the `localhost` note above. |
+| *"Could not reach … at its configured endpoint"* | The endpoint URL is wrong or the server is not running. For Docker, see the `localhost` note above. The server log has the underlying error |
+| *"The AI chat is turned off on this instance"* | An administrator has set `AI_CHAT_DISABLED`. |
+| *"… is not one of the AI providers this instance permits"* | The provider is not in `AI_ALLOWED_PROVIDERS`. Choose another, or ask an administrator. |
+| *"This instance will not call …"* | The endpoint is on a loopback or private address and the instance has sign-in turned on, or its host is not in `AI_ALLOWED_ENDPOINT_HOSTS`. See [Administrator controls](#administrator-controls). |
+| *"The endpoint did not answer like a chat API"* | The base URL points at something that is not a chat completions API — often a missing `/v1`. |
+| Signed out of Copilot after changing the Enterprise host | Expected: a sign-in belongs to the host that issued it. Sign in again. |
 | *"The selected model … is not available"* | Your account or endpoint does not serve that model. Pick another from the dropdown. |
 | Model dropdown shows only a few generic names | The live `/models` call failed, so the built-in fallback list is showing. Check the key and endpoint; you can still type an exact model name into the provider dialog. |
 | Assistant replies in prose and never reads the screen | The model is not calling tools. Switch to a model that supports tool calling. |

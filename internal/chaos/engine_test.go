@@ -360,7 +360,8 @@ func TestAidKeyToStepType(t *testing.T) {
 
 func TestHintKeyBoostsForScreen(t *testing.T) {
 	s := buildMockScreen()
-	copy(s.Buffer[0], []rune("PF3 - RETURN    PF8 PAGE FORWARD"))
+	// Key labels are read from the legend rows at the bottom of the screen.
+	copy(s.Buffer[22], []rune("PF3 - RETURN    PF8 PAGE FORWARD"))
 
 	e := &Engine{
 		hintKeyMappings: map[string]string{
@@ -1391,11 +1392,21 @@ func TestEngineStatusIncludesAttemptDetails(t *testing.T) {
 	if st.LastAttempt.AIDKey == "" {
 		t.Error("LastAttempt.AIDKey should not be empty")
 	}
-	if st.LastAttempt.FieldsTargeted <= 0 {
-		t.Errorf("LastAttempt.FieldsTargeted = %d, want > 0", st.LastAttempt.FieldsTargeted)
+	// Not every attempt types something: an untried function key is pressed
+	// on its own. The details must be there on the attempts that did.
+	withWrites := 0
+	for _, a := range st.RecentAttempts {
+		if a.FieldsTargeted > 0 && len(a.FieldWrites) > 0 {
+			withWrites++
+			for _, fw := range a.FieldWrites {
+				if fw.Length != 10 {
+					t.Errorf("field write Length = %d, want the field's length 10", fw.Length)
+				}
+			}
+		}
 	}
-	if len(st.LastAttempt.FieldWrites) == 0 {
-		t.Error("expected at least one field write record in LastAttempt")
+	if withWrites == 0 {
+		t.Error("expected at least one recent attempt with field write records")
 	}
 }
 
