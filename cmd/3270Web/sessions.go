@@ -364,16 +364,23 @@ func (app *App) SessionsNewHandler(c *gin.Context) {
 	// and audience-filtered, and it is what "open another session" should mean
 	// wherever it is what "sign in" means.
 	if strings.TrimSpace(c.PostForm("menu")) != "" {
-		profiles, err := app.assignedProfiles(c)
+		assigned, err := app.hostsAssigned(c)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host list"})
 			return
 		}
-		if len(profiles) < 2 {
+		if len(assigned) < 2 {
 			// Not a state the tab bar asks for — it is told which chooser
 			// applies — so this is a stale page rather than a mistake worth a
 			// paragraph.
 			c.JSON(http.StatusConflict, gin.H{"error": "this account does not use the session manager"})
+			return
+		}
+		// Whether there is a menu is decided by what the account was given;
+		// what is on it is everything it may reach, as at sign-in.
+		profiles, err := app.assignedProfiles(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not read the host list"})
 			return
 		}
 		sess, ok := app.startSelectionScreen(c, profiles)

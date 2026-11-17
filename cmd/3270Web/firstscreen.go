@@ -89,19 +89,21 @@ func (app *App) menus() *menuStore {
 //
 // False means "nothing was assigned, show the connect form" — not a failure.
 func (app *App) firstScreenFor(c *gin.Context) bool {
-	profiles, err := app.assignedProfiles(c)
+	// What the account was given decides what it meets; what it saved for
+	// itself does not. See hostsAssigned.
+	assigned, err := app.hostsAssigned(c)
 	if err != nil {
 		log.Printf("first screen: could not read the host list: %v", err)
 		return false
 	}
 
-	switch len(profiles) {
+	switch len(assigned) {
 	case 0:
 		return false
 
 	case 1:
-		if err := app.connectWithProfile(c, profiles[0]); err != nil {
-			log.Printf("first screen: connecting to the only assigned host %q failed: %v", profiles[0].Name, err)
+		if err := app.connectWithProfile(c, assigned[0]); err != nil {
+			log.Printf("first screen: connecting to the only assigned host %q failed: %v", assigned[0].Name, err)
 			// Deliberately falls through to the connect form rather than
 			// showing a dead end: the operator may be able to reach something
 			// else, and an error page with no way forward is worse than a form.
@@ -110,6 +112,15 @@ func (app *App) firstScreenFor(c *gin.Context) bool {
 		return true
 
 	default:
+		// The menu lists everything the account may reach by name — the hosts
+		// it was given and the connections it saved — so choosing from it never
+		// takes away a way to a host the account had. Only whether there is a
+		// menu is decided by what it was given.
+		profiles, err := app.assignedProfiles(c)
+		if err != nil {
+			log.Printf("first screen: could not read the host list: %v", err)
+			return false
+		}
 		_, ok := app.startSelectionScreen(c, profiles)
 		return ok
 	}
@@ -122,8 +133,8 @@ func (app *App) firstScreenFor(c *gin.Context) bool {
 // it: the tab bar needs to know which chooser this account uses before it
 // offers one.
 func (app *App) selectionScreenApplies(c *gin.Context) bool {
-	profiles, err := app.assignedProfiles(c)
-	return err == nil && len(profiles) > 1
+	assigned, err := app.hostsAssigned(c)
+	return err == nil && len(assigned) > 1
 }
 
 // startSelectionScreen puts a menu on a loopback port and points a new session

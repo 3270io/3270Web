@@ -428,6 +428,14 @@ func (app *App) ProfilesListHandler(c *gin.Context) {
 	})
 }
 
+// profileNameKey is how two profiles are recognised as the same host: by name,
+// without regard to case or surrounding space. Merging the published list with
+// a caller's own, and deciding which published hosts they were given, both go by
+// it, so a saved connection and the host it overrides are never counted apart.
+func profileNameKey(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
 // visibleProfiles is what this caller can see: the published host list plus
 // their own, with their own winning on a name collision.
 //
@@ -461,7 +469,7 @@ func (app *App) visibleProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 	byName := make(map[string]ConnectionProfile, len(shared)+len(own))
 	order := make([]string, 0, len(shared)+len(own))
 	add := func(p ConnectionProfile, isShared bool) {
-		key := strings.ToLower(strings.TrimSpace(p.Name))
+		key := profileNameKey(p.Name)
 		p.Shared = isShared
 		if _, seen := byName[key]; !seen {
 			order = append(order, key)
