@@ -894,10 +894,14 @@
                     ? "Wait up to " + Math.round(args.timeout_ms / 1000) + " s for the keyboard to unlock"
                     : "Wait for the keyboard to unlock";
             case "chaos_status": return "Check chaos exploration progress";
-            case "chaos_start":
-                return typeof args.max_steps === "number"
-                    ? "Start a chaos exploration (up to " + args.max_steps + " steps)"
-                    : "Start a chaos exploration";
+            case "chaos_start": {
+                // Names the host it will press keys on: exploration can create
+                // or change data there, and the card is the only prompt it gets.
+                const target = String((document.body && document.body.dataset.targetHost) || "").trim();
+                return "Start a chaos exploration" +
+                    (typeof args.max_steps === "number" ? " (up to " + args.max_steps + " steps)" : "") +
+                    (target ? " on " + target : "");
+            }
             case "chaos_stop": return "Stop the chaos exploration";
             case "chaos_resume": return "Resume the chaos exploration";
             case "chaos_report": return "Build the chaos discovery report";

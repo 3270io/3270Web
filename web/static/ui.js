@@ -2045,6 +2045,12 @@
     const startLogConfirmContinueBtn = document.querySelector('[data-chaos-start-log-confirm-continue]');
     const startLogConfirmDisableBtn = document.querySelector('[data-chaos-start-log-confirm-disable]');
     const startLogConfirmMessage = document.querySelector('[data-chaos-start-log-confirm-message]');
+    const hostConfirmModal = document.querySelector('[data-chaos-host-confirm-modal]');
+    const hostConfirmCancelButtons = document.querySelectorAll('[data-chaos-host-confirm-cancel]');
+    const hostConfirmOkBtn = document.querySelector('[data-chaos-host-confirm-ok]');
+    const hostConfirmTitle = document.querySelector('[data-chaos-host-confirm-title]');
+    const hostConfirmHost = document.querySelector('[data-chaos-host-confirm-host]');
+    const hostConfirmBlocked = document.querySelector('[data-chaos-host-confirm-blocked]');
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
@@ -2085,6 +2091,7 @@
     const chaosModalParentStack = [];
     const chaosModalReturnFocusStack = [];
     let pendingStartLogConfirmResolve = null;
+    let settlePendingHostConfirm = null;
     let pendingChaosConfirmResolve = null;
     let currentRuns = [];
     let selectedChaosRunIDs = new Set();
@@ -2593,6 +2600,89 @@
         const nextEnabled = data && typeof data.enabled === 'boolean' ? !!data.enabled : !!enabled;
         syncVerboseLoggingUIState(nextEnabled);
         return { ok: true, enabled: nextEnabled };
+    };
+
+    // Exploration fills fields with generated values and presses keys, so
+    // against a real host it can create or change data. It is asked about
+    // before it starts, resumes or extends, and not for the bundled sample
+    // apps, which are demonstration screens with nothing behind them.
+    //
+    // Whether the host is a sample app is the server's call
+    // (data-chaos-sample-app, from isSampleAppSession in Go) and anything but an
+    // explicit "true" is asked about: a page that did not say is not one that
+    // gets to skip the question.
+    const chaosHostNeedsConfirmation = () => !(chaosControls && chaosControls.dataset.chaosSampleApp === 'true');
+
+    // verb is "Start", "Resume" or "Extend": the title and the confirming
+    // button repeat what the operator asked for, so the dialog is never
+    // answering a question about something else.
+    const confirmChaosHostStart = (verb = 'Start') => {
+        if (!chaosHostNeedsConfirmation()) {
+            return Promise.resolve(true);
+        }
+        const targetHost = String((body && body.dataset.targetHost) || '').trim() || 'this host';
+        const action = `${verb} exploration`;
+        const modalApi = window.ThreeSeventyWeb || {};
+        if (!hostConfirmModal || !hostConfirmOkBtn || typeof modalApi.pushModal !== 'function') {
+            // Without the dialog the question is still asked: a safety prompt
+            // that quietly vanishes when its markup does is not a prompt.
+            return Promise.resolve(window.confirm(
+                `${action} on ${targetHost}?\n\nIt fills fields with generated values and presses keys, so it can create or change data on that host.`
+            ));
+        }
+        if (settlePendingHostConfirm) {
+            settlePendingHostConfirm(false);
+        }
+        if (hostConfirmTitle) {
+            hostConfirmTitle.textContent = `${action}?`;
+        }
+        if (hostConfirmHost) {
+            hostConfirmHost.textContent = targetHost;
+        }
+        hostConfirmOkBtn.textContent = action;
+        if (hostConfirmBlocked) {
+            // Only said when there is something to say. An empty list could
+            // just as well be hints that have not loaded yet, and "no keys are
+            // blocked" is not a thing to claim on that evidence.
+            const blocked = Array.isArray(chaosKeyBlacklist) ? chaosKeyBlacklist.filter(Boolean) : [];
+            hostConfirmBlocked.hidden = blocked.length === 0;
+            hostConfirmBlocked.textContent = blocked.length
+                ? `Blocked on every screen right now: ${blocked.map((key) => String(key).replace(/[()]/g, '')).join(', ')}.`
+                : '';
+        }
+        const cancelButton = hostConfirmModal.querySelector('.modal-actions [data-chaos-host-confirm-cancel]');
+        const trigger = document.activeElement;
+        return new Promise((resolve) => {
+            const settle = (answer) => {
+                if (settlePendingHostConfirm !== settle) {
+                    return;
+                }
+                settlePendingHostConfirm = null;
+                hostConfirmModal.hidden = true;
+                // Focus back to whatever had it, the same way every other
+                // dialog does. The menu item that opened this has gone by now
+                // (the menu closes when an item is chosen), so when that
+                // leaves focus nowhere it goes to the menu's own button.
+                if (typeof modalApi.popModal === 'function') {
+                    modalApi.popModal(hostConfirmModal);
+                }
+                const usable = (el) => !!(el && typeof el.focus === 'function' && document.contains(el)
+                    && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+                if (!usable(document.activeElement) || document.activeElement === document.body) {
+                    const menuButton = document.querySelector('[data-menu-automation] [data-app-menu-trigger]');
+                    const target = usable(trigger) ? trigger : menuButton;
+                    if (usable(target)) {
+                        target.focus();
+                    }
+                }
+                resolve(!!answer);
+            };
+            settlePendingHostConfirm = settle;
+            hostConfirmModal.hidden = false;
+            // Cancel takes the focus, so an Enter or Space pressed by reflex as
+            // the dialog appears declines instead of starting a run.
+            modalApi.pushModal(hostConfirmModal, () => settle(false), { initialFocus: cancelButton || undefined });
+        });
     };
 
     const confirmLoggingBeforeChaosStart = async () => {
@@ -6634,6 +6724,27 @@
             }
         });
     }
+    if (hostConfirmModal) {
+        hostConfirmCancelButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (settlePendingHostConfirm) {
+                    settlePendingHostConfirm(false);
+                }
+            });
+        });
+        if (hostConfirmOkBtn) {
+            hostConfirmOkBtn.addEventListener('click', () => {
+                if (settlePendingHostConfirm) {
+                    settlePendingHostConfirm(true);
+                }
+            });
+        }
+        hostConfirmModal.addEventListener('click', (event) => {
+            if (event.target === hostConfirmModal && settlePendingHostConfirm) {
+                settlePendingHostConfirm(false);
+            }
+        });
+    }
     if (startLogConfirmModal) {
         startLogConfirmCancelButtons.forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -7092,6 +7203,12 @@
             if (startBtn.disabled || startBtn.getAttribute('aria-busy') === 'true') {
                 return;
             }
+            // First, and before anything is awaited: the dialog is on screen
+            // before the menu has finished closing behind the click.
+            if (!(await confirmChaosHostStart('Start'))) {
+                applyChaosInterlocks();
+                return;
+            }
             const proceed = await confirmLoggingBeforeChaosStart();
             if (!proceed) {
                 applyChaosInterlocks();
@@ -7177,6 +7294,10 @@
             if (resumeBtn.disabled || resumeBtn.getAttribute('aria-busy') === 'true') {
                 return;
             }
+            if (!(await confirmChaosHostStart('Resume'))) {
+                applyChaosInterlocks();
+                return;
+            }
             const proceed = await confirmLoggingBeforeChaosStart();
             if (!proceed) {
                 applyChaosInterlocks();
@@ -7209,6 +7330,10 @@
                 return;
             }
             if (extendBtn.disabled || extendBtn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
+            if (!(await confirmChaosHostStart('Extend'))) {
+                applyChaosInterlocks();
                 return;
             }
             const proceed = await confirmLoggingBeforeChaosStart();

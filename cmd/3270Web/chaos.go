@@ -17,9 +17,30 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jnnngs/3270Web/internal/chaos"
+	"github.com/jnnngs/3270Web/internal/host"
 	"github.com/jnnngs/3270Web/internal/safepath"
 	"github.com/jnnngs/3270Web/internal/session"
 )
+
+// isSampleAppSession reports whether a session is talking to one of the
+// bundled sample applications served from inside this process.
+//
+// The terminal page asks before it starts a chaos exploration, because an
+// exploration fills fields with generated values and presses keys and so can
+// create or change data on a real host. The bundled samples are demonstration
+// screens with nothing behind them, so they are exempt, and the page needs to
+// know which kind it is looking at.
+//
+// It is decided by what serves the session rather than by how its target is
+// spelled. "mock" and "demo" are the pet store under another name and carry no
+// "sampleapp:" prefix; and a name that does carry it but is dialled as an
+// ordinary host (an application served by somebody else's
+// `3270Web sampleapp`) is a host like any other as far as this process can
+// tell, and gets the question.
+func isSampleAppSession(h host.Host) bool {
+	_, ok := h.(*host.GoSampleAppHost)
+	return ok
+}
 
 // maxSavedChaosRuns caps how many auto-saved chaos run files are retained on
 // disk. The newest runs are kept and older ones are pruned so the runs

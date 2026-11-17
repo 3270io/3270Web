@@ -52,9 +52,40 @@ A run from start to stop — exploration, the live map, and where it ends up:
    a run something to map — see
    [Bundled Sample Applications](sample-apps.md).
 2. Click **Automation → Start exploration**.
-3. Watch run activity in:
+3. Unless the host is one of the bundled sample apps, 3270Web first asks you to
+   confirm. See [Confirmation before a run](#confirmation-before-a-run).
+4. Watch run activity in:
    - the active-run strip under the menu bar, and
    - the Workflow Status widget (attempts, writes, transitions, and errors).
+
+## Confirmation before a run
+
+Exploration fills fields with generated values and presses keys, so on a real
+host it can create or change data. **Start exploration**, **Resume the loaded
+run** and **Extend the completed run** therefore open a confirmation first:
+
+- It names the host that will be explored.
+- It says that exploration can create or change data on that host.
+- It points to **Edit hints → Blocked keys**, where you list the keys
+  exploration must never press, and shows the keys blocked on every screen when
+  there are any.
+- **Cancel** is the default button, so pressing Enter or Space as the dialog
+  appears does not start a run. **Escape** also cancels. Focus returns to the
+  control that opened the dialog, or to the **Automation** menu when it was one
+  of the menu's own items.
+
+The bundled sample apps (the ones you reach with `sampleapp:...`, `mock` or
+`demo`) are demonstration screens with nothing behind them, so they start with
+one click and no confirmation. An application served by a separate
+`3270Web sampleapp` process is an ordinary host as far as the browser is
+concerned and does get the confirmation.
+
+If verbose logging is on, the existing "Verbose Logging Is Enabled" question
+follows this one. Only the browser's own controls ask (the menu, the command
+palette and the **Extend** button in the active-run strip all lead to the same
+dialog). The AI panel's approval card for `chaos_start` is its own confirmation
+and names the host it will run against, and the REST API and the MCP tools
+behave as before.
 
 ## During the Run
 
@@ -238,7 +269,7 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
    - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
    - Starts and monitors the run with `chaos_start` / `chaos_status`.
    - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
-4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing.
+4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
 
 ### Combining both approaches
 
