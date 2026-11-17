@@ -163,10 +163,20 @@ Controls application-level UI features.
 Includes:
 
 - `Allow log access`
-- `Use keypad` (show virtual keypad by default)
+- `Use keypad` (show virtual keypad by default, for people who have not
+  chosen — see below)
 - **Terminal Font** dropdown — pick from the three bundled IBM 3270-style fonts (Regular, Semi-Condensed, Condensed). See [Terminal Fonts](terminal-fonts.md) for usage notes.
 
 Use this section to control log visibility and default keyboard UI behavior.
+
+`Use keypad` (`APP_USE_KEYPAD` in `.env`) is the instance default, and nothing
+more. Each person decides for their own browser with **View → Virtual keypad**;
+the browser remembers that choice and it wins over the default. The View toggle
+never writes to `.env` or to the server's environment, so one person turning
+the keypad on does not change what anyone else sees or what the next restart
+starts with. A browser that has never used the toggle, or that has cleared its
+site data, follows this setting. See
+[Who decides whether the keypad is showing](keyboard-and-controls.md#who-decides-whether-the-keypad-is-showing).
 
 ### Theme
 

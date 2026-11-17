@@ -70,10 +70,21 @@ on colour alone.
 **No keyboard trap (2.1.2).** The terminal deliberately takes `Tab` and
 `Shift+Tab`, because those are 3270 field navigation and an operator expects
 them to move between fields rather than out of the screen. That is exactly the
-situation 2.1.2 exists for, so there is a documented way out: **`Ctrl+Tab`**
-moves focus to a labelled escape-hatch control immediately after the terminal.
-`Ctrl+Shift+Tab` does the same in reverse. See
-[Keyboard and Controls](keyboard-and-controls.md).
+situation 2.1.2 exists for, so there is a documented way out: **`Alt+Shift+M`**
+moves focus to a labelled escape-hatch control immediately after the terminal,
+and the next `Tab` carries on through the page. It is the dependable way out
+because it is a chord browsers do not reserve, and it is read from the
+physical `M` key, so it is the same with Option on macOS or an AltGr layout.
+
+`Ctrl+Tab` (and `Ctrl+Shift+Tab`) does the same, but it depends on the browser:
+browsers generally keep that combination for their own tab switching, so a page
+may never receive it. Treat it as a second route, not the one to rely on. The
+escape-hatch control names both chords when it takes focus, the welcome banner
+names `Alt+Shift+M`, and the chord is deliberately not rebindable. See
+[Keyboard and Controls](keyboard-and-controls.md#moving-focus-out-of-the-terminal).
+
+If a browser extension or the operating system takes `Alt+Shift+M` for
+something else before the page sees it, `Ctrl+Tab` is the other route.
 
 **Field labelling (1.3.1, 4.1.2).** Each input's accessible name is derived
 from the protected text to its left on the screen itself, so a screen reader
@@ -191,7 +202,7 @@ size that suits the device: it scales the grid, which keeps it a grid.
 
 **There is no skip link on the terminal.** A link at the top of the document could not be
 reached in practice. `Tab` and `Shift+Tab` inside the terminal are 3270 field
-navigation, and leaving through the `Ctrl+Tab` escape hatch puts focus *after*
+navigation, and leaving through the `Alt+Shift+M` escape hatch puts focus *after*
 the terminal, not before it — so the link would sit somewhere a keyboard user
 never arrives. An unreachable skip link is a worse answer than none, so 2.4.1
 is met the other two ways WCAG accepts: a `main` landmark, and focus starting

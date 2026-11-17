@@ -364,7 +364,24 @@ Keypad features:
 - Common editing/navigation keys
 - A whole keyboard, letters and number pad included, in MAX
 
-The keypad visibility preference can be saved in Settings (`Use keypad`).
+### Who decides whether the keypad is showing
+
+Whether the keypad is showing is **your** choice, kept in **your browser**.
+**View → Virtual keypad** (or the **Show keypad** button on the welcome
+banner) shows or hides it, and the browser remembers that and applies it as the
+page loads, so it does not flash the other way first. Other people on the same
+3270Web instance are not affected, and neither is the next person to open it.
+
+**Settings → App → Use keypad** is only the default, for browsers that have not
+chosen. It decides what a new browser sees until its person uses the toggle,
+and changing it does not override anyone who already has. It is stored on the
+server with the other settings; the View toggle never changes it.
+
+A browser that has chosen goes back to following the default when its site data
+is cleared. A private window starts with no choice and follows the default,
+and forgets what you pick in it when it closes. A phone follows the same rules:
+the keypad is hidden until the default or your own choice shows it, and a
+narrow screen starts it in Compact (see [Sizes](#sizes)).
 
 ### The welcome banner
 
@@ -372,7 +389,8 @@ The first time you open a terminal, a **Your terminal is ready** banner sits
 above it. Its PF-key line follows the keypad: while the keypad is hidden — the
 default on a desktop — it says to use F1–F12, or to show the on-screen keypad,
 and offers a **Show keypad** button that does what **View → Virtual keypad**
-does. The banner hides itself at your first action in the terminal, meaning the
+does. It also names ++alt+shift+m++, the way out of the terminal's ++tab++
+capture. The banner hides itself at your first action in the terminal, meaning the
 first key sent to the host or the start of a recording, playback, chaos run or
 task, and stays hidden afterwards. **Dismiss** hides it sooner. Typing into a
 field, or moving between fields, is not yet an action: nothing has been sent.
@@ -555,6 +573,7 @@ Common mappings used by 3270Web:
 | `Alt+N` | Open another host session | **Terminal** |
 | `Alt+W` | Close the current session | **Terminal** |
 | `Alt+1`..`Alt+9` | Switch to that [session tab](#sessions-and-tabs) | **Terminal** |
+| `Alt+Shift+M` | Move keyboard focus [out of the terminal](#moving-focus-out-of-the-terminal) | **Terminal** |
 
 Additional 3270 actions available from the keypad and the command palette
 include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and
@@ -580,6 +599,11 @@ a fixed key layout, so every one of these actions can be rebound. Open
 
 Combinations the browser reserves for itself (`Ctrl+W`, `Ctrl+T`, `F11`)
 cannot be captured by any web page, 3270Web included.
+
+`Alt+Shift+M` is reserved too, by 3270Web: it is the way out of the terminal's
+`Tab` capture (see [Moving focus out of the terminal](#moving-focus-out-of-the-terminal)),
+so it cannot be rebound, and an imported keymap that binds it has that one
+binding left out.
 
 #### Sharing and migrating a layout
 
@@ -714,7 +738,16 @@ screen you had not yet seen is a hazard, not a convenience.
 
 While the terminal has focus it captures ++tab++ so field navigation
 reaches the host instead of moving browser focus. To get out to the rest
-of the page, press ++ctrl+tab++ (or ++ctrl+shift+tab++).
+of the page, press ++alt+shift+m++. Focus moves to an **Exit terminal
+keyboard focus** control just after the terminal, and the next ++tab++
+carries on through the page.
+
+++ctrl+tab++ (or ++ctrl+shift+tab++) does the same where your browser passes
+it on to the page. Browsers generally keep that combination for switching
+their own tabs, so it may never arrive; ++alt+shift+m++ is the one to rely
+on. It is recognised by the physical ++m++ key, so it works the same with
+Option on macOS or an AltGr layout. It does nothing when focus is already
+outside the terminal, and it cannot be rebound.
 
 ## Hotspots
 

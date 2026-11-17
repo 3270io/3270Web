@@ -4,6 +4,9 @@
   var submitting = false;
   var keydownInstalled = false;
   var keySubmitDelayMs = 65;
+  // Whether the keypad is shown is this browser's own choice: "1" or "0", or
+  // absent until the person has toggled it. Read by early-keypad-init.js.
+  var keypadVisibleStorageKey = "3270Web.keypad";
   var keypadCompactStorageKey = "h3270KeypadCompact";
   var keypadModeStorageKey = "h3270KeypadMode";
   var keypadLayoutStorageKey = "h3270KeypadLayout";
@@ -16,13 +19,13 @@
   var FOCUS_KEYPAD_MAX_FRACTION = 0.35;
   var lastKnownCursorRow = null;
   var lastKnownCursorCol = null;
-  // Set for one focusin cycle when Ctrl+Tab (or Ctrl+Shift+Tab) deliberately
-  // releases keyboard focus from the terminal (see handleKeyDownEvent and
-  // installTerminalFocusLock). Without this, the focusin listener that keeps
+  // Set for one focusin cycle when Alt+Shift+M, Ctrl+Tab or Ctrl+Shift+Tab
+  // deliberately releases keyboard focus from the terminal (see
+  // releaseTerminalFocus and installTerminalFocusLock). Without this, the focusin listener that keeps
   // focus pinned to the terminal would immediately snap it back, permanently
   // trapping keyboard users inside the terminal (WCAG 2.1.2).
   var terminalFocusReleasePending = false;
-  // True from the moment Ctrl+Tab moves focus to the escape hatch until
+  // True from the moment an exit chord moves focus to the escape hatch until
   // focus genuinely returns inside .terminal-shell (see installTerminalFocusLock's
   // focusin listener). Read by restoreScreenFocus to avoid dragging focus
   // back into the terminal out from under a deliberate escape while an
@@ -1932,6 +1935,40 @@
     clearConfirmTimer = window.setTimeout(disarmClearConfirmation, clearConfirmWindowMs);
   }
 
+  // Alt+Shift+M is the dependable way out of the terminal's Tab capture. The
+  // original exit, Ctrl+Tab, is a browser-reserved chord: a browser keeps it
+  // for its own tab switching and a page often never sees it, so it cannot be
+  // the only way out (WCAG 2.1.2). Matched on the physical key (event.code)
+  // and not on event.key: with Option on macOS, or an AltGr layout, the key
+  // value for Alt+Shift+M is some other character entirely. Ctrl and Meta
+  // must be up, so this never shadows a browser or OS shortcut that happens to
+  // include M.
+  function isTerminalExitChord(event) {
+    return (
+      event.code === "KeyM" &&
+      event.altKey &&
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    );
+  }
+
+  // Moves keyboard focus to the escape hatch, the control that sits just after
+  // the terminal, so the next Tab carries on through the rest of the page.
+  // Both exit routes (Alt+Shift+M and Ctrl+Tab) end here. The two flags stop
+  // the focus lock and an in-flight screen refresh from dragging focus
+  // straight back into the terminal.
+  function releaseTerminalFocus() {
+    var hatch = document.getElementById("terminal-escape-hatch");
+    if (!hatch) {
+      return false;
+    }
+    terminalFocusReleasePending = true;
+    terminalFocusEscaped = true;
+    hatch.focus();
+    return true;
+  }
+
   function handleKeyDownEvent(event, formId) {
     if (!event) {
       return;
@@ -1972,6 +2009,18 @@
     // means declining it has to happen here or the host gets a stray Enter
     // every time someone maximises.
     if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === "Enter") {
+      return;
+    }
+
+    // The way out of the terminal comes before everything the keymap can say,
+    // including a user's own binding: someone whose imported keymap binds this
+    // chord to a PF key would otherwise be trapped again. Only while focus is
+    // inside the terminal. Anywhere else the chord is not ours and is left
+    // alone, so it is not swallowed on the toolbar, in a dialog or in the AI
+    // panel (the checks above have already returned for those).
+    if (isTerminalExitChord(event) && isInsideTerminalShell(event.target)) {
+      event.preventDefault();
+      releaseTerminalFocus();
       return;
     }
 
@@ -2021,19 +2070,13 @@
       if (!isInsideTerminalShell(event.target)) {
         return;
       }
-      // Ctrl+Tab / Ctrl+Shift+Tab is the documented escape hatch (see the
-      // visually-hidden hint rendered next to the terminal): deliberately
-      // move focus to a dedicated landing target instead of sending a 3270
-      // Tab, and suppress the focus lock's next focusin so it doesn't snap
-      // focus straight back into the terminal.
+      // Ctrl+Tab / Ctrl+Shift+Tab is the second route out, for browsers that
+      // pass it on to the page (see the visually-hidden hint rendered next to
+      // the terminal; Alt+Shift+M above is the one that always arrives): move
+      // focus to a dedicated landing target instead of sending a 3270 Tab.
       if (event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault();
-        var hatch = document.getElementById("terminal-escape-hatch");
-        if (hatch) {
-          terminalFocusReleasePending = true;
-          terminalFocusEscaped = true;
-          hatch.focus();
-        }
+        releaseTerminalFocus();
         return;
       }
       var form = findForm(formId);
@@ -3293,7 +3336,6 @@
       return;
     }
 
-    var previousHidden = keypad.hidden;
     keypad.hidden = !nextVisible;
     syncKeypadToggleUi(nextVisible);
 
@@ -3304,21 +3346,26 @@
     scheduleKeypadAutoScale();
     notifyTerminalLayoutChange();
 
+    // The choice belongs to this browser. It is applied on the next page load
+    // by early-keypad-init.js, ahead of first paint; Settings > "Use keypad"
+    // is only the default for people who have not made one.
+    try {
+      localStorage.setItem(keypadVisibleStorageKey, nextVisible ? "1" : "0");
+    } catch (_) {
+      // Storage blocked or full: the keypad still shows or hides now, and the
+      // session's own copy below keeps a reload in this session consistent.
+    }
+
+    // The server keeps a copy for this session only, so a reload in a browser
+    // that cannot store anything still agrees with the page. It never changes
+    // the instance default, and nothing here depends on it succeeding, so a
+    // failed request does not undo what the person just chose.
     var body = "keypad=" + encodeURIComponent(nextVisible ? "on" : "off");
     fetch("/prefs/keypad", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: body
-    }).then(function (response) {
-      if (!response.ok) {
-        throw new Error("failed");
-      }
-    }).catch(function () {
-      keypad.hidden = previousHidden;
-      syncKeypadToggleUi(!keypad.hidden);
-      scheduleKeypadAutoScale();
-      notifyTerminalLayoutChange();
-    });
+    }).catch(function () {});
   }
 
   function initKeypadVisibilityToggle() {

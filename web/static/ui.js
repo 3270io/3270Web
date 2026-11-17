@@ -247,7 +247,7 @@
             ],
             fields: [
                 { key: 'ALLOW_LOG_ACCESS', label: 'Allow log access', type: 'checkbox', helper: 'Enable viewing log output in the UI.' },
-                { key: 'APP_USE_KEYPAD', label: 'Use keypad', type: 'checkbox', helper: 'Show the virtual keypad by default.' },
+                { key: 'APP_USE_KEYPAD', label: 'Use keypad', type: 'checkbox', helper: 'Show the virtual keypad by default for people who have not chosen. Anyone who has used View > Virtual keypad keeps their own choice in their browser.' },
             ],
         },
         {
