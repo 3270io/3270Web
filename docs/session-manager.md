@@ -28,6 +28,17 @@ So what an account meets depends on what it was given:
 The middle case is the one that matters most. Somebody whose account reaches
 one mainframe should sign in and be on it.
 
+Only hosts an administrator assigned are counted. A connection an account saved
+for itself in **Manage connections** is its own to open from **Open a
+connection**, and it never changes the table: saving one does not connect the
+account to it at sign-in, and saving several does not put a session manager
+where the connect form was. Where there is a session manager, it lists those
+saved connections beside the assigned hosts, so none of them is harder to reach.
+
+An instance run by a single operator has nobody to assign hosts to, so it starts
+at the connect form unless a [target host is set to connect
+automatically](configuration.md).
+
 ---
 
 ## The selection screen

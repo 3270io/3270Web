@@ -155,12 +155,14 @@ func (app *App) accountFor(c *gin.Context) (users.User, bool) {
 	return account, true
 }
 
-// assignedProfiles is the host list this caller may reach, in the order a menu
-// should show it.
+// assignedProfiles is the host list this caller may connect to by name, in the
+// order a menu should show it: the published hosts their account reaches, and
+// the connections they saved for themselves.
 //
 // This is the one function the session-selection screen and the connect page
 // both read, so what an operator is offered and what they are allowed cannot
-// disagree.
+// disagree. It is not the list an administrator gave them — see hostsAssigned,
+// which is the one to ask what the first screen should be.
 func (app *App) assignedProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 	all, err := app.visibleProfiles(c)
 	if err != nil {
@@ -176,6 +178,60 @@ func (app *App) assignedProfiles(c *gin.Context) ([]ConnectionProfile, error) {
 		// A profile of somebody's own is theirs whatever it says: the audience
 		// fields only decide who a *published* profile reaches.
 		if !p.Shared || p.visibleTo(account) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+// hostsAssigned is what an administrator has given this caller: the published
+// hosts their account reaches, and nothing they saved for themselves.
+//
+// It is the list the first screen is decided by — none is the connect form, one
+// is a connection made for them, several is the session manager — because what
+// an instance has chosen to hand somebody is a different fact from what they
+// happen to have saved. Asking assignedProfiles instead meant saving a
+// connection changed what the account met at sign-in: one saved host was dialled
+// without being asked for, and two put a menu where the connect form had been.
+//
+// A saved connection that shares a name with a published host replaces it in
+// the lists the account picks from, so that its own settings win. It is still
+// the host they were given, and counts as it; the entry returned is the one
+// that wins, so a connection made for them uses those settings too.
+//
+// Under a single operator there is no published list and nobody to assign one,
+// so nothing is assigned. A configured target host with auto-connect is how an
+// instance like that says where to go.
+func (app *App) hostsAssigned(c *gin.Context) ([]ConnectionProfile, error) {
+	published := app.publishedProfiles(c)
+	if published == nil {
+		return nil, nil
+	}
+	account, ok := app.accountFor(c)
+	if !ok {
+		return nil, nil
+	}
+	shared, err := published.load()
+	if err != nil {
+		return nil, err
+	}
+	given := make(map[string]bool, len(shared))
+	for _, p := range offeredOnly(shared) {
+		if p.visibleTo(account) {
+			given[profileNameKey(p.Name)] = true
+		}
+	}
+	if len(given) == 0 {
+		return nil, nil
+	}
+
+	reachable, err := app.assignedProfiles(c)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ConnectionProfile, 0, len(given))
+	for _, p := range reachable {
+		if given[profileNameKey(p.Name)] {
 			out = append(out, p)
 		}
 	}
