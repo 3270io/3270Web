@@ -46,9 +46,11 @@ panel prompts for whichever the selected provider needs.
 3. The panel header shows the provider you are talking to, and the model
    dropdown reloads with that provider's models.
 
-To disconnect, click **Sign out** in the panel header. For Copilot that
-clears the OAuth token; for every other provider it forgets the stored
-API key.
+To disconnect, open **More** in the panel header and choose **Sign out of
+GitHub Copilot** (for another provider the entry reads, for example,
+**Forget the saved Claude API key**). For Copilot that clears the OAuth token;
+for every other provider it forgets the stored API key. You are asked first,
+and the conversation stays in the browser unless you choose to clear it too.
 
 Full per-provider setup — including GitHub Enterprise, local Ollama and
 corporate gateways — is in [AI Providers](ai-providers.md).
@@ -111,9 +113,11 @@ controls, and text that reads like an instruction is still data. See
 
 ## Tool Approval
 
-Each AI action requires explicit approval:
+Anything that changes the session needs your approval:
 
-- The panel shows a **Run** button before executing any tool call.
+- The panel shows a **Run** button before a tool call that types, presses a
+  key or otherwise changes something. Tool calls that only read run by
+  themselves.
 - Click **Run** to approve it, or **Skip** to decline it.
 - This prevents unintended writes or key presses.
 
@@ -129,11 +133,24 @@ can scan a long exchange quickly:
 | **Failed** (red) | The call returned an error |
 | **Skipped** (grey) | You declined it |
 
-To let the AI proceed without pausing, enable **Auto Mode** (toggle in the panel header). In Auto Mode the panel runs tool calls automatically without waiting for you to click **Run** each time.
+### Auto-run
 
-### What still asks in Auto Mode
+To let the AI proceed without pausing, turn on **Auto-run** (the button in the
+panel header; earlier versions called it Auto Mode). While it is on, the button
+reads **Auto-run: on**, a banner across the panel says so, and typing and key
+presses run without waiting for you to click **Run** each time. It applies to
+one host and one account: turning it on while you explore a sample application
+does not turn it on for another host.
 
-Auto Mode does not mean everything runs unattended. Every tool has a class,
+The first time you turn it on in a browser, 3270Web asks you to confirm, with
+focus on **Cancel**. The dialog lists what will then run without asking and
+what still asks; **Esc** or **Cancel** leaves Auto-run off. The answer is
+remembered in that browser, so turning it off and on again does not ask a
+second time. Turning it off never asks.
+
+### What still asks in Auto-run {#what-still-asks-in-auto-mode}
+
+Auto-run does not mean everything runs unattended. Every tool has a class,
 reported by the server alongside the tool definitions, and the class decides
 how much a call can change:
 
@@ -145,7 +162,7 @@ how much a call can change:
 
 Two keys are always put in front of a person: **PF3**, which commonly logs
 the session off, and **Clear**, which discards what is on the screen. That
-holds in Auto Mode, and it holds in every spelling the terminal accepts —
+holds in Auto-run, and it holds in every spelling the terminal accepts —
 `PF3`, `pf(3)`, `F3`, `f03`.
 
 **The server enforces it, not only the panel.** `POST /screen/key` — and
@@ -356,7 +373,7 @@ providers may be used, and limit where a custom endpoint may point. See
 
 ## Clear the Conversation
 
-Click **Clear** in the panel header to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted.
+Open **More** in the panel header and choose **Clear chat…** to remove all messages from the current chat session. A confirmation dialog appears before the history is deleted, with focus on **Cancel**, so a stray ++enter++ keeps the conversation.
 
 Clearing starts a new conversation, not only an empty transcript: skills the
 previous conversation had loaded are sent again when the new one asks for

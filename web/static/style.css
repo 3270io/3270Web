@@ -3055,6 +3055,14 @@ pre, pre input, textarea {
   margin: 0;
 }
 
+/* The AI panel's confirmation body is built from paragraphs and, for Auto-run,
+   bulleted lists. Kept tight so the whole of it, buttons included, fits a
+   phone without scrolling the dialog. */
+[data-copilot-clear-desc] p { margin: 0 0 10px; }
+[data-copilot-clear-desc] ul { margin: 0 0 10px; padding-left: 20px; }
+[data-copilot-clear-desc] li { margin: 2px 0; }
+[data-copilot-clear-desc] > :last-child { margin-bottom: 0; }
+
 .modal-chaos-runs {
   width: min(560px, 100%);
 }
@@ -6147,7 +6155,9 @@ body.copilot-open .page-wrap {
    AI chat panel: header menu, Auto Mode, status, cards, plans, context
    --------------------------------------------------------------------- */
 .copilot-panel-header { position: relative; gap: 8px; }
-.copilot-panel-header-actions { flex-wrap: nowrap; align-items: center; }
+/* Wraps rather than pushing the close button out of a panel dragged to its
+   narrowest, now that the Auto-run label is a word and says when it is on. */
+.copilot-panel-header-actions { flex-wrap: wrap; align-items: center; justify-content: flex-end; min-width: 0; }
 .copilot-close-btn { display: inline-flex; align-items: center; gap: 4px; }
 .copilot-close-label { display: none; }
 
