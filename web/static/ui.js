@@ -1843,6 +1843,9 @@
     const pollFinalizeMaxTries = 20;
     let pollFinalizeTries = 0;
     let lastWorkflowSyncKey = null;
+    // The limits of the current run as the workflow-status poll reports them,
+    // for working out how a run ended on a server that does not say.
+    const knownRunLimits = { maxSteps: 0, timeBudgetMs: 0, startedAt: '', stoppedAt: '' };
     let fullMapUnavailable = false;
     let latestAreaCount = 0;
     const groupedScreenCount = { areaCount: -1, screens: 0 };
@@ -6420,15 +6423,29 @@
         const steps = Number(st.stepsRun) || 0;
         const errorText = String(st.error || '').trim();
         let reason = String(st.terminationReason || '').trim().toLowerCase();
+        const cov = st.coverageStats && typeof st.coverageStats === 'object' ? st.coverageStats : null;
+        const streak = cov ? Number(cov.saturationStreak) || 0 : 0;
         if (!reason) {
+            // The server did not say. Work it out from what is known, and
+            // only when st is the run this page has been watching.
+            const threshold = cov ? Number(cov.saturationThresholdSteps) || 0 : 0;
+            const started = Date.parse(knownRunLimits.startedAt || '');
+            const stopped = Date.parse(knownRunLimits.stoppedAt || '');
             if (errorText) {
                 reason = 'error';
             } else if (userRequestedStop) {
                 reason = 'stopped';
+            } else if (st === lastStatus && !st.active) {
+                if (knownRunLimits.maxSteps > 0 && steps >= knownRunLimits.maxSteps) {
+                    reason = 'max_steps';
+                } else if (threshold > 0 && streak >= threshold) {
+                    reason = 'saturated';
+                } else if (knownRunLimits.timeBudgetMs > 0 && started && stopped
+                    && (stopped - started) >= knownRunLimits.timeBudgetMs - 1500) {
+                    reason = 'time_budget';
+                }
             }
         }
-        const cov = st.coverageStats && typeof st.coverageStats === 'object' ? st.coverageStats : null;
-        const streak = cov ? Number(cov.saturationStreak) || 0 : 0;
         const stepWord = pluralize(steps, 'step');
         switch (reason) {
         case 'max_steps':
@@ -6624,11 +6641,12 @@
                 ? `nothing new for ${streak} of ${pluralize(threshold, 'step')}`
                 : `nothing new for ${pluralize(streak, 'step')}`;
         }
+        const lastSteps = windowSteps === 1 ? 'the last step' : `the last ${windowSteps} steps`;
         if (newScreens > 0) {
-            return `${pluralize(newScreens, 'new screen')} in the last ${windowSteps} steps`;
+            return `${pluralize(newScreens, 'new screen')} in ${lastSteps}`;
         }
         if (newTransitions > 0) {
-            return `${pluralize(newTransitions, 'new transition')} in the last ${windowSteps} steps`;
+            return `${pluralize(newTransitions, 'new transition')} in ${lastSteps}`;
         }
         return '';
     };
@@ -6672,9 +6690,14 @@
         const next = status || { active: false, stepsRun: 0, transitions: 0 };
         // A partial update (one the page makes for itself, between polls) must
         // not forget what the server last said about the run.
+        // The same run, that is: one that has just been saved gains its run
+        // ID between two polls and is still the same run.
+        const sameRun = !!next.active === !!previous.active
+            && (String(next.loadedRunID || '') === String(previous.loadedRunID || '')
+                || (!String(previous.loadedRunID || '') && (Number(previous.stepsRun) || 0) > 0
+                    && (Number(next.stepsRun) || 0) === (Number(previous.stepsRun) || 0)));
         ['terminationReason', 'targetHost', 'label', 'coverageStats'].forEach((key) => {
-            if (next[key] == null && previous[key] != null && !!next.active === !!previous.active
-                && String(next.loadedRunID || '') === String(previous.loadedRunID || '')) {
+            if ((next[key] == null || next[key] === '') && previous[key] != null && sameRun) {
                 next[key] = previous[key];
             }
         });
@@ -6761,6 +6784,13 @@
         if (wasRunning && !running) {
             if (hasData) {
                 const outcome = chaosOutcomeFor(next);
+                lastOutcome = outcome;
+                if (!next.terminationReason && outcome.reason) {
+                    // Worked out here because the server did not say; keep
+                    // it, so the panel goes on saying what the toast said.
+                    next.terminationReason = outcome.reason;
+                }
+                renderChaosRunPanel(next, runPanel ? !runPanel.hidden : false);
                 notifyUi(outcome.toast, outcome.tone);
                 // The panel quotes the number of distinct screens, which
                 // needs the full map as it stood at the end.
@@ -8730,6 +8760,15 @@
         syncFromWorkflowStatus: function (payload) {
             if (!payload || typeof payload !== 'object') return;
             const active = !!payload.chaosActive;
+            const limitsBefore = `${knownRunLimits.maxSteps}|${knownRunLimits.stoppedAt}`;
+            knownRunLimits.maxSteps = Number(payload.chaosMaxSteps || 0);
+            knownRunLimits.timeBudgetMs = Number(payload.chaosTimeBudgetMs || 0);
+            knownRunLimits.startedAt = String(payload.chaosStartedAt || '');
+            knownRunLimits.stoppedAt = String(payload.chaosStoppedAt || '');
+            if (!active && lastStatus && !lastStatus.active && hasData
+                && limitsBefore !== `${knownRunLimits.maxSteps}|${knownRunLimits.stoppedAt}`) {
+                renderChaosRunPanel(lastStatus, runPanel ? !runPanel.hidden : false);
+            }
             const key = [active, String(payload.chaosLoadedRunID || ''), active ? '' : Number(payload.chaosStepsRun || 0)].join('|');
             if (key === lastWorkflowSyncKey) return;
             lastWorkflowSyncKey = key;

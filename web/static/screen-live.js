@@ -37,6 +37,12 @@
     }
 
     var prior = getFocusedFieldInfo(container);
+    // A live update puts focus back in the terminal, which is right when the
+    // operator is in the terminal and wrong when they are typing into a
+    // dialog laid over it: during an automated run the screen changes twice a
+    // second, and each change pulled focus out of the dialog mid-word.
+    var active = document.activeElement;
+    var dialogFocus = active && active.closest && active.closest('[aria-modal="true"]') ? active : null;
     container.innerHTML = payload.html;
     if (typeof window.updateScreenStatusLine === "function") {
       window.updateScreenStatusLine(payload);
@@ -54,6 +60,9 @@
         payload.cursorRow,
         payload.cursorCol
       );
+    }
+    if (dialogFocus && dialogFocus.isConnected && document.activeElement !== dialogFocus) {
+      dialogFocus.focus({ preventScroll: true });
     }
     if (typeof window.sizeScreenContainer === "function") {
       window.sizeScreenContainer();

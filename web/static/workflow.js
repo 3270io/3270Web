@@ -470,6 +470,7 @@
   const activeRunStop = document.querySelector('[data-active-run-stop]');
   const activeRunExtend = document.querySelector('[data-active-run-extend]');
   const activeRunClose = document.querySelector('[data-active-run-close]');
+  const chaosRunPanel = document.querySelector('[data-chaos-run-panel]');
   // The exploration half of the strip belongs to ui.js: this module shows it,
   // that one knows how a run ended and what can be done with it.
   const chaosUI = () => (typeof window.ChaosUI === 'object' && window.ChaosUI ? window.ChaosUI : null);
@@ -945,7 +946,9 @@
       !chaosActive &&
       !!payload.chaosLoadedRunID &&
       !!activeRunExtend &&
-      !!chaosUI();
+      !!chaosUI() &&
+      // The results panel under the strip carries the same action; one is enough.
+      !(chaosRunPanel && !chaosRunPanel.hidden);
     const showCloseButton = !recordingActive && !playbackActive && !chaosActive && !!dismissKey;
     const displayText = metadata;
     // The widget tracks whether a run is genuinely RUNNING, not merely whether
@@ -1481,11 +1484,22 @@
           return;
         }
         lastScreenHtml = payload.html;
+        // Redrawing the terminal re-installs its key handler, which puts
+        // focus in the terminal. During a run that happens every poll, so
+        // anybody working in a dialog over the terminal (typing a hint into
+        // the screen map, say) had focus pulled out from under them mid-word.
+        // Whatever held focus inside a dialog gets it back.
+        const focused = document.activeElement;
+        const focusedInDialog = focused instanceof HTMLElement
+          && !!focused.closest('[aria-modal="true"]');
         container.innerHTML = payload.html;
         if (typeof window.installKeyHandler === 'function') {
           const form = container.querySelector('form.renderer-form');
           const formId = form ? (form.id || form.getAttribute('name')) : null;
           window.installKeyHandler(formId);
+        }
+        if (focusedInDialog && focused.isConnected && document.activeElement !== focused) {
+          focused.focus({ preventScroll: true });
         }
         if (typeof window.sizeScreenContainer === 'function') {
           window.sizeScreenContainer();

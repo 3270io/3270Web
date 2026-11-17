@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=24">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=25">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
@@ -55,9 +55,9 @@
          preventDefault(), ui.js's listener sees event.defaultPrevented and
          skips entirely — so toolbar buttons never got the spinner/disabled
          state, allowing double-submits. -->
-    <script src="/static/ui.js?v=22" defer></script>
-    <script src="/static/workflow.js?v=19" defer></script>
-    <script src="/static/screen-live.js" defer></script>
+    <script src="/static/ui.js?v=23" defer></script>
+    <script src="/static/workflow.js?v=20" defer></script>
+    <script src="/static/screen-live.js?v=2" defer></script>
     <script src="/static/screen-grid.js" defer></script>
     <script src="/static/screen-copy.js" defer></script>
     <script src="/static/hotspots.js" defer></script>
@@ -68,11 +68,11 @@
     <script src="/static/connection-profiles.js?v=2" defer></script>
     <script src="/static/file-transfer.js" defer></script>
     <script src="/static/keymap-editor.js" defer></script>
-    <script src="/static/tasks.js" defer></script>
-    <script src="/static/task-wizard.js" defer></script>
+    <script src="/static/tasks.js?v=2" defer></script>
+    <script src="/static/task-wizard.js?v=2" defer></script>
     <script src="/static/ui-preferences.js?v=1" defer></script>
     <script src="/static/workspace-mode.js?v=2" defer></script>
-    <script src="/static/quick-start.js?v=1" defer></script>
+    <script src="/static/quick-start.js?v=2" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js?v=6" defer></script>
     <!-- The menu bar: drop-downs, the collapse control and the theme
@@ -87,7 +87,7 @@
     <script src="/static/ai-provider.js?v=1" defer></script>
     <script src="/static/copilot-tools.js?v=3" defer></script>
     <script src="/static/copilot-panel.js?v=6" defer></script>
-    <script src="/static/ui-polish.js?v=12" defer></script>
+    <script src="/static/ui-polish.js?v=13" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
          origin. See web/static/embed.js. -->
