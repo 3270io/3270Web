@@ -2850,14 +2850,48 @@
         el.insertBefore(tag, el.querySelector(".copilot-msg-actions"));
     }
 
+    // The longest wait the panel will quote. The chat proxy caps what it
+    // repeats at the same five minutes (copilot.MaxRetryAfter); a provider
+    // that asks for an hour is saying "not today", which "about 60 minutes"
+    // does not say any better than the plain message does. This keeps a
+    // server that does not cap from producing "about 86400 seconds".
+    const MAX_RETRY_AFTER_SECONDS = 300;
+
+    // retryAfterSeconds reads Retry-After from a failed response. The chat
+    // proxy always sends whole seconds, whatever form the provider used (it
+    // converts an HTTP date before repeating it), so that is all this reads.
+    // 0 means there was no usable wait: the header is absent or unreadable.
+    function retryAfterSeconds(resp) {
+        let raw = "";
+        try { raw = String(resp.headers.get("Retry-After") || "").trim(); } catch (_) { return 0; }
+        if (!/^\d+$/.test(raw)) return 0;
+        return Math.min(parseInt(raw, 10), MAX_RETRY_AFTER_SECONDS);
+    }
+
+    // describeWait says a wait the way a person would: exact seconds up to a
+    // minute and a half, then whole minutes rounded up. Rounded up because a
+    // retry a little early gets another 429.
+    function describeWait(seconds) {
+        const s = Math.max(1, Math.round(seconds));
+        if (s < 90) return s + (s === 1 ? " second" : " seconds");
+        const m = Math.ceil(s / 60);
+        return m + (m === 1 ? " minute" : " minutes");
+    }
+
     // friendlyChatError converts an upstream error body into a human-readable
     // explanation. Every provider we proxy reports errors in roughly the
     // OpenAI shape —
     //   {"error":{"message":"...","code":"model_not_supported",...}}
     // — sometimes nested inside our own "<provider>: status NNN: <body>", and
     // Anthropic uses {"type":"..."} where OpenAI uses {"code":"..."}.
-    function friendlyChatError(raw) {
+    //
+    // `hint` carries what only the HTTP response knows: its status, and the
+    // wait the provider asked for in Retry-After (whole seconds, 0 if it said
+    // nothing). A mid-stream error arrives as an SSE frame with neither.
+    function friendlyChatError(raw, hint) {
         const text = String(raw || "");
+        const status = hint && hint.status;
+        const retryAfter = (hint && hint.retryAfter) || 0;
         // Try to extract a JSON error object even when wrapped in prose.
         let parsed = null;
         const braceAt = text.indexOf("{");
@@ -2874,12 +2908,22 @@
         if (code === "authentication_error" || code === "invalid_api_key" || code === "permission_error" || /api key|unauthor|forbidden/i.test(message)) {
             return providerLabel + " rejected the credentials. Open AI provider settings and check the key.";
         }
-        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+        const rateLimited = function () {
+            if (retryAfter > 0) {
+                return providerLabel + " rate limit hit. Try again in about " + describeWait(retryAfter) + ".";
+            }
             return providerLabel + " rate limit hit. Wait a moment and try again, or switch to a smaller model.";
+        };
+        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+            return rateLimited();
         }
         if (/premium request|monthly.*limit|quota|exhaust|insufficient_quota|credit balance/i.test(message)) {
             return "Your " + providerLabel + " quota is exhausted. Switch to a cheaper model, or wait for the quota to reset.";
         }
+        // A 429 is a rate limit whatever the body says, but only once the
+        // bodies that say something more specific have had their turn: an
+        // exhausted quota is also a 429, and waiting does not fix it.
+        if (status === 429) return rateLimited();
         if (code === "overloaded_error") {
             return providerLabel + " is overloaded right now. Try again in a moment.";
         }
@@ -2929,17 +2973,17 @@
                 window.AIProvider.ensureReady().then(refreshConnectionState);
                 return { error: msg || (providerLabel + " is not set up yet.") };
             }
-            if (resp.status === 429) {
-                const wait = parseInt(resp.headers.get("Retry-After") || "", 10);
-                if (OWN_RATE_LIMIT.test(msg)) {
-                    return { error: "This 3270Web server is limiting requests from this browser: " + msg };
-                }
-                return {
-                    error: friendlyChatError(msg)
-                        + (wait > 0 ? " " + providerLabel + " asks for about " + wait + " seconds before the next request." : ""),
-                };
+            if (resp.status === 429 && OWN_RATE_LIMIT.test(msg)) {
+                return { error: "This 3270Web server is limiting requests from this browser: " + msg };
             }
-            return { error: friendlyChatError(msg) || ("The server answered " + resp.status + ".") };
+            // The wait the provider asked for travels in Retry-After, which
+            // the chat proxy repeats on the 429 it sends. It goes into the
+            // sentence about the limit rather than after it: the message used
+            // to say "wait a moment" and then, separately, how long.
+            return {
+                error: friendlyChatError(msg, { status: resp.status, retryAfter: retryAfterSeconds(resp) })
+                    || ("The server answered " + resp.status + "."),
+            };
         }
         return { body: resp.body };
     }

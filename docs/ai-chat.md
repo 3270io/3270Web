@@ -365,6 +365,7 @@ providers may be used, and limit where a custom endpoint may point. See
 ## Known Limitations
 
 - Chat requests are rate-limited per account on the server: 60 a minute by default (`RATE_LIMIT_AI`), with a separate limit on provider sign-in and settings (`RATE_LIMIT_AICONTROL`); see [Limits](multi-user.md). A single message is also stopped after 150 tool-call rounds. Your provider's own quotas apply on top.
+- When the provider rate-limits a message, the panel says how long it asked you to wait — *"Try again in about 20 seconds."* — using the `Retry-After` header 3270Web repeats from the provider (rounded up to whole minutes past a minute and a half, and never more than five minutes). A provider that sends no wait gets the plain *"Wait a moment and try again"*. 3270Web's own limit above is reported separately, naming the setting that governs it.
 - Tool calling is required. Every provider listed in [AI Providers](ai-providers.md) supports it, but a small local model served through an OpenAI-compatible endpoint may not, or may do it badly — if the assistant answers in prose instead of reading the screen, that is usually the cause.
 - Reasoning/thinking output is not displayed. Models that think before answering still do so, but only the final answer reaches the panel.
 - If the model stream fails mid-response — including a provider that closes the connection before finishing — that exchange is not added to the history and no tool call from the partial response is run. Re-send the prompt.

@@ -241,6 +241,21 @@ AI_ALLOW_PRIVATE_ENDPOINTS=true
 These are in addition to the rate limits (`RATE_LIMIT_AI`,
 `RATE_LIMIT_AICONTROL`) described under [Limits](multi-user.md).
 
+## When a provider says slow down
+
+A provider that rate-limits a request answers with HTTP 429, usually with a
+`Retry-After` header saying how long to wait. 3270Web repeats that header on
+the response it sends the panel, whichever provider it came from, and the
+panel turns it into a sentence: *"Try again in about 20 seconds."* A wait over
+a minute and a half is given in whole minutes, rounded up, and the proxy never
+passes on more than five minutes — a provider that asks for an hour is telling
+you to come back later, and the panel does not pretend to count that down.
+
+When the provider sends no wait, the message is the plain *"Wait a moment and
+try again, or switch to a smaller model."* The limit 3270Web applies itself
+(`RATE_LIMIT_AI`) is reported separately, as coming from 3270Web, with the wait
+and the setting that governs it.
+
 ## GitHub Enterprise
 
 Setting or changing the GitHub Enterprise host signs you out of Copilot. The
