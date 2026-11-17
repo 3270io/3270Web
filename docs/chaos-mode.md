@@ -38,6 +38,13 @@ presses keys at random:
   hints. Exit-style keys named in a screen's own key legend are blocked
   automatically, but only when the legend says so in words the run
   recognises.
+- **Paging keys are the one addition the run makes for itself.** The
+  default key set has no `PF7` or `PF8`. Where a screen's own legend labels
+  a key as paging (*Next*, *Prev*, *Forward*, *Backward*, *Up*, *Down*,
+  *Scroll*, *More*), the run may press that key on that screen so that a
+  list is seen past its first page. A key the legend labels as leaving the
+  screen (*Back*, *Menu*) is not added this way, and a blocked key stays
+  blocked.
 - **Start small.** A first run of 20–50 steps with a one-second delay shows
   you where the run goes before it has gone far. Raise the limits once you
   have seen it stay where you want it.

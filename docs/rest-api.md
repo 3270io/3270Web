@@ -180,10 +180,33 @@ curl -X POST \
   http://127.0.0.1:3270/api/v1/sessions/$ID/key
 ```
 
+The response is `{"ok": true, "key": "PF(3)"}`, with the key in its
+canonical spelling. An unrecognised key is a `400` naming the key; nothing
+is sent in its place. This route does not ask for confirmation of a
+session-ending key: a script that sends `PF3` means it. The AI surfaces do
+ask — see [AI Chat](ai-chat.md#what-still-asks-in-auto-mode) and
+[MCP](mcp.md).
+
 ### `POST /api/v1/sessions/:id/field`
 
 Write text into the input field that contains `(row, col)`. Coordinates
 are 0-indexed. Text containing CR, LF, or TAB is rejected.
+
+The position must be inside an unprotected field, and the text must fit in
+what is left of it; otherwise the answer is `422` with a message saying what
+is at that position, and nothing is typed. By default the text overtypes
+what is there. Pass `"erase": true` to clear the field from that position to
+its end first, so the field ends up holding exactly the text; with `erase`
+set, an empty `text` clears the field.
+
+A successful write answers with the field as it now stands:
+
+```json
+{"ok": true, "field": {"row": 3, "col": 10, "length": 8, "value": "USER01"}}
+```
+
+`field` also carries `"hidden": true` or `"numeric": true` where they apply.
+The value of a hidden field is masked.
 
 ```sh
 curl -X POST \
@@ -196,8 +219,9 @@ curl -X POST \
 ### `POST /api/v1/sessions/:id/submit`
 
 Submit any modified fields and send an AID key. The default AID is
-`Enter`; pass `{"aid": "PF3"}` to use a different key. The response
-includes the updated screen.
+`Enter`; pass `{"aid": "PF3"}` to use a different key. The call waits for
+the host to answer and unlock the keyboard, and the response includes the
+screen that results.
 
 ```sh
 curl -X POST \
@@ -997,12 +1021,12 @@ so a shared instance keeps each person's credentials to themselves. See
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/ai/providers` | The provider catalogue (id, label, auth style, default endpoint, fallback model list) plus the caller's saved settings. |
-| `GET` | `/api/ai/status` | Whether the selected provider can answer a chat: `{"provider", "providerLabel", "auth", "ready", "needs", "model", "baseUrl"}`. `needs` is `login` (Copilot sign-in required), `config` (key or endpoint missing), or empty. |
+| `GET` | `/api/ai/status` | Whether the selected provider can answer a chat: `{"provider", "providerLabel", "auth", "ready", "needs", "model", "baseUrl"}`. `needs` is `login` (Copilot sign-in required), `config` (key or endpoint missing), `provider` (the operator has not allowed the selected provider), `disabled` (the operator has turned AI Chat off), or empty. The answer also carries `disabled`, and, where they apply, `providerDisabled`, `allowedProviders` and a `message` to show the user. With AI Chat turned off the other `/api/ai/*` routes answer `403` with `"disabled": true`. |
 | `GET` | `/api/ai/config` | Saved settings, per provider: `{"provider", "providers": {"<id>": {"baseUrl", "model", "hasKey"}}}`. **API keys are never returned** — only `hasKey`. |
 | `POST` | `/api/ai/config` | Save settings. Body: `{"provider", "target", "baseUrl", "apiKey", "model"}`. Omitted fields keep their stored value, so a model change does not clear the key; an explicit `"apiKey": ""` clears it. `target` names the provider the other fields apply to (defaults to `provider`). |
 | `POST` | `/api/ai/forget` | Clear the credentials for one provider. Body: `{"provider"}` (defaults to the selected one). For Copilot this also performs the OAuth logout. |
 | `GET` | `/api/ai/models` | Model IDs available from the selected provider, fetched live where possible and falling back to the built-in list otherwise. |
-| `GET` | `/api/ai/tools` | The tool schema and system prompt handed to the model. Identical for every provider — the tools describe the 3270 session, not the backend. |
+| `GET` | `/api/ai/tools` | The tool schema and system prompt handed to the model. Identical for every provider — the tools describe the 3270 session, not the backend. Also `toolClasses` (each tool as `read`, `write` or `destructive`), `dangerousSendKeys` (the keys that need a person's approval) and `maxToolRounds`. |
 | `POST` | `/api/ai/chat` | Streaming chat proxy. Takes an OpenAI-shaped `/chat/completions` body and returns OpenAI-shaped SSE chunks, whichever provider is selected — Anthropic's Messages protocol is translated in both directions. |
 
 ```bash
