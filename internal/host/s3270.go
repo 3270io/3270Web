@@ -42,6 +42,11 @@ type S3270 struct {
 
 	connectStart    time.Time
 	connectDuration time.Duration
+	// connectCount counts completed connects, the first one included. A
+	// caller that reads it before and after an action can tell that the host
+	// dropped the session and the terminal quietly dialled again in between,
+	// which nothing else reports: the action itself succeeds.
+	connectCount atomic.Int64
 }
 
 const (
@@ -1155,7 +1160,14 @@ func (h *S3270) reconnectLocked() error {
 		return err
 	}
 	h.connectDuration = time.Since(connectStart)
+	h.connectCount.Add(1)
 	return nil
+}
+
+// ConnectCount returns how many connects have completed on this terminal,
+// the first one included. It rises when a dropped session is re-established.
+func (h *S3270) ConnectCount() int64 {
+	return h.connectCount.Load()
 }
 
 // PrintText renders the current screen via the s3270 PrintText action and

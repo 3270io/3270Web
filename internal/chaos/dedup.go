@@ -97,7 +97,16 @@ func matchDedupArea(candidateSig, candidateTitleSig string, cw, ch, candidateFie
 			if candidateRows == nil {
 				candidateRows = contentRowsFromSignature(candidateSig)
 			}
-			score := crossSizeRowScore(candidateRows, contentRowsFromSignature(ref.sig))
+			refRows := contentRowsFromSignature(ref.sig)
+			score := crossSizeRowScore(candidateRows, refRows)
+			if score < crossSizeRowContainment && candidateTitleSig != "" && candidateTitleSig == ref.titleSig {
+				// The rows did not line up, but the two screens carry the
+				// same title in words. A screen that lays itself out again
+				// for the size — two columns folded into one, a line that
+				// states the size — says the same things in different rows,
+				// so compare what is said rather than where.
+				score = crossSizeTokenScore(candidateRows, refRows)
+			}
 			if score >= crossSizeRowContainment && score > bestScore {
 				bestScore = score
 				bestHash = ref.hash
@@ -305,6 +314,47 @@ func crossSizeRowScore(a, b []string) float64 {
 		prev, curr = curr, prev
 	}
 	return float64(prev[len(b)]) / float64(len(a))
+}
+
+// crossSizeTokenScore scores two screens of different sizes by the share of
+// words they have in common, counted with repeats and measured against the
+// wordier of the two. Measuring against the larger keeps a screen that merely
+// contains another from passing: this is for one screen rearranged, and both
+// arrangements say about the same amount. The title row has to agree, as in
+// crossSizeRowScore.
+func crossSizeTokenScore(a, b []string) float64 {
+	if len(a) < 4 || len(b) < 4 || a[0] != b[0] {
+		return 0
+	}
+	count := func(rows []string) (map[string]int, int) {
+		m := make(map[string]int)
+		n := 0
+		for _, row := range rows {
+			for _, tok := range strings.Fields(row) {
+				m[tok]++
+				n++
+			}
+		}
+		return m, n
+	}
+	ta, na := count(a)
+	tb, nb := count(b)
+	if na == 0 || nb == 0 {
+		return 0
+	}
+	shared := 0
+	for tok, ca := range ta {
+		if cb := tb[tok]; cb < ca {
+			shared += cb
+		} else {
+			shared += ca
+		}
+	}
+	larger := na
+	if nb > larger {
+		larger = nb
+	}
+	return float64(shared) / float64(larger)
 }
 
 // rememberSignatureAliasLocked records that a signature key resolves to an

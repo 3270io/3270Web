@@ -442,6 +442,25 @@ func (app *App) applyWorkflowFill(s *session.Session, step session.WorkflowStep)
 	row := step.Coordinates.Row - 1
 	col := step.Coordinates.Column - 1
 
+	// An empty fill is a field somebody cleared. Typing nothing would leave
+	// whatever the host put there, and the replay would submit a value the
+	// recording did not. Where the terminal can check the position first, the
+	// field is erased; a position that is not an input field is left alone,
+	// as it always was, rather than locking the keyboard on a protected cell.
+	if step.Text == "" {
+		if fw, ok := h.(host.FieldWriter); ok {
+			if _, err := fw.WriteField(row, col, "", true); err != nil && !host.IsFieldWriteError(err) {
+				return err
+			}
+			withSessionLock(s, func() {
+				if s.Playback != nil {
+					s.Playback.PendingInput = true
+				}
+			})
+			return nil
+		}
+	}
+
 	lines := strings.Split(step.Text, "\n")
 	for i, line := range lines {
 		if err := h.MoveCursor(row+i, col); err != nil {

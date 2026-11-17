@@ -244,3 +244,60 @@ func TestPetStoreMenuIsOneAreaAtBothScreenSizes(t *testing.T) {
 		t.Errorf("the main menu at %dx%d and %dx%d was counted as two areas", menu.Height, menu.Width, resized.Height, resized.Width)
 	}
 }
+
+// The help screen lays itself out again when the terminal changes size: two
+// columns at the larger size, one at the smaller. Its rows do not line up
+// between the two, which is the case the row comparison cannot settle and the
+// word comparison is there for.
+func TestPetStoreHelpIsOneAreaAtBothScreenSizes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("drives a real s3270")
+	}
+	h := startPetStoreHost(t)
+	read := func() *host.Screen {
+		t.Helper()
+		if err := h.UpdateScreen(); err != nil {
+			t.Fatalf("UpdateScreen: %v", err)
+		}
+		s := h.GetScreenSnapshot()
+		if s == nil {
+			t.Fatal("no screen")
+		}
+		return s
+	}
+	for _, f := range unprotectedFields(read()) {
+		if err := h.WriteStringAt(f.StartY, f.StartX, "TESTER"); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	for _, key := range []string{"Enter", "PF(1)"} {
+		if err := h.SendKey(key); err != nil {
+			t.Fatalf("%s: %v", key, err)
+		}
+	}
+
+	e := New(h, DefaultConfig())
+	e.mindMap = newMindMap()
+	help := read()
+	if !strings.Contains(help.Text(), "HELP AND COMMAND REFERENCE") {
+		t.Fatalf("not on the help screen:\n%s", help.Text())
+	}
+	first := e.canonicalizeScreenHash(hashScreen(help), help)
+	e.mu.Lock()
+	e.observeMindMapAreaLocked(first, help, time.Now())
+	e.mu.Unlock()
+
+	if err := h.SendKey("PF(9)"); err != nil {
+		t.Fatalf("PF9: %v", err)
+	}
+	resized := read()
+	if resized.Height == help.Height {
+		t.Skipf("PF9 did not change the screen size (still %dx%d)", resized.Height, resized.Width)
+	}
+	if !strings.Contains(resized.Text(), "HELP AND COMMAND REFERENCE") {
+		t.Skipf("PF9 left the help screen:\n%s", resized.Text())
+	}
+	if got := e.canonicalizeScreenHash(hashScreen(resized), resized); got != first {
+		t.Errorf("the help screen at %dx%d and %dx%d was counted as two areas", help.Height, help.Width, resized.Height, resized.Width)
+	}
+}
