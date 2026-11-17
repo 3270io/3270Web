@@ -109,7 +109,7 @@
          blocks are already behind you. A link at the top of the body could
          not be reached in practice: Tab and Shift+Tab inside the terminal are
          3270 field navigation, not browser focus movement, and leaving via
-         the Ctrl+Tab escape hatch puts focus after the terminal, not before
+         the Alt+Shift+M escape hatch puts focus after the terminal, not before
          it. An unreachable skip link is a worse answer than none. -->
     <div class="bg-overlay" role="button" tabindex="0" aria-pressed="true" aria-label="Toggle background animation">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -574,7 +574,7 @@
             </header>
             </div><!-- /rail zone -->
                     <section class="quick-start" data-quick-start hidden aria-label="Get started">
-                        <div><strong>Your terminal is ready</strong><p>Tab moves between fields. Enter submits. <span data-quick-start-keys>{{ if .UseKeypad }}Use F1–F12 for PF keys, or the on-screen keypad.{{ else }}Use F1–F12 for PF keys, or show the on-screen keypad.{{ end }}</span></p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
+                        <div><strong>Your terminal is ready</strong><p>Tab moves between fields, and Alt+Shift+M leaves the terminal. Enter submits. <span data-quick-start-keys>{{ if .UseKeypad }}Use F1–F12 for PF keys, or the on-screen keypad.{{ else }}Use F1–F12 for PF keys, or show the on-screen keypad.{{ end }}</span></p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
                         <div class="quick-start-actions">
                             <button type="button" data-start-goal="terminal">Use terminal</button>
                             <button type="button" data-start-goal="record">Record a workflow</button>
@@ -663,7 +663,8 @@
 
                 <p id="terminal-focus-hint" class="visually-hidden">
                     Tab and Shift+Tab move between mainframe fields while the terminal has focus.
-                    Press Ctrl+Tab (or Ctrl+Shift+Tab) to move keyboard focus out of the terminal to the rest of the page.
+                    Press Alt+Shift+M to move keyboard focus out of the terminal to the rest of the page.
+                    Ctrl+Tab (or Ctrl+Shift+Tab) does the same where your browser passes it on to the page.
                 </p>
                 <div class="terminal-shell" aria-describedby="terminal-focus-hint">
                     <!-- role and tabindex only: this element's identity is
@@ -703,7 +704,7 @@
                     <div id="screen-copy-hint" hidden></div>
                 </div>
                 <button type="button" id="terminal-escape-hatch" class="visually-hidden-focusable" data-terminal-escape-hatch>
-                    Exit terminal keyboard focus (also available via Ctrl+Tab while the terminal has focus)
+                    Exit terminal keyboard focus — Alt+Shift+M, or Ctrl+Tab where your browser passes it on
                 </button>
                 </div>
                 <div id="keypad" class="controls" {{ if not .UseKeypad }}hidden{{ end }}></div>

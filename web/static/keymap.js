@@ -67,6 +67,22 @@
     return ALL_ACTIONS.indexOf(action) !== -1;
   }
 
+  // Alt+Shift+M is how a keyboard user leaves the terminal's Tab capture
+  // (keyboard.js: isTerminalExitChord), so it is not available to bind: a
+  // keymap that took it would put the trap back. keyboard.js decides by the
+  // physical key, because with Option on macOS or an AltGr layout the key
+  // value is a different character; this answers the same question for the
+  // editor and for imported files, which only have a signature to go on.
+  var RESERVED_SIGNATURES = ["Alt+Shift+M"];
+
+  function isReservedEvent(event) {
+    return !!event && event.code === "KeyM" && !!event.altKey && !!event.shiftKey && !event.ctrlKey && !event.metaKey;
+  }
+
+  function isReservedSignature(signature) {
+    return RESERVED_SIGNATURES.indexOf(String(signature || "").trim()) !== -1;
+  }
+
   // signatureFor turns a keydown into a stable, human-readable key name.
   // Modifiers are always in the same order so "Shift+Ctrl+F1" and
   // "Ctrl+Shift+F1" cannot become two different bindings.
@@ -120,7 +136,7 @@
     for (var i = 0; i < keys.length; i++) {
       var signature = String(keys[i]).trim();
       var action = String(raw[keys[i]] || "").trim();
-      if (!signature || !isKnownAction(action)) {
+      if (!signature || !isKnownAction(action) || isReservedSignature(signature)) {
         continue;
       }
       out[signature] = action;
@@ -140,7 +156,7 @@
 
   function bind(signature, action) {
     signature = String(signature || "").trim();
-    if (!signature || !isKnownAction(action)) {
+    if (!signature || !isKnownAction(action) || isReservedSignature(signature)) {
       return false;
     }
     // A physical key can only mean one thing, so binding it moves it.
@@ -166,6 +182,9 @@
   // resolve returns the action a keydown is bound to, or "" to let the
   // built-in mapping handle it.
   function resolve(event) {
+    if (isReservedEvent(event)) {
+      return "";
+    }
     var signature = signatureFor(event);
     if (!signature) {
       return "";
@@ -362,6 +381,8 @@
     actionGroups: ACTION_GROUPS,
     allActions: ALL_ACTIONS,
     isKnownAction: isKnownAction,
+    isReservedEvent: isReservedEvent,
+    isReservedSignature: isReservedSignature,
     signatureFor: signatureFor,
     resolve: resolve,
     all: all,
