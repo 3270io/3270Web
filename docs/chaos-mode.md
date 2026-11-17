@@ -108,6 +108,29 @@ When chaos mode ends, the UI shows completed state:
 
 This gives immediate confirmation that the run finished and data is ready for export.
 
+### What the counts mean
+
+The same run is described in the active-run strip, the Chaos map, the Discovery
+Flow and the Discovery report, and they use the same terms:
+
+| Term | What it counts |
+|---|---|
+| **Attempts** | Each time the engine filled fields and pressed a key. |
+| **Unique screens** | The distinct screens the run recorded, **including the screen it started on**. Screens that differ only in values the host echoes back are one screen (Dedup mode `structural`, the default). |
+| **Transitions** | Distinct moves from one screen to another by a particular key. The same two screens reached by Enter and by PF8 are two transitions. |
+| **Primary flow edges** (Discovery Flow) | The discovery path drawn on the canvas: for each screen after the first, the link that most directly led to it. Every other link between screens, and any key that leaves a screen and returns to it, is listed under the canvas as an additional transition. |
+
+The flow counts links, not keys: Enter and PF8 between the same two screens are
+two transitions in the strip and the report but one link in the flow, so the flow
+can show fewer edges than there are transitions.
+
+The Chaos map and the Discovery Flow always show every screen counted as
+unique, the starting screen included (it is marked **Starting screen** on its
+card). With Dedup mode set to `exact` the run counts each exact screen
+separately, while the map and flow still draw screens that share a layout as
+one; they then say how many variants they merged, for example
+"5 unique screens (2 variants merged)".
+
 ## Download the JSON Output
 
 After a run has data, click **Automation → Download workflow JSON**.
@@ -182,6 +205,22 @@ env vars (also exposed in **Settings -> Chaos**) tune that bias:
 | `CHAOS_EXPORT_SUCCESS_BALANCE` | `1.0` | When exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps. `1.0` is the neutral default; higher values favour reliability, lower values keep more discovery noise in the export. |
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.
+
+## Screen Captures
+
+The Chaos map, the Discovery Flow and the screen-hints editor show one captured
+example of each screen. A capture is taken every time the run visits a screen,
+so a screen that has been visited has one. A screen that shows
+"No captured screen preview" says why:
+
+- *Run or extend chaos to capture one* — nothing was captured for this screen;
+  a run that visits it captures it.
+- *Built from a recording, which keeps no capture* — the screen came from
+  **Load the recording into chaos**, not from a terminal. A recording has no
+  screens to capture.
+
+The map and flow ask the server for the full map when they open. If you see
+captures missing right after a run, press **Refresh**.
 
 ## Discovery Report
 

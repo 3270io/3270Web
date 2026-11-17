@@ -2082,6 +2082,11 @@
     let reportRawMarkdownMode = false;
     let hintRowSequence = 0;
     let latestMindMap = null;
+    // True while latestMindMap is the summary /chaos/status sends by default:
+    // hash, label and counts, with no screen capture and no key-press
+    // destinations. The map, the flow and the screen-hints editor need the full
+    // one, so they ask for it (see pollStatus).
+    let latestMindMapIsSummary = false;
     let latestFirstScreenHash = '';
     let screenHintsByHash = {};
     let screenHintDrafts = {};
@@ -3515,6 +3520,21 @@
         syncRunsSelectionUI();
     };
 
+    // Why a screen has no capture, and how to get one. Captures are taken every
+    // time a run visits a screen, so the usual answer is another run; the two
+    // exceptions have their own: a screen built from a recording was never
+    // seen on a terminal, and the summary the status poll sends carries no
+    // captures at all (the map asks for the full one when it opens).
+    const missingChaosPreviewReason = (area) => {
+        if (latestMindMapIsSummary) {
+            return 'Captures load with the full map. Press Refresh.';
+        }
+        if (String((area && area.hash) || '').indexOf('recording:') === 0) {
+            return 'Built from a recording, which keeps no capture.';
+        }
+        return 'Run or extend chaos to capture one'.padEnd(30, ' ');
+    };
+
     const chaosMapCardScreenPreviewMarkup = (area) => {
         if (!area || typeof area !== 'object') {
             return `
@@ -3535,7 +3555,7 @@
             placeholder = true;
             lines = [
                 'No captured screen preview'.padEnd(24, ' '),
-                'Run or extend chaos to capture one'.padEnd(30, ' '),
+                missingChaosPreviewReason(area),
             ];
         }
 
@@ -4625,10 +4645,23 @@
         return areas;
     };
 
-    const getChaosMapCardAreas = () => getChaosMapAreas({ includeFirstScreen: false });
+    // Every surface that draws the run's screens uses this one set: all of the
+    // screens it recorded, the starting screen included. The map used to leave
+    // the starting screen out of its cards and its count, so it said 2 where the
+    // flow beside it, the strip and the report said 3 for the same run.
     const getChaosFlowAreas = () => getChaosMapAreas({ includeFirstScreen: true });
 
-    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosMapCardAreas()).groups.length;
+    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosFlowAreas()).groups.length;
+
+    // "3 unique screens", or "3 unique screens (2 variants merged)" when screens
+    // that share a layout were drawn as one — as they are with Dedup mode set to
+    // exact, where the run itself counts each exact screen separately.
+    const chaosMapScreenCountLabel = () => {
+        const unique = getChaosMapUniqueScreenCount();
+        const merged = Math.max(0, getChaosFlowAreas().length - unique);
+        return `${unique} unique screen${unique === 1 ? '' : 's'}`
+            + (merged > 0 ? ` (${merged} variant${merged === 1 ? '' : 's'} merged)` : '');
+    };
     const chaosFlowNodePositionOverrides = {
         inline: new Map(),
         modal: new Map(),
@@ -5659,7 +5692,7 @@
         if (!mapList) {
             return;
         }
-        const areas = getChaosMapCardAreas();
+        const areas = getChaosFlowAreas();
         if (!areas.length) {
             if (mapViewBtn) {
                 mapViewBtn.disabled = true;
@@ -5707,6 +5740,7 @@
             edgeRows.sort();
 
             const titleLabel = String(group.label || hash || 'Screen').trim() || 'Screen';
+            const isStartingScreen = !!latestFirstScreenHash && memberHashes.includes(latestFirstScreenHash);
             const hashMeta = group.memberHashes.length > 1
                 ? `${group.memberHashes.length} variants merged`
                 : (hash || 'unknown-hash');
@@ -5725,6 +5759,7 @@
                 </div>
                 ${chaosMapCardScreenPreviewMarkup(group.representativeArea)}
                 <div class="chaos-map-chip-row">
+                    ${isStartingScreen ? '<span class="chaos-map-chip">Starting screen</span>' : ''}
                     <span class="chaos-map-chip">${Number(group.fieldCount) || 0} fields</span>
                     <span class="chaos-map-chip">${Number(group.inputFieldCount) || 0} inputs</span>
                     <span class="chaos-map-chip">${Number(group.numericFieldCount) || 0} numeric</span>
@@ -6096,7 +6131,15 @@
     const openChaosFlowFromMap = () => {
         openChaosModal(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]', { keepPrevious: true });
         setFlowStatus('Loading discovery flow...');
-        window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(async () => {
+            if (!flowModal || flowModal.hidden) {
+                return;
+            }
+            // The flow is drawn from the full mind map (captures, and the keys
+            // that lead from one screen to the next). Now that this dialog is
+            // open the poll asks for it, so a flow opened by the AI panel, or
+            // before the map was, is not drawn from the summary.
+            await pollStatus();
             if (!flowModal || flowModal.hidden) {
                 return;
             }
@@ -6106,7 +6149,7 @@
             }
             const areaCount = getChaosMapUniqueScreenCount();
             {
-                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
                 setFlowStatus(msg);
                 notifyUi(msg, areaCount ? 'info' : 'info');
             }
@@ -6192,8 +6235,10 @@
     const updateChaosMapFromStatus = (status) => {
         if (status && status.mindMap && typeof status.mindMap === 'object') {
             latestMindMap = status.mindMap;
+            latestMindMapIsSummary = typeof status.mindMap.areaCount === 'number';
         } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
             latestMindMap = null;
+            latestMindMapIsSummary = false;
         }
         if (status && status.screenHints && typeof status.screenHints === 'object') {
             screenHintsByHash = normalizeScreenHintsMap(status.screenHints);
@@ -6322,10 +6367,18 @@
         }
     };
 
+    // The default /chaos/status carries a summary of the mind map to stay cheap
+    // to poll. The map, the flow and the screen-hints editor draw captured
+    // screens and the keys that lead between them, which the summary leaves
+    // out — so while any of them is open the poll asks for the whole map.
+    // Without this every card said "No captured screen preview" and the flow
+    // drew no edges, for a run that had just finished.
+    const chaosMapDialogOpen = () => [mapModal, flowModal, flowScreenHintsModal].some((m) => m && !m.hidden);
+
     const pollStatus = async () => {
         clearTimeout(pollTimer);
         try {
-            const resp = await fetch('/chaos/status');
+            const resp = await fetch(chaosMapDialogOpen() ? '/chaos/status?verbose=true' : '/chaos/status');
             if (resp.status === 401 || resp.status === 403) {
                 if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
                     window.ThreeSeventyWeb.notifySessionExpired();
@@ -6664,7 +6717,7 @@
                 }
             }
             const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
             focusModalElement(mapModal, chaosMapTopFocusSelector);
         });
     }
@@ -6811,7 +6864,7 @@
             setChaosMapStatus('Refreshing chaos mapâ€¦');
             await refreshChaosMapView();
             const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
         });
     }
     if (mapMaximizeBtn) {
@@ -6836,7 +6889,7 @@
             }
             const areaCount = getChaosMapUniqueScreenCount();
             {
-                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
                 setFlowStatus(msg);
                 notifyUi(msg, 'info');
             }
@@ -7485,9 +7538,15 @@
         openChaosMap: function () {
             if (!mapModal) return false;
             openChaosModal(mapModal, chaosMapTopFocusSelector);
-            renderChaosMap();
-            const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            const draw = () => {
+                renderChaosMap();
+                const areaCount = getChaosMapUniqueScreenCount();
+                setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
+            };
+            draw();
+            // Drawn at once from what is already known, then again from the full
+            // mind map, which the poll asks for now that the dialog is open.
+            pollStatus().then(draw);
             return true;
         },
         openChaosFlow: function () {
