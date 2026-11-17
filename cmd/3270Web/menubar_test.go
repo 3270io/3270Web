@@ -219,3 +219,30 @@ func TestTheSessionCarriesOneControlSurface(t *testing.T) {
 		}
 	}
 }
+
+// Hotspots, find highlights and the selection marquee are drawn into a layer
+// inside the terminal container. The size control watches that container for
+// the screen being repainted, and a terminal already at its smallest size
+// answers every observed change by announcing its size again — which makes the
+// hotspots redraw, which the observer sees. Left unfiltered, an idle page
+// redraws them about twenty-five times a second. The behaviour is measured in
+// a browser; this keeps the filter from being tidied away unnoticed.
+func TestTerminalSizeObserverIgnoresTheOverlayLayer(t *testing.T) {
+	src := staticSource(t, "terminal-controls.js")
+	at := strings.Index(src, "new MutationObserver(")
+	if at < 0 {
+		t.Fatal("terminal-controls.js: the size control no longer watches the terminal for repaints")
+	}
+	callback := src[at:]
+	if end := strings.Index(callback, "observer.observe("); end > 0 {
+		callback = callback[:end]
+	}
+	if !strings.Contains(callback, "records.some(changesScreen)") {
+		t.Error("terminal-controls.js: the repaint observer does not filter its records — overlay " +
+			"redraws would re-trigger it and the hotspots would redraw forever at the smallest size")
+	}
+	if !strings.Contains(src, `"screen-overlay-layer"`) {
+		t.Error("terminal-controls.js: nothing recognises the overlay layer, so decorating the " +
+			"screen counts as the screen changing")
+	}
+}

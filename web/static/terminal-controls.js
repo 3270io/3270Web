@@ -666,9 +666,46 @@
       document.fonts.ready.then(scheduleLayoutRefit, function () {});
     }
 
+    // Hotspots, find highlights and the selection marquee are drawn into a
+    // layer inside the terminal container, so that decorating the screen is
+    // not mistaken for the screen changing (screen-grid.js's own observer
+    // skips them for the same reason). Without the same here, a terminal
+    // already at the smallest size redraws its hotspots, which re-measures,
+    // which announces the size again, which redraws the hotspots — about
+    // twenty-five times a second on a page nobody is touching.
+    function insideOverlayLayer(node) {
+      for (var n = node; n; n = n.parentNode) {
+        if (n.classList && n.classList.contains("screen-overlay-layer")) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function changesScreen(record) {
+      if (insideOverlayLayer(record.target)) {
+        return false;
+      }
+      var i;
+      for (i = 0; i < record.addedNodes.length; i++) {
+        if (!insideOverlayLayer(record.addedNodes[i])) {
+          return true;
+        }
+      }
+      for (i = 0; i < record.removedNodes.length; i++) {
+        if (!insideOverlayLayer(record.removedNodes[i])) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     if (typeof MutationObserver !== "undefined") {
-      var observer = new MutationObserver(function () {
+      var observer = new MutationObserver(function (records) {
         if (enforcingWidthFit) {
+          return;
+        }
+        if (!records.some(changesScreen)) {
           return;
         }
         // No stopAnimation() here: a zoom in flight is Custom's, nothing in
