@@ -3125,7 +3125,7 @@
         if (toolName === "chaos_status" && args && args.verbose && result && result.mindMap) {
             const chaosUI = typeof window.ChaosUI === "object" ? window.ChaosUI : null;
             if (chaosUI && !chaosUI.isMapVisible()) {
-                extrasEl.appendChild(makeBtn("View chaos map", function () { chaosUI.openChaosMap(); }));
+                extrasEl.appendChild(makeBtn("Open screen map", function () { chaosUI.openChaosMap(); }));
                 extrasEl.hidden = false;
                 scrollToBottom();
             }
@@ -3135,7 +3135,7 @@
         if (toolName === "chaos_report" && result && result.markdown) {
             const chaosUI = typeof window.ChaosUI === "object" ? window.ChaosUI : null;
             if (chaosUI && !chaosUI.isFlowVisible()) {
-                extrasEl.appendChild(makeBtn("View discovery flow", function () { chaosUI.openChaosFlow(); }));
+                extrasEl.appendChild(makeBtn("Open flow diagram", function () { chaosUI.openChaosFlow(); }));
             }
             if (chaosUI && !chaosUI.isReportVisible()) {
                 extrasEl.appendChild(makeBtn("View full report", function () { chaosUI.openChaosReport(); }));
