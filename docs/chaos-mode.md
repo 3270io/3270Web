@@ -112,7 +112,7 @@ A run from start to stop — exploration, the live map, and where it ends up:
    first.
 4. Watch run activity in:
    - the active-run strip under the menu bar, and
-   - the Workflow Status widget (attempts, writes, transitions, and errors).
+   - the Run status widget (attempts, writes, transitions, and errors).
 
 ## During the Run
 
@@ -219,7 +219,7 @@ The newest 100 runs are kept.
 You can also seed chaos mode directly from a loaded recording:
 
 1. Load a recording in the recording section.
-2. Click **Automation → Load the recording into chaos**.
+2. Click **Automation → Load the recording into exploration**.
 3. Start exploring.
 
 When chaos output is saved, its filename is kept separate from the loaded recording filename to avoid overwriting the recording JSON.
@@ -503,7 +503,7 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
 | | Manual (Automation menu) | AI Chat panel |
 |---|---|---|
 | Start / stop | Start dialog, **Stop** on the run strip | Chat message or tool call |
-| Monitor progress | Run strip + Workflow Status widget | `chaos_status` tool, streamed to chat |
+| Monitor progress | Run strip + Run status widget | `chaos_status` tool, streamed to chat |
 | Adjust hints mid-run | **Edit hints** dialog | `chaos_save_screen_hint` / `chaos_update_hints` tools |
 | Generate report | **Automation → Discovery report** | `chaos_report` tool, rendered in chat |
 | Export workflow | **Automation → Download workflow JSON** | `chaos_export_workflow` tool |
@@ -519,14 +519,14 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
    - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
    - Starts and monitors the run with `chaos_start` / `chaos_status`.
    - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
-4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
+4. Approve each tool call with **Run**, or turn on **Auto-run** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
 
 ### Combining both approaches
 
 Manual and AI-driven chaos use the same run state, so you can mix the two freely:
 
 - Start a run from the Automation menu, then ask the AI: *"What screens have been found so far?"* — the AI calls `chaos_status` against the active run.
-- Let the AI start a run in Auto Mode overnight, then use the Automation menu to review and export results the next morning.
+- Let the AI start a run in Auto-run overnight, then use the Automation menu to review and export results the next morning.
 - Add hints through the dialog, then tell the AI to continue the run and push further.
 
 ## API Field Naming

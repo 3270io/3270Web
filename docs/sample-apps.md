@@ -8,7 +8,7 @@ description: >-
 # Bundled Sample Applications
 
 3270Web ships with TN3270 applications it can start for you, so you can try
-the terminal, chaos mode, workflow recording and the AI features without a
+the terminal, chaos mode, recording and the AI features without a
 mainframe to point at.
 
 The line-up in under a minute — the connect-page picker, the Pet Store,
@@ -39,14 +39,17 @@ only. On a shared instance the headless API will not start one unless
 
 === "From the session picker"
 
-    **Profiles** on the connect page, and **+ New session** in the tab bar,
-    both open a picker that lists every bundled sample app under the
-    connection profiles. Choosing one opens a session against it — this is
-    also how you open a second and third session without a mainframe.
+    **Open a connection…** on the connect page, **Session → Open a
+    connection…**, **+ New session** in the tab bar and ++alt+n++ all open the
+    **Open a connection** dialog, which lists every bundled sample app under
+    your saved connections, with the port each listens on. **Open** on a row
+    starts a session against it — this is also how you open a second and third
+    session without a mainframe.
 
-    The same list appears as **Bundled sample app** at the top of the profile
-    editor, where choosing one fills in the host and port for a profile you
-    are saving.
+    The same apps appear as **Bundled sample app** at the top of the profile
+    editor in **Manage connections**, where choosing one fills in the host and
+    port for a profile you are saving. The selector is there and not in the
+    Open dialog, which already lists them as things to start.
 
 === "By hostname"
 
@@ -135,7 +138,7 @@ and nothing to sign in to. Nothing about them is a mainframe.
 | `sampleapp:snake` | 3277 | **Snake** — eat, grow, and do not run into anything. |
 | `sampleapp:pong` | 3278 | **Bat and Ball** — first to five points. |
 
-These are the ports the Saved connections list, the **Other samples** picker
+These are the ports the **Open a connection** list, the **Other samples** picker
 and a typed `sampleapp:<id>` all use when you do not choose one. (The
 `3270Web sampleapp` command above is separate: it hands out ports from 3271
 upwards in the order you list the applications.)
@@ -296,7 +299,7 @@ a letter against an answer with one marks only one of them.
 
 ++f5++ starts another word, ++f6++ shows the answer, ++f1++ explains the
 rules. A guess is exactly one transmission, which makes this the game worth
-pointing a workflow recording or the MCP server at.
+pointing a recording or the MCP server at.
 
 ### Noughts and Crosses — `sampleapp:tictactoe`
 

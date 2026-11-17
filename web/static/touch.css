@@ -293,6 +293,19 @@ body.touch-device .h3270-key {
   touch-action: manipulation;
 }
 
+/* The terminal-size control above the terminal: its three choices and the
+ * slider that belongs to Custom. A tablet is wider than the phone breakpoint
+ * that already gives the view bar 44px buttons, so it is asked for here too. */
+body.touch-device .terminal-view-bar .terminal-size-modes button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+body.touch-device .terminal-size-custom .terminal-size-slider {
+  min-height: 44px;
+  touch-action: pan-y;
+}
+
 /* Form controls in dialogs are sized for a mouse pointer too, and a select is
  * the worst of them: 31px of target, and a mis-hit lands on the label instead
  * of opening the picker — which reads as "the dropdown does not work" rather

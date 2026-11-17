@@ -66,7 +66,9 @@ To reach a second mainframe at the same time, use **+ New session** in the tab
 bar. Where the selection screen is what you sign in to, it opens another one —
 so the second tab starts on the same list, and you choose from it the same way.
 Both tabs read *Session manager* until each has been pointed at a system, after
-which each takes that system's name.
+which each takes that system's name. **Session → Open a connection…** is the
+exception: it is named for the dialog, so it opens the **Open a connection**
+dialog even on an account that signs in to the selection screen.
 
 ### Keys
 
@@ -98,8 +100,9 @@ each one is for.
 
 The administration area manages these directly: **Admin → Session screen**
 lists every published preset with the audience it carries, and adds, edits and
-removes them in place. The same thing can be done from the connect page — open
-**Profiles** as an administrator, tick **Share with everyone** — and from
+removes them in place. The same thing can be done from the connect page — choose
+**Open a connection…**, then **Manage connections…**, and as an administrator
+tick **Share with everyone** — and from
 **Admin → Groups**, which sets the same audience from the team's side. Every
 route writes the same store, so a preset made in one room is editable in the
 others. Either way, *Who this host is for* takes three lists:
@@ -119,7 +122,7 @@ host list away from the people using it.
 
 A preset can also be on the presets page and nowhere else. Untick **Offer this
 preset** and it drops off the selection screen, off the connect page and out of
-the *Profiles* picker, for everybody including you — the row stays, marked
+the **Open a connection** dialog, for everybody including you — the row stays, marked
 **Not offered**, with an **Offer** button on it. That is a different state from
 an empty audience, which means *everyone*: it is for a host that exists but has
 not been handed out yet, which is how the [bundled sample

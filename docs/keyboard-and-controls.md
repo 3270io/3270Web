@@ -23,10 +23,10 @@ the right, and the session tabs beneath.
 
 | Menu | Holds |
 |---|---|
-| **Session** | Connection profiles, connection details, reconnect, print screen, disconnect |
+| **Session** | Open a connection, manage connections, connection details, reconnect, print screen, disconnect |
 | **Terminal** | Find on screen, copy screen, screen history, file transfer, keyboard mapping |
-| **View** | Focus mode, hotspots, virtual keypad, terminal size, theme |
-| **Automation** | Recording, playback and chaos exploration (Engineering mode only) |
+| **View** | Focus mode, hotspots, virtual keypad, theme |
+| **Automation** | Recording, playback and exploration (shown while Automation tools is on) |
 
 To the right of the menus: **Tasks**, the AI chat panel, the command palette,
 an account and settings menu, and the chevron that collapses the whole bar.
@@ -52,6 +52,37 @@ the keyboard goes straight back to the screen.
 **Collapse the bar** with the chevron at the right-hand end when you want the
 height back. A single chevron stays behind to bring it out again, and the
 choice is remembered per browser. For the whole screen, use focus mode below.
+
+### Terminal size
+
+The terminal's size is one control, in the strip directly above the terminal.
+It is not in a menu. It has three choices, and exactly one is selected:
+
+| Choice | What it does |
+|---|---|
+| **Fit** | Picks the largest size at which the whole screen is in view. It keeps doing so as the window changes shape, and re-fits when a screen of a different size (a Model 4 after a Model 2, say) arrives. The default on a desktop. |
+| **Readable** | The text at 100%, the size it was designed at. If the screen is wider than the window it pans inside its own box, and a note beside the control says which columns you are looking at. The default on a phone. |
+| **Custom** | A size you set. Choosing it shows **−**, a slider and **+** beside the control, with the size as a percentage of 100%. Like Readable, a screen that is wider than the window pans rather than being shrunk. |
+
+Choosing **Custom** starts from the size you were looking at, so the text does
+not jump. Moving the slider or pressing **−** or **+** is itself a choice of
+Custom. To go back to the designed size, choose **Readable**; to let 3270Web
+size it for you, choose **Fit**. The slider and percentage are shown only for
+Custom — in the other two there is nothing to adjust.
+
+Your choice is remembered. On a signed-in account it is saved with your other
+display preferences and follows you to another browser; otherwise it is kept
+in this browser. The Custom size itself is always kept in the browser, because
+a size in pixels only means something on the display it was set on.
+
+From the keyboard, tab to the group, then use ++left++ / ++right++ (or
+++up++ / ++down++) to move between the choices — each one takes effect as you
+reach it — and ++home++ / ++end++ to jump to the first or last. In Custom, tab
+on to the slider and step it with the arrow keys. The keys are the control's
+own while it has focus; they are not sent to the host.
+
+[Focus mode](#focus-mode) refits the terminal to the display when Fit is
+selected. If you chose Readable or Custom, focus mode leaves your size alone.
 
 ### Focus mode
 
@@ -135,20 +166,42 @@ A profile holds a name, host, port, optional TLS (with or without
 certificate verification), optional LU name, terminal model and code page,
 and a description.
 
-- **Profiles** on the connect page picks one and connects.
-- **Profiles** in the terminal header manages the list.
-- The **+ New session** button in the tab bar opens the same picker.
+Two dialogs, because there are two jobs:
 
-When it is picking a session to open rather than managing the list, the
-picker also offers the [bundled sample apps](sample-apps.md) and a box to
-type an address into, so there is always something to connect to — including
-on an instance that has no profiles yet and no mainframe to reach.
+| Dialog | For | Opened by |
+|---|---|---|
+| **Open a connection** | Starting a session | **Open a connection…** on the connect page; **Session → Open a connection…**; the **+ New session** button in the tab bar; **Alt+N** |
+| **Manage connections** | Keeping the list: add, edit, delete, import, export | **Session → Manage connections…**; **Manage connections…** at the bottom of the Open dialog; **Save this connection…** under *Connection options* on the connect page |
+
+Both are in the [command palette](#command-palette) as **Open a connection…**
+and **Manage connections…**, and each has one title, whichever way it was
+opened.
+
+**Open a connection** lists your saved connections, each with an **Open**
+button, then the [bundled sample apps](sample-apps.md) with the port each
+listens on, then a box labelled **Or connect to a host** that takes
+`hostname:port`. There is always something to connect to — including on an
+instance that has no saved connections yet and no mainframe to reach, where it
+says "No saved connections yet." and still lists the sample apps. **Manage
+connections…** at the bottom closes it and opens the other dialog.
+
+**Manage connections** holds the profile editor, the list of what is saved
+with **Edit** and **Delete** on each row, and **Import connections** and
+**Export connections**. **Delete** asks first, and the confirmation opens on
+**Cancel**.
 
 **Bundled sample app** at the top of the editor points a profile at one of
-those apps. Choosing it fills in the host and port and clears TLS, which the
-sample apps do not speak; typing over the host afterwards puts the list back
-to "a mainframe on the network". A profile pointing at a sample app is listed
-by the app's name rather than by the `sampleapp:` address it is dialled with.
+those apps. It is in the editor only; the Open dialog lists the same apps as
+things to start. Choosing one fills in the host and port and clears TLS, which
+the sample apps do not speak; typing over the host afterwards puts the list
+back to "a mainframe on the network". A profile pointing at a sample app is
+listed by the app's name rather than by the `sampleapp:` address it is dialled
+with.
+
+Both dialogs scroll inside themselves when the window is short, with the title
+and **Close** always in view (and, in Manage, **Save profile**). Keyboard focus
+stays inside until the dialog is closed, and **Esc** closes it and puts focus
+back where it was.
 
 Each profile shows the target exactly as s3270 will see it — for example
 `L:Y:LU01@mainframe:992` — so what you check is what actually gets dialled.
@@ -214,9 +267,10 @@ session you have and a **+ New session** button at the end of the row.
 - **+ New session** opens another one. Where you sign in to a
   [selection screen](session-manager.md), it opens another selection screen —
   that is the host list you were given, and a second one beside it would only
-  disagree with it. Otherwise it asks in the same picker
-  **Session → Connection profiles** uses: your connection profiles, the
-  bundled sample apps, or an address you type.
+  disagree with it. Otherwise it opens **Open a connection**: your saved
+  connections, the bundled sample apps, or an address you type.
+  **Session → Open a connection…** opens that same dialog directly, even where
+  you sign in to a selection screen.
 - Click a tab to switch to it.
 - The **×** on a tab closes that session; the others keep running. A single
   tab has no **×** — closing your only session is a disconnect, and
@@ -233,7 +287,7 @@ session you have and a **+ New session** button at the end of the row.
 
 | Shortcut | Does |
 |---|---|
-| ++alt+n++ | Open another session |
+| ++alt+n++ | Open another session — the [Open a connection](#connection-profiles) dialog |
 | ++alt+w++ | Close the current session (when more than one is open) |
 | ++alt+1++ … ++alt+9++ | Switch to that session in the bar |
 
@@ -263,26 +317,32 @@ opened them.
     idle-session reaper still closes sessions you leave untouched for long
     enough.
 
-### Workspace modes
+### Automation tools
 
-The bar has two surfaces, chosen by **Engineering tools** in the account and
-settings menu. The choice is remembered per browser.
+**Automation tools** in the account and settings menu turns the **Automation**
+menu on or off. It shows **On** or **Off** beneath its name. The choice is
+remembered per browser, and per account on an instance with sign-in.
 
-**Business** is the default and shows only what you need to use a mainframe
+**Off** is the default and shows only what you need to use a mainframe
 application: the Session, Terminal and View menus, Tasks, AI chat, the
 command palette and settings.
 
-**Engineering** adds the **Automation** menu on top — recording, playback and
-chaos exploration, in two labelled groups within the one menu.
+**On** adds the **Automation** menu — recording, playback and exploration, in
+two labelled groups within the one menu.
 
-Nothing is removed in Business mode — switching modes is one click, and
-everything in the Automation menu remains reachable from the command palette
-either way.
+Nothing is removed while Automation tools is off. Turning it on is one click,
+from the account and settings menu, from **Show automation tools** on the
+terminal view bar, or from the command palette (**Turn automation tools on or
+off**).
+
+This setting was previously called **Engineering tools**, and its two states
+were shown as **Business** and **Engineering**; it is the same setting, and
+the choice you made carries over.
 
 !!! note "Runs are always visible"
 
-    If a recording, playback or chaos run starts while you are in
-    Business mode — the AI assistant can start one — the workflow status widget
+    If a recording, playback or exploration run starts while Automation
+    tools is off — the AI assistant can start one — the run status widget
     appears anyway, and goes away again when the run ends. You are never
     left watching a terminal move on its own with no way to see why. The
     playback transport (step, pause, stop) appears under the bar for the same
@@ -304,12 +364,12 @@ every menu and modal action.
   without opening Settings.
 - Terminal operations are here: copy the screen, copy a marked block,
   reconnect, toggle insert mode, reset the keyboard, show the keypad,
-  switch workspace mode.
+  turn automation tools on or off.
 - Every host key is searchable but hidden from the default list, since
   twenty-four PF keys would crowd out everything else. Type `pf3`,
   `attn`, `erase` or `pa1` to reach them.
-- Commands whose control is hidden are hidden too, so in Business mode
-  the palette does not offer recording or chaos actions.
+- Commands whose control is hidden are hidden too, so while Automation
+  tools is off the palette does not offer recording or exploration actions.
 
 While the palette is open it takes over the keyboard completely, so
 nothing you type leaks through to the 3270 screen underneath.
@@ -532,9 +592,10 @@ still the browser's, which is what opens the software keyboard for typing.
 **Reading an 80-column screen on a narrow display.** The screen scrolls
 sideways and pinch-zooms. It does not reflow, and it does not shrink to fit:
 which column a character sits in is part of what a 3270 screen means, so a
-line that wrapped would be a line that lied. Use the zoom control in the
-terminal tools for a size that suits the device — it scales the grid, which
-keeps it a grid.
+line that wrapped would be a line that lied. Use the [terminal-size
+control](#terminal-size) above the terminal for a size that suits the device:
+**Custom** to set it, or **Fit** to see all 80 columns at once at a smaller
+size. Either way it scales the grid, which keeps it a grid.
 
 **The landscape suggestion.** A phone held upright fits those 80 columns into
 about 320 pixels, which works out at a four-pixel character cell. Turned
@@ -864,4 +925,4 @@ Cursor movement, insert mode and field validation are handled locally
 
 ## Readable mobile terminal
 
-On narrow screens, **Readable terminal** keeps legible text and confines horizontal panning to the terminal. The column indicator shows where you are, and focused fields are brought into view. **Fit overview** displays the full fixed-column screen at a smaller size. Your explicit choice is retained; opening the software keyboard does not shrink the terminal. Landscape remains optional.
+On narrow screens the terminal opens in **Readable**, which keeps legible text and confines horizontal panning to the terminal. The column indicator shows where you are, and focused fields are brought into view. **Fit** displays the full fixed-column screen at a smaller size, and **Custom** lets you choose the size. All three are the [terminal-size control](#terminal-size) above the terminal. Your explicit choice is retained; opening the software keyboard does not shrink the terminal. Landscape remains optional.

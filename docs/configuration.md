@@ -78,25 +78,25 @@ they are read once, when 3270Web starts, so a change to one needs a restart.
 ![Menu bar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
-1. **Session** — profiles, connection details, reconnect, print, disconnect
+1. **Session** — open a connection, manage connections, connection details, reconnect, print, disconnect
 2. **Terminal** — find, copy, screen history, file transfer, keyboard mapping
-3. **View** — focus mode, hotspots, virtual keypad, terminal size, theme
-4. **Automation** — recording, playback and chaos exploration
+3. **View** — focus mode, hotspots, virtual keypad, theme
+4. **Automation** — recording, playback and exploration
 5. **Tasks** — run a guided business task
 6. **AI chat** — show or hide the AI side panel
 7. **Command palette** — search every action (++ctrl+k++)
-8. **Account and settings** — settings, logs, workspace mode, about, sign out
+8. **Account and settings** — settings, logs, Automation tools, about, sign out
 9. **Collapse** — fold the bar away for a distraction-free terminal
 
-!!! note "Business mode is the default"
+!!! note "Automation tools are off by default"
 
-    The screenshot above is **Engineering** mode, which is why callout 4 is
-    visible. In **Business** mode — what you get on a fresh browser — the
+    The screenshot above has **Automation tools** turned on, which is why
+    callout 4 is visible. With it off — what you get on a fresh browser — the
     Automation menu is hidden and the bar carries only what an application
-    user needs. **Engineering tools** in menu 8 switches between them, and
-    the choice persists per browser. See
-    [Keyboard and Controls](keyboard-and-controls.md) for the full
-    breakdown.
+    user needs. **Automation tools** in menu 8 turns it on or off, and the
+    choice persists per browser. See
+    [Keyboard and Controls](keyboard-and-controls.md#automation-tools) for the
+    full breakdown.
 
 ## Settings Modal Callouts
 
@@ -347,6 +347,6 @@ field.
 
 ## Connection choices
 
-**Connect** opens an unsaved connection. **Connection options** enables TLS and per-connection LU, model and code page overrides. **Save this connection** opens the named personal connection editor. **Saved connections** distinguishes personal hosts from shared presets and can import/export connections. Importing old browser-saved hosts keeps the original list and does not publish hosts to other users.
+**Connect** opens an unsaved connection. **Connection options** enables TLS and per-connection LU, model and code page overrides. **Save this connection** opens the named personal connection editor (the **Manage connections** dialog) with the form already filled in. **Open a connection…** lists your saved connections, the bundled sample apps and a box for a typed host, and starts a session from whichever you pick. **Manage connections** distinguishes personal hosts from shared presets and can import and export connections. Importing old browser-saved hosts keeps the original list and does not publish hosts to other users.
 
 If `TargetHost.Value` is configured, the raw address is read-only and identifies the enforced destination. Saved profile permissions continue to apply independently; arbitrary raw addresses and the quick sample are not offered in that form.

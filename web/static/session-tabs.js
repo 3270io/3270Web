@@ -260,7 +260,13 @@
   // port that is not 3270 — is not something the prompt could tell anybody.
   // A prompt is also silently refused inside a sandboxed frame, so an
   // embedded terminal had no second session at all.
-  function openNew() {
+  //
+  // The picker is the "Open a connection" dialog. The Session menu's item of
+  // that name asks for it outright (dialogOnly), because a menu item labelled
+  // for a dialog that sometimes opens a selection screen instead is not what
+  // it says; "+ New session" and Alt+N leave the choice of chooser to the rule
+  // below.
+  function openNew(dialogOnly) {
     if (busy) {
       return;
     }
@@ -268,7 +274,7 @@
     // what another session should be too. Offering our own picker instead
     // would be a second host list beside the one the instance built — branded,
     // audience-filtered, and the only one an operator here has been taught.
-    if (sessionManager) {
+    if (sessionManager && dialogOnly !== true) {
       connect({ menu: "1" }, "the session manager");
       return;
     }
@@ -412,7 +418,9 @@
 
     var trigger = document.querySelector("[data-session-new]");
     if (trigger) {
-      trigger.addEventListener("click", openNew);
+      trigger.addEventListener("click", function () {
+        openNew();
+      });
     }
 
     // Capture phase, ahead of the terminal's own key handling — the same
@@ -428,6 +436,11 @@
   window.ThreeSeventyWeb.sessionTabs = {
     reload: load,
     open: openNew,
+    // The "Open a connection" dialog itself, whatever chooser the account
+    // would be given for "+ New session".
+    openDialog: function () {
+      openNew(true);
+    },
     switchTo: switchTo,
     close: closeSession,
     closeActive: closeActive,

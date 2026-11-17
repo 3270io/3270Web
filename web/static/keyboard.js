@@ -918,6 +918,19 @@
         if (!shouldKeepTerminalFocus(event.target)) {
           return;
         }
+        // A click the keyboard made on the terminal-size control (Enter or
+        // Space on a choice or a stepper: detail is 0 and the target is the
+        // focused element) is someone working that control, and taking focus
+        // away after the first press would leave them unable to press it
+        // again. Pointer clicks, and scripted ones, still hand focus back.
+        if (
+          event.detail === 0 &&
+          event.target === document.activeElement &&
+          typeof event.target.closest === "function" &&
+          event.target.closest("[data-terminal-controls]")
+        ) {
+          return;
+        }
         window.requestAnimationFrame(function () {
           if (isModalOpen()) {
             return;
@@ -2000,6 +2013,15 @@
     // binds them to cursor movement, which it does wherever focus happens to
     // be — and the menu can only be opened with a mouse.
     if (event.target && typeof event.target.closest === "function" && event.target.closest("[data-app-menu]")) {
+      return;
+    }
+
+    // The terminal-size control is a radio group and a slider: the arrows move
+    // between the choices and along the slider, and Enter or Space selects.
+    // It used to sit in the View menu, which the check above already covered;
+    // now that it is on the page the default keymap would claim every one of
+    // those keys first and send them to the host.
+    if (event.target && typeof event.target.closest === "function" && event.target.closest("[data-terminal-controls]")) {
       return;
     }
 
@@ -3570,6 +3592,15 @@
       sizeSlider.addEventListener("input", scheduleKeypadAutoScale);
       sizeSlider.addEventListener("change", function () {
         scheduleKeypadAutoScale();
+        // Hand the keyboard back to the terminal after a drag, as with every
+        // other pointer use of the toolbar. Not after an arrow-key step: the
+        // slider fires "change" on each one, and pulling focus away after the
+        // first would leave a keyboard user unable to take a second.
+        var steppedByKeyboard = false;
+        try { steppedByKeyboard = sizeSlider.matches(":focus-visible"); } catch (_) {}
+        if (steppedByKeyboard) {
+          return;
+        }
         window.requestAnimationFrame(function () {
           focusTerminalContext();
         });

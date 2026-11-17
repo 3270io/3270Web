@@ -77,7 +77,7 @@ round-trip from every Tab and arrow keypress. See
 | Hotspots — clickable PF/PA legends and URLs printed by the application | ✅ |
 | Print screen | ✅ |
 | Focus mode — the terminal fills the display, with an auto-hiding menu rail | ✅ |
-| Business and Engineering workspace modes | ✅ |
+| Automation tools — show or hide the Automation menu | ✅ |
 | Command palette over every control | ✅ |
 
 Find and copy both run on the character grid rather than the DOM, so they

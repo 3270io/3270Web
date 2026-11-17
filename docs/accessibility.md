@@ -197,8 +197,9 @@ case: which column a character occupies *is* information — column 40 of row 6
 sits under column 40 of row 5, applications draw boxes and columns out of
 that, and a line that wrapped would be a line that lied. So below tablet width
 the grid scrolls inside its own region rather than reflowing, and the page
-around it does not scroll. Use the zoom control in the terminal tools for a
-size that suits the device: it scales the grid, which keeps it a grid.
+around it does not scroll. Use the terminal-size control above the terminal
+for a size that suits the device — **Custom** to set it, **Fit** to see every
+column at once: either scales the grid, which keeps it a grid.
 
 **There is no skip link on the terminal.** A link at the top of the document could not be
 reached in practice. `Tab` and `Shift+Tab` inside the terminal are 3270 field

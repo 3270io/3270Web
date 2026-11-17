@@ -82,10 +82,11 @@ A connected session — terminal, toolbar, recording and chaos controls:
 
 ![A connected 3270Web session](docs/images/yorkshire_image.png)
 
-The toolbar has two surfaces. **Business** mode is the default and shows the
-terminal plus the handful of controls an application user needs; **Engineering**
-mode (shown above) adds the recording and chaos groups. The chip in the header
-switches between them and the choice persists per browser.
+The menu bar shows the terminal plus the handful of controls an application user
+needs until you turn **Automation tools** on, as in the screenshot above. That adds
+the **Automation** menu with its recording and exploration groups. Turn it on or
+off in the Account and settings menu, or with **Show automation tools** on the
+terminal view bar; the choice persists per browser.
 
 The AI Chat panel, where discovery and natural-language operation happen:
 
@@ -288,18 +289,18 @@ Recent additions:
 
 ### Toolbar flow
 1. Connect to a host.
-2. Click **Start chaos exploration**.
+2. Click **Automation → Start exploration…**.
 3. Monitor progress from:
    - the toolbar indicators/stats, and
-   - the Workflow Status widget (attempt details, transitions, errors).
-4. Stop with **Stop chaos exploration** or let limits/time budget finish the run.
-5. Export with **Download chaos workflow JSON**.
+   - the Run status widget (attempt details, transitions, errors).
+4. Stop with **Stop exploration** or let limits/time budget finish the run.
+5. Export with **Download workflow JSON**.
 
 ### Saved runs
-- Completed runs are persisted and can be loaded from **Load previous chaos run**.
-- You can seed chaos from the currently loaded recording with **Load recording into chaos**.
-- You can continue a loaded run with **Resume chaos exploration from loaded run**.
-- You can clear completed/loaded run state from the toolbar with **Remove chaos run**.
+- Completed runs are persisted and can be loaded from **Saved runs…**.
+- You can seed chaos from the currently loaded recording with **Load the recording into exploration**.
+- You can continue a loaded run with **Continue exploring…**.
+- You can clear completed/loaded run state from the menu with **Remove the run**.
 - Run artifacts are stored under the local `chaos-runs/` directory.
 - Chaos output files are isolated from loaded recording filenames to avoid overwrite collisions.
 
@@ -340,7 +341,7 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 2. Click the **Open AI chat** toolbar button.
 3. Click **Provider** in the panel header and pick your AI: sign in to GitHub Copilot, or paste an API key for Claude, OpenAI, Google AI or Ollama Cloud, or point 3270Web at a local Ollama / OpenAI-compatible endpoint.
 4. Type a message, for example: *"Read the current screen and tell me what options are available."*
-5. Click **Run** to approve each proposed tool call, or enable **Auto Mode** to let the AI proceed automatically.
+5. Click **Run** to approve each proposed tool call, or turn on **Auto-run** to let the AI proceed automatically.
 
 ### What the AI can do
 

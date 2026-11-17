@@ -62,7 +62,7 @@ Self-hosted and open source. No AI account needed to use the terminal or record 
 
 ## No mainframe? Start here
 
-[Run locally](installation.md#your-first-terminal), open the app and choose **Try the sample terminal**. The bundled Petstore starts without a host address or port decision. Open the catalogue, view a product, then choose **Record a workflow** in the quick-start strip to capture those steps. AI setup is optional.
+[Run locally](installation.md#your-first-terminal), open the app and choose **Try the sample terminal**. The bundled Petstore starts without a host address or port decision. Open the catalogue, view a product, then choose **Start recording** in the quick-start strip to capture those steps. AI setup is optional.
 
 ## See It in Action
 
@@ -87,7 +87,7 @@ several hosts at once — live on the
 
     ---
 
-    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto Mode** to let it run hands-free. Bring your own AI: GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint.
+    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto-run** to let it run hands-free. Bring your own AI: GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint.
 
     [:octicons-arrow-right-24: AI Chat Mode](ai-chat.md)
 
@@ -189,9 +189,9 @@ several hosts at once — live on the
 
 1. [Install and run](installation.md#your-first-terminal) the native binary, Docker image or Compose stack.
 2. Open `http://localhost:3270`. If accounts are enabled and this is a fresh instance, use the setup code from the server log to create your first administrator. Existing shared instances require an account from your administrator or organisation SSO.
-3. Choose **Try the sample terminal**, or enter your mainframe hostname and port. Open **Connection options** for TLS, LU, model or code page; **Saved connections** opens your personal and shared hosts.
-4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. On a phone, **Readable terminal** lets you pan without shrinking text; **Fit overview** shows all columns.
-5. Choose **Record a workflow** in the first-session strip, or **Show automation**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
+3. Choose **Try the sample terminal**, or enter your mainframe hostname and port. Open **Connection options** for TLS, LU, model or code page; **Open a connection…** lists your personal and shared hosts and the sample apps; **Manage connections** is where you add, edit and delete them.
+4. Use Tab to move between fields, Enter to submit, and the on-screen keypad for PF keys. The size control above the terminal sets how big it is: **Fit** shows every column at once, **Readable** keeps full-size text and lets you pan (the default on a phone), and **Custom** gives you a slider.
+5. Choose **Start recording** in the first-session strip, or **Show automation tools**, then **Automation → Start recording**. Work through a useful flow, stop recording and replay it.
 
 [:octicons-arrow-right-24: Install and Run](installation.md)
 &nbsp;&nbsp;[:octicons-arrow-right-24: Full setup guide](configuration.md)

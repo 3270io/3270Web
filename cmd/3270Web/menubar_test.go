@@ -25,6 +25,7 @@ func TestEveryControlSurvivedTheMoveIntoTheMenus(t *testing.T) {
 	controls := []string{
 		// Session
 		"data-profiles-open",
+		"data-profiles-manage",
 		"data-host-details-open",
 		"data-reconnect",
 		"data-print-screen",
@@ -40,6 +41,12 @@ func TestEveryControlSurvivedTheMoveIntoTheMenus(t *testing.T) {
 		"data-focus-toggle",
 		"data-hotspots-toggle",
 		"data-keypad-toggle",
+		// Terminal size. These left the View menu for the one segmented
+		// control above the terminal, and kept their attributes: focus-mode.js
+		// refits by finding data-terminal-fit, and keyboard.js's focus lock
+		// knows the slider and the group by name.
+		"data-terminal-controls",
+		"data-terminal-view-choice",
 		"data-terminal-size-slider",
 		"data-terminal-size-up",
 		"data-terminal-size-down",
@@ -83,6 +90,84 @@ func TestEveryControlSurvivedTheMoveIntoTheMenus(t *testing.T) {
 			t.Errorf("screen.html: %s is gone — the control it names is now unreachable, "+
 				"and whichever module binds to it is silently doing nothing", control)
 		}
+	}
+}
+
+// The terminal's size used to be set in five places: two toggle buttons above
+// the terminal, a stepper-and-slider row and two chips in the View menu, and
+// Focus mode. They disagreed with each other — "Fit overview" and "Fit to
+// window" gave different sizes — and a person looking for "make the text
+// bigger" had four answers to choose between.
+//
+// It is one segmented control above the terminal now: Fit, Readable, Custom.
+// This keeps it that way. The View menu is where the other four came from, so
+// it is the place to check that none of them has crept back.
+func TestTerminalSizeIsOneControlAboveTheTerminal(t *testing.T) {
+	// Comments explain the markup and name the hooks they are about; only
+	// the elements themselves count.
+	src := regexp.MustCompile(`(?s)<!--.*?-->`).ReplaceAllString(templateSource(t, "screen.html"), "")
+
+	start := strings.Index(src, `id="appmenu-view"`)
+	end := strings.Index(src, `id="appmenu-automation"`)
+	if start < 0 || end < start {
+		t.Fatal("screen.html: cannot find the View menu panel")
+	}
+	viewMenu := src[start:end]
+	for _, gone := range []string{
+		"Terminal size",
+		"Fit to window",
+		"data-terminal-",
+		"appmenu-size",
+		"appmenu-chip",
+	} {
+		if strings.Contains(viewMenu, gone) {
+			t.Errorf("screen.html: the View menu mentions %q again — the terminal's size is one "+
+				"control above the terminal, not a second set of controls in a menu", gone)
+		}
+	}
+
+	barStart := strings.Index(src, `class="terminal-view-bar"`)
+	if barStart < 0 {
+		t.Fatal("screen.html: the terminal view bar is gone")
+	}
+	bar := src[barStart:]
+	if cut := strings.Index(bar, "data-terminal-position"); cut > 0 {
+		bar = bar[:cut]
+	}
+
+	if !strings.Contains(bar, `role="radiogroup"`) {
+		t.Error("screen.html: the size control is not a radiogroup — three exclusive choices " +
+			"announced as three independent toggle buttons")
+	}
+	radioRe := regexp.MustCompile(`<button[^>]*role="radio"[^>]*data-terminal-view-choice="([a-z]+)"[^>]*>([^<]*)</button>`)
+	var got []string
+	for _, m := range radioRe.FindAllStringSubmatch(bar, -1) {
+		got = append(got, m[1]+"="+strings.TrimSpace(m[2]))
+	}
+	want := []string{"overview=Fit", "readable=Readable", "custom=Custom"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("screen.html: the size control offers %v, want %v in that order", got, want)
+	}
+
+	// Each hook exists exactly once. A second copy is a second control, and
+	// document.querySelector would quietly pick whichever came first.
+	for _, hook := range []string{
+		"data-terminal-fit",
+		"data-terminal-zoom-reset",
+		"data-terminal-size-slider",
+		"data-terminal-size-up",
+		"data-terminal-size-down",
+		"data-terminal-size-label",
+	} {
+		if n := strings.Count(src, hook); n != 1 {
+			t.Errorf("screen.html: %s appears %d times, want 1", hook, n)
+		}
+	}
+
+	// The slider keeps the name it has always had, for anyone whose
+	// assistive technology or test script looks it up.
+	if !regexp.MustCompile(`<input[^>]*data-terminal-size-slider[^>]*aria-label="Terminal size"`).MatchString(src) {
+		t.Error(`screen.html: the size slider no longer has the accessible name "Terminal size"`)
 	}
 }
 
@@ -132,5 +217,32 @@ func TestTheSessionCarriesOneControlSurface(t *testing.T) {
 			t.Errorf("screen.html: %s is back — the session had three control surfaces "+
 				"(header, toolbar, floating panel) and the redesign left it with one", gone)
 		}
+	}
+}
+
+// Hotspots, find highlights and the selection marquee are drawn into a layer
+// inside the terminal container. The size control watches that container for
+// the screen being repainted, and a terminal already at its smallest size
+// answers every observed change by announcing its size again — which makes the
+// hotspots redraw, which the observer sees. Left unfiltered, an idle page
+// redraws them about twenty-five times a second. The behaviour is measured in
+// a browser; this keeps the filter from being tidied away unnoticed.
+func TestTerminalSizeObserverIgnoresTheOverlayLayer(t *testing.T) {
+	src := staticSource(t, "terminal-controls.js")
+	at := strings.Index(src, "new MutationObserver(")
+	if at < 0 {
+		t.Fatal("terminal-controls.js: the size control no longer watches the terminal for repaints")
+	}
+	callback := src[at:]
+	if end := strings.Index(callback, "observer.observe("); end > 0 {
+		callback = callback[:end]
+	}
+	if !strings.Contains(callback, "records.some(changesScreen)") {
+		t.Error("terminal-controls.js: the repaint observer does not filter its records — overlay " +
+			"redraws would re-trigger it and the hotspots would redraw forever at the smallest size")
+	}
+	if !strings.Contains(src, `"screen-overlay-layer"`) {
+		t.Error("terminal-controls.js: nothing recognises the overlay layer, so decorating the " +
+			"screen counts as the screen changing")
 	}
 }

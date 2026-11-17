@@ -19,13 +19,48 @@
 .quick-start p { margin: 6px 0 12px; color: var(--fg-muted); font-size: .9rem; }
 .terminal-view-bar { margin: 8px 0; }
 .terminal-view-bar button[aria-pressed="true"] { border-color: var(--accent); font-weight: 600; }
+
+/* The terminal's size: Fit, Readable and Custom as one segmented control, with
+   the stepper and slider that belong to Custom beside it. It replaces the two
+   toggles that stood here, and the slider row and two chips that were in the
+   View menu. The bar stays one row on a desktop: the segments are the height
+   of the button they replaced, so the terminal does not move down. */
+.terminal-size-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.terminal-view-bar .terminal-size-modes {
+  display: inline-flex; gap: 2px; padding: 1px;
+  border: 1px solid var(--hairline); border-radius: calc(var(--r-sm) + 2px);
+  background: var(--surface-sunken);
+}
+.terminal-view-bar .terminal-size-modes button {
+  min-height: 29px; padding: 0 14px;
+  border-color: transparent; background: transparent; transform: none;
+}
+/* No lift on hover: three joined segments that each jump a pixel look loose. */
+.terminal-view-bar .terminal-size-modes button:hover:not(:disabled) { border-color: var(--accent-line); transform: none; }
+.terminal-view-bar .terminal-size-modes button[aria-checked="true"] {
+  border-color: var(--accent); background: var(--surface-raised); font-weight: 600;
+}
+.terminal-size-custom { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.terminal-size-custom[hidden] { display: none; }
+.terminal-size-custom .terminal-size-step { flex: 0 0 auto; width: 26px; height: 26px; }
+.terminal-size-custom .terminal-size-slider { flex: 1 1 150px; width: 150px; min-width: 80px; min-height: 24px; }
+.terminal-size-custom .terminal-size-label {
+  flex: 0 0 auto; min-width: 4ch; text-align: right;
+  color: var(--fg); font-size: 0.78rem; font-variant-numeric: tabular-nums;
+}
+
 .terminal-width-column { min-width: 0; max-width: 100%; }
-body[data-terminal-view="readable"] .terminal-shell {
+/* Readable and Custom are the two sizes the person chose, so a screen wider
+   than the window pans inside its own box rather than being shrunk to fit. */
+body[data-terminal-view="readable"] .terminal-shell,
+body[data-terminal-view="custom"] .terminal-shell {
   max-width: 100%; min-width: 0; overflow: auto; justify-content: flex-start;
   overscroll-behavior-x: contain;
 }
-body[data-terminal-view="readable"] .screen-container { flex-shrink: 0; max-width: none; overflow: visible; }
-body[data-terminal-view="readable"][data-focus="on"] .terminal-shell { max-height: calc(100dvh - 120px); }
+body[data-terminal-view="readable"] .screen-container,
+body[data-terminal-view="custom"] .screen-container { flex-shrink: 0; max-width: none; overflow: visible; }
+body[data-terminal-view="readable"][data-focus="on"] .terminal-shell,
+body[data-terminal-view="custom"][data-focus="on"] .terminal-shell { max-height: calc(100dvh - 120px); }
 body[data-session-id] .card { box-shadow: var(--elev-1); background: var(--panel); }
 body[data-session-id] .appbar { box-shadow: none; }
 body[data-session-id] .brand-mark { filter: none; }
@@ -42,6 +77,8 @@ body.bg-paused .bg-overlay canvas, body.bg-paused .bg-overlay::before, body.bg-p
   .connect-secondary > button { min-height: 44px; }
   .quick-start-actions button { flex: 1 1 140px; min-height: 44px; }
   .terminal-view-bar button { min-height: 44px; padding: 8px 10px; font-size: .82rem; }
+  .terminal-view-bar .terminal-size-modes button { padding: 0 12px; }
+  .terminal-size-custom { flex: 1 1 100%; }
   .connection-options input { width: 100%; min-height: 44px; font-size: 16px; }
   .connection-options input[type="checkbox"] { width: auto; min-height: auto; }
   .connection-options summary, .access-help summary { min-height: 44px; }
@@ -54,7 +91,7 @@ body[data-focus="on"] .quick-start, body[data-focus="on"] .terminal-view-bar { d
  .quick-start p { font-size: .82rem; line-height: 1.4; }
  .quick-start-actions { gap: 6px; }
  .terminal-view-bar { gap: 6px; }
- .profiles-sample-row .profile-row-name { white-space: normal; }
+ .profile-sample-row .profile-row-name { white-space: normal; }
 }
 
 [data-connection-diagnostic] { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }

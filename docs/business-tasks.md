@@ -43,14 +43,13 @@ Account balance enquiry                          2.4 s
 ## Running a task
 
 Open **Tasks** from the menu bar (the labelled button on the right) or the command palette.
-Tasks are business-user surface, so the control stays visible in Business
-mode.
+Tasks are for the people who use the application rather than build the
+automation, so the control is there whether or not Automation tools is on.
 
-With no tasks yet, the dialog says so and offers **Record a workflow**. That
-button does what **Automation → Start recording** does. Where you are in
-Business mode it first turns Engineering mode on, because the Automation menu
-is where you stop the recording and save it as a task, and says so in the
-dialog. While a recording is already running, the dialog tells you to stop it
+With no tasks yet, the dialog says so and offers **Start recording**. That
+button does what **Automation → Start recording** does. Where Automation tools
+is off it first turns it on, because the Automation menu is where you stop the
+recording and save it as a task, and says so in the dialog. While a recording is already running, the dialog tells you to stop it
 rather than offering another.
 
 Pick a task, fill in the form, press **Run**. The dialog closes and a card

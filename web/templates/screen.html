@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=25">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=26">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
@@ -27,13 +27,13 @@
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
-    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=5">
+    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=6">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=8">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=9">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -43,7 +43,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=19" defer></script>
+    <script src="/static/keyboard.js?v=20" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
@@ -64,7 +64,7 @@
     <script src="/static/screen-find.js" defer></script>
     <script src="/static/screen-history.js" defer></script>
     <script src="/static/session-tabs.js" defer></script>
-    <script src="/static/focus-mode.js?v=2" defer></script>
+    <script src="/static/focus-mode.js?v=3" defer></script>
     <script src="/static/connection-profiles.js?v=2" defer></script>
     <script src="/static/file-transfer.js" defer></script>
     <script src="/static/keymap-editor.js" defer></script>
@@ -74,7 +74,7 @@
     <script src="/static/workspace-mode.js?v=2" defer></script>
     <script src="/static/quick-start.js?v=2" defer></script>
     <script src="/static/screen-size.js" defer></script>
-    <script src="/static/terminal-controls.js?v=6" defer></script>
+    <script src="/static/terminal-controls.js?v=7" defer></script>
     <!-- The menu bar: drop-downs, the collapse control and the theme
          picker inside the View menu. Loads after ui.js so the controls it
          hosts are already bound. -->
@@ -86,7 +86,7 @@
          init to render whichever backend is selected. -->
     <script src="/static/ai-provider.js?v=2" defer></script>
     <script src="/static/copilot-tools.js?v=4" defer></script>
-    <script src="/static/copilot-panel.js?v=8" defer></script>
+    <script src="/static/copilot-panel.js?v=9" defer></script>
     <script src="/static/ui-polish.js?v=13" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
@@ -98,8 +98,8 @@
     <!-- Suggests landscape on a phone holding an 80-column screen upright.
          Also after screen-grid.js: whether to suggest anything is decided by
          measuring the character cell, not by guessing from the device. -->
-    <script src="/static/orientation-hint.js?v=2" defer></script>
-    <link rel="stylesheet" href="/static/activation.css?v=2">
+    <script src="/static/orientation-hint.js?v=3" defer></script>
+    <link rel="stylesheet" href="/static/activation.css?v=3">
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}" data-account="{{ .Auth.UserID }}" data-saved-workspace="{{ .UIPreferences.WorkspaceMode }}" data-quickstart-dismissed="{{ .UIPreferences.QuickStartDismissed }}" data-terminal-view="{{ .UIPreferences.TerminalView }}">
     <script src="/static/early-theme-init.js"></script>
@@ -148,7 +148,11 @@
                         <div class="appmenu-panel" id="appmenu-session" role="menu" aria-label="Session" data-app-menu-panel hidden>
                             <button type="button" class="appmenu-item" role="menuitem" data-profiles-open>
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5zm0 7.6L4.8 6 12 4.2 19.2 6 12 9.6zM2 17l10 5 10-5-2.1-1.1L12 19.8 4.1 15.9 2 17zm0-5 10 5 10-5-2.1-1.1L12 14.8 4.1 10.9 2 12z"/></svg>
-                                <span class="appmenu-label">Saved connections<span class="appmenu-sub">Saved hosts you can dial again</span></span>
+                                <span class="appmenu-label">Open a connection…<span class="appmenu-sub">Saved hosts you can dial again</span></span>
+                            </button>
+                            <button type="button" class="appmenu-item" role="menuitem" data-profiles-manage>
+                                <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                                <span class="appmenu-label">Manage connections…<span class="appmenu-sub">Add, edit, import or export saved hosts</span></span>
                             </button>
                             <button type="button" class="appmenu-item" role="menuitem" data-host-details-open>
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
@@ -244,30 +248,6 @@
                                 <span class="appmenu-label">Virtual keypad<span class="appmenu-sub">On-screen PF and AID keys</span></span>
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
-                            <!-- Terminal size. The zoom controls used to live in
-                                 a floating panel pinned over the top-right of
-                                 the terminal; they are ordinary View-menu
-                                 furniture now. data-terminal-controls stays on
-                                 the wrapper: terminal-controls.js binds to it,
-                                 and keyboard.js's focus lock knows it by name. -->
-                            <div class="appmenu-row" role="none">
-                                <span class="appmenu-row-label" id="appmenu-size-label">Terminal size</span>
-                                <div class="terminal-controls appmenu-size" data-terminal-controls role="group" aria-labelledby="appmenu-size-label">
-                                    <button type="button" class="icon-button terminal-size-step" data-terminal-size-down aria-label="Decrease terminal size">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 11h14v2H5z"/></svg>
-                                    </button>
-                                    <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
-                                    <button type="button" class="icon-button terminal-size-step" data-terminal-size-up aria-label="Increase terminal size">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
-                                    </button>
-                                    <span class="terminal-size-label" data-terminal-size-label>100%</span>
-                                </div>
-                            </div>
-                            <div class="appmenu-row appmenu-row-buttons" role="none">
-                                <button type="button" class="appmenu-chip" data-terminal-fit aria-label="Fit terminal to available space">Fit to window</button>
-                                <button type="button" class="appmenu-chip" data-terminal-zoom-reset aria-label="Reset terminal size">Reset</button>
-                            </div>
-                            <div class="appmenu-sep" role="separator"></div>
                             <!-- Theme. The picker in Settings is
                                  administrator-only; the colour of your own
                                  terminal is not a deployment setting, so it is
@@ -281,10 +261,11 @@
                     </div>
 
                     <!-- ─────────────── Automation ───────────────
-                         Recording, playback and chaos: the surface for
+                         Recording, playback and exploration: the surface for
                          somebody whose job is to explore or drive the
                          application rather than use it. workspace-mode.js
-                         hides this whole menu in Business mode. -->
+                         hides this whole menu while Automation tools is
+                         off. -->
                     <div class="appmenu" role="none" data-app-menu data-menu-automation>
                         <button type="button" class="appmenu-trigger" role="menuitem" aria-haspopup="true" aria-expanded="false" aria-controls="appmenu-automation" data-app-menu-trigger>Automation</button>
                         <div class="appmenu-panel appmenu-panel-wide" id="appmenu-automation" role="menu" aria-label="Automation" data-app-menu-panel hidden>
@@ -506,12 +487,13 @@
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
                             {{ end }}
-                            <!-- Business mode is the default surface and hides
-                                 the Automation menu; Engineering restores it.
+                            <!-- Automation tools is off by default, which hides the
+                                 Automation menu; turning it on restores it. The
+                                 sub-label shows the current state (On or Off).
                                  The choice persists per browser. -->
                             <button type="button" class="appmenu-item" role="menuitemcheckbox" aria-checked="false" data-workspace-toggle aria-pressed="false">
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5zm0 7.6L4.8 6 12 4.2 19.2 6 12 9.6zM2 17l10 5 10-5-2.1-1.1L12 19.8 4.1 15.9 2 17zm0-5 10 5 10-5-2.1-1.1L12 14.8 4.1 10.9 2 12z"/></svg>
-                                <span class="appmenu-label">Engineering tools<span class="appmenu-sub" data-workspace-label>Business</span></span>
+                                <span class="appmenu-label">Automation tools<span class="appmenu-sub" data-workspace-label>Off</span></span>
                             </button>
                             <div class="appmenu-sep" role="separator"></div>
                             <button type="button" class="appmenu-item" role="menuitem" data-about-open>
@@ -591,16 +573,39 @@
                         <div><strong>Your terminal is ready</strong><p>Tab moves between fields, and Alt+Shift+M leaves the terminal. Enter submits. <span data-quick-start-keys>{{ if .UseKeypad }}Use F1–F12 for PF keys, or the on-screen keypad.{{ else }}Use F1–F12 for PF keys, or show the on-screen keypad.{{ end }}</span></p><p data-sample-exercise hidden>Try the Petstore: sign in with ADMIN / ADMIN, open the catalogue, then view a product. Record the flow to replay it.</p></div>
                         <div class="quick-start-actions">
                             <button type="button" data-start-goal="terminal">Use terminal</button>
-                            <button type="button" data-start-goal="record">Record a workflow</button>
+                            <button type="button" data-start-goal="record">Start recording</button>
                             <button type="button" data-start-goal="explore">Explore screens</button>
                             <button type="button" data-quick-start-show-keypad {{ if .UseKeypad }}hidden{{ end }}>Show keypad</button>
                             <button type="button" class="quiet-action" data-quick-start-dismiss>Dismiss</button>
                         </div>
                     </section>
                     <div class="terminal-view-bar" aria-label="Terminal view">
-                        <button type="button" data-terminal-view-choice="readable" aria-pressed="false">Readable terminal</button>
-                        <button type="button" data-terminal-view-choice="overview" aria-pressed="false">Fit overview</button>
-                        <button type="button" data-show-automation>Show automation</button>
+                        <!-- The terminal's size, in one place. Fit, Readable and
+                             Custom are exclusive, so they are radios; the
+                             stepper and slider belong to Custom and appear
+                             only with it. terminal-controls.js binds to
+                             data-terminal-controls, keyboard.js's focus lock
+                             knows it and the slider by name, and focus-mode.js
+                             refits through data-terminal-fit. "overview" is
+                             what a Fit choice has always been saved as. -->
+                        <div class="terminal-size-picker" data-terminal-controls>
+                            <div class="terminal-size-modes" role="radiogroup" aria-label="Terminal size">
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="overview" data-terminal-fit title="Fit the whole screen in the space available">Fit</button>
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="readable" data-terminal-zoom-reset title="Full-size text; pan sideways where the screen is wider than the window">Readable</button>
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="custom" title="Set the size yourself">Custom</button>
+                            </div>
+                            <div class="terminal-size-custom" data-terminal-custom role="group" aria-label="Custom terminal size" hidden>
+                                <button type="button" class="icon-button terminal-size-step" data-terminal-size-down aria-label="Decrease terminal size">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 11h14v2H5z"/></svg>
+                                </button>
+                                <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
+                                <button type="button" class="icon-button terminal-size-step" data-terminal-size-up aria-label="Increase terminal size">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
+                                </button>
+                                <span class="terminal-size-label" data-terminal-size-label aria-live="polite">100%</span>
+                            </div>
+                        </div>
+                        <button type="button" data-show-automation>Show automation tools</button>
                         <span class="subtle" data-terminal-position aria-live="polite"></span>
                     </div>
 
@@ -649,7 +654,7 @@
                     <div class="chaos-run-panel-actions">
                         <button type="button" data-chaos-run-panel-report>View report</button>
                         <button type="button" data-chaos-run-panel-map>Open screen map</button>
-                        <button type="button" data-chaos-run-panel-export>Download workflow</button>
+                        <button type="button" data-chaos-run-panel-export>Download workflow JSON</button>
                         <button type="button" data-chaos-run-panel-continue>Continue exploring</button>
                     </div>
                     <div class="chaos-run-panel-next" data-chaos-run-panel-next hidden>
@@ -700,7 +705,8 @@
             {{ if .SampleAppName }}
             <!-- Sample-app provenance is a development detail: which local
                  test server this is and on what port. It told a business user
-                 nothing, so it is a compact chip and only in Engineering mode. -->
+                 nothing, so it is a compact chip and only shown while
+                 Automation tools is on. -->
             <div class="sample-status" data-sample-status>
                 <span class="sample-app-title">{{ .SampleAppName }}</span>
                 <span class="subtle">port {{ .SampleAppPort }}</span>
@@ -765,7 +771,7 @@
         <div class="workflow-modal-backdrop" data-modal-close></div>
         <div class="workflow-modal-content" role="dialog" aria-modal="true" aria-labelledby="workflow-modal-title">
             <div class="workflow-modal-header">
-                <h3 id="workflow-modal-title" data-modal-title>Workflow JSON</h3>
+                <h3 id="workflow-modal-title" data-modal-title>Recording (JSON)</h3>
                 <div class="workflow-modal-actions">
                     <button type="button" class="icon-button" data-modal-copy data-tippy-content="Copy content" aria-label="Copy content">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
@@ -1082,7 +1088,7 @@
                     <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="e.g. one key per line:
 PF3
 PF12"></textarea>
-                    <p class="subtle">Keys chaos must never press. Use this to block dangerous keys such as logoff/exit PF keys.</p>
+                    <p class="subtle">Keys exploration must never press. Use this to block dangerous keys such as logoff/exit PF keys.</p>
                 </div>
                 <fieldset class="chaos-hint-group">
                     <legend>First Screen</legend>
@@ -1284,23 +1290,23 @@ Sign On = Enter"></textarea>
     </div>
     <!--
         Hidden until there is a run to report on. workflow.js reveals it when a
-        recording, playback or chaos run goes active and hides it again when the
+        recording, playback or exploration run goes active and hides it again when the
         run ends or the operator dismisses the active-run row. Rendered hidden
         server-side so it never flashes on a page load with no run in progress.
     -->
     <div class="workflow-status-widget" data-status-widget {{ if not .ShowRunStatus }}hidden{{ end }}>
         <div class="workflow-status-widget-header" data-status-widget-header>
-            <strong>Workflow status</strong>
+            <strong>Run status</strong>
             <div class="workflow-status-widget-actions">
                 <label class="workflow-status-tracking-toggle">
-                    <input type="checkbox" data-status-tracking-toggle aria-label="Track workflow status">
+                    <input type="checkbox" data-status-tracking-toggle aria-label="Track run status">
                     <span class="workflow-status-toggle" aria-hidden="true"></span>
                 </label>
                 <script src="/static/screen-status-tracking-init.js"></script>
-                <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize workflow status" aria-label="Maximize workflow status">
+                <button type="button" class="icon-button" data-status-maximize aria-expanded="false" data-tippy-content="Maximize run status" aria-label="Maximize run status">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
                 </button>
-                <button type="button" class="icon-button" data-status-minimize aria-expanded="false" data-tippy-content="Restore workflow status" aria-label="Restore workflow status">
+                <button type="button" class="icon-button" data-status-minimize aria-expanded="false" data-tippy-content="Restore run status" aria-label="Restore run status">
                     <!-- Two chevrons, one shown at a time (ui-polish.css): up to restore the
                          minimised widget, down to minimise it. This used to be a filled
                          square, which on a screen with a run in progress reads as Stop. -->
@@ -1324,7 +1330,7 @@ Sign On = Enter"></textarea>
             <div class="workflow-status-line" data-status-delay-applied-line {{ if not .PlaybackDelayApplied }}hidden{{ end }}>
                 Applied delay: {{ .PlaybackDelayApplied }}
             </div>
-            <div class="workflow-status-line subtle">Updates automatically while playback or chaos runs.</div>
+            <div class="workflow-status-line subtle">Updates automatically while playback or exploration runs.</div>
             <div class="workflow-status-events" data-status-events>
                 {{ range .PlaybackEvents }}
                 <div class="workflow-status-event">
@@ -1437,7 +1443,12 @@ Sign On = Enter"></textarea>
         <header class="copilot-panel-header">
             <span class="copilot-panel-title">AI Chat</span>
             <div class="copilot-panel-header-actions">
-                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto Mode: run typing and key presses without asking" data-tippy-content="Auto Mode: typing and key presses run without asking, on this host only. Destructive actions still ask.">Auto</button>
+                <!-- Says what it is in words, and says when it is on: this is the
+                     switch that lets the assistant type and press keys without
+                     asking, so it cannot be a one-word label explained by a
+                     tooltip. aria-pressed carries the state for assistive
+                     technology; the name stays the same in both states. -->
+                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto-run: typing and key presses run without asking, on this host only. Reading never asks. PF3, Clear, connecting, starting exploration and running tasks still ask." data-tippy-content="Auto-run: typing and key presses run without asking, on this host only. Reading never asks. PF3, Clear, connecting, starting exploration and running tasks still ask.">Auto-run</button>
                 <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
                 <button type="button" class="copilot-icon-button" data-copilot-menu-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="copilot-panel-menu" aria-label="More chat actions">More</button>
                 <button type="button" class="copilot-icon-button copilot-close-btn" data-copilot-close aria-label="Close AI chat panel"><span aria-hidden="true">&times;</span><span class="copilot-close-label">Close</span></button>
@@ -1448,9 +1459,9 @@ Sign On = Enter"></textarea>
                 <button type="button" role="menuitem" data-copilot-signout hidden>Sign out</button>
             </div>
         </header>
-        <!-- Auto Mode has to be impossible to miss: it is the difference
+        <!-- Auto-run has to be impossible to miss: it is the difference
              between an assistant that proposes and one that types. -->
-        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto Mode is on for this host.</strong> Typing and key presses run without asking. Destructive actions still wait for you.</p>
+        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto-run is on for this host.</strong> Typing and key presses run without asking. PF3, Clear and other destructive actions still wait for you.</p>
         <!-- Not a live region. A streaming reply rewrites itself many times a
              second; what is worth announcing goes through the status region
              below, once. -->
@@ -1461,7 +1472,14 @@ Sign On = Enter"></textarea>
             <p class="subtle">Terminal and recording work without AI. Use an existing Copilot account, an API key, or a local model. Your provider may charge for usage.</p>
             <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> give the URL of your Ollama or compatible endpoint; most need no key.</li></ul>
             <p class="subtle">Once connected, try “Explain this screen”.</p>
-            <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+            <div class="copilot-connect-actions">
+                <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+                <!-- For people who have never looked at the Provider button in
+                     the header: GitHub sign-in is the default, and it is not
+                     the only way in. Shown only while the sign-in is what is
+                     being asked for (see applyProviderStatus). -->
+                <button type="button" class="copilot-connect-btn copilot-connect-btn-secondary" data-copilot-connect-provider hidden>Use an API key or local model</button>
+            </div>
         </div>
         <details class="copilot-context" data-copilot-context hidden>
             <summary><span data-copilot-knows>Context</span><span class="copilot-context-more">What is sent</span></summary>
@@ -1503,7 +1521,7 @@ Sign On = Enter"></textarea>
                 <h3 id="copilot-clear-modal-title" data-copilot-clear-title>Clear chat</h3>
                 <button type="button" class="modal-close" data-copilot-clear-cancel>Close</button>
             </div>
-            <p id="copilot-clear-modal-desc" data-copilot-clear-desc>Clear this conversation? It cannot be brought back.</p>
+            <div id="copilot-clear-modal-desc" data-copilot-clear-desc><p>Clear this conversation? It cannot be brought back.</p></div>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
                 <button type="button" class="danger" data-copilot-clear-alt hidden></button>
