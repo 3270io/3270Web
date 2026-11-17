@@ -1169,15 +1169,17 @@
     fillSampleApps();
 
     // The Session menu's "Open a connection…". It starts a session the way
-    // "+ New session" does, because that is what it is: the tab bar owns what
-    // a choice turns into — including where an account that picks its host
-    // from the selection screen is sent instead — so the menu asks it rather
-    // than keeping a second copy of the rule here.
+    // "+ New session" does, because that is what a choice turns into: the tab
+    // bar owns that, so the menu asks it for the dialog rather than keeping a
+    // second copy of what to do with a pick. It asks for the dialog by name.
+    // "+ New session" may send an account that picks its host from the
+    // selection screen there instead; a menu item that says "Open a
+    // connection…" should open the thing it says.
     var openers = document.querySelectorAll("[data-profiles-open]");
     for (var i = 0; i < openers.length; i++) {
       openers[i].addEventListener("click", function (event) {
         var tabs = window.ThreeSeventyWeb && window.ThreeSeventyWeb.sessionTabs;
-        if (!tabs || typeof tabs.open !== "function") {
+        if (!tabs || typeof tabs.openDialog !== "function") {
           notify("Opening another session is not available on this page.", "warning");
           return;
         }
@@ -1189,7 +1191,7 @@
           return;
         }
         startedFromMenu(event);
-        tabs.open();
+        tabs.openDialog();
         if (!isOpen()) {
           openerEl = null;
           openerKeyboard = false;

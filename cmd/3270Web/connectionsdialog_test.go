@@ -152,6 +152,31 @@ func TestEveryEntryPointCarriesTheNameOfItsDialog(t *testing.T) {
 	}
 }
 
+// "+ New session" and Alt+N leave the choice of chooser to the tab bar, which
+// sends an account that picks its host from the selection screen there. The
+// Session menu's "Open a connection…" is named for the dialog, so it asks for
+// the dialog outright: a menu item that opens something other than what its
+// label says is the mismatch this split was meant to remove.
+func TestTheMenuItemAsksForTheDialogByName(t *testing.T) {
+	tabs := staticSource(t, "session-tabs.js")
+	profiles := staticSource(t, "connection-profiles.js")
+
+	if !strings.Contains(tabs, "openDialog: function") {
+		t.Error("session-tabs.js no longer exposes openDialog, which the Session menu's item uses")
+	}
+	body := jsFunctionBody(t, tabs, "openNew")
+	if !strings.Contains(body, "sessionManager && dialogOnly !== true") {
+		t.Error("openNew no longer lets a caller skip the selection-screen rule and ask for the dialog")
+	}
+	if !strings.Contains(profiles, "tabs.openDialog()") {
+		t.Error("the Session menu's Open a connection… does not ask the tab bar for the dialog")
+	}
+	// The tab bar's own button must not pass its click event in as the flag.
+	if strings.Contains(tabs, `addEventListener("click", openNew)`) {
+		t.Error("the + New session button hands openNew its click event as an argument")
+	}
+}
+
 // A delete cannot be undone, so the confirmation opens on the safe button: a
 // stray Enter or Space as it appears should cancel, not delete.
 func TestDeletingAProfileOpensOnCancel(t *testing.T) {
