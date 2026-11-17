@@ -74,6 +74,11 @@
     if (typeof window.sizeScreenContainer === "function") {
       window.sizeScreenContainer();
     }
+    // Hotspots are positioned in pixels and only redraw when told the cells
+    // changed size. They heard it from the slider alone, so every other way
+    // of resizing — a choice, a stepper, a refit — left them where the old
+    // size had put them, a screen's height away from the text they sit on.
+    document.dispatchEvent(new Event("terminalresize"));
     return clamped;
   }
 
