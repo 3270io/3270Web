@@ -239,11 +239,11 @@ func TestValidateProfileAcceptsSampleApps(t *testing.T) {
 	if err := validateProfile(&p); err != nil {
 		t.Fatalf("validateProfile rejected a sample-app host: %v", err)
 	}
-	if p.Port != defaultSampleAppPort {
-		t.Errorf("Port = %d, want the sample apps' own default %d", p.Port, defaultSampleAppPort)
+	if p.Port != defaultSampleAppPortFor("app1") {
+		t.Errorf("Port = %d, want the app's own default %d", p.Port, defaultSampleAppPortFor("app1"))
 	}
 	id, port, ok := parseSampleAppHost(p.displayTarget())
-	if !ok || id != "app1" || port != defaultSampleAppPort {
+	if !ok || id != "app1" || port != defaultSampleAppPortFor("app1") {
 		t.Errorf("parseSampleAppHost(%q) = (%q, %d, %v)", p.displayTarget(), id, port, ok)
 	}
 	if !isAllowedSampleAppPort(port) {

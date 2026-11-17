@@ -194,7 +194,9 @@ Two details worth knowing:
   cannot tell you" are different answers.
 - The longest values (copyright, proxy list, running tasks) are abbreviated
   by the terminal itself and carry a **Show** button that fetches them in
-  full.
+  full. Each button is named for the value it reveals — a screen reader
+  announces "Show Copyright", not six buttons that all say "Show" — and focus
+  moves to the value once it appears.
 
 **Copy** puts the whole list on the clipboard as plain text, for pasting
 into a ticket. **Refresh** re-reads it — the byte counts always move, and
@@ -220,8 +222,9 @@ session you have and a **+ New session** button at the end of the row.
   tab has no **×** — closing your only session is a disconnect, and
   **Session → Disconnect** is where that lives.
 - **Disconnect** ends only the session you are looking at — the confirmation
-  names it. If other tabs are open you land on one of them rather than back at
-  the connect page.
+  names it, and starts with **Cancel** focused, so pressing Enter or Space as
+  it appears keeps the session. If other tabs are open you land on one of them
+  rather than back at the connect page.
 
     Disconnecting your last session leaves you at the connect page even where
     signing in would normally put you straight onto a host. Disconnect means
@@ -361,7 +364,36 @@ Keypad features:
 - Common editing/navigation keys
 - A whole keyboard, letters and number pad included, in MAX
 
-The keypad visibility preference can be saved in Settings (`Use keypad`).
+### Who decides whether the keypad is showing
+
+Whether the keypad is showing is **your** choice, kept in **your browser**.
+**View → Virtual keypad** (or the **Show keypad** button on the welcome
+banner) shows or hides it, and the browser remembers that and applies it as the
+page loads, so it does not flash the other way first. Other people on the same
+3270Web instance are not affected, and neither is the next person to open it.
+
+**Settings → App → Use keypad** is only the default, for browsers that have not
+chosen. It decides what a new browser sees until its person uses the toggle,
+and changing it does not override anyone who already has. It is stored on the
+server with the other settings; the View toggle never changes it.
+
+A browser that has chosen goes back to following the default when its site data
+is cleared. A private window starts with no choice and follows the default,
+and forgets what you pick in it when it closes. A phone follows the same rules:
+the keypad is hidden until the default or your own choice shows it, and a
+narrow screen starts it in Compact (see [Sizes](#sizes)).
+
+### The welcome banner
+
+The first time you open a terminal, a **Your terminal is ready** banner sits
+above it. Its PF-key line follows the keypad: while the keypad is hidden — the
+default on a desktop — it says to use F1–F12, or to show the on-screen keypad,
+and offers a **Show keypad** button that does what **View → Virtual keypad**
+does. It also names ++alt+shift+m++, the way out of the terminal's ++tab++
+capture. The banner hides itself at your first action in the terminal, meaning the
+first key sent to the host or the start of a recording, playback, chaos run or
+task, and stays hidden afterwards. **Dismiss** hides it sooner. Typing into a
+field, or moving between fields, is not yet an action: nothing has been sent.
 
 ### Sizes
 
@@ -448,6 +480,16 @@ narrow display that means smaller keys, not a taller keyboard. The terminal
 is served first: the keyboard takes the room left beneath it and scales
 into that.
 
+**Phones are the exception.** Below 600 pixels of width a scaled MAX keyboard
+comes out at keys of about 20 pixels, which nobody can hit, and its width
+used to push the whole page wider than the screen. So on a viewport that
+narrow the keypad starts in **Compact** (until you choose a size yourself), is
+not scaled, and has keys at least 44 pixels tall; the PF keys wrap onto as many
+rows as the width needs. **Full** and **MAX** are still one press of the size control away.
+MAX keeps its keys at their full size and scrolls sideways inside its own box
+rather than widening the page. The terminal key bar along the bottom stays the
+quickest way to Enter, Tab, `PF3`, Clear and Reset.
+
 ![Virtual keyboard screenshot](images/keypad-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
@@ -531,6 +573,7 @@ Common mappings used by 3270Web:
 | `Alt+N` | Open another host session | **Terminal** |
 | `Alt+W` | Close the current session | **Terminal** |
 | `Alt+1`..`Alt+9` | Switch to that [session tab](#sessions-and-tabs) | **Terminal** |
+| `Alt+Shift+M` | Move keyboard focus [out of the terminal](#moving-focus-out-of-the-terminal) | **Terminal** |
 
 Additional 3270 actions available from the keypad and the command palette
 include Reset, EraseEOF, EraseInput, Dup, FieldMark, SysReq, Attn, and
@@ -556,6 +599,11 @@ a fixed key layout, so every one of these actions can be rebound. Open
 
 Combinations the browser reserves for itself (`Ctrl+W`, `Ctrl+T`, `F11`)
 cannot be captured by any web page, 3270Web included.
+
+`Alt+Shift+M` is reserved too, by 3270Web: it is the way out of the terminal's
+`Tab` capture (see [Moving focus out of the terminal](#moving-focus-out-of-the-terminal)),
+so it cannot be rebound, and an imported keymap that binds it has that one
+binding left out.
 
 #### Sharing and migrating a layout
 
@@ -681,11 +729,25 @@ screen you had not yet seen is a hazard, not a convenience.
     again within two seconds. Any other key — or letting the window
     elapse — cancels it.
 
+    Only a fresh press counts. The ++esc++ that closes a menu or dialog, or
+    that clears a marked block, is spent on that and does not arm `Clear`; and
+    holding the key down does not arm or confirm it either, so dismissing a
+    dialog with a slightly long press cannot wipe the host screen.
+
 ### Moving focus out of the terminal
 
 While the terminal has focus it captures ++tab++ so field navigation
 reaches the host instead of moving browser focus. To get out to the rest
-of the page, press ++ctrl+tab++ (or ++ctrl+shift+tab++).
+of the page, press ++alt+shift+m++. Focus moves to an **Exit terminal
+keyboard focus** control just after the terminal, and the next ++tab++
+carries on through the page.
+
+++ctrl+tab++ (or ++ctrl+shift+tab++) does the same where your browser passes
+it on to the page. Browsers generally keep that combination for switching
+their own tabs, so it may never arrive; ++alt+shift+m++ is the one to rely
+on. It is recognised by the physical ++m++ key, so it works the same with
+Option on macOS or an AltGr layout. It does nothing when focus is already
+outside the terminal, and it cannot be rebound.
 
 ## Hotspots
 
@@ -777,6 +839,12 @@ If the host drops the connection, 3270Web notices, shows
 (1s, 2s, 4s, 8s, 15s). If it comes back, the page reloads on the new
 connection. If it does not, a banner offers a manual **Reconnect**, which
 is also in the Session menu and the command palette.
+
+It notices a drop in two ways: within a second or two while the terminal is
+idle, and straight away if you press a key on a connection that has gone. In
+the second case the key is not sent, the banner appears at once, and
+whatever you had typed stays in the fields until a reconnect succeeds — the
+page does not navigate away or show an error page.
 
 Reconnecting starts a new host session, so recording and chaos state from
 the dead connection does not survive — the host-side conversation those

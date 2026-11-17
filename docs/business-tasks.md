@@ -46,6 +46,13 @@ Open **Tasks** from the menu bar (the labelled button on the right) or the comma
 Tasks are business-user surface, so the control stays visible in Business
 mode.
 
+With no tasks yet, the dialog says so and offers **Record a workflow**. That
+button does what **Automation → Start recording** does. Where you are in
+Business mode it first turns Engineering mode on, because the Automation menu
+is where you stop the recording and save it as a task, and says so in the
+dialog. While a recording is already running, the dialog tells you to stop it
+rather than offering another.
+
 Pick a task, fill in the form, press **Run**. The dialog closes and a card
 appears in the corner — **the terminal stays visible the whole time.** That
 is deliberate: operators need to see what the host is actually doing, and it
@@ -88,7 +95,9 @@ recording controls — or find it in the command palette. The wizard is five
 stages, in the shape of the task itself:
 
 1. **Details.** What the task is called and what it does. The name is what
-   appears on the menu, and what an assistant calls to run it.
+   appears on the menu, and what an assistant calls to run it. The name is
+   marked *required*: **Next** will not move on without one, and says so beside
+   the field.
 2. **Inputs.** Everything typed during the recording arrives as an input the
    operator will be asked for, labelled with the text the screen itself uses.
    Each one is **Ask the operator**, **Always this value** — which removes it
@@ -108,7 +117,9 @@ stages, in the shape of the task itself:
    that may be missing.
 5. **Review.** The server validates the task and reads the answer back from
    the screen — using the same validation and the same extraction the runner
-   uses, so what it shows is what a run will do. Then save.
+   uses, so what it shows is what a run will do. Then save. **Save task** stays
+   off while the task cannot be saved — no name yet, or a problem the review
+   lists — and the reason is shown beside it.
 
 On the first stage is **What was assumed** — every guess the draft made,
 listed rather than buried. Read it: a guard that could not be derived, a field

@@ -164,3 +164,28 @@ func lowerASCII(s string) string {
 	}
 	return string(out)
 }
+
+// retryAfterSeconds is how many whole seconds to ask a client to wait: the
+// remaining lockout rounded up, never zero, so retrying on the dot is not
+// refused again.
+func retryAfterSeconds(d time.Duration) int {
+	seconds := int((d + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
+
+// retryAfterText says how long to wait the way somebody reads it, rounded up so
+// that doing as it says is enough: "1 second", "5 minutes", "2 hours".
+func retryAfterText(d time.Duration) string {
+	seconds := retryAfterSeconds(d)
+	if seconds < 60 {
+		return countOf(seconds, "second")
+	}
+	minutes := (seconds + 59) / 60
+	if minutes < 60 {
+		return countOf(minutes, "minute")
+	}
+	return countOf((minutes+59)/60, "hour")
+}

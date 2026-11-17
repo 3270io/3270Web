@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -196,27 +197,76 @@ func (app *App) sessionTabs(c *gin.Context) []sessionTab {
 		if !ok {
 			continue
 		}
-		target := formatSessionTarget(s)
-		label := sessionTabLabel(s, target)
-		// A session still sitting on the menu has no host to be named after —
-		// its address is a loopback listener this process opened — so it is
-		// named for what is on the screen. Once a system is chosen the menu is
-		// stopped and the tab takes that host's name.
-		_, onMenu := app.menus().get(id)
-		if onMenu {
-			target = selectionScreenTabLabel
-			label = selectionScreenTabLabel
-		}
-		tabs = append(tabs, sessionTab{
-			ID:     id,
-			Target: target,
-			Label:  label,
-			Active: id == activeID,
-			Menu:   onMenu,
-		})
+		tabs = append(tabs, app.tabFor(s, activeID))
 	}
 	disambiguateTabLabels(tabs)
 	return tabs
+}
+
+// tabFor describes one session the way the tab bar names it.
+func (app *App) tabFor(s *session.Session, activeID string) sessionTab {
+	target := formatSessionTarget(s)
+	label := sessionTabLabel(s, target)
+	// A session still sitting on the menu has no host to be named after —
+	// its address is a loopback listener this process opened — so it is
+	// named for what is on the screen. Once a system is chosen the menu is
+	// stopped and the tab takes that host's name.
+	_, onMenu := app.menus().get(s.ID)
+	if onMenu {
+		target = selectionScreenTabLabel
+		label = selectionScreenTabLabel
+	}
+	return sessionTab{
+		ID:     s.ID,
+		Target: target,
+		Label:  label,
+		Active: s.ID == activeID,
+		Menu:   onMenu,
+	}
+}
+
+// accountSessionTabs lists every session the caller's account holds: the
+// browser's own tabs first, then any others.
+//
+// The others are what the roster cannot show — a session opened from another
+// browser or by an API client, or one this browser stopped remembering when its
+// cookie expired. They count against the per-user cap all the same, so the
+// connect page's "session limit reached" panel has to be able to offer them: a
+// list limited to the roster is empty in exactly the case where somebody is
+// stuck.
+func (app *App) accountSessionTabs(c *gin.Context) []sessionTab {
+	tabs := app.sessionTabs(c)
+	listed := make(map[string]struct{}, len(tabs))
+	for _, tab := range tabs {
+		listed[tab.ID] = struct{}{}
+	}
+	activeID := getCookieValue(c, sessionCookieName)
+	owned := app.SessionManager.ListSessionsFor(principalFrom(c).UserID)
+	sort.Slice(owned, func(i, j int) bool { return owned[i].ID < owned[j].ID })
+	for _, s := range owned {
+		if _, dup := listed[s.ID]; dup || !app.mayUseSession(c, s) {
+			continue
+		}
+		tabs = append(tabs, app.tabFor(s, activeID))
+	}
+	disambiguateTabLabels(tabs)
+	return tabs
+}
+
+// mayManageSession reports whether the caller may switch to or close the
+// session with this ID: it is in their roster, or it belongs to their account.
+//
+// The roster used to be the whole answer. It is still how the tab bar knows
+// what to show, but isolation between people is ownership — see mayUseSession —
+// and an owner who cannot reach their own session because a cookie lapsed has
+// no way to free the slot it holds. An unowned session or another account's is
+// not reachable this way: Principal.Owns refuses both.
+func (app *App) mayManageSession(c *gin.Context, id string) bool {
+	if containsString(app.sessionRoster(c), id) {
+		return true
+	}
+	s, ok := app.SessionManager.PeekSession(id)
+	return ok && principalFrom(c).Owns(s.OwnerID)
 }
 
 // disambiguateTabLabels makes every tab distinguishable at a glance. Two
@@ -375,13 +425,17 @@ func (app *App) SessionsSwitchHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "session id is required"})
 		return
 	}
-	// Must be in this browser's own roster. Checking only that the session
-	// exists would turn this into a way to step into someone else's.
-	if !containsString(app.sessionRoster(c), id) {
+	// Must be in this browser's own roster or belong to this account. Checking
+	// only that the session exists would turn this into a way to step into
+	// someone else's.
+	if !app.mayManageSession(c, id) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
 	setSessionCookie(c, sessionCookieName, id)
+	// A session resumed from outside the roster joins it, so the tab bar on
+	// the terminal page shows what the person has just opened.
+	app.rememberSession(c, id)
 	if s, ok := app.SessionManager.PeekSession(id); ok {
 		if target := formatSessionTarget(s); target != "" {
 			setSessionCookie(c, lastTargetCookieName, target)
@@ -396,7 +450,7 @@ func (app *App) SessionsCloseHandler(c *gin.Context) {
 	if id == "" {
 		id = getCookieValue(c, sessionCookieName)
 	}
-	if id == "" || !containsString(app.sessionRoster(c), id) {
+	if id == "" || !app.mayManageSession(c, id) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}

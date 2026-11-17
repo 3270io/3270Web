@@ -183,6 +183,9 @@ type SampleAppOption struct {
 	ID       string
 	Name     string
 	Hostname string
+	// Port is the app's own default, so a picker can preselect it instead of
+	// offering every app the same one.
+	Port int
 }
 
 const sampleAppPrefix = "sampleapp:"
@@ -1274,17 +1277,45 @@ const sessionCookieName = "3270Web_session"
 
 const lastTargetCookieName = "3270Web_last_target"
 
+// lastTargetCheckTimeout bounds the name lookup done to decide whether the
+// remembered target is worth offering. Drawing the connect page must not wait
+// on a slow resolver for a convenience; a lookup that does not answer in time
+// is treated as "not a refusal", the same as checkHostResolves treats a failed
+// one.
+const lastTargetCheckTimeout = 750 * time.Millisecond
+
+// offerableLastTarget returns the remembered target if Connect would accept it
+// and "" otherwise.
+//
+// The cookie is written on every connect, so it can name something this
+// instance has since stopped permitting — most often a loopback address from a
+// browser that submitted the old pre-filled default. Offering it back means
+// the next click on Connect is a refusal the person did nothing to earn, so it
+// goes through the same checks Connect runs first.
+func offerableLastTarget(c *gin.Context, target string) string {
+	target = strings.TrimSpace(target)
+	if target == "" || !isValidHostname(target) || checkHostAllowed(target) != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(requestContext(c), lastTargetCheckTimeout)
+	defer cancel()
+	if checkHostResolves(ctx, target) != nil {
+		return ""
+	}
+	return target
+}
+
 func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, connectError string) {
 	defaultHost := strings.TrimSpace(hostname)
 	if app.Config.TargetHost.Value != "" {
 		defaultHost = app.Config.TargetHost.Value
 	}
 	if defaultHost == "" {
-		defaultHost = strings.TrimSpace(getCookieValue(c, lastTargetCookieName))
+		defaultHost = offerableLastTarget(c, getCookieValue(c, lastTargetCookieName))
 	}
-	if defaultHost == "" {
-		defaultHost = "localhost:3270"
-	}
+	// Nothing to offer is an empty field with the placeholder example, not a
+	// guess. The old fallback, "localhost:3270", is the one address this
+	// instance's own loopback guard always refuses on Connect.
 	samplePorts := allowedSampleAppPorts()
 	// The connect page carries the same theme picker as the terminal, and
 	// embedding its list is what makes the picker right on first paint rather
@@ -1300,7 +1331,16 @@ func (app *App) renderConnectPage(c *gin.Context, status int, hostname string, c
 		themesJSON = string(encoded)
 	}
 	rememberEmbedMode(c)
+	// At the session cap the way forward is to end or resume one of the
+	// sessions already open, so the page is given them to list.
+	sessionLimit := connectSessionLimit(c)
+	var openSessions []sessionTab
+	if sessionLimit {
+		openSessions = app.accountSessionTabs(c)
+	}
 	c.HTML(status, "connect.html", gin.H{
+		"SessionLimit":   sessionLimit,
+		"OpenSessions":   openSessions,
 		"Embedded":       embedRequested(c),
 		"EmbedOrigins":   embedOriginsAttr(),
 		"DefaultHost":    defaultHost,
@@ -1361,6 +1401,7 @@ func (app *App) HomeHandler(c *gin.Context) {
 	if targetHost != "" && app.Config.TargetHost.AutoConnect {
 		if err := app.connectToHost(c, targetHost); err != nil {
 			log.Printf("Auto-connect failed for %q: %v", targetHost, err)
+			flagSessionLimit(c, err)
 			app.renderConnectPage(c, http.StatusServiceUnavailable, targetHost, connectErrorMessage(targetHost, err))
 			return
 		}
@@ -1400,6 +1441,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 		if err := app.connectWithProfile(c, profile); err != nil {
 			log.Printf("Connect failed for profile %q: %v", name, err)
 			c.Set("connectionDetails", err.Error())
+			flagSessionLimit(c, err)
 			app.renderConnectPage(c, http.StatusServiceUnavailable, profile.displayTarget(),
 				connectErrorMessage(profile.displayTarget(), err))
 			return
@@ -1436,6 +1478,7 @@ func (app *App) ConnectHandler(c *gin.Context) {
 	if err := connectErr; err != nil {
 		log.Printf("Connect failed for %q: %v", hostname, err)
 		c.Set("connectionDetails", err.Error())
+		flagSessionLimit(c, err)
 		app.renderConnectPage(c, http.StatusServiceUnavailable, hostname, connectErrorMessage(hostname, err))
 		return
 	}
@@ -1458,8 +1501,18 @@ func connectErrorMessage(hostname string, err error) string {
 		return refusal.message
 	}
 	if id, port, ok := parseSampleAppHost(hostname); ok && err != nil {
-		return fmt.Sprintf("We couldn't start %s. %s.",
+		var inUse *host.SampleAppPortInUseError
+		if errors.As(err, &inUse) {
+			return samplePortInUseMessage(inUse)
+		}
+		message := fmt.Sprintf("We couldn't start %s. %s.",
 			sampleAppDescription(id, port), capitaliseFirst(err.Error()))
+		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			// Something outside this process has the port, so there is no
+			// list of free ones to offer; say where the choice is made.
+			message += " Pick another port under Advanced in Other samples."
+		}
+		return message
 	}
 	if err != nil {
 		text := strings.ToLower(err.Error())
@@ -1477,6 +1530,24 @@ func connectErrorMessage(hostname string, err error) string {
 		}
 	}
 	return fmt.Sprintf("We couldn't connect to %s. Please verify the address and that the TN3270 service is available, then try again.", hostname)
+}
+
+// samplePortInUseMessage explains a sample port held by a different sample and
+// says how to get out of it: a port that is free, and where to choose it.
+func samplePortInUseMessage(e *host.SampleAppPortInUseError) string {
+	name := func(id string) string {
+		if cfg, ok := sampleAppConfig(id); ok {
+			return cfg.Name
+		}
+		return id
+	}
+	message := fmt.Sprintf("Port %d is already serving %s, so %s cannot use it.",
+		e.Port, name(e.HeldBy), name(e.Requested))
+	if free := suggestSampleAppPort(e.Requested, e.Port); free != 0 {
+		return message + fmt.Sprintf(" Use port %d instead: type sampleapp:%s:%d, or pick another port under Advanced in Other samples.",
+			free, e.Requested, free)
+	}
+	return message + " Close the session using it, or pick another port under Advanced in Other samples."
 }
 
 // sampleAppDescription names a sample app the way the picker does, rather than
@@ -1648,9 +1719,17 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		return
 	}
 
+	// A host that has hung up still gets its page, drawn from the last screen
+	// it sent and marked disconnected. The terminal page is where Reconnect
+	// lives, so an error page here would send somebody away from the one place
+	// that can fix it — which is also where "Return to terminal" leads.
+	hostLost := false
 	if err := h.UpdateScreen(); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
-		return
+		if !host.IsDisconnected(err) {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": fmt.Sprintf("Update screen failed: %v", err)})
+			return
+		}
+		hostLost = true
 	}
 
 	screen := hostScreenSnapshot(h)
@@ -1668,6 +1747,9 @@ func (app *App) ScreenHandler(c *gin.Context) {
 
 	keyboardLabel, modelLabel, dimensionLabel, cursorLabel := screenStatusLabels(screen)
 	oia := screenOIA(screen)
+	if hostLost {
+		markOIADisconnected(oia)
+	}
 
 	chaosRunActive := false
 	if app.chaosEngines != nil {
@@ -1768,6 +1850,10 @@ func (app *App) ScreenContentHandler(c *gin.Context) {
 		return
 	}
 	if err := h.UpdateScreen(); err != nil {
+		if host.IsDisconnected(err) {
+			respondHostLostJSON(c)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Update screen failed: %v", err)})
 		return
 	}
@@ -1878,6 +1964,10 @@ func (app *App) SubmitHandler(c *gin.Context) {
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
+		if errors.Is(err, errHostDisconnected) {
+			renderHostLostPage(c, err)
+			return
+		}
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"Error": err.Error()})
 		return
 	}
@@ -1892,6 +1982,10 @@ func (app *App) SubmitAsyncHandler(c *gin.Context) {
 		return
 	}
 	if err := app.processSubmit(c, s); err != nil {
+		if errors.Is(err, errHostDisconnected) {
+			respondHostLostJSON(c)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -1935,7 +2029,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	recordScreenForStep(s, painted)
 	recordFieldUpdates(s, filled)
 	if err != nil {
-		return fmt.Errorf("submit failed: %w", err)
+		return lostHostOr(h, fmt.Errorf("submit failed: %w", err))
 	}
 
 	if cursorRow != "" && cursorCol != "" {
@@ -1961,7 +2055,7 @@ func (app *App) processSubmit(c *gin.Context, s *session.Session) error {
 	recordActionKey(s, actionKey)
 
 	if err := h.SendKey(actionKey); err != nil {
-		return fmt.Errorf("send key failed: %w", err)
+		return lostHostOr(h, fmt.Errorf("send key failed: %w", err))
 	}
 	return nil
 }
@@ -2909,14 +3003,24 @@ func (app *App) updateSettings(c *gin.Context) {
 			return
 		}
 		app.applyRuntimeSetting(key, value)
-		changed = append(changed, key)
+		// The form posts every setting it shows, so a key being in the payload
+		// says nothing about whether it was edited. Compared with what was in
+		// effect before this save: a secret is served as its mask, so a new
+		// value reads as different and an untouched one was skipped above.
+		if previous, known := current[key]; !known || previous != value {
+			changed = append(changed, key)
+		}
 	}
 
 	// The keys, never the values: a setting can hold a proxy string or a
-	// keyfile password, and the trail is read by every administrator.
-	sort.Strings(changed)
-	app.auditRequest(c, audit.EventSettingsSaved, audit.Success, "",
-		map[string]string{"keys": strings.Join(changed, ",")})
+	// keyfile password, and the trail is read by every administrator. A save
+	// that changed nothing is not recorded: "Settings changed" over an empty
+	// list, or over every setting on the form, tells a reader nothing.
+	if len(changed) > 0 {
+		sort.Strings(changed)
+		app.auditRequest(c, audit.EventSettingsSaved, audit.Success, "",
+			map[string]string{"keys": strings.Join(changed, ",")})
+	}
 
 	app.writeSettingsResponse(c)
 }
@@ -3522,24 +3626,22 @@ func (app *App) KeypadPrefHandler(c *gin.Context) {
 		return
 	}
 
+	// View > Virtual keypad is one person's choice about their own screen, so it
+	// is kept for this session only. It used to be written to the process
+	// environment and to .env as well, which made it the default for everyone's
+	// next session and for the next restart — the very value Settings calls
+	// "Show the virtual keypad by default". The instance default is changed in
+	// Settings and nowhere else. The browser remembers the choice itself
+	// (keyboard.js, localStorage); this copy only keeps a reload inside the
+	// session agreeing with the page when the browser has nothing stored.
 	enabled := parseBoolFormValue(c.PostForm("keypad"))
 	withSessionLock(s, func() {
 		app.ensurePrefs(s)
 		s.Prefs.UseKeypad = enabled
 	})
 
-	_ = os.Setenv("APP_USE_KEYPAD", strconv.FormatBool(enabled))
-	persisted := true
-	if app.envPath != "" {
-		if err := config.UpsertDotEnvValue(app.envPath, "APP_USE_KEYPAD", strconv.FormatBool(enabled)); err != nil {
-			persisted = false
-			log.Printf("Warning: could not persist APP_USE_KEYPAD to .env: %v", err)
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"useKeypad": enabled,
-		"persisted": persisted,
 	})
 }
 
@@ -4517,6 +4619,7 @@ func availableSampleApps() []SampleAppOption {
 			ID:       app.ID,
 			Name:     app.Name,
 			Hostname: sampleAppHostname(app.ID),
+			Port:     defaultSampleAppPortFor(app.ID),
 		})
 	}
 	return options
@@ -4558,11 +4661,45 @@ func isAllowedSampleAppPort(port int) bool {
 	return ok
 }
 
-func sampleAppPort(port int) int {
+// defaultSampleAppPortFor is the port an app takes when none is chosen: the
+// one at its position in sampleAppConfigs, so the eight apps never share a
+// default. The saved-connections list (sampleAppPresetOptions) offers the same
+// ports for the same reason; both read this so they cannot drift apart.
+//
+// An id with no entry falls back to defaultSampleAppPort.
+func defaultSampleAppPortFor(id string) int {
+	ports := allowedSampleAppPorts()
+	for i, cfg := range sampleAppConfigs {
+		if cfg.ID == id && i < len(ports) {
+			return ports[i]
+		}
+	}
+	return defaultSampleAppPort
+}
+
+// sampleAppPort is the port to serve an app on: the one asked for, or the
+// app's own default when none was.
+func sampleAppPort(id string, port int) int {
 	if port <= 0 {
-		return defaultSampleAppPort
+		return defaultSampleAppPortFor(id)
 	}
 	return port
+}
+
+// suggestSampleAppPort names a port the app could use instead of busy: its own
+// default if that is free, else the first of the allowed ports that no sample
+// listener is holding. Zero means every one is taken.
+func suggestSampleAppPort(id string, busy int) int {
+	free := func(port int) bool { return port != busy && !host.SampleAppPortInUse(port) }
+	if own := defaultSampleAppPortFor(id); free(own) {
+		return own
+	}
+	for _, port := range allowedSampleAppPorts() {
+		if free(port) {
+			return port
+		}
+	}
+	return 0
 }
 
 // newHostFor builds the connection a target names, whether that target is a
@@ -4617,7 +4754,7 @@ func newSampleAppHost(id string, port int, execPath string, opts config.S3270Opt
 	if !ok {
 		return nil, fmt.Errorf("unknown sample app %q", id)
 	}
-	port = sampleAppPort(port)
+	port = sampleAppPort(id, port)
 	target := fmt.Sprintf("127.0.0.1:%d", port)
 	args := buildS3270Args(opts, "")
 	return host.NewGoSampleAppHost(cfg.ID, port, execPath, args, target)

@@ -75,6 +75,11 @@ Open 3270Web in a browser, enter the code, and choose your own username and
 password. You are signed in immediately, and setup closes for good — the page
 redirects to the sign-in form from then on, and the code stops working.
 
+If the form is refused — a wrong code, a username that is not allowed, a weak
+password or passwords that differ — it comes back with the setup code and the
+username still filled in and the cursor in the field to fix. The passwords are
+never written back; retype them.
+
 !!! note "Nothing is created behind your back"
     3270Web never invents an account or a default password. Until you complete
     setup there are no credentials to leak, and the administrator's password is
@@ -123,6 +128,41 @@ administrator cannot do, deliberately, is see the session's screen or type
 into it — administering the instance is not the same power as sitting at
 somebody's authenticated mainframe terminal. Every administrative disconnect
 is written to the audit trail: who did it, whose session, and the host.
+
+### Keyboard, screen readers and phones
+
+Every page in the area opens with a **Skip to content** link, which is the
+first thing `Tab` reaches. It is out of sight until it has focus; following it
+moves past the header and the navigation to the page's own content, which is
+the page's `main` landmark.
+
+The buttons in a table row say whose they are to a screen reader, because a
+page of rows is otherwise a page of identical buttons: *Edit Game - Snake*,
+*Delete alice*, *Edit group payments*, *Disconnect admin's session*. The visible
+text is unchanged and is where each name begins.
+
+Dialogs on these pages behave like the rest of 3270Web's. Keyboard focus stays
+inside the open dialog, `Esc` closes the one on top, and focus goes back to the
+button that opened it. A dialog is never taller than the window: a long form,
+such as adding a preset or a group, scrolls inside the dialog while its title,
+its close button and its **Cancel** and **Save** buttons stay in view.
+Confirmations start with focus on **Cancel**.
+
+Below 720 px wide — a phone, held either way up — each table becomes a list of cards
+rather than a table with hidden columns. The first column is the card's
+heading, each other column sits under its name, and the row's buttons come
+last. Wider than that, a table that is still too wide for its space scrolls
+sideways, and a soft edge on the side that has more to show says so.
+
+### Reading the audit trail
+
+The **Audit trail** page and the overview's recent activity name an entry by
+what happened, and an entry that was refused or failed is named for that
+instead. A setup attempt with the wrong code appears as **First administrator
+setup refused**, not as the event it was attempting. Such entries are marked
+with a `!` as well as the red the page already gave them, so they can still be
+told apart without colour. The [audit trail](multi-user.md#the-audit-trail)
+page describes what is recorded.
 
 ## Managing accounts
 
@@ -300,6 +340,10 @@ New accounts are `user` unless `--admin` is given. The command refuses to
 disable the last enabled administrator, since that leaves an instance nobody
 can administer.
 
+An account without the `admin` role that opens an administration page is shown
+**You don't have access to administration**, with links back to the terminal
+and the connect page. The response is still HTTP `403`.
+
 ### Passwords
 
 At least 12 characters. There are no composition rules — required digits and
@@ -416,6 +460,12 @@ needed.
 | `MAX_TOTAL_SESSIONS` | `64` | Concurrent terminal sessions across the instance |
 
 Sessions live in memory, so restarting the server signs everyone out.
+
+A refused sign-in keeps the username in the form. After five failed attempts
+for the same account or from the same address, further attempts are locked out
+for a period that doubles with each failure, up to 15 minutes. The sign-in
+page says how long ("Try again in 2 minutes."), and the response carries a
+`Retry-After` header.
 
 `AUTH_BIND_SESSION_IP` accepts `auto`, `true` or `false`. `auto` enables
 pinning on plain HTTP and disables it behind TLS — see

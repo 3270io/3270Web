@@ -302,6 +302,26 @@ input[type="file"]::file-selector-button:hover {
   border-radius: 0;
 }
 
+/* The "Start sample app" dialog's captions. Its two labels sit directly above
+   the select they name rather than wrapping it, so they are captions — but
+   style.css gives every label the border, fill and padding of a field, and
+   "Sample application" read as a second, empty control above the real one.
+   Same treatment as the settings dialog's captions: no box, semibold. */
+[data-sample-modal] .stack > label,
+[data-sample-modal] details > label {
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+[data-sample-modal] details > label {
+  display: block;
+  margin: 8px 0 4px;
+}
+
 /* Icon buttons get a circular hover halo. */
 .icon-button {
   border-radius: var(--r-sm);
@@ -1040,7 +1060,10 @@ body[data-focus="on"] .sample-status {
   align-items: center;
   gap: 2px;
   flex: 0 0 auto;
-  max-width: 22ch;
+  /* 22ch cut a sample app's name ("Pet Store - Retail & Back Offic…") at the
+     point where a person has started to recognise it. The tab list scrolls
+     sideways when there are many tabs, so each can afford to be wider. */
+  max-width: min(44ch, 70vw);
   padding: 0 2px 0 0;
   border: 1px solid transparent;
   border-bottom: none;
@@ -2038,7 +2061,7 @@ body[data-focus="on"] .sample-status {
   grid-template-columns: 1fr minmax(120px, 1.2fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px;
+  padding: 3px 10px;
   border-bottom: 1px solid var(--hairline-soft);
 }
 
@@ -2078,8 +2101,15 @@ body[data-focus="on"] .sample-status {
   color: var(--accent);
 }
 
+/* 28px, not the 22px that the 3px of padding on 0.72rem type made them: 94 of
+   the dialog's 100 controls were under the 24px that WCAG 2.5.8 asks of a
+   target, and the Rebind and Default buttons are what the dialog is for. The
+   row padding comes down by the same amount so the rows grow by a few pixels,
+   not by the full height of the new buttons. */
 .keymap-action-btn {
-  padding: 3px 10px;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px 10px;
   font-size: 0.72rem;
   white-space: nowrap;
 }
@@ -2338,6 +2368,47 @@ body[data-focus="on"] .sample-status {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+
+/* "Use TLS" and "Use these options for this connection" were a bare 18px box
+   with a line of small text beside it. The label already is the click target
+   (the box sits inside it), but the box is what the eye and a thumb aim at, so
+   it is 24px — the smallest a pointer target is meant to be — and the label
+   keeps room above and below it, with a few pixels between one and the next so
+   a tap between two lands on one of them and not on the gap. The same class
+   is used by the checkboxes in the saved-connection form, so they follow. */
+.profiles-check {
+  box-sizing: border-box;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.profiles-check input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.profiles-check input[type="checkbox"]::after {
+  width: 13px;
+  height: 13px;
+}
+
+.connection-options .profiles-check {
+  font-size: 0.85rem;
+}
+
+.connection-options .profiles-check + .profiles-check {
+  margin-top: 6px;
+}
+
+@media (pointer: coarse) {
+  .profiles-check {
+    min-height: 44px;
+  }
 }
 
 .profiles-form input[type="text"],
@@ -2973,12 +3044,96 @@ body.theme-authentic .terminal-shell {
 
 /* Minimised, the fixed 220px width left no room for the title next to the
    tracking switch and the two icon buttons, so it collapsed to "W…".
-   Size to content instead. */
+   Size to content instead — to the header's content, which is what
+   min-content gives. max-content also counted the body, which is hidden
+   but still has a sentence of 400px in it, and made the minimised widget as
+   wide as the expanded one. */
 .workflow-status-widget.is-minimized,
 html.workflow-status-minimized .workflow-status-widget {
-  width: max-content;
+  width: min-content;
   min-width: 220px;
   max-width: calc(100vw - 40px);
+}
+
+/* The switch sits in a label, and style.css gives every label the padding and
+   border of a field. Round a 36px switch that is a 91px box, which is most
+   of what pushed the minimised widget past 400px. */
+.workflow-status-tracking-toggle {
+  padding: 4px 6px;
+}
+
+/* The real checkbox is there for the keyboard and for assistive tech and is
+   meant to take no room. The themed-checkbox rule above gives every checkbox
+   an 18px minimum width and puts it back in the flow, so the invisible one was
+   claiming 26px of the switch's label. Take it out of the flow again — and
+   since it is invisible, show its focus on the switch itself, or somebody
+   tabbing through the header lands on nothing. */
+.workflow-status-tracking-toggle input[type="checkbox"] {
+  position: absolute;
+  min-width: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.workflow-status-tracking-toggle:focus-within .workflow-status-toggle {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* One button restores the minimised widget and minimises the open one, so it
+   shows the chevron for whichever it will do. Restore (up: the widget grows
+   upward from its corner) while minimised, minimise (down) otherwise. */
+.workflow-status-icon-restore,
+.workflow-status-widget.is-minimized .workflow-status-icon-minimize,
+html.workflow-status-minimized .workflow-status-icon-minimize {
+  display: none;
+}
+
+.workflow-status-widget.is-minimized .workflow-status-icon-restore,
+html.workflow-status-minimized .workflow-status-icon-restore {
+  display: inline;
+}
+
+/* Where the widget lives.
+
+   It is fixed to the bottom-left of the viewport, and between 1280 and 1600px
+   the free margin on that side is narrower than the widget: at 1280 the
+   terminal frame starts about 335px in, and a minimised widget is 300 wide, so
+   it floated over the first columns of the screen — 89x65px of it at 1280,
+   46x65px at 1366 — hiding exactly the text somebody is watching a run to
+   read. A fixed element cannot know where the terminal is, so the page makes
+   the room instead: while the widget is showing, the page gets a left gutter
+   as wide as the widget and the card centres in what remains. The gutter is
+   the widget's width plus its 20px offset and a 16px gap, and the widget is
+   capped at that width so dragging its resize handle cannot take it back over
+   the card.
+
+   Above 1600px the margin is wide enough already, so nothing moves. Below
+   1280px there is not room for a gutter and the terminal comes first: the
+   widget stays a small floating pill. The AI chat panel and focus mode each
+   claim the rest of the width themselves, so the gutter stands down for them
+   and the widget floats as it always did. */
+@media (min-width: 1280px) and (max-width: 1599px) {
+  body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .page-wrap {
+    padding-left: 340px;
+  }
+
+  body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .card {
+    max-width: calc(100vw - 340px - 20px);
+  }
+
+  html:not(.workflow-status-minimized) body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .page-wrap {
+    padding-left: 396px;
+  }
+
+  html:not(.workflow-status-minimized) body:not(.copilot-open):not([data-focus="on"]):has(> .workflow-status-widget:not([hidden])) .card {
+    max-width: calc(100vw - 396px - 20px);
+  }
+
+  .workflow-status-widget {
+    max-width: 360px;
+  }
 }
 
 .workflow-status-widget.is-minimized .workflow-status-widget-header strong,
@@ -3187,6 +3342,39 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 .chaos-hint-field input,
 .chaos-hint-field textarea {
   border-radius: var(--r-sm);
+}
+
+/* Chaos Hints.
+
+   The scroll region ended flush against its last row, so whatever was at the
+   bottom — the helper line under the key assignments, the status text — sat
+   on the edge of the clip and read as cut off. It gets room to finish.
+
+   The fourth first-screen field was alone in a 220px column on its second
+   row, so its sentence of help wrapped to four lines under a short textarea.
+   Alone on a row it takes the whole row, and the sentence fits on one. */
+.modal-chaos-hints .stack {
+  padding-bottom: 16px;
+  scroll-padding-bottom: 16px;
+}
+
+.chaos-hint-row-static > .chaos-hint-field:last-child {
+  grid-column: 1 / -1;
+}
+
+/* A placeholder is an example, not a value: the field is empty and the dialog
+   should say so. The markup now opens each one with "e.g."; italics set it
+   apart from typed text, which is upright and full-strength. The colour stays
+   the muted foreground rather than the browser's grey, which measured under
+   4.5:1 on the panel, so the example is still readable by anyone who needs
+   it. */
+.modal-chaos-hints .chaos-hint-field textarea::placeholder,
+.modal-chaos-hints .chaos-hint-field input::placeholder,
+.chaos-hint-row textarea::placeholder,
+.chaos-hint-row input::placeholder {
+  color: var(--fg-muted);
+  opacity: 1;
+  font-style: italic;
 }
 
 /* ...but not checkboxes: --r-sm on an 18px box renders as a circle, which
@@ -3605,6 +3793,100 @@ body.copilot-resizing .copilot-resize-handle::after {
 body.copilot-resizing {
   cursor: col-resize;
   user-select: none;
+}
+
+/* Phones: the panel is a sheet, not a column.
+
+   Beside the terminal it is a 380px column the page makes room for with
+   padding. On a 390px phone that is the whole screen: the padding squeezed the
+   page behind it to a ~100px strip, and the panel's own header — title, Auto,
+   Provider, Clear, close — is wider than the room left, so Clear and the close
+   button fell off the right edge with nothing to scroll them back.
+
+   Below 600px it covers the viewport instead, and the page behind it is left
+   alone: no padding, no reflow, nothing to squeeze. It respects the notch and
+   the home indicator. The drag handle is meaningless at full width. Desktop
+   keeps the column exactly as it was. */
+@media (max-width: 600px) {
+  .copilot-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    height: auto;
+    border-left: none;
+    box-shadow: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+    box-sizing: border-box;
+    animation: none;
+  }
+
+  /* On a touch device the key bar owns the bottom edge and touch.css ends the
+     sheet where the bar begins. Without one, the sheet is the bottom edge and
+     has the home indicator to clear. */
+  body:not(.touch-device) .copilot-panel {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body.copilot-open .page-wrap {
+    padding-right: 20px;
+    transition: none;
+  }
+
+  /* The page cannot be scrolled behind the sheet: the only scrolling that
+     should happen while it is open is the conversation's own. */
+  body.copilot-open {
+    overflow: hidden;
+  }
+
+  .copilot-resize-handle {
+    display: none;
+  }
+
+  /* Five controls in a row: they wrap to a second line before any of them is
+     pushed off the edge, and each is a thumb-sized target. */
+  .copilot-panel-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .copilot-panel-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .copilot-icon-button {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+  }
+
+  /* The close cross is the control that has to be found, so it is the largest
+     glyph in the row. */
+  .copilot-icon-button[data-copilot-close] {
+    font-size: 1.5rem;
+    line-height: 1;
+    padding-inline: 14px;
+  }
+
+  /* Toasts are offset for the column on a desktop; here the sheet covers the
+     whole width and they belong at the screen edge, above it. */
+  body.copilot-open #h3270-notification-container {
+    right: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  body.copilot-open .page-wrap {
+    padding-right: 8px;
+  }
 }
 
 /* ---------------------------------------------------------------------

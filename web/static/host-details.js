@@ -78,16 +78,32 @@
         show.type = "button";
         show.className = "host-details-expand";
         show.textContent = "Show";
+        // Six of these can be on screen at once, each reading "Show". A screen
+        // reader's list of buttons, or a voice user saying "click Show", has
+        // nothing to tell them apart; the visible word stays short and the
+        // name says which value it reveals. (The name starts with the visible
+        // word, so speech control that says "Show" still finds it.)
+        show.setAttribute("aria-label", "Show " + label);
         show.addEventListener("click", function () {
+          var hadFocus = document.activeElement === show;
           show.disabled = true;
           show.textContent = "Loading…";
+          show.setAttribute("aria-label", "Loading " + label);
           fetchQuery("?name=" + encodeURIComponent(name))
             .then(function (data) {
               dd.textContent = data.value || EMPTY_LABEL;
+              // The button was the focused element and is gone; without this
+              // focus falls to the page behind and the next Tab starts over.
+              // Only if the reader had not already gone somewhere else.
+              if (hadFocus && (document.activeElement === show || document.activeElement === document.body)) {
+                dd.setAttribute("tabindex", "-1");
+                dd.focus();
+              }
             })
             .catch(function (err) {
               show.disabled = false;
               show.textContent = "Show";
+              show.setAttribute("aria-label", "Show " + label);
               setStatus(err.message, true);
             });
         });

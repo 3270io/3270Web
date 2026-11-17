@@ -101,6 +101,9 @@
     // A dialog re-opened after being scrolled through keeps its old scroll
     // offset, which on a phone means opening onto the middle of the form.
     dialog.scrollTop = 0;
+    dialog.querySelectorAll('.admin-dialog-body').forEach(function (part) {
+      part.scrollTop = 0;
+    });
     // The first thing to fill in, not the first thing in the markup — the
     // close button leads the panel, and opening a dialog with focus on its
     // dismiss control reads as "are you sure you meant to do that".
@@ -178,9 +181,14 @@
     return el('span', 'pill ' + className, text);
   }
 
-  function actionButton(label, className, handler) {
+  // name is what a screen reader announces. Every row carries the same five
+  // buttons, so "Delete" on its own is a list of identical controls; the name
+  // says whose. It starts with the visible text, which is what somebody
+  // operating the page by voice says to press it.
+  function actionButton(label, className, handler, name) {
     var button = el('button', className || '', label);
     button.type = 'button';
+    if (name) button.setAttribute('aria-label', name);
     button.addEventListener('click', handler);
     return button;
   }
@@ -258,12 +266,12 @@
     if (!user.external) {
       actions.appendChild(actionButton('Reset password', '', function () {
         openReset(user);
-      }));
+      }, 'Reset password for ' + user.username));
     }
 
     actions.appendChild(actionButton('Groups', '', function () {
       openGroups(user);
-    }));
+    }, 'Groups for ' + user.username));
 
     // Each of these would lock the administrator out of the page they are
     // standing on, so the server refuses them and the UI does not offer them.
@@ -280,7 +288,8 @@
               update(user, { role: user.role === 'admin' ? 'user' : 'admin' },
                 'Role updated for ' + user.username + '.');
             });
-        }));
+        },
+        (user.role === 'admin' ? 'Make user: ' : 'Make admin: ') + user.username));
 
       actions.appendChild(actionButton(
         user.disabled ? 'Enable' : 'Disable', '',
@@ -294,7 +303,8 @@
           } else {
             update(user, { disabled: false }, user.username + ' enabled.');
           }
-        }));
+        },
+        (user.disabled ? 'Enable ' : 'Disable ') + user.username));
 
       actions.appendChild(actionButton('Delete', 'danger', function () {
         confirmThen('Delete ' + user.username + '?',
@@ -307,7 +317,7 @@
               })
               .catch(function (error) { setStatus(error.message, 'error'); });
           });
-      }));
+      }, 'Delete ' + user.username));
     }
 
     actionsCell.appendChild(actions);

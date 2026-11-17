@@ -114,6 +114,7 @@
                         <span class="ai-field-label" for="ai-baseurl">Endpoint URL</span>
                         <input id="ai-baseurl" type="url" data-ai-baseurl spellcheck="false" autocomplete="off">
                     </label>
+                    <p class="ai-field-help ai-field-error" id="ai-baseurl-error" data-ai-baseurl-error hidden></p>
 
                     <label class="ai-field" data-ai-key-row hidden>
                         <span class="ai-field-label" for="ai-key" data-ai-key-label>API key</span>
@@ -127,7 +128,7 @@
                         <datalist id="ai-model-suggestions" data-ai-model-list></datalist>
                     </label>
 
-                    <p class="copilot-modal-status" data-ai-status hidden></p>
+                    <p class="copilot-modal-status" id="ai-provider-status" data-ai-status hidden></p>
                 </div>
                 <div class="copilot-modal-footer">
                     <button type="button" data-ai-cancel>Cancel</button>
@@ -151,6 +152,11 @@
         });
         wrap.querySelector("[data-ai-signin]").addEventListener("click", onSignInClicked);
         wrap.querySelector("[data-ai-save]").addEventListener("click", onSaveClicked);
+        // The complaint is about what was typed, so it goes as soon as the
+        // field is touched rather than waiting for the next Save.
+        wrap.querySelector("[data-ai-baseurl]").addEventListener("input", function () {
+            setBaseUrlError("");
+        });
         return wrap;
     }
 
@@ -164,6 +170,25 @@
         // entirely rather than rendering an empty bar under the form.
         el.hidden = !text;
         el.classList.toggle("ai-status-error", !!isError);
+    }
+
+    // setBaseUrlError marks the Endpoint URL field invalid, or clears the mark
+    // when called with no message. The message is tied to the field with
+    // aria-describedby so a screen reader reads it when the field takes focus,
+    // rather than leaving it as a line of text somewhere below.
+    function setBaseUrlError(text) {
+        const input = q("[data-ai-baseurl]");
+        const el = q("[data-ai-baseurl-error]");
+        if (!input || !el) return;
+        el.textContent = text || "";
+        el.hidden = !text;
+        if (text) {
+            input.setAttribute("aria-invalid", "true");
+            input.setAttribute("aria-describedby", el.id);
+        } else {
+            input.removeAttribute("aria-invalid");
+            input.removeAttribute("aria-describedby");
+        }
     }
 
     function providerById(id) {
@@ -196,6 +221,7 @@
         baseInput.value = saved.baseUrl || "";
         baseInput.placeholder = prov.defaultBaseUrl || "https://your-endpoint.example.com/v1";
         baseInput.required = !!prov.baseUrlRequired;
+        setBaseUrlError("");
 
         const keyRow = q("[data-ai-key-row]");
         keyRow.hidden = isOAuth;
@@ -260,7 +286,20 @@
         if (!prov) return;
 
         const patch = { provider: providerId, target: providerId };
-        if (prov.baseUrlEditable) patch.baseUrl = q("[data-ai-baseurl]").value.trim();
+        if (prov.baseUrlEditable) {
+            const baseUrl = q("[data-ai-baseurl]").value.trim();
+            // The OpenAI-compatible entry has no default endpoint, and its key
+            // is optional: the URL is the one thing it cannot work without.
+            // Saving it empty used to close the dialog and leave the panel
+            // asking for an API key, so say so here, where the field is.
+            if (prov.baseUrlRequired && !baseUrl) {
+                setStatusText("");
+                setBaseUrlError("Enter the endpoint URL, for example http://localhost:11434/v1");
+                q("[data-ai-baseurl]").focus();
+                return;
+            }
+            patch.baseUrl = baseUrl;
+        }
         if (prov.auth !== "oauth-device") {
             const key = q("[data-ai-key]").value;
             // Omit the field entirely when untouched so the saved key survives.
@@ -296,7 +335,12 @@
         if (resolve) resolve(!!saved);
     }
 
-    async function openSettings() {
+    // opts.notice is one line saying why the dialog opened when the user did
+    // not ask for it themselves — a starter prompt that needs a provider, say.
+    // It is shown in the dialog's status strip, which a provider change clears,
+    // and tied to the dialog with aria-describedby so a screen reader reads it
+    // on open.
+    async function openSettings(opts) {
         if (modalPromise) return modalPromise;
         const wrap = buildModal();
         modalPromise = new Promise((resolve) => { modalResolve = resolve; });
@@ -320,6 +364,14 @@
         const current = (data.settings && data.settings.provider) || (data.providers[0] && data.providers[0].id);
         if (current) select.value = current;
         renderFields(select.value);
+        const notice = opts && opts.notice;
+        const dialog = wrap.querySelector("[role=dialog]");
+        if (notice) {
+            setStatusText(notice);
+            if (dialog) dialog.setAttribute("aria-describedby", "ai-provider-status");
+        } else if (dialog) {
+            dialog.removeAttribute("aria-describedby");
+        }
 
         wrap.hidden = false;
         focusTrap.activate();

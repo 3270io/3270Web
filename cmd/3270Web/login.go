@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -224,7 +225,11 @@ func (app *App) LoginPageHandler(c *gin.Context) {
 
 func (app *App) renderLogin(c *gin.Context, status int, errMessage string) {
 	c.HTML(status, "login.html", gin.H{
-		"Error":          errMessage,
+		"Error": errMessage,
+		// What was typed in the username box comes back, so a mistyped password
+		// does not also cost the name. Never the password. Empty on a first
+		// visit, when nothing has been posted.
+		"Username":       strings.TrimSpace(c.PostForm("username")),
 		"AppName":        "3270Web",
 		"ShowNoTLS":      !reqsec.IsTLS(c.Request),
 		"ProxySaysHTTPS": proxyClaimsHTTPS(c),
@@ -259,7 +264,8 @@ func (app *App) LoginHandler(c *gin.Context) {
 			Target:   username,
 			Detail:   map[string]string{"retryIn": retryIn.Round(time.Second).String()},
 		})
-		app.failLogin(c, "Too many failed attempts. Try again shortly.", http.StatusTooManyRequests)
+		c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(retryIn)))
+		app.failLogin(c, "Too many failed attempts. Try again in "+retryAfterText(retryIn)+".", http.StatusTooManyRequests)
 		return
 	}
 

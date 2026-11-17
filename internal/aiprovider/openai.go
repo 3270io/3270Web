@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jnnngs/3270Web/internal/aipolicy"
+	"github.com/jnnngs/3270Web/internal/copilot"
 )
 
 // streamIdleTimeout is how long a proxied SSE stream may go without any data
@@ -31,6 +32,9 @@ type APIError struct {
 	Provider string
 	Status   int
 	Body     string
+	// RetryAfter is how long the provider asked callers to wait, from its
+	// Retry-After header; zero when it did not say.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
@@ -97,7 +101,12 @@ func (c *openaiClient) StreamChat(ctx context.Context, payload map[string]any, o
 
 	if resp.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		return &APIError{Provider: c.provider.Label, Status: resp.StatusCode, Body: string(b)}
+		return &APIError{
+			Provider:   c.provider.Label,
+			Status:     resp.StatusCode,
+			Body:       string(b),
+			RetryAfter: copilot.ParseRetryAfter(resp.Header, time.Now()),
+		}
 	}
 	// Nothing is relayed until the response has said it is an event stream.
 	if err := aipolicy.CheckContentType(resp, aipolicy.ContentEventStream); err != nil {

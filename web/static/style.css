@@ -91,7 +91,17 @@ body.bg-paused .bg-overlay canvas {
      black is the sane default. The two paper themes swap it back to white,
      since their accent is a dark teal instead. */
   --accent-contrast: #000;
-  --term-color-blue: #0000ff;
+  /* Pure 3270 blue is 2.1-2.4:1 against every dark screen here, under the 3:1
+     floor for any text and far under the 4.5:1 for body text, so the screen id,
+     the date and the rules a host draws in blue all but vanish. Text drawn in
+     the host's blue is lifted to a lighter blue that is still unmistakably
+     blue (hue 228 against 240) and measures 5.0-5.4:1 on every dark theme's
+     ground. Only the ink is lifted: a host's blue *background* attribute keeps
+     the real colour, because it is a panel behind white or yellow text and the
+     real colour is what makes that legible. "Authentic 3270" keeps pure blue
+     for both, since reproducing the original palette is the point of it. */
+  --term-color-blue: #5c7cff;
+  --term-bg-blue: #0000ff;
   --term-color-red: #ff0000;
   --term-color-pink: #ff77ff;
   --term-color-green: #00ff00;
@@ -183,6 +193,7 @@ body.theme-light {
   --accent-2: #b6621f;
   --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
+  --term-bg-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
   --term-color-green: #1f7d2b;
@@ -294,6 +305,10 @@ body.theme-authentic {
   --accent: #45ff45;
   --accent-2: #98ff7a;
   --accent-contrast: #000;
+  /* The original palette, on purpose: this theme exists to look like the real
+     thing, so it keeps pure blue even though it is hard to read on black. The
+     other dark themes lift it (see :root). */
+  --term-color-blue: #0000ff;
   --bg-overlay-opacity: 0.02;
   font-family: var(--mono);
 }
@@ -394,6 +409,7 @@ body.theme-io-daylight {
   --aurora-2: rgba(0, 130, 190, 0.08);
   --aurora-3: rgba(140, 100, 220, 0.06);
   --term-color-blue: #0b6fa4;
+  --term-bg-blue: #0b6fa4;
   --term-color-red: #c0392b;
   --term-color-pink: #9c3f86;
   --term-color-green: #12805a;
@@ -450,6 +466,7 @@ body.theme-not3270 {
   --accent-2: #b6621f;
   --accent-contrast: #fff;
   --term-color-blue: #1f4aa8;
+  --term-bg-blue: #1f4aa8;
   --term-color-red: #a32626;
   --term-color-pink: #a63a8a;
   --term-color-green: #1f7d2b;
@@ -2213,7 +2230,7 @@ pre, pre input, textarea {
 }
 
 .bg-blue {
-  background-color: var(--term-color-blue);
+  background-color: var(--term-bg-blue, var(--term-color-blue));
 }
 
 .bg-red {
@@ -2614,6 +2631,62 @@ pre, pre input, textarea {
 
   .h3270-key-mapping {
     font-size: 0.62rem;
+  }
+}
+
+/* Phones.
+
+   The keyboard is built for a desk: MAX is one 15u letter block with a cursor
+   cluster and a number pad beside it, a little over a thousand pixels of keys
+   at natural size. Its rows are nowrap on purpose, so when the viewport is
+   390px the keys that do not fit are not wrapped but spilled off the right
+   edge — and a mobile browser answers overflow by widening the layout
+   viewport to fit it (innerWidth 482-496 on a 390px phone). That drags the
+   fixed touch bar, the header and every dialog out to the same width, and the
+   right-hand keys of each of them are off the screen with nothing to scroll
+   them back.
+
+   So the keypad takes the room it is given and no more. What does not fit is
+   panned inside the keypad's own box rather than overflowing the page. The
+   compact and full sizes wrap, so they need nothing but sensible key sizes;
+   touch.js starts a phone in compact (see defaultKeypadForPhone there), and
+   MAX stays one press of the size control away for somebody who wants it.
+
+   Every size is held at its natural size here (see zoom below): scaling is a
+   way of fitting, and on a phone the keypad scrolls instead. */
+@media (max-width: 600px) {
+  .controls.h3270-keypad {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    /* The auto-scale in keyboard.js fits the keypad into the height left below
+       the terminal. On a phone the terminal fills the screen and the keypad is
+       below the fold, so that height is a hundred pixels and every size of
+       keypad came out at the 0.45 floor — 20px keys. It is reached by scrolling
+       the page, like anything else below the terminal, so it is not scaled. */
+    zoom: 1 !important;
+  }
+
+  /* Keys a thumb can find: 44px tall, and narrow enough that six PF keys share
+     a row. min-width is the floor, not the width — a label like BackTab still
+     takes what it needs. */
+  .h3270-keypad:not(.is-max) .h3270-key {
+    min-width: 46px;
+    min-height: 44px;
+    margin: 1px;
+    padding: 4px 5px;
+  }
+
+  .h3270-keypad-row,
+  .h3270-keypad-row--pf {
+    gap: 4px;
+  }
+
+  .h3270-keypad-header {
+    flex-wrap: wrap;
   }
 }
 

@@ -1012,6 +1012,10 @@
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
     body.dataset.recordingActive = lastRecordingActive ? 'true' : 'false';
     body.dataset.chaosActive = lastChaosActive ? 'true' : 'false';
+    // The Automation menu's chaos entries are kept by ui.js, which only polls
+    // while it knows of a run. A run that began somewhere else (the AI panel,
+    // another tab, the API) or ended on its own is seen here first, so say so.
+    document.dispatchEvent(new CustomEvent('3270web:workflow-status', { detail: payload }));
 
     // Fire transition notifications
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {
@@ -1453,12 +1457,30 @@
     lastScreenHtml = initialScreenContainer.innerHTML;
   }
 
-  const shouldSkipScreenUpdate = (container, force) => {
+  // A chaos run drives the same host session this terminal is showing, so the
+  // terminal can follow it. What must not be clobbered is input the person is
+  // in the middle of typing: 3270 fields are local until Enter or a PF key, and
+  // a repaint over half-typed text throws it away. "A field has focus" is not
+  // that signal — the terminal puts focus in the first field as soon as it
+  // loads, so the pane sat on the sign-on screen for the whole run — but a
+  // keystroke in the last moment is. screen-live.js uses the same test.
+  const RECENT_INPUT_GRACE_MS = 1500;
+  let lastScreenInputAt = 0;
+  if (initialScreenContainer) {
+    initialScreenContainer.addEventListener('input', () => {
+      lastScreenInputAt = Date.now();
+    }, true);
+  }
+
+  const shouldSkipScreenUpdate = (container, force, followRun) => {
     if (force) {
       return false;
     }
     if (!container) {
       return true;
+    }
+    if (followRun) {
+      return Date.now() - lastScreenInputAt < RECENT_INPUT_GRACE_MS;
     }
     const active = document.activeElement;
     return active && container.contains(active);
@@ -1466,7 +1488,8 @@
 
   const updateScreenContent = (container, options = {}) => {
     const force = !!options.force;
-    if (!container || shouldSkipScreenUpdate(container, force)) {
+    const followRun = !!options.followRun;
+    if (!container || shouldSkipScreenUpdate(container, force, followRun)) {
       return Promise.resolve();
     }
     return fetch('/screen/content', {
@@ -1486,15 +1509,22 @@
         lastScreenHtml = payload.html;
         // Redrawing the terminal re-installs its key handler, which puts
         // focus in the terminal. During a run that happens every poll, so
-        // anybody working in a dialog over the terminal (typing a hint into
-        // the screen map, say) had focus pulled out from under them mid-word.
-        // Whatever held focus inside a dialog gets it back.
+        // two kinds of focus have to survive it:
+        //  - anybody working in a dialog over the terminal (typing a hint into
+        //    the screen map, say) had focus pulled out from under them
+        //    mid-word, so whatever held focus inside a dialog gets it back;
+        //  - following a run repaints a screen that may itself hold focus.
+        //    Replacing it drops that focus, so it is put back, and only when
+        //    it was there: focus somewhere else (the Automation menu, the AI
+        //    panel) stays put.
         const focused = document.activeElement;
         const focusedInDialog = focused instanceof HTMLElement
           && !!focused.closest('[aria-modal="true"]');
+        const hadFocus = followRun && !!focused && container.contains(focused);
+        const focusedName = hadFocus ? focused.name : null;
         container.innerHTML = payload.html;
+        const form = container.querySelector('form.renderer-form');
         if (typeof window.installKeyHandler === 'function') {
-          const form = container.querySelector('form.renderer-form');
           const formId = form ? (form.id || form.getAttribute('name')) : null;
           window.installKeyHandler(formId);
         }
@@ -1503,6 +1533,21 @@
         }
         if (typeof window.sizeScreenContainer === 'function') {
           window.sizeScreenContainer();
+        }
+        if (hadFocus && form) {
+          // Without scrolling to it: this runs every time the run changes the
+          // screen, and somebody who has scrolled the page elsewhere while the
+          // run goes on should not be pulled back to the terminal each time.
+          const target = (focusedName && form.elements && form.elements[focusedName])
+            || form.querySelector('input[data-x][data-y]')
+            || form.querySelector('textarea.unformatted');
+          if (target && typeof target.focus === 'function') {
+            try {
+              target.focus({ preventScroll: true });
+            } catch (err) {
+              target.focus();
+            }
+          }
         }
       })
       .catch(() => {
@@ -1526,9 +1571,10 @@
           // Not forced: this fires every playbackFastMs (700ms) while
           // playback/chaos is active, so forcing it would wipe out anything
           // the user is actively typing into a focused field every 700ms.
-          // shouldSkipScreenUpdate already skips the refresh while focus is
-          // inside the screen container — let it.
-          return updateScreenContent(container, {}).then(() => true);
+          // Playback holds off while focus is inside the screen container.
+          // A chaos run holds off only while the person is typing — see
+          // shouldSkipScreenUpdate.
+          return updateScreenContent(container, { followRun: !!chaosActive && !isActive }).then(() => true);
         }
         return false;
       })

@@ -26,7 +26,14 @@
  *
  * A module that wants to place initial focus itself passes
  * { initialFocus: false } and does it after pushModal; passing an element or a
- * selector picks a specific control instead of the first focusable one.
+ * selector picks a specific control instead of the first focusable one. A
+ * confirmation that ends something should name its safe button here, so a
+ * stray Enter or Space as it opens cancels rather than confirms.
+ *
+ * A dialog holding unsaved work can pass { confirmClose: fn }. Escape asks it
+ * first; returning false means "do not close, I am asking the user myself",
+ * and the dialog stays on the stack. Only the Escape path needs this — the
+ * dialog's own Close button and backdrop already run its own code.
  *
  * Tab is constrained by one document-level handler that always applies to the
  * dialog on top of the stack, so nesting needs no arrangement between the two
@@ -222,6 +229,7 @@
     modalStack.push({
       modal: modal,
       close: closeFn,
+      confirmClose: typeof opts.confirmClose === 'function' ? opts.confirmClose : null,
       returnFocus: existing ? existing.returnFocus : document.activeElement,
     });
     focusInto(modal, opts.initialFocus);
@@ -285,6 +293,9 @@
     }
     var top = modalStack[modalStack.length - 1];
     event.preventDefault();
+    if (top.confirmClose && top.confirmClose() === false) {
+      return;
+    }
     popModal(top.modal);
     top.close();
   });

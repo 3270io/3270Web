@@ -5,6 +5,7 @@ package aiprovider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -224,13 +225,21 @@ func (h *Handlers) Status(c *gin.Context) {
 
 	ready := err == nil
 	needs := ""
+	// missing names the setting behind needs == "config", so the panel can ask
+	// for the thing that is actually empty rather than assuming it is a key.
+	missing := ""
 	if !ready {
 		needs = "config"
+		var notConfigured *NotConfiguredError
+		if errors.As(err, &notConfigured) {
+			missing = notConfigured.Missing
+		}
 	}
 	if IsCopilot(prov.ID) {
 		auth, _ := h.copilot.Get(id)
 		ready = auth.LoggedIn()
 		needs = ""
+		missing = ""
 		if !ready {
 			needs = "login"
 		}
@@ -258,6 +267,8 @@ func (h *Handlers) Status(c *gin.Context) {
 	out["auth"] = prov.Auth
 	out["ready"] = ready
 	out["needs"] = needs
+	// What is missing, so the panel can name it instead of guessing.
+	out["missing"] = missing
 	out["model"] = cfg.Model
 	out["baseUrl"] = cfg.BaseURL
 	// logged_in keeps the shape of the older /api/copilot/status response
@@ -416,6 +427,15 @@ func (h *Handlers) Chat(c *gin.Context) {
 		status, msg := aipolicy.PublicError(err, trusted)
 		if pw.bytes == 0 {
 			c.Writer.Header().Set("Content-Type", "application/json")
+			// A rate-limited upstream says how long to wait; pass that on so the
+			// panel can tell the person instead of guessing.
+			var apiErr *APIError
+			var copilotErr *copilot.APIError
+			if errors.As(err, &apiErr) {
+				copilot.SetRetryAfter(c.Writer.Header(), apiErr.RetryAfter)
+			} else if errors.As(err, &copilotErr) {
+				copilot.SetRetryAfter(c.Writer.Header(), copilotErr.RetryAfter)
+			}
 			c.AbortWithStatusJSON(status, gin.H{"error": msg})
 			return
 		}

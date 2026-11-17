@@ -165,6 +165,13 @@
       return;
     }
 
+    // The way out of the terminal's Tab capture. Say so and keep waiting, so
+    // the person can press a different key without starting over.
+    if (keymap().isReservedEvent(event)) {
+      setStatus("Alt+Shift+M leaves the terminal's keyboard focus and cannot be rebound. Press another key.", true);
+      return;
+    }
+
     var existing = keymap().all()[signature];
     if (existing && existing !== capturing) {
       // Binding is a move, not a copy: one physical key cannot mean two
@@ -293,7 +300,7 @@
       '    <button type="button" data-keymap-export>Export</button>',
       '    <button type="button" class="danger" data-keymap-reset>Reset all</button>',
       "  </div>",
-      '  <p class="subtle keymap-note">Custom bindings layer over the built-in keys, which keep working unless you rebind them. Combinations the browser reserves for itself (Ctrl+W, Ctrl+T, F11) cannot be captured by any web page. Bindings are stored in this browser — use Export to move them.</p>',
+      '  <p class="subtle keymap-note">Custom bindings layer over the built-in keys, which keep working unless you rebind them. Combinations the browser reserves for itself (Ctrl+W, Ctrl+T, F11) cannot be captured by any web page. Alt+Shift+M is reserved: it moves keyboard focus out of the terminal, and cannot be rebound. Bindings are stored in this browser — use Export to move them.</p>',
       '  <input type="file" accept="application/json,.json" data-keymap-file-json hidden>',
       '  <input type="file" accept=".kmp,.KMP,text/plain" data-keymap-file-kmp hidden>',
       "</div>"

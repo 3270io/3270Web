@@ -23,6 +23,13 @@ You can connect to:
 - `IPv6:port` (example: `[::1]:23`)
 - `sampleapp:<id>` for bundled sample targets
 
+While a connection is being made the **Connect** button reads *Connecting…* and
+is off, so a second click or Enter cannot start another one; the page says which
+address it is connecting to (screen readers announce it), and **Cancel** stops
+waiting. Cancel only ends the browser's wait. A host that was merely slow can
+still finish connecting in the background, and that unused session is closed
+once it has been idle long enough.
+
 If autoconnect is enabled, 3270Web will connect automatically on startup.
 
 ## Open Settings
@@ -31,13 +38,40 @@ If autoconnect is enabled, 3270Web will connect automatically on startup.
 2. Use tabs to switch sections.
 3. Edit values.
 4. Click **Save settings**.
-5. If prompted, restart 3270Web to apply startup-level changes.
+5. If a saved change needs a restart, 3270Web says so — see
+   [Restarting after a save](#restarting-after-a-save).
 
 You can also use:
 
 - **Refresh** to reload current values
-- **Reset to defaults** inside each settings section
+- **Reset to defaults** inside each settings section. It only changes the
+  form: nothing is saved until you click **Save settings**, and the status line
+  says so. A setting that is fixed outside the web interface is left as it is,
+  and the status line names it.
 - **Maximize** for easier editing of long values
+
+Closing Settings with **Close**, ++esc++ or a click outside it, while the form
+holds edits you have not saved, asks **Discard unsaved changes?** Focus starts
+on **Keep editing**. Closing a form you have not changed, or one you have just
+saved, asks nothing.
+
+### Restarting after a save
+
+Most settings apply as soon as they are saved (the **App** tab) or at the start
+of the next run (the **Chaos Explorer** tab). The terminal options on the
+**Connectivity**, **TLS/Security** and **Emulation** tabs are the exception:
+they are read once, when 3270Web starts, so a change to one needs a restart.
+
+- Saving without changing one of those options does not ask for a restart.
+- From the connect page, saving a change to one asks **Restart 3270Web?** The
+  prompt names the settings and says that restarting ends every open terminal
+  session, including other people's on a shared instance. Focus starts on
+  **Not now**.
+- **Restart now** shows "Restarting 3270Web..." until the server answers again,
+  then reloads the page.
+- From a terminal page the prompt is not offered, because restarting would end
+  the session you are working in. The status line says the change takes effect
+  after 3270Web next restarts.
 
 ## Menu Bar Callouts
 
@@ -129,10 +163,20 @@ Controls application-level UI features.
 Includes:
 
 - `Allow log access`
-- `Use keypad` (show virtual keypad by default)
+- `Use keypad` (show virtual keypad by default, for people who have not
+  chosen — see below)
 - **Terminal Font** dropdown — pick from the three bundled IBM 3270-style fonts (Regular, Semi-Condensed, Condensed). See [Terminal Fonts](terminal-fonts.md) for usage notes.
 
 Use this section to control log visibility and default keyboard UI behavior.
+
+`Use keypad` (`APP_USE_KEYPAD` in `.env`) is the instance default, and nothing
+more. Each person decides for their own browser with **View → Virtual keypad**;
+the browser remembers that choice and it wins over the default. The View toggle
+never writes to `.env` or to the server's environment, so one person turning
+the keypad on does not change what anyone else sees or what the next restart
+starts with. A browser that has never used the toggle, or that has cleared its
+site data, follows this setting. See
+[Who decides whether the keypad is showing](keyboard-and-controls.md#who-decides-whether-the-keypad-is-showing).
 
 ### Theme
 

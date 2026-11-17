@@ -9,6 +9,13 @@
 // 401/403-handling call site calls instead of swallowing the error. The first
 // call starts an automatic retry sequence with backoff; if that gives up, a
 // persistent banner offers a manual Reconnect.
+//
+// A host that hangs up is found out two ways. Idle, the screen stream (see
+// screen-live.js) is answered with an error when it reconnects to a dead host,
+// which its error handler passes to notifySessionExpired. On a key press, the
+// server answers 409 {"code":"host_disconnected"} and keyboard.js hands that to
+// handleAccessFailure. Either way the terminal is marked X DISCONNECTED, left
+// exactly as it is, and offered Reconnect.
 (function () {
   "use strict";
 
@@ -50,6 +57,11 @@
     var announce = document.querySelector("[data-oia-announce]");
     if (announce) {
       announce.textContent = "Connection to the host was lost";
+    }
+    // The terminal repaints its status area after every key it sends, and
+    // would put "Ready for input" back; this tells it the host is gone.
+    if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.setHostLost === "function") {
+      window.ThreeSeventyWeb.setHostLost(true);
     }
     setReconnectButtonVisible(true);
   }
@@ -123,6 +135,31 @@
     );
   }
 
+  // showLostBanner is the persistent offer to reconnect for somebody who has
+  // just pressed a key and been told the host is gone. The automatic retries
+  // carry on underneath it, but they are quiet, and a key that did nothing
+  // wants an answer on screen. The typed input is still there: nothing here
+  // reloads the page until a reconnect succeeds.
+  function showLostBanner() {
+    if (bannerShown) {
+      return;
+    }
+    bannerShown = true;
+    notify(
+      "The connection to the host was lost. What you typed is still on the screen; it has not been sent.",
+      "error",
+      {
+        duration: 0,
+        action: {
+          label: "Reconnect",
+          onClick: function () {
+            manualReconnect();
+          }
+        }
+      }
+    );
+  }
+
   function manualReconnect() {
     notify("Reconnecting…", "info");
     reconnect().then(
@@ -170,6 +207,10 @@
       return;
     }
     if (code === "host_session_missing") { beginRecovery(); return; }
+    // The host hung up and a key press found out (HTTP 409). The same
+    // recovery, plus an offer to reconnect now, because this one has just cost
+    // somebody a key.
+    if (code === "host_disconnected") { beginRecovery(); showLostBanner(); return; }
     // Older endpoints may lack a code. Check web authentication before host recovery.
     return fetch("/api/whoami", { headers: { Accept: "application/json" } }).then(function (response) {
       if (response.status === 401) return handleAccessFailure(401, { code: "authentication_required" });

@@ -17,41 +17,24 @@
   var pathEl = document.querySelector('[data-audit-path]');
   var entries = [];
 
-  /* Event names are stable identifiers, not prose. These are the readable
-     forms; anything unrecognised falls back to the raw name rather than
-     being hidden, so a newly added event still shows up. */
-  var LABELS = {
-    'login.succeeded': 'Signed in',
-    'login.failed': 'Sign-in failed',
-    'login.locked_out': 'Sign-in throttled',
-    'logout': 'Signed out',
-    'account.password_changed': 'Password changed',
-    'account.created': 'Account created',
-    'account.updated': 'Account changed',
-    'account.deleted': 'Account deleted',
-    'account.first_admin_created': 'First administrator created',
-    'group.role_changed': 'Group role changed',
-    'profile.published': 'Host preset published',
-    'profile.removed': 'Host preset removed',
-    'token.issued': 'API token issued',
-    'token.revoked': 'API token revoked',
-    'token.refused': 'API token refused',
-    'session.opened': 'Session opened',
-    'session.denied': 'Session refused',
-    'session.closed': 'Session disconnected',
-    'file.transfer': 'File transfer',
-    'settings.saved': 'Settings changed',
-    'app.restarted': 'Server restarted',
-    'logs.access_changed': 'Log access changed'
-  };
+  /* How an entry is named, and its pill, come from admin-audit-labels.js: the
+     overview shows the same entries and has to name them the same way. */
+  var events = window.ThreeSeventyWeb && window.ThreeSeventyWeb.auditEvent;
+
+  function eventLabel(entry) {
+    return events ? events.label(entry) : entry.event;
+  }
 
   var GROUPS = {
     'sign-in': ['login.succeeded', 'login.failed', 'login.locked_out', 'logout'],
-    'session': ['session.opened', 'session.denied', 'session.closed', 'file.transfer'],
+    'session': ['session.opened', 'session.denied', 'session.closed', 'file.transfer',
+                'printer.started', 'printer.stopped'],
     'admin': ['account.created', 'account.updated', 'account.deleted',
               'account.first_admin_created', 'settings.saved', 'app.restarted',
               'logs.access_changed', 'token.issued', 'token.revoked',
-              'group.role_changed', 'profile.published', 'profile.removed']
+              'group.role_changed', 'group.created', 'group.updated', 'group.deleted',
+              'profile.published', 'profile.removed',
+              'library.exported', 'library.imported']
   };
 
   function setStatus(message, state) {
@@ -112,7 +95,7 @@
     var needle = (filterEl ? filterEl.value : '').trim().toLowerCase();
     if (!needle) return true;
     var haystack = [
-      entry.event, LABELS[entry.event], who(entry), entry.clientIp,
+      entry.event, eventLabel(entry), who(entry), entry.clientIp,
       entry.target, detailText(entry), entry.outcome
     ].join(' ').toLowerCase();
     return haystack.indexOf(needle) !== -1;
@@ -141,11 +124,11 @@
         tr.appendChild(cell(when(entry.time), 'audit-when'));
 
         var event = document.createElement('td');
-        var badge = document.createElement('span');
-        badge.className = 'audit-event';
-        badge.setAttribute('data-outcome', entry.outcome || 'success');
-        badge.textContent = LABELS[entry.event] || entry.event;
-        event.appendChild(badge);
+        if (events) {
+          event.appendChild(events.badge(entry));
+        } else {
+          event.textContent = entry.event;
+        }
         tr.appendChild(event);
 
         tr.appendChild(cell(who(entry)));

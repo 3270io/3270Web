@@ -346,6 +346,40 @@
     });
   }
 
+  // The virtual keyboard starts life as MAX, the whole physical keyboard, which
+  // is right for a desk and wrong for a phone: its keys come out at about
+  // 20x19px and it is wider than the screen, so a mobile browser widens the
+  // layout viewport to fit it and the page, the key bar and every dialog slide
+  // off the right edge together. On a narrow viewport the keypad starts in
+  // compact instead — the keys a screen ends with, wrapped to the width they
+  // are given — and the quick-key bar below stays the primary surface.
+  //
+  // It is a default and no more. It only applies when nobody has picked a size
+  // yet, so an operator who chooses MAX on their phone keeps it (the keypad's
+  // own box scrolls rather than widening the page; see style.css), and one who
+  // has picked anything else is not second-guessed. keyboard.js has already
+  // drawn the keypad by the time this runs, so it is drawn again at the new
+  // size.
+  var KEYPAD_MODE_KEY = "h3270KeypadMode";
+  var KEYPAD_COMPACT_KEY = "h3270KeypadCompact";
+  var PHONE_QUERY = "(max-width: 600px)";
+
+  function defaultKeypadForPhone() {
+    if (!window.matchMedia || !window.matchMedia(PHONE_QUERY).matches) {
+      return;
+    }
+    if (readFlag(KEYPAD_MODE_KEY) !== null || readFlag(KEYPAD_COMPACT_KEY) !== null) {
+      return;
+    }
+    writeFlag(KEYPAD_MODE_KEY, "compact");
+    writeFlag(KEYPAD_COMPACT_KEY, "1");
+    if (typeof window.renderKeypad === "function" && document.getElementById("keypad")) {
+      window.renderKeypad();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", defaultKeypadForPhone);
+
   document.addEventListener("DOMContentLoaded", function () {
     if (!isTouchDevice()) {
       return;

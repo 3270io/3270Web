@@ -116,6 +116,13 @@ Chaos mode continuously:
 - Sends an AID key
 - Records transition and attempt metadata
 
+Exploration drives the same connection as the terminal you are looking at, so
+the terminal follows the run: each screen the engine reaches is shown as it
+happens. The terminal does not repaint for a moment after you type into it, so
+text you are typing is not wiped out — but keys you send during a run go to the
+same host session the run is using, so stop the run first if you want to work
+in the terminal.
+
 You can stop the run at any time with the **Stop** button on the run strip.
 
 ## When a Run Ends
@@ -149,6 +156,32 @@ replaces the separate resume and extend actions earlier versions had. If a
 run saturated without leaving its first screen, continuing unchanged will
 end the same way: give it a value or a key that works there — a
 [hint](#chaos-hints), or a recording — first.
+
+As soon as a run has stopped — whether it finished, you stopped it, or it was
+started from the AI panel or the API rather than the menu — the Automation menu
+offers **Discovery report**, **Download workflow JSON** and **Continue exploring**. They do not wait for you to load a saved run.
+
+### What the counts mean
+
+The same run is described in the active-run strip, the Screen map, the Flow
+diagram and the Discovery report. They use the same terms:
+
+| Term | What it counts |
+|---|---|
+| **Steps** | Each time the engine filled fields and pressed a key. |
+| **Unique screens** | The distinct screens the run recorded, **including the screen it started on**. Screens that differ only in values the host echoes back are one screen (Dedup mode `structural`, the default). |
+| **Transitions** | Distinct moves from one screen to another by a particular key. The same two screens reached by Enter and by PF8 are two transitions. |
+| **Primary flow edges** (Flow diagram) | The discovery path drawn on the canvas: for each screen after the first, the link that most directly led to it. Every other link between screens is listed as an additional transition. |
+
+The flow counts links, not keys: Enter and PF8 between the same two screens are
+two transitions in the strip and the report but one link in the flow, so the flow
+can show fewer edges than there are transitions.
+
+The **Screen map** lists every screen except the one the run started from: its
+hints live under **Exploration hints**, and the map's caption says so. The **Flow
+diagram** draws the starting screen too, so it counts one more screen than the
+map lists. With Dedup mode set to `exact` the run counts each exact screen
+separately, while the map and flow draw screens that share a layout as one.
 
 ## Download the JSON Output
 
@@ -199,6 +232,7 @@ Chaos Hints let you guide generated input values during exploration.
 
 Notes:
 
+- Two fields block keys. **Blocked keys, on every screen** applies throughout the run; **Blocked on the first screen only** applies just to the first screen of a start or resume, and is for the key that is fine later but not at the sign-on screen. The grey italic text in an empty field is an example (it starts "e.g."), not a value.
 - Hints are saved to `chaos-hints.json`.
 - Saved hints are automatically applied when starting or continuing a run if request-level hints are not explicitly supplied.
 - Transaction hints are preferred for early field writes, while known data values are reused across fields when they fit field constraints.
@@ -245,6 +279,15 @@ env vars (also exposed in **Settings -> Chaos**) tune that bias:
 | `CHAOS_EXPORT_SUCCESS_BALANCE` | `1.0` | When exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps. `1.0` is the neutral default; higher values favour reliability, lower values keep more discovery noise in the export. |
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.
+
+## Screen Captures
+
+The Screen map, the Flow diagram and the screen-hints editor show one captured
+example of each screen. A capture is taken every time the run visits a screen,
+so a screen that has been visited has one. A screen without one says so, and
+that means no capture was kept for it: a run that visits the screen again takes
+one. A screen that came from **Load the recording into chaos** never has one,
+because a recording holds no screens to capture.
 
 ## Discovery Report
 
@@ -461,7 +504,7 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
    - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
    - Starts and monitors the run with `chaos_start` / `chaos_status`.
    - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
-4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing.
+4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
 
 ### Combining both approaches
 

@@ -428,6 +428,12 @@ func (h *Handlers) Chat(c *gin.Context) {
 		status, msg := aipolicy.PublicError(err, false)
 		if pw.bytes == 0 {
 			c.Writer.Header().Set("Content-Type", "application/json")
+			// A rate-limited upstream says how long to wait; pass that on so the
+			// panel can tell the person instead of guessing.
+			var apiErr *APIError
+			if errors.As(err, &apiErr) {
+				SetRetryAfter(c.Writer.Header(), apiErr.RetryAfter)
+			}
 			c.AbortWithStatusJSON(status, gin.H{"error": msg})
 			return
 		}

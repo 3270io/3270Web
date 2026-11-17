@@ -281,7 +281,7 @@ func validateProfile(p *ConnectionProfile) error {
 		// would make "leave the port blank", which is what anybody does, the
 		// one way to write a preset that cannot start.
 		if isSampleApp {
-			p.Port = defaultSampleAppPort
+			p.Port = defaultSampleAppPortFor(sampleID)
 		} else {
 			p.Port = 3270
 		}

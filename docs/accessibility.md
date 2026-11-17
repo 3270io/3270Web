@@ -70,10 +70,21 @@ on colour alone.
 **No keyboard trap (2.1.2).** The terminal deliberately takes `Tab` and
 `Shift+Tab`, because those are 3270 field navigation and an operator expects
 them to move between fields rather than out of the screen. That is exactly the
-situation 2.1.2 exists for, so there is a documented way out: **`Ctrl+Tab`**
-moves focus to a labelled escape-hatch control immediately after the terminal.
-`Ctrl+Shift+Tab` does the same in reverse. See
-[Keyboard and Controls](keyboard-and-controls.md).
+situation 2.1.2 exists for, so there is a documented way out: **`Alt+Shift+M`**
+moves focus to a labelled escape-hatch control immediately after the terminal,
+and the next `Tab` carries on through the page. It is the dependable way out
+because it is a chord browsers do not reserve, and it is read from the
+physical `M` key, so it is the same with Option on macOS or an AltGr layout.
+
+`Ctrl+Tab` (and `Ctrl+Shift+Tab`) does the same, but it depends on the browser:
+browsers generally keep that combination for their own tab switching, so a page
+may never receive it. Treat it as a second route, not the one to rely on. The
+escape-hatch control names both chords when it takes focus, the welcome banner
+names `Alt+Shift+M`, and the chord is deliberately not rebindable. See
+[Keyboard and Controls](keyboard-and-controls.md#moving-focus-out-of-the-terminal).
+
+If a browser extension or the operating system takes `Alt+Shift+M` for
+something else before the page sees it, `Ctrl+Tab` is the other route.
 
 **Field labelling (1.3.1, 4.1.2).** Each input's accessible name is derived
 from the protected text to its left on the screen itself, so a screen reader
@@ -88,8 +99,10 @@ state, a completed step or a failure is announced without moving focus.
 
 **Bypass blocks (2.4.1).** Every page carries a `main` landmark. On the
 terminal, focus starts inside it on page load — the menu bar and session tabs are
-already behind you. There is deliberately no skip link; see
-[Design decisions](#design-decisions).
+already behind you. There is deliberately no skip link on the terminal; see
+[Design decisions](#design-decisions). The administration pages have no
+terminal to be trapped in, so each of them opens with a **Skip to content**
+link that lands on its `main` landmark.
 
 **Resize text (1.4.4).** At 200% text, no control is pushed off screen and the
 page does not scroll horizontally.
@@ -97,6 +110,18 @@ page does not scroll horizontally.
 **Contrast (1.4.3).** No text falls below 4.5:1 in the default theme. Seven
 built-in themes ship, and a custom theme editor allows any palette — a theme
 of your own making is your own to check.
+
+**Terminal blue.** Pure 3270 blue (`#0000FF`) is only 2.1–2.4:1 against the
+near-black screens the dark themes draw, which is where a host puts its screen
+id, its date and its rules — the text nobody notices is missing until they
+need it. In every dark theme except Authentic 3270, text the host draws in
+blue is shown as a lighter blue (`#5C7CFF`, about 5:1 on each theme's
+background; measured 5.35:1 in the default theme) that is still plainly blue.
+Only the text is lifted. A blue *background* attribute keeps the real colour,
+because white or yellow text on it is legible as it stands, and the light
+themes keep their own darker blues. **Authentic 3270** is deliberately left on
+pure blue: reproducing the original palette is what that theme is for, and the
+cost is stated under [Known issues](#known-issues).
 
 **Reduced motion (2.3.3).** Animation is suppressed under
 `prefers-reduced-motion`.
@@ -148,6 +173,10 @@ region — every element renders inside the viewport — so nothing is cut off o
 unreachable, but a horizontal scrollbar can appear. Being tracked; it is a
 layout artifact rather than content that requires scrolling to read.
 
+**Authentic 3270 shows blue text at about 2.3:1.** The theme exists to look
+like the original terminal, so it keeps pure blue on near-black, which is under
+4.5:1 (and under 3:1). Choose any other theme for legible blue text.
+
 **Custom themes are unverified.** The default and built-in themes were
 checked. The theme editor lets an operator choose any foreground and
 background, including combinations well under 4.5:1. Nothing validates a
@@ -171,9 +200,9 @@ the grid scrolls inside its own region rather than reflowing, and the page
 around it does not scroll. Use the zoom control in the terminal tools for a
 size that suits the device: it scales the grid, which keeps it a grid.
 
-**There is no skip link.** A link at the top of the document could not be
+**There is no skip link on the terminal.** A link at the top of the document could not be
 reached in practice. `Tab` and `Shift+Tab` inside the terminal are 3270 field
-navigation, and leaving through the `Ctrl+Tab` escape hatch puts focus *after*
+navigation, and leaving through the `Alt+Shift+M` escape hatch puts focus *after*
 the terminal, not before it — so the link would sit somewhere a keyboard user
 never arrives. An unreachable skip link is a worse answer than none, so 2.4.1
 is met the other two ways WCAG accepts: a `main` landmark, and focus starting

@@ -8,19 +8,22 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css?v=23">
     <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=20">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
+    <link rel="stylesheet" type="text/css" href="/static/admin.css?v=1">
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
 </head>
 <body data-min-password-length="{{ .MinLength }}" data-auth-enabled="{{ .AuthEnabled }}">
     <script src="/static/early-theme-init.js"></script>
+    {{ template "admin-skip" }}
     <div class="bg-overlay" aria-hidden="true">
         <canvas id="bg-canvas" aria-hidden="true"></canvas>
     </div>
 
-    <div class="admin-page">
-        <!-- The account table is this page's purpose; the landmark is what
-             lets a screen-reader user jump past the header to it. -->
-        <div class="card" role="main">
+    <!-- Wide like the other admin pages: the account table is about 1190px
+         across with all five row buttons, and the narrower default clipped
+         Make admin, Disable and Delete off the right edge on a laptop. -->
+    <div class="admin-page admin-page--wide">
+        <div class="card">
             <div class="card-header">
                 <div class="brand-lockup">
                     {{ template "brand-mark" }}
@@ -35,6 +38,11 @@
             </div>
 
             {{ template "admin-nav" "accounts" }}
+
+            <!-- The account table is this page's purpose; the landmark is what
+                 lets a screen-reader user jump past the header to it, and what
+                 the skip link lands on. -->
+            <main id="main" tabindex="-1">
 
             {{ if not .AuthEnabled }}
             <div class="auth-alert auth-alert--warn">
@@ -92,6 +100,7 @@
                 </div>
             </div>
             {{ end }}
+            </main>
         </div>
     </div>
 
@@ -107,6 +116,7 @@
                 the first time they use this one.
             </p>
             <form class="auth-form" data-add-form>
+                <div class="admin-dialog-body">
                 <div class="field">
                     <label for="new-username">Username</label>
                     <input type="text" id="new-username" name="username" autocomplete="off"
@@ -140,6 +150,7 @@
                     </div>
                     <div class="pw-note" data-pw-note aria-live="polite" hidden></div>
                 </div>
+                </div>
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
                     <button type="submit">Create account</button>
@@ -161,6 +172,7 @@
                 the next time they sign in.
             </p>
             <form class="auth-form" data-reset-form>
+                <div class="admin-dialog-body">
                 <div class="field">
                     <label for="reset-password">Temporary password</label>
                     <div class="pw-row">
@@ -182,6 +194,7 @@
                     </div>
                     <div class="pw-note" data-pw-note aria-live="polite" hidden></div>
                 </div>
+                </div>
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
                     <button type="submit">Reset password</button>
@@ -200,6 +213,7 @@
                 here — that is the role.
             </p>
             <form class="auth-form" data-groups-form>
+                <div class="admin-dialog-body">
                 <div class="field">
                     <label for="groups-input">Groups</label>
                     <input type="text" id="groups-input" name="groups"
@@ -217,6 +231,7 @@
                         This account's groups come from the identity provider and
                         are refreshed at every sign-in. Change them there.
                     </span>
+                </div>
                 </div>
                 <div class="admin-dialog-actions">
                     <button type="button" data-dialog-cancel>Cancel</button>
@@ -239,11 +254,13 @@
                 never takes a role away. The change reaches people who are
                 already signed in.
             </p>
-            <div class="group-roles-list" data-group-roles-list></div>
-            <p class="field-hint" data-group-roles-empty hidden>
-                No groups exist yet. Make one on the
-                <a href="/admin/groups">Groups</a> page and it will appear here.
-            </p>
+            <div class="admin-dialog-body">
+                <div class="group-roles-list" data-group-roles-list></div>
+                <p class="field-hint" data-group-roles-empty hidden>
+                    No groups exist yet. Make one on the
+                    <a href="/admin/groups">Groups</a> page and it will appear here.
+                </p>
+            </div>
             <div class="admin-dialog-actions">
                 <button type="button" data-dialog-cancel>Done</button>
             </div>
@@ -264,6 +281,7 @@
 
     <script src="/static/auth-form.js?v=2" defer></script>
     <script src="/static/modal-utils.js?v=2" defer></script>
-    <script src="/static/admin-users.js?v=5" defer></script>
+    <script src="/static/admin-tables.js?v=1" defer></script>
+    <script src="/static/admin-users.js?v=6" defer></script>
 </body>
 </html>
