@@ -2,7 +2,11 @@
 
 package copilot
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/jnnngs/3270Web/internal/host"
+)
 
 func TestCanonicalKeyNameFoldsTheSpellings(t *testing.T) {
 	cases := map[string]string{
@@ -52,6 +56,57 @@ func TestRequiresApprovalCatchesEverySpelling(t *testing.T) {
 	// A shape it cannot read is not dangerous — the server rejects it anyway.
 	if got := RequiresApproval("send_key", map[string]any{"key": 3}); got != "" {
 		t.Errorf("a non-string key should not be classified, got %q", got)
+	}
+}
+
+// The server's key parser reads a bare "F3" as PF3. The classifier had its own
+// folding that knew only the PF and PA prefixes, so the F spelling pressed PF3
+// while being classified as a key nobody needed to approve.
+func TestTheFAliasIsTheSameKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"F3": "PF(3)", "f3": "PF(3)", "f03": "PF(3)", "F03": "PF(3)", " f3 ": "PF(3)",
+		"F12": "PF(12)", "f24": "PF(24)",
+	} {
+		if got := CanonicalKeyName(in); got != want {
+			t.Errorf("CanonicalKeyName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for _, spelling := range []string{"F3", "f3", "f03", "F03"} {
+		if got := RequiresApproval("send_key", map[string]any{"key": spelling}); got != spelling {
+			t.Errorf("send_key %q should require approval, got %q", spelling, got)
+		}
+		if !IsDangerousKey(spelling) {
+			t.Errorf("IsDangerousKey(%q) = false", spelling)
+		}
+	}
+	for _, safe := range []string{"F1", "f4", "F13", "F30", "F(3)x", ""} {
+		if IsDangerousKey(safe) {
+			t.Errorf("IsDangerousKey(%q) = true", safe)
+		}
+	}
+}
+
+// Whatever the key handlers will send as a dangerous key is classified as one.
+// This is the property the two separate parsers could not hold.
+func TestClassificationFollowsTheKeyParser(t *testing.T) {
+	spellings := []string{"PF3", "pf3", "PF(3)", "pf(3)", "PF03", "PF(03)", "F3", "f3", "F03", "f003", "Clear", "CLEAR", "clear"}
+	for _, spelling := range spellings {
+		normalized, ok := host.NormalizeKey(spelling)
+		if !ok {
+			continue
+		}
+		dangerous := false
+		for _, key := range DangerousSendKeys() {
+			if normalized == key {
+				dangerous = true
+			}
+		}
+		if dangerous != IsDangerousKey(spelling) {
+			t.Errorf("%q is sent as %q but IsDangerousKey says %v", spelling, normalized, IsDangerousKey(spelling))
+		}
+		if !dangerous {
+			t.Errorf("%q should parse to a dangerous key, got %q", spelling, normalized)
+		}
 	}
 }
 

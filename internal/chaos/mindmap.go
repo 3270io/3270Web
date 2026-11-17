@@ -4,6 +4,7 @@ package chaos
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -54,6 +55,29 @@ type MindMapArea struct {
 	BusinessPurpose         string                           `json:"businessPurpose,omitempty"`
 	BusinessNotes           string                           `json:"businessNotes,omitempty"`
 	FieldSemantics          map[string]BusinessFieldSemantic `json:"fieldSemantics,omitempty"`
+
+	// RejectedValues are values the application refused in a field (an error
+	// message, or a bounce through an error screen). Kept apart from
+	// KnownWorkingValues and never reused.
+	RejectedValues map[string][]string `json:"rejectedValues,omitempty"`
+	// SessionEndingValues are values that, submitted from this screen, threw
+	// the run back onto its first screen. Never reused anywhere in the run.
+	SessionEndingValues map[string][]string `json:"sessionEndingValues,omitempty"`
+	// SessionEndingKeys are keys that ended the session from this screen.
+	// They are also listed in AutoBlockedKeys.
+	SessionEndingKeys []string `json:"sessionEndingKeys,omitempty"`
+	// InputCandidates are values read off the screen itself (menu options,
+	// listed commands, bracketed choices), per field key, in the order they
+	// should be tried. CandidateTried records which have been submitted.
+	InputCandidates map[string][]string `json:"inputCandidates,omitempty"`
+	CandidateTried  map[string][]string `json:"candidateTried,omitempty"`
+	// OptionFieldKey and CommandFieldKey name the field that takes a menu
+	// option and the screen's command line, where the screen has them.
+	OptionFieldKey  string `json:"optionFieldKey,omitempty"`
+	CommandFieldKey string `json:"commandFieldKey,omitempty"`
+	// ContentVariants counts the distinct bodies seen under this area: a
+	// list that pages is one area with several variants.
+	ContentVariants int `json:"contentVariants,omitempty"`
 }
 
 // MindMapFieldMetadata describes one input field in an area.
@@ -87,7 +111,27 @@ type MindMapKeyPress struct {
 	MultiFieldProgressions  int            `json:"multiFieldProgressions,omitempty"`
 	Destinations            map[string]int `json:"destinations,omitempty"`
 	LastUsedAt              time.Time      `json:"lastUsedAt,omitempty"`
+
+	// Inputs records, per destination, the field values that were on the
+	// screen when this key led there (field key -> value; non-display fields
+	// masked). A menu's Enter key reaches a different screen for every
+	// option, so the key alone does not identify the edge. Bounded to
+	// maxEdgeInputSets sets per destination, most recent last.
+	Inputs map[string][]map[string]string `json:"inputs,omitempty"`
+	// ContentChanges counts presses that stayed on the area but changed its
+	// body; Rejections counts presses the application answered with an
+	// error; SessionEnds counts presses that threw the run back to its first
+	// screen.
+	ContentChanges int `json:"contentChanges,omitempty"`
+	Rejections     int `json:"rejections,omitempty"`
+	SessionEnds    int `json:"sessionEnds,omitempty"`
 }
+
+// maxEdgeInputSets bounds the input sets remembered per (key, destination).
+const maxEdgeInputSets = 3
+
+// maxRejectedValuesPerField bounds the rejected values remembered per field.
+const maxRejectedValuesPerField = 24
 
 func newMindMap() *MindMap {
 	return &MindMap{Areas: make(map[string]*MindMapArea)}
@@ -158,6 +202,19 @@ func (m *MindMap) clone() *MindMap {
 				next.FieldSemantics[fKey] = sem
 			}
 		}
+		next.RejectedValues = cloneStringListMap(area.RejectedValues)
+		next.SessionEndingValues = cloneStringListMap(area.SessionEndingValues)
+		next.InputCandidates = cloneStringListMap(area.InputCandidates)
+		next.CandidateTried = cloneStringListMap(area.CandidateTried)
+		if area.SessionEndingKeys != nil {
+			next.SessionEndingKeys = append([]string(nil), area.SessionEndingKeys...)
+		}
+		if area.AutoBlockedKeys != nil {
+			next.AutoBlockedKeys = append([]string(nil), area.AutoBlockedKeys...)
+		}
+		if area.AutoKnownKeys != nil {
+			next.AutoKnownKeys = append([]string(nil), area.AutoKnownKeys...)
+		}
 		if area.KeyPresses != nil {
 			next.KeyPresses = make(map[string]*MindMapKeyPress, len(area.KeyPresses))
 			for aid, keyPress := range area.KeyPresses {
@@ -169,6 +226,12 @@ func (m *MindMap) clone() *MindMap {
 					kp.Destinations = make(map[string]int, len(keyPress.Destinations))
 					for to, count := range keyPress.Destinations {
 						kp.Destinations[to] = count
+					}
+				}
+				if keyPress.Inputs != nil {
+					kp.Inputs = make(map[string][]map[string]string, len(keyPress.Inputs))
+					for to, sets := range keyPress.Inputs {
+						kp.Inputs[to] = cloneInputSets(sets)
 					}
 				}
 				next.KeyPresses[aid] = &kp
@@ -205,6 +268,15 @@ func (m *MindMap) ensureArea(hash string) *MindMapArea {
 	return area
 }
 
+// observeScreen records a visit to an area.
+//
+// What identifies the area is fixed by the screen that founded it: label,
+// preview, dimensions and dedup signature are written once and never again.
+// Rewriting them on every visit let the signature drift with whatever was
+// last on the screen, so an area that had absorbed one near-duplicate would
+// then match the next slightly different screen, and so on down a chain of
+// screens that had nothing to do with the first. Field metadata accumulates,
+// since a merged area can legitimately show fields its founder did not.
 func (m *MindMap) observeScreen(hash string, screen *host.Screen, seenAt time.Time) {
 	area := m.ensureArea(hash)
 	if area == nil {
@@ -218,21 +290,27 @@ func (m *MindMap) observeScreen(hash string, screen *host.Screen, seenAt time.Ti
 	if screen == nil {
 		return
 	}
-	area.ScreenWidth, area.ScreenHeight = screenDimensions(screen)
-	previewText, previewWidth, previewHeight := screenPreview(screen)
-	if previewText != "" {
-		area.PreviewText = previewText
-		area.PreviewWidth = previewWidth
-		area.PreviewHeight = previewHeight
-	}
+	founding := area.DedupSignature == ""
 	label, fieldCount, inputCount, numericCount, hiddenCount, fieldMeta := summarizeScreenArea(screen)
-	if label != "" {
+	if founding {
+		area.ScreenWidth, area.ScreenHeight = screenDimensions(screen)
+		area.FieldCount = fieldCount
+		area.InputFieldCount = inputCount
+		area.NumericFieldCount = numericCount
+		area.HiddenFieldCount = hiddenCount
+		area.DedupSignature = buildAreaDedupSignature(screen)
+	}
+	if area.PreviewText == "" {
+		previewText, previewWidth, previewHeight := screenPreview(screen)
+		if previewText != "" {
+			area.PreviewText = previewText
+			area.PreviewWidth = previewWidth
+			area.PreviewHeight = previewHeight
+		}
+	}
+	if area.Label == "" && label != "" {
 		area.Label = label
 	}
-	area.FieldCount = fieldCount
-	area.InputFieldCount = inputCount
-	area.NumericFieldCount = numericCount
-	area.HiddenFieldCount = hiddenCount
 	if len(fieldMeta) > 0 {
 		if area.FieldMetadata == nil {
 			area.FieldMetadata = make(map[string]MindMapFieldMetadata, len(fieldMeta))
@@ -241,9 +319,15 @@ func (m *MindMap) observeScreen(hash string, screen *host.Screen, seenAt time.Ti
 			area.FieldMetadata[key] = meta
 		}
 	}
-	area.DedupSignature = buildAreaDedupSignature(screen)
 }
 
+// recordAttempt folds one attempt into the area it started from.
+//
+// Field writes are keyed by the field's real length (fw.Length), the same
+// key FieldMetadata uses, so what was learned about a field can be looked up
+// again. Values of non-display fields arrive masked and are counted but
+// never stored. An attempt that ended the session, or that the application
+// rejected, teaches the opposite of a working value and is filed as such.
 func (m *MindMap) recordAttempt(attempt Attempt) {
 	fromHash := strings.TrimSpace(attempt.FromHash)
 	if fromHash == "" {
@@ -278,8 +362,9 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 		learningFieldCount = attempt.FieldsTargeted
 	}
 
+	progressed := attempt.Transitioned && !attempt.SessionEnded
 	toHash := strings.TrimSpace(attempt.ToHash)
-	if attempt.Transitioned && toHash != "" {
+	if progressed && toHash != "" {
 		keyPress.Progressions++
 		if successfulWrites > 0 && learningFieldCount == 1 {
 			keyPress.SingleFieldProgressions++
@@ -290,11 +375,27 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 			keyPress.Destinations = make(map[string]int)
 		}
 		keyPress.Destinations[toHash]++
+		if inputs := attemptInputSet(attempt); len(inputs) > 0 {
+			if keyPress.Inputs == nil {
+				keyPress.Inputs = make(map[string][]map[string]string)
+			}
+			keyPress.Inputs[toHash] = appendInputSet(keyPress.Inputs[toHash], inputs)
+		}
+	}
+	if attempt.ContentChanged {
+		keyPress.ContentChanges++
+	}
+	if attempt.Rejected {
+		keyPress.Rejections++
+	}
+	if attempt.SessionEnded {
+		keyPress.SessionEnds++
+		if aidKey != "Enter" {
+			area.SessionEndingKeys = mergeSortedUniqueStrings(area.SessionEndingKeys, []string{aidKey})
+			area.AutoBlockedKeys = mergeSortedUniqueStrings(area.AutoBlockedKeys, []string{aidKey})
+		}
 	}
 
-	if !attempt.Transitioned {
-		// Keep field discovery metadata even when the attempt does not transition.
-	}
 	if area.FieldDiscovery == nil {
 		area.FieldDiscovery = make(map[string]MindMapFieldDiscovery)
 	}
@@ -307,7 +408,7 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 	if area.FieldCountProgressions == nil {
 		area.FieldCountProgressions = make(map[int]int)
 	}
-	if attempt.Transitioned && successfulWrites > 0 && learningFieldCount > 0 {
+	if progressed && successfulWrites > 0 && learningFieldCount > 0 {
 		area.FieldCountProgressions[learningFieldCount]++
 		if learningFieldCount == 1 {
 			area.SingleFieldProgressions++
@@ -324,21 +425,275 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 			fd.WriteSuccesses++
 		}
 		value := strings.TrimSpace(fw.Value)
+		if fw.Masked {
+			// Counted, never stored: the mask would otherwise be offered back
+			// to the field as if it were something that had worked.
+			if value != "" {
+				fd.LastValue = maskedFieldValue
+			}
+			if progressed && fw.Success {
+				fd.Progressions++
+				fd.LastWorkedAt = attempt.Time
+				fd.LastWorkedValue = maskedFieldValue
+			}
+			area.FieldDiscovery[fieldKey] = fd
+			continue
+		}
 		if value != "" {
 			fd.LastValue = value
 			if fw.Success {
 				area.KnownTriedValues[fieldKey] = appendUniqueLimited(area.KnownTriedValues[fieldKey], value, maxKnownValuesPerField*2)
+				if aidKey == "Enter" && containsString(area.InputCandidates[fieldKey], value) {
+					if area.CandidateTried == nil {
+						area.CandidateTried = make(map[string][]string)
+					}
+					area.CandidateTried[fieldKey] = appendCandidate(area.CandidateTried[fieldKey], value)
+				}
 			}
 		}
-		if attempt.Transitioned && fw.Success {
+		if progressed && fw.Success {
 			fd.Progressions++
 			fd.LastWorkedAt = attempt.Time
-			if value != "" {
+			// A value the application has refused in this field does not
+			// become a working one because a function key pressed with it
+			// on the screen happened to go somewhere.
+			if value != "" && !containsString(area.RejectedValues[fieldKey], value) {
 				fd.LastWorkedValue = value
 				area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], value, maxKnownValuesPerField)
 			}
 		}
+		if fw.Success && value != "" {
+			// Blame is only assigned when one field was written: with several,
+			// there is no telling which one the application objected to.
+			if attempt.Rejected && successfulWrites == 1 {
+				if area.RejectedValues == nil {
+					area.RejectedValues = make(map[string][]string)
+				}
+				area.RejectedValues[fieldKey] = appendUniqueLimited(area.RejectedValues[fieldKey], value, maxRejectedValuesPerField)
+				area.KnownWorkingValues[fieldKey] = removeString(area.KnownWorkingValues[fieldKey], value)
+			}
+			if attempt.SessionEnded && aidKey == "Enter" {
+				if area.SessionEndingValues == nil {
+					area.SessionEndingValues = make(map[string][]string)
+				}
+				area.SessionEndingValues[fieldKey] = appendUniqueLimited(area.SessionEndingValues[fieldKey], value, maxRejectedValuesPerField)
+				area.KnownWorkingValues[fieldKey] = removeString(area.KnownWorkingValues[fieldKey], value)
+			}
+		}
 		area.FieldDiscovery[fieldKey] = fd
+	}
+}
+
+// markValuesRejected files values as rejected after the fact: used when a
+// submission led to an error screen that bounced straight back, which is
+// only known one step later. Any credit the values were given as "working"
+// is withdrawn.
+func (m *MindMap) markValuesRejected(hash string, writes []AttemptFieldWrite) {
+	if m == nil {
+		return
+	}
+	area := m.Areas[strings.TrimSpace(hash)]
+	if area == nil {
+		return
+	}
+	successful := 0
+	for _, fw := range writes {
+		if fw.Success {
+			successful++
+		}
+	}
+	if successful != 1 {
+		return
+	}
+	for _, fw := range writes {
+		value := strings.TrimSpace(fw.Value)
+		if !fw.Success || fw.Masked || value == "" {
+			continue
+		}
+		fieldKey := mindMapFieldKey(fw.Row, fw.Column, fw.Length)
+		if area.RejectedValues == nil {
+			area.RejectedValues = make(map[string][]string)
+		}
+		area.RejectedValues[fieldKey] = appendUniqueLimited(area.RejectedValues[fieldKey], value, maxRejectedValuesPerField)
+		area.KnownWorkingValues[fieldKey] = removeString(area.KnownWorkingValues[fieldKey], value)
+	}
+}
+
+// attemptInputSet returns the field values an attempt submitted, keyed by
+// field key, with non-display values masked.
+func attemptInputSet(attempt Attempt) map[string]string {
+	var out map[string]string
+	for _, fw := range attempt.FieldWrites {
+		if !fw.Success {
+			continue
+		}
+		value := strings.TrimSpace(fw.Value)
+		if fw.Masked {
+			value = maskedFieldValue
+		}
+		if value == "" {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string)
+		}
+		out[mindMapFieldKey(fw.Row, fw.Column, fw.Length)] = value
+	}
+	return out
+}
+
+func inputSetsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// appendInputSet adds an input set to a bounded most-recent-last list,
+// moving it to the end if it is already there.
+func appendInputSet(sets []map[string]string, add map[string]string) []map[string]string {
+	for i, existing := range sets {
+		if inputSetsEqual(existing, add) {
+			sets = append(sets[:i], sets[i+1:]...)
+			break
+		}
+	}
+	sets = append(sets, add)
+	if len(sets) > maxEdgeInputSets {
+		sets = sets[len(sets)-maxEdgeInputSets:]
+	}
+	return sets
+}
+
+func cloneInputSets(sets []map[string]string) []map[string]string {
+	if sets == nil {
+		return nil
+	}
+	out := make([]map[string]string, 0, len(sets))
+	for _, set := range sets {
+		c := make(map[string]string, len(set))
+		for k, v := range set {
+			c[k] = v
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func cloneStringListMap(in map[string][]string) map[string][]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for k, v := range in {
+		out[k] = append([]string(nil), v...)
+	}
+	return out
+}
+
+func containsString(list []string, value string) bool {
+	for _, v := range list {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(list []string, value string) []string {
+	for i, v := range list {
+		if v == value {
+			return append(list[:i:i], list[i+1:]...)
+		}
+	}
+	return list
+}
+
+// normalizeMindMapFieldKeys repairs field keys written by versions that
+// keyed a field write by the length of the text typed rather than the length
+// of the field. Such a key ("R11C20L3" for a three-character value in an
+// eight-character field) never matched the field's metadata key
+// ("R11C20L8"), so nothing learned under it could be found again. Entries
+// whose row and column match exactly one known field are moved under that
+// field's key; anything else is left alone.
+func normalizeMindMapFieldKeys(mm *MindMap) {
+	if mm == nil {
+		return
+	}
+	for _, area := range mm.Areas {
+		if area == nil || len(area.FieldMetadata) == 0 {
+			continue
+		}
+		type pos struct{ row, col int }
+		byPos := make(map[pos]string, len(area.FieldMetadata))
+		ambiguous := make(map[pos]bool)
+		for key, meta := range area.FieldMetadata {
+			p := pos{meta.Row, meta.Column}
+			if _, dup := byPos[p]; dup {
+				ambiguous[p] = true
+			}
+			byPos[p] = key
+		}
+		target := func(key string) (string, bool) {
+			if _, ok := area.FieldMetadata[key]; ok {
+				return "", false
+			}
+			row, col, _, ok := parseMindMapFieldKey(key)
+			if !ok {
+				return "", false
+			}
+			p := pos{row, col}
+			if ambiguous[p] {
+				return "", false
+			}
+			to, ok := byPos[p]
+			return to, ok && to != key
+		}
+		rekeyLists := func(m map[string][]string, max int) {
+			moves := make(map[string]string)
+			for key := range m {
+				if to, ok := target(key); ok {
+					moves[key] = to
+				}
+			}
+			for key, to := range moves {
+				for _, v := range m[key] {
+					m[to] = appendUniqueLimited(m[to], v, max)
+				}
+				delete(m, key)
+			}
+		}
+		rekeyLists(area.KnownTriedValues, maxKnownValuesPerField*2)
+		rekeyLists(area.KnownWorkingValues, maxKnownValuesPerField)
+		rekeyLists(area.RejectedValues, maxRejectedValuesPerField)
+		moves := make(map[string]string)
+		for key := range area.FieldDiscovery {
+			if to, ok := target(key); ok {
+				moves[key] = to
+			}
+		}
+		for key, to := range moves {
+			in := area.FieldDiscovery[key]
+			fd := area.FieldDiscovery[to]
+			fd.Writes += in.Writes
+			fd.WriteSuccesses += in.WriteSuccesses
+			fd.Progressions += in.Progressions
+			if in.LastTriedAt.After(fd.LastTriedAt) || fd.LastValue == "" {
+				fd.LastTriedAt = in.LastTriedAt
+				fd.LastValue = in.LastValue
+			}
+			if in.LastWorkedAt.After(fd.LastWorkedAt) || fd.LastWorkedValue == "" {
+				fd.LastWorkedAt = in.LastWorkedAt
+				fd.LastWorkedValue = in.LastWorkedValue
+			}
+			area.FieldDiscovery[to] = fd
+			delete(area.FieldDiscovery, key)
+		}
 	}
 }
 
@@ -460,6 +815,17 @@ func mergeAreaInto(dst, src *MindMapArea) {
 			kp.Progressions += in.Progressions
 			kp.SingleFieldProgressions += in.SingleFieldProgressions
 			kp.MultiFieldProgressions += in.MultiFieldProgressions
+			kp.ContentChanges += in.ContentChanges
+			kp.Rejections += in.Rejections
+			kp.SessionEnds += in.SessionEnds
+			for to, sets := range in.Inputs {
+				if kp.Inputs == nil {
+					kp.Inputs = make(map[string][]map[string]string, len(in.Inputs))
+				}
+				for _, set := range cloneInputSets(sets) {
+					kp.Inputs[to] = appendInputSet(kp.Inputs[to], set)
+				}
+			}
 			if in.LastUsedAt.After(kp.LastUsedAt) {
 				kp.LastUsedAt = in.LastUsedAt
 			}
@@ -475,6 +841,35 @@ func mergeAreaInto(dst, src *MindMapArea) {
 	}
 	if len(src.AutoBlockedKeys) > 0 {
 		dst.AutoBlockedKeys = mergeSortedUniqueStrings(dst.AutoBlockedKeys, src.AutoBlockedKeys)
+	}
+	if len(src.SessionEndingKeys) > 0 {
+		dst.SessionEndingKeys = mergeSortedUniqueStrings(dst.SessionEndingKeys, src.SessionEndingKeys)
+	}
+	mergeLists := func(dstMap *map[string][]string, srcMap map[string][]string, max int) {
+		if len(srcMap) == 0 {
+			return
+		}
+		if *dstMap == nil {
+			*dstMap = make(map[string][]string, len(srcMap))
+		}
+		for key, values := range srcMap {
+			for _, v := range values {
+				(*dstMap)[key] = appendUniqueLimited((*dstMap)[key], v, max)
+			}
+		}
+	}
+	mergeLists(&dst.RejectedValues, src.RejectedValues, maxRejectedValuesPerField)
+	mergeLists(&dst.SessionEndingValues, src.SessionEndingValues, maxRejectedValuesPerField)
+	mergeLists(&dst.InputCandidates, src.InputCandidates, maxCandidatesPerField)
+	mergeLists(&dst.CandidateTried, src.CandidateTried, maxCandidatesPerField)
+	if dst.OptionFieldKey == "" {
+		dst.OptionFieldKey = src.OptionFieldKey
+	}
+	if dst.CommandFieldKey == "" {
+		dst.CommandFieldKey = src.CommandFieldKey
+	}
+	if src.ContentVariants > dst.ContentVariants {
+		dst.ContentVariants = src.ContentVariants
 	}
 	if len(src.AutoKnownKeys) > 0 {
 		dst.AutoKnownKeys = mergeSortedUniqueStrings(dst.AutoKnownKeys, src.AutoKnownKeys)
@@ -547,12 +942,36 @@ func areaLabelFromScreen(screen *host.Screen) string {
 		if trimmed == "" {
 			continue
 		}
-		collapsed := strings.Join(strings.Fields(trimmed), " ")
+		collapsed := stripVolatileLabelTokens(trimmed)
 		if collapsed != "" {
 			return truncateForLabel(collapsed, 72)
 		}
 	}
 	return fmt.Sprintf("%dx%d screen", screen.Height, screen.Width)
+}
+
+// volatileLabelTokenRe matches the dates and times of day applications print
+// in their title row. A label that carries one names a different screen every
+// day ("PET100 MAIN MENU 2026-11-16").
+var volatileLabelTokenRe = regexp.MustCompile(
+	`^(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{1,2}:\d{2}(?::\d{2})?(?:[AaPp][Mm])?|\d{2}\.\d{3}|\d{1,2}[A-Za-z]{3}\d{2,4})$`)
+
+// stripVolatileLabelTokens collapses whitespace and drops date and time
+// tokens from a title row. If nothing else is left the row is returned as it
+// was: a label made only of a date is still better than none.
+func stripVolatileLabelTokens(line string) string {
+	tokens := strings.Fields(line)
+	kept := make([]string, 0, len(tokens))
+	for _, tok := range tokens {
+		if volatileLabelTokenRe.MatchString(strings.Trim(tok, "()[],;")) {
+			continue
+		}
+		kept = append(kept, tok)
+	}
+	if len(kept) == 0 {
+		return strings.Join(tokens, " ")
+	}
+	return strings.Join(kept, " ")
 }
 
 func areaTitleDedupSignatureFromScreen(screen *host.Screen) string {

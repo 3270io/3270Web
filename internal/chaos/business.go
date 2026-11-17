@@ -239,6 +239,7 @@ func (e *Engine) AnnotateArea(hash, purpose, notes string, semantics map[string]
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}
+	e.touchMindMapLocked()
 	return annotateMindMapArea(e.mindMap, hash, purpose, notes, semantics)
 }
 
@@ -250,6 +251,7 @@ func (e *Engine) UpsertBusinessFunction(fn BusinessFunction) error {
 	if e.mindMap == nil {
 		e.mindMap = newMindMap()
 	}
+	e.touchMindMapLocked()
 	return upsertMindMapBusinessFunction(e.mindMap, fn)
 }
 

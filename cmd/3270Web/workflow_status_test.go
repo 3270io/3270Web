@@ -114,13 +114,32 @@ func TestWorkflowStatusHandler_IncludesChaosAttemptDetails(t *testing.T) {
 	if !strings.Contains(msg, "Attempt 1 AID Enter") {
 		t.Fatalf("chaosEvents[0].message = %q, want attempt details", msg)
 	}
-	chaosMindMap, ok := payload["chaosMindMap"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("chaosMindMap missing or invalid: %T", payload["chaosMindMap"])
+	// This endpoint is polled every 700 ms for the life of the page. It used
+	// to carry the whole mind map on every poll — decoded and re-encoded per
+	// request, read by nothing — and every field value of every recent
+	// attempt. The map is served by GET /chaos/status?verbose=true; what is
+	// left here is what the status strip shows.
+	if _, present := payload["chaosMindMap"]; present {
+		t.Fatalf("the workflow-status poll still carries the mind map: %v", payload["chaosMindMap"])
 	}
-	areas, ok := chaosMindMap["areas"].(map[string]interface{})
-	if !ok || len(areas) == 0 {
-		t.Fatalf("chaosMindMap.areas missing or empty: %#v", chaosMindMap["areas"])
+	if _, present := chaosLast["fieldWrites"]; present {
+		t.Fatalf("chaosLastAttempt still carries per-field writes: %v", chaosLast["fieldWrites"])
+	}
+	attempts, ok := payload["chaosAttempts"].([]interface{})
+	if !ok || len(attempts) != 1 {
+		t.Fatalf("chaosAttempts = %v, want the one recent attempt", payload["chaosAttempts"])
+	}
+	first, _ := attempts[0].(map[string]interface{})
+	for _, key := range []string{"attempt", "aidKey", "fromHash", "toHash", "fieldsTargeted", "fieldsWritten", "transitioned"} {
+		if _, present := first[key]; !present {
+			t.Errorf("chaosAttempts[0] is missing %q", key)
+		}
+	}
+	if _, present := first["fieldWrites"]; present {
+		t.Errorf("chaosAttempts[0] still carries per-field writes")
+	}
+	if strings.Contains(w.Body.String(), "HELLO") {
+		t.Errorf("a value typed into a field reached the workflow-status poll: %s", w.Body.String())
 	}
 }
 

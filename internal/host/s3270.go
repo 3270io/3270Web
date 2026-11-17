@@ -636,7 +636,27 @@ func (h *S3270) writeStringAtOnce(row, col int, text string) error {
 	if err != nil {
 		return err
 	}
-	return h.writeMultilineLocked(text, false)
+	// Verbose logging records every command, and what is typed into a
+	// non-display field is a password. The last screen read says whether this
+	// position is in one; when it does, the text is typed and not written down.
+	return h.writeMultilineLocked(text, h.hiddenAtLocked(row, col))
+}
+
+// hiddenAtLocked reports whether (row, col) lies in a hidden field on the last
+// screen read. The caller must hold h.mu.
+func (h *S3270) hiddenAtLocked(row, col int) bool {
+	if h.screen == nil {
+		return false
+	}
+	for _, f := range h.screen.Fields {
+		if f == nil || f.IsZeroLength() || !f.IsHidden() {
+			continue
+		}
+		if h.screen.contains(f, col, row) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *S3270) MoveCursor(row, col int) error {

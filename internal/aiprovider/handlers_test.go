@@ -252,11 +252,15 @@ func TestChatProxiesAnOpenAICompatibleUpstream(t *testing.T) {
 }
 
 // TestChatSurfacesUpstreamErrorsAsJSON checks that a failure before any bytes
-// are streamed produces a readable JSON error rather than a half-open SSE.
+// are streamed produces a readable JSON error rather than a half-open SSE —
+// with the upstream's status, and without the upstream's body.
+//
+// The body used to be relayed. For an endpoint a user typed, that made the
+// error message a way to read whatever answered at that address.
 func TestChatSurfacesUpstreamErrorsAsJSON(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = io.WriteString(w, `{"error":{"message":"rate limit"}}`)
+		_, _ = io.WriteString(w, `{"error":{"message":"internal-secret-detail"}}`)
 	}))
 	defer upstream.Close()
 
@@ -270,8 +274,12 @@ func TestChatSurfacesUpstreamErrorsAsJSON(t *testing.T) {
 	if code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want the upstream 429 passed through", code)
 	}
-	if msg, _ := body["error"].(string); !strings.Contains(msg, "rate limit") {
-		t.Errorf("error = %q, want the upstream message", msg)
+	msg, _ := body["error"].(string)
+	if !strings.Contains(msg, "429") || !strings.Contains(msg, "rate-limiting") {
+		t.Errorf("error = %q, want the status and what it usually means", msg)
+	}
+	if strings.Contains(msg, "internal-secret-detail") {
+		t.Errorf("a custom endpoint's response body reached the browser: %q", msg)
 	}
 }
 
@@ -320,8 +328,13 @@ func TestChatProxiesAnthropicThroughTheTranslator(t *testing.T) {
 	if gotVersion != anthropicVersion {
 		t.Errorf("anthropic-version = %q, want %q", gotVersion, anthropicVersion)
 	}
-	if gotBody["system"] != "sys" {
-		t.Errorf("upstream system = %v, want the system turn hoisted out of messages", gotBody["system"])
+	system, _ := gotBody["system"].([]any)
+	first, _ := system[0].(map[string]any)
+	if len(system) != 1 || first["type"] != "text" || first["text"] != "sys" {
+		t.Errorf("upstream system = %v, want the system turn hoisted out of messages as a text block", gotBody["system"])
+	}
+	if first["cache_control"] == nil {
+		t.Errorf("the system prompt should carry a cache breakpoint: %v", first)
 	}
 	out := w.Body.String()
 	if !strings.Contains(out, `"chat.completion.chunk"`) || !strings.Contains(out, `"content":"hello"`) {

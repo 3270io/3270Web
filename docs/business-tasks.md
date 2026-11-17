@@ -172,6 +172,17 @@ draft — or every function at once if you omit the name.
 This is the join between exploration and use: the mind-map is the asset, the
 task is the product.
 
+The run does not have to be the one you have just finished. Business
+functions are kept in the run's map, so any run that carries them will do:
+load it from **Automation → Saved chaos runs**, or bring its map in from
+another deployment with the **Import map** button in the chaos map dialog
+(the counterpart of **Export map** there). Neither needs a run to be active,
+and neither needs curl; `GET /chaos/mindmap/export` and
+`POST /chaos/mindmap/import` remain for scripts. An exported map leaves out
+values typed into hidden fields, so a function that fills one arrives with
+that input empty — which is what a task wants in any case: make it a
+parameter.
+
 The conversion has one real difficulty, and it is worth knowing about. Chaos
 identifies a screen by **hash**, which is exact and useless to a person: when
 it stops matching, all it can say is "a different screen". A task guards with

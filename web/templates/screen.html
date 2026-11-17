@@ -18,12 +18,12 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=24">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=25">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=23">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=24">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=7">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=8">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -43,7 +43,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=18" defer></script>
+    <script src="/static/keyboard.js?v=19" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
@@ -55,9 +55,9 @@
          preventDefault(), ui.js's listener sees event.defaultPrevented and
          skips entirely — so toolbar buttons never got the spinner/disabled
          state, allowing double-submits. -->
-    <script src="/static/ui.js?v=22" defer></script>
-    <script src="/static/workflow.js?v=19" defer></script>
-    <script src="/static/screen-live.js" defer></script>
+    <script src="/static/ui.js?v=23" defer></script>
+    <script src="/static/workflow.js?v=20" defer></script>
+    <script src="/static/screen-live.js?v=2" defer></script>
     <script src="/static/screen-grid.js" defer></script>
     <script src="/static/screen-copy.js" defer></script>
     <script src="/static/hotspots.js" defer></script>
@@ -68,11 +68,11 @@
     <script src="/static/connection-profiles.js?v=2" defer></script>
     <script src="/static/file-transfer.js" defer></script>
     <script src="/static/keymap-editor.js" defer></script>
-    <script src="/static/tasks.js" defer></script>
-    <script src="/static/task-wizard.js" defer></script>
+    <script src="/static/tasks.js?v=2" defer></script>
+    <script src="/static/task-wizard.js?v=2" defer></script>
     <script src="/static/ui-preferences.js?v=1" defer></script>
     <script src="/static/workspace-mode.js?v=2" defer></script>
-    <script src="/static/quick-start.js?v=1" defer></script>
+    <script src="/static/quick-start.js?v=2" defer></script>
     <script src="/static/screen-size.js" defer></script>
     <script src="/static/terminal-controls.js?v=6" defer></script>
     <!-- The menu bar: drop-downs, the collapse control and the theme
@@ -81,13 +81,13 @@
     <script src="/static/menu-bar.js?v=2" defer></script>
     <script src="/static/print-screen.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
-    <script src="/static/copilot-auth.js" defer></script>
+    <script src="/static/copilot-auth.js?v=2" defer></script>
     <!-- Loads before copilot-panel.js: the panel calls window.AIProvider at
          init to render whichever backend is selected. -->
-    <script src="/static/ai-provider.js?v=1" defer></script>
-    <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=6" defer></script>
-    <script src="/static/ui-polish.js?v=12" defer></script>
+    <script src="/static/ai-provider.js?v=2" defer></script>
+    <script src="/static/copilot-tools.js?v=4" defer></script>
+    <script src="/static/copilot-panel.js?v=8" defer></script>
+    <script src="/static/ui-polish.js?v=13" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
          origin. See web/static/embed.js. -->
@@ -366,11 +366,25 @@
                                 </div>
                             </div>
                             <div class="chaos-controls" data-chaos-controls>
-                                <div class="appmenu-heading" role="presentation">Chaos exploration</div>
+                                <!-- One vocabulary for this feature, here and in every
+                                     dialog, toast and tooltip it owns: an "exploration"
+                                     is the run, the "screen map" is the list of screens
+                                     it found, the "flow diagram" is how they connect, and
+                                     the "discovery report" is the write-up. -->
+                                <div class="appmenu-heading" role="presentation">Exploration</div>
                                 <div class="chaos-controls-section" data-chaos-section="run" role="none">
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-start>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-start>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-                                        <span class="appmenu-label">Start exploration<span class="appmenu-sub">Drive the application and map what it does</span></span>
+                                        <span class="appmenu-label">Start exploration…<span class="appmenu-sub">Drive the application from this screen and map what it does</span></span>
+                                    </button>
+                                    <!-- One action where there used to be two. "Resume" and
+                                         "Extend" differed only in how the step limit was
+                                         counted, which is not a choice anybody could make from
+                                         a menu; the start dialog states it instead. The second
+                                         attribute keeps the old hook pointing at a live control. -->
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-resume data-chaos-extend hidden>
+                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+                                        <span class="appmenu-label">Continue exploring…<span class="appmenu-sub">Carry on the loaded run from the screen you are on</span></span>
                                     </button>
                                     <button type="button" class="appmenu-item appmenu-item-danger" role="menuitem" data-chaos-stop hidden>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z" /></svg>
@@ -379,42 +393,42 @@
                                 </div>
                                 <span class="appmenu-sep" data-chaos-divider role="separator"></span>
                                 <div class="chaos-controls-section" data-chaos-section="load" role="none">
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-load>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-load>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
-                                        <span class="appmenu-label">Load a previous run…</span>
+                                        <span class="appmenu-label">Saved runs…<span class="appmenu-sub">Load, name, compare or delete earlier explorations</span></span>
                                     </button>
                                     {{ if .LoadedWorkflow }}
                                     <button type="button" class="appmenu-item" role="menuitem" data-chaos-load-recording>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8h-8l-2-4zm2 6v4h3l-4 4-4-4h3v-4h2z"/></svg>
-                                        <span class="appmenu-label">Load the recording into chaos</span>
+                                        <span class="appmenu-label">Load the recording into exploration</span>
                                     </button>
                                     {{ end }}
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-resume hidden>
-                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
-                                        <span class="appmenu-label">Resume the loaded run</span>
-                                    </button>
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-extend hidden>
-                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-                                        <span class="appmenu-label">Extend the completed run</span>
-                                    </button>
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-hints-open>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-hints-open>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm2.6 11.5-.6.4V16h-4v-2.1l-.6-.4a5 5 0 1 1 5.2 0z"/></svg>
-                                        <span class="appmenu-label">Edit hints<span class="appmenu-sub">Known data, keys chaos must never press</span></span>
+                                        <span class="appmenu-label">Exploration hints<span class="appmenu-sub">Known data, and keys exploration must never press</span></span>
                                     </button>
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-map-open>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-map-open>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5.1 9 3 3 5.1v15.8L9 19l6 2.1 6-2.1V3zm-7 .7 6 2.1v13.4l-6-2.1zM5 6.5l2-.7v13.4l-2 .7zm14 12.7-3 1.1V6.9l3-1.1z"/></svg>
-                                        <span class="appmenu-label">Chaos map</span>
+                                        <span class="appmenu-label">Screen map<span class="appmenu-sub">Every screen found, with its keys and fields</span></span>
+                                    </button>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-flow-menu-open>
+                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h6v5H8v2h8V9h-2V4h6v5h-2v4h-5v2h2v5H9v-5h2v-2H6V9H4V4zm2 2v1h2V6H6zm10 0v1h2V6h-2zm-5 11v1h2v-1h-2z"/></svg>
+                                        <span class="appmenu-label">Flow diagram<span class="appmenu-sub">How the screens connect</span></span>
                                     </button>
                                 </div>
                                 <span class="appmenu-sep" data-chaos-divider role="separator"></span>
                                 <div class="chaos-controls-section" data-chaos-section="output" role="none">
-                                    <button type="button" class="appmenu-item" role="menuitem" data-chaos-report hidden>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-report hidden>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h10l6 6v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm9 1.5V10h5.5M6 14h12v1.5H6V14zm0 3h12v1.5H6V17zm0-6h7v1.5H6V11z"/></svg>
                                         <span class="appmenu-label">Discovery report</span>
                                     </button>
                                     <button type="button" class="appmenu-item" role="menuitem" data-chaos-export hidden>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
                                         <span class="appmenu-label">Download workflow JSON</span>
+                                    </button>
+                                    <button type="button" class="appmenu-item" role="menuitem" aria-haspopup="dialog" data-chaos-task-open hidden>
+                                        <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+                                        <span class="appmenu-label">Create task from a discovered function…<span class="appmenu-sub">Turn a path the exploration found into a guided task</span></span>
                                     </button>
                                     <button type="button" class="appmenu-item appmenu-item-danger" role="menuitem" data-chaos-remove hidden>
                                         <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" /></svg>
@@ -599,17 +613,50 @@
                  stop without first hunting for the toolbar. -->
             <div class="context-bar" data-context-bar>
             <div class="active-run-toolbar-row" data-active-run-container hidden>
-                <span class="active-run-row" data-active-run-row data-status-open role="button" tabindex="0" aria-label="Open workflow status" data-tippy-content="Open workflow status">
-                    <span class="active-run-label">Active Run</span>
-                    <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
-                    <span class="status-text active-run-meta" data-active-run-meta></span>
-                    <button type="button" class="active-run-extend" data-active-run-extend data-tippy-content="Extend chaos run" aria-label="Extend chaos run" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                <!-- A group, not a button: it holds buttons, and a button inside
+                     role="button" is a control a screen reader cannot reach and a
+                     click that fires twice. The summary is the one that opens the
+                     run status; Stop, Continue and Dismiss sit beside it. -->
+                <div class="active-run-row" data-active-run-row role="group" aria-label="Run status">
+                    <button type="button" class="active-run-summary" data-active-run-summary data-status-open aria-label="Open run status" data-tippy-content="Open run status">
+                        <span class="active-run-label">Active Run</span>
+                        <span class="active-run-chip" data-active-run-chip data-run-mode="idle">RUN</span>
+                        <span class="status-text active-run-meta" data-active-run-meta></span>
                     </button>
-                    <button type="button" class="active-run-close" data-active-run-close data-tippy-content="Dismiss active run row" aria-label="Dismiss active run row">
+                    <span class="active-run-momentum" data-chaos-momentum hidden></span>
+                    <button type="button" class="active-run-stop" data-active-run-stop hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z"/></svg>
+                        <span>Stop</span>
+                    </button>
+                    <button type="button" class="active-run-extend" data-active-run-extend hidden>Continue exploring</button>
+                    <button type="button" class="active-run-close" data-active-run-close data-tippy-content="Dismiss run status" aria-label="Dismiss run status">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3z"/></svg>
                     </button>
-                </span>
+                </div>
+                <!-- What an exploration left behind. A run that ends is not the
+                     end of the job: this says why it ended and puts the next
+                     four things somebody does within reach. ui.js fills it. -->
+                <section class="chaos-run-panel" data-chaos-run-panel aria-labelledby="chaos-run-panel-title" hidden>
+                    <div class="chaos-run-panel-head">
+                        <span class="chaos-run-panel-icon" data-chaos-run-panel-icon aria-hidden="true"></span>
+                        <div class="chaos-run-panel-text">
+                            <h3 id="chaos-run-panel-title" data-chaos-run-panel-title>Exploration finished</h3>
+                            <p data-chaos-run-panel-reason></p>
+                            <p class="subtle" data-chaos-run-panel-counts></p>
+                        </div>
+                    </div>
+                    <div class="chaos-run-panel-actions">
+                        <button type="button" data-chaos-run-panel-report>View report</button>
+                        <button type="button" data-chaos-run-panel-map>Open screen map</button>
+                        <button type="button" data-chaos-run-panel-export>Download workflow</button>
+                        <button type="button" data-chaos-run-panel-continue>Continue exploring</button>
+                    </div>
+                    <div class="chaos-run-panel-next" data-chaos-run-panel-next hidden>
+                        <h4>Suggested next</h4>
+                        <ol data-chaos-run-panel-next-list></ol>
+                    </div>
+                </section>
+                <span class="visually-hidden" data-chaos-live aria-live="polite"></span>
             </div>
             <!-- Playback transport. Hidden markup until a recording is
                  actually running, then the two or three controls that matter
@@ -904,58 +951,136 @@
     <div class="modal-backdrop" data-chaos-runs-modal hidden>
         <div class="modal modal-chaos-runs" role="dialog" aria-modal="true" aria-labelledby="chaos-runs-modal-title" tabindex="-1">
             <div class="modal-header">
-                <h3 id="chaos-runs-modal-title">Saved chaos runs</h3>
+                <h3 id="chaos-runs-modal-title">Saved runs</h3>
                 <button type="button" class="modal-close" data-chaos-runs-close>Close</button>
             </div>
+            <p class="subtle chaos-runs-help">Each exploration is saved when it ends. Load one to view its screen map and report or to continue it; tick two to compare what they found.</p>
+            <div class="chaos-status-line" data-chaos-runs-status aria-live="polite"></div>
             <div class="chaos-runs-list" data-chaos-runs-list>
                 <p class="subtle">Loading…</p>
             </div>
-            <div class="modal-actions">
+            <div class="modal-actions chaos-runs-actions">
                 <button type="button" data-chaos-runs-select-all>Select all</button>
                 <button type="button" data-chaos-runs-clear-selection>Unselect all</button>
+                <button type="button" data-chaos-runs-compare disabled>Compare</button>
                 <button type="button" class="danger" data-chaos-runs-delete-selected disabled>Delete selected</button>
-                <button type="button" data-chaos-runs-close>Cancel</button>
+                <button type="button" data-chaos-runs-close>Close</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop" data-chaos-compare-modal hidden>
+        <div class="modal modal-chaos-compare" role="dialog" aria-modal="true" aria-labelledby="chaos-compare-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="chaos-compare-modal-title">Compare runs</h3>
+                <button type="button" class="modal-close" data-chaos-compare-close>Close</button>
+            </div>
+            <div class="stack">
+                <div class="chaos-status-line" data-chaos-compare-status aria-live="polite"></div>
+                <div class="chaos-compare-body" data-chaos-compare-content></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-compare-close>Close</button>
             </div>
         </div>
     </div>
     <div class="modal-backdrop" data-chaos-confirm-modal hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chaos-confirm-modal-title" tabindex="-1">
+        <div class="modal modal-chaos-confirm" role="alertdialog" aria-modal="true" aria-labelledby="chaos-confirm-modal-title" aria-describedby="chaos-confirm-modal-message" tabindex="-1">
             <div class="modal-header">
                 <h3 id="chaos-confirm-modal-title" data-chaos-confirm-title>Confirm action</h3>
                 <button type="button" class="modal-close" data-chaos-confirm-cancel>Close</button>
             </div>
-            <p class="subtle" data-chaos-confirm-message>Are you sure?</p>
+            <p class="subtle" id="chaos-confirm-modal-message" data-chaos-confirm-message>Are you sure?</p>
             <div class="modal-actions">
-                <button type="button" data-chaos-confirm-cancel>Cancel</button>
+                <button type="button" data-chaos-confirm-cancel data-chaos-confirm-cancel-label>Cancel</button>
+                <button type="button" data-chaos-confirm-alt hidden></button>
                 <button type="button" class="danger" data-chaos-confirm-ok>Confirm</button>
             </div>
         </div>
     </div>
+    <!-- The pre-flight. Exploration presses keys on a live host, so the run
+         does not begin until somebody has seen where it is pointed, how far
+         it may go, and which keys it will and will not press. -->
+    <div class="modal-backdrop" data-chaos-start-modal hidden>
+        <form class="modal modal-chaos-start" role="dialog" aria-modal="true" aria-labelledby="chaos-start-modal-title" aria-describedby="chaos-start-modal-statement" tabindex="-1" data-chaos-start-form novalidate>
+            <div class="modal-header">
+                <h3 id="chaos-start-modal-title" data-chaos-start-title>Start exploration</h3>
+                <button type="button" class="modal-close" data-chaos-start-cancel>Close</button>
+            </div>
+            <div class="stack">
+                <p class="chaos-start-statement" id="chaos-start-modal-statement">Exploration types generated data into the input fields and presses Enter and PF keys on the live host, starting from the screen you are on now. It can submit forms and change data, so run it only where that is safe.</p>
+                <dl class="chaos-start-facts">
+                    <div>
+                        <dt>Host</dt>
+                        <dd data-chaos-start-host>—</dd>
+                    </div>
+                    <div data-chaos-start-run-row hidden>
+                        <dt>Continuing</dt>
+                        <dd data-chaos-start-run></dd>
+                    </div>
+                </dl>
+                <div class="chaos-start-grid">
+                    <div class="chaos-hint-field">
+                        <label class="chaos-hint-field-label" for="chaos-start-max-steps" data-chaos-start-steps-label>Step limit</label>
+                        <input type="number" id="chaos-start-max-steps" data-chaos-start-max-steps min="1" step="1" inputmode="numeric" aria-describedby="chaos-start-max-steps-help">
+                        <span class="subtle chaos-start-help" id="chaos-start-max-steps-help" data-chaos-start-steps-help>How many times it may press a key. Leave empty to use the limit from Settings.</span>
+                    </div>
+                    <div class="chaos-hint-field">
+                        <label class="chaos-hint-field-label" for="chaos-start-time-budget">Time limit (seconds)</label>
+                        <input type="number" id="chaos-start-time-budget" data-chaos-start-time-budget min="1" step="1" inputmode="numeric" aria-describedby="chaos-start-time-budget-help">
+                        <span class="subtle chaos-start-help" id="chaos-start-time-budget-help">It stops when either limit is reached. Leave empty to use the limit from Settings.</span>
+                    </div>
+                </div>
+                <div class="chaos-hint-field">
+                    <label class="chaos-hint-field-label" for="chaos-start-blocked-keys">Blocked keys</label>
+                    <textarea id="chaos-start-blocked-keys" data-chaos-start-blocked-keys rows="3" spellcheck="false" placeholder="One per line, for example&#10;PF3&#10;PF12" aria-describedby="chaos-start-blocked-help chaos-start-blocked-warning"></textarea>
+                    <span class="subtle chaos-start-help" id="chaos-start-blocked-help">Keys exploration must never press. A change here is saved as your default for later runs.</span>
+                    <p class="chaos-start-warning" id="chaos-start-blocked-warning" data-chaos-start-blocked-warning role="status" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                        <span><strong>No keys are blocked.</strong> Exploration may press a key that signs off, cancels, deletes or confirms. Keys a screen labels as Exit or Cancel are avoided automatically, but only where the screen says so. Block the keys that are destructive in this application.</span>
+                    </p>
+                </div>
+                <fieldset class="chaos-start-keys">
+                    <legend>Keys to try</legend>
+                    <div class="chaos-start-keys-list" data-chaos-start-keys></div>
+                    <div class="chaos-start-keys-tools">
+                        <button type="button" data-chaos-start-keys-default>Usual set</button>
+                        <button type="button" data-chaos-start-keys-all>All</button>
+                        <span class="subtle">Blocked keys are never pressed, even when ticked here. PF3 and Clear often leave the application, so they start unticked.</span>
+                    </div>
+                </fieldset>
+                <div class="chaos-status-line" data-chaos-start-status aria-live="polite"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-start-cancel>Cancel</button>
+                <button type="submit" data-chaos-start-confirm>Start exploration</button>
+            </div>
+        </form>
+    </div>
     <div class="modal-backdrop" data-chaos-hints-modal hidden>
         <div class="modal modal-chaos-hints" role="dialog" aria-modal="true" aria-labelledby="chaos-hints-modal-title" tabindex="-1">
             <div class="modal-header">
-                <h3 id="chaos-hints-modal-title">Chaos Hints</h3>
-                <div class="logs-modal-header-actions">
-                    <button type="button" class="icon-button" data-chaos-hints-maximize aria-expanded="false" data-tippy-content="Maximize chaos hints" aria-label="Maximize chaos hints">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                <h3 id="chaos-hints-modal-title">Exploration hints</h3>
+                <div class="settings-modal-actions">
+                    <button type="button" class="icon-button" data-chaos-hints-maximize aria-expanded="false" data-tippy-content="Maximize exploration hints" aria-label="Maximize exploration hints">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z"/></svg>
                     </button>
-                    <button type="button" class="icon-button" data-chaos-hints-minimize aria-expanded="true" data-tippy-content="Restore chaos hints size" aria-label="Restore chaos hints size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-hints-minimize aria-expanded="true" data-tippy-content="Restore exploration hints size" aria-label="Restore exploration hints size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-hints-close>Close</button>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle chaos-hints-help">Add transactions, known data, and optional screen label to keyboard key mappings (for example, Return = PF3) to guide chaos behavior.</p>
+                <p class="subtle chaos-hints-help">Add transactions, known data, and optional screen label to keyboard key mappings (for example, Return = PF3) to guide what exploration types and presses.</p>
                 <div class="chaos-hint-field">
                     <label class="chaos-hint-field-label" for="chaos-key-blacklist">Blocked Keys</label>
-                    <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="Keys chaos must never press (one per line)
+                    <textarea id="chaos-key-blacklist" data-chaos-key-blacklist rows="5" placeholder="Keys exploration must never press (one per line)
 PF3
 PF12"></textarea>
                     <p class="subtle">Use this to block dangerous keys such as logoff/exit PF keys.</p>
                 </div>
                 <fieldset class="chaos-hint-group">
-                    <legend>First Screen Hints</legend>
+                    <legend>First Screen</legend>
                     <div class="chaos-hint-row chaos-hint-row-static">
                         <div class="chaos-hint-field">
                             <label class="chaos-hint-field-label" for="chaos-first-screen-known-data">First Screen Known Data</label>
@@ -975,13 +1100,13 @@ PF12"></textarea>
                             <label class="chaos-hint-field-label" for="chaos-first-screen-key-assignments">First Screen Key Assignments</label>
                             <textarea id="chaos-first-screen-key-assignments" data-chaos-first-screen-key-assignments placeholder="Label = Key (one per line)
 Return = PF3
-Select = Enter"></textarea>
-                            <p class="subtle">Applied only on the first screen of a chaos start/resume, useful for login or initial menu selection.</p>
+Sign On = Enter"></textarea>
+                            <p class="subtle">Applied only on the first screen when an exploration starts or continues, useful for login or initial menu selection.</p>
                         </div>
                     </div>
                 </fieldset>
                 <fieldset class="chaos-hint-group">
-                    <legend>General Hints</legend>
+                    <legend>Transaction Hints</legend>
                     <div class="chaos-hints-list" data-chaos-hints-list></div>
                     <div class="modal-actions">
                         <button type="button" data-chaos-hints-add>Add hint</button>
@@ -989,7 +1114,7 @@ Select = Enter"></textarea>
                         <input type="file" accept=".json,application/json" data-chaos-hints-recording-input hidden>
                     </div>
                 </fieldset>
-                <div class="subtle" data-chaos-hints-status aria-live="polite"></div>
+                <div class="chaos-status-line" data-chaos-hints-status aria-live="polite"></div>
             </div>
             <div class="modal-actions">
                 <button type="button" data-chaos-hints-reload>Load saved</button>
@@ -1001,30 +1126,34 @@ Select = Enter"></textarea>
     <div class="modal-backdrop" data-chaos-map-modal hidden>
         <div class="modal modal-chaos-map" role="dialog" aria-modal="true" aria-labelledby="chaos-map-modal-title" tabindex="-1">
             <div class="modal-header">
-                <h3 id="chaos-map-modal-title">Chaos Map</h3>
+                <h3 id="chaos-map-modal-title">Screen map</h3>
                 <div class="settings-modal-actions">
-                    <button type="button" class="icon-button" data-chaos-map-maximize aria-expanded="false" data-tippy-content="Maximize chaos map" aria-label="Maximize chaos map">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-map-maximize aria-expanded="false" data-tippy-content="Maximize screen map" aria-label="Maximize screen map">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z"/></svg>
                     </button>
-                    <button type="button" class="icon-button" data-chaos-map-minimize aria-expanded="true" data-tippy-content="Restore chaos map size" aria-label="Restore chaos map size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-map-minimize aria-expanded="true" data-tippy-content="Restore screen map size" aria-label="Restore screen map size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-map-close>Close</button>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle chaos-map-help">Live application structure discovered by chaos. Add screen-specific hints to guide known data values and key presses for each screen.</p>
+                <p class="subtle chaos-map-help">Every screen the exploration has found. Add screen-specific hints to guide the data it types and the keys it presses on each one.</p>
                 <div class="chaos-map-status-row">
-                    <div class="subtle" data-chaos-map-status aria-live="polite"></div>
+                    <div class="chaos-status-line" data-chaos-map-status aria-live="polite"></div>
                     <div class="settings-modal-actions chaos-map-status-actions">
-                        <button type="button" data-chaos-map-view data-chaos-flow-open>View map</button>
+                        <button type="button" data-chaos-map-view data-chaos-flow-open>Open flow diagram</button>
                     </div>
                 </div>
                 <div class="chaos-map-list" data-chaos-map-list>
-                    <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
+                    <p class="subtle">No screens mapped yet. Start an exploration or load a saved run.</p>
                 </div>
             </div>
             <div class="modal-actions">
+                <button type="button" data-chaos-map-task>Create task from a discovered function…</button>
+                <button type="button" data-chaos-map-import>Import map…</button>
+                <input type="file" accept=".json,application/json" data-chaos-map-import-input aria-label="Screen map file to import" hidden>
+                <button type="button" data-chaos-map-export>Export map</button>
                 <button type="button" data-chaos-map-refresh>Refresh</button>
                 <button type="button" data-chaos-map-close>Close</button>
             </div>
@@ -1033,27 +1162,24 @@ Select = Enter"></textarea>
     <div class="modal-backdrop" data-chaos-flow-modal hidden>
         <div class="modal modal-chaos-flow" role="dialog" aria-modal="true" aria-labelledby="chaos-flow-modal-title" tabindex="-1">
             <div class="modal-header">
-                <h3 id="chaos-flow-modal-title">Chaos Discovery Flow</h3>
+                <h3 id="chaos-flow-modal-title">Flow diagram</h3>
                 <div class="settings-modal-actions">
-                    <button type="button" class="icon-button" data-chaos-flow-maximize aria-expanded="false" data-tippy-content="Maximize discovery flow" aria-label="Maximize discovery flow">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-flow-maximize aria-expanded="false" data-tippy-content="Maximize flow diagram" aria-label="Maximize flow diagram">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z"/></svg>
                     </button>
-                    <button type="button" class="icon-button" data-chaos-flow-minimize aria-expanded="true" data-tippy-content="Restore discovery flow size" aria-label="Restore discovery flow size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-flow-minimize aria-expanded="true" data-tippy-content="Restore flow diagram size" aria-label="Restore flow diagram size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-flow-close>Close</button>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle chaos-map-help">A larger view of the discovered screen flow, grouped to ignore input data variants on the same screen layout.</p>
+                <p class="subtle chaos-map-help">How the discovered screens connect. Screens that differ only in the data shown are drawn as one.</p>
                 <div class="chaos-map-status-row">
-                    <div class="subtle" data-chaos-flow-status aria-live="polite"></div>
-                    <div class="settings-modal-actions chaos-map-status-actions">
-                        <button type="button" data-chaos-flow-refresh>Refresh</button>
-                    </div>
+                    <div class="chaos-status-line" data-chaos-flow-status aria-live="polite"></div>
                 </div>
                 <div data-chaos-flow-content>
-                    <p class="subtle">No chaos map data yet. Start or load a chaos run.</p>
+                    <p class="subtle">No screens mapped yet. Start an exploration or load a saved run.</p>
                 </div>
             </div>
             <div class="modal-actions">
@@ -1068,16 +1194,16 @@ Select = Enter"></textarea>
                 <h3 id="chaos-flow-screen-hints-title">Screen Hints</h3>
                 <div class="settings-modal-actions">
                     <button type="button" class="icon-button" data-chaos-flow-screen-hints-maximize aria-expanded="false" data-tippy-content="Maximize screen hints" aria-label="Maximize screen hints">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z"/></svg>
                     </button>
                     <button type="button" class="icon-button" data-chaos-flow-screen-hints-minimize aria-expanded="true" data-tippy-content="Restore screen hints size" aria-label="Restore screen hints size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-flow-screen-hints-close>Close</button>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle" data-chaos-flow-screen-hints-meta>Select known values and keys to guide chaos for this screen.</p>
+                <p class="subtle" data-chaos-flow-screen-hints-meta>Select known values and keys to guide exploration on this screen.</p>
                 <div data-chaos-flow-screen-hints-preview></div>
                 <div class="chaos-hint-field">
                     <label class="chaos-hint-field-label" for="chaos-flow-screen-known-data">Known Data</label>
@@ -1095,7 +1221,7 @@ Select = Enter"></textarea>
                     <label class="chaos-hint-field-label" for="chaos-flow-screen-key-assignments">Label to Key Mappings</label>
                     <textarea id="chaos-flow-screen-key-assignments" data-chaos-flow-screen-key-assignments rows="5" placeholder="Return=PF3&#10;Next=PF8"></textarea>
                 </div>
-                <div class="subtle" data-chaos-flow-screen-hints-status aria-live="polite"></div>
+                <div class="chaos-status-line" data-chaos-flow-screen-hints-status aria-live="polite"></div>
             </div>
             <div class="modal-actions">
                 <button type="button" data-chaos-flow-screen-hints-save>Save screen hints</button>
@@ -1106,22 +1232,22 @@ Select = Enter"></textarea>
     <div class="modal-backdrop" data-chaos-report-modal hidden>
         <div class="modal modal-chaos-report" role="dialog" aria-modal="true" aria-labelledby="chaos-report-modal-title" tabindex="-1">
             <div class="modal-header">
-                <h3 id="chaos-report-modal-title">Chaos Discovery Report</h3>
+                <h3 id="chaos-report-modal-title">Discovery report</h3>
                 <div class="settings-modal-actions">
-                    <button type="button" class="icon-button" data-chaos-report-maximize aria-expanded="false" data-tippy-content="Maximize chaos report" aria-label="Maximize chaos report">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-report-maximize aria-expanded="false" data-tippy-content="Maximize discovery report" aria-label="Maximize discovery report">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h6v2H7v4H5V5zm12 0h2v6h-2V7h-4V5h4zm2 12v2h-6v-2h4v-4h2v4zm-12 2H5v-6h2v4h4v2H7z"/></svg>
                     </button>
-                    <button type="button" class="icon-button" data-chaos-report-minimize aria-expanded="true" data-tippy-content="Restore chaos report size" aria-label="Restore chaos report size" hidden>
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" /></svg>
+                    <button type="button" class="icon-button" data-chaos-report-minimize aria-expanded="true" data-tippy-content="Restore discovery report size" aria-label="Restore discovery report size" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
                     </button>
                     <button type="button" class="modal-close" data-chaos-report-close>Close</button>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle chaos-map-help">A formatted markdown report summarising discovered screens, working inputs, and observed function keys.</p>
-                <div class="subtle chaos-report-status" data-chaos-report-status aria-live="polite"></div>
+                <p class="subtle chaos-map-help">What the exploration found: the screens, the inputs that worked, and the function keys it saw in use.</p>
+                <div class="chaos-status-line chaos-report-status" data-chaos-report-status aria-live="polite"></div>
                 <div class="chaos-report-viewer" data-chaos-report-content>
-                    <p class="subtle">No report loaded yet. Start or load a chaos run, then open the report.</p>
+                    <p class="subtle">No report loaded yet. Start an exploration or load a saved run, then open the report.</p>
                 </div>
             </div>
             <div class="modal-actions">
@@ -1141,12 +1267,12 @@ Select = Enter"></textarea>
                 </div>
             </div>
             <div class="stack">
-                <p class="subtle chaos-start-log-confirm-help">Verbose logging can slow Chaos runs and generate large log files.</p>
-                <p class="chaos-start-log-confirm-message" data-chaos-start-log-confirm-message>Continue with logging enabled, or disable logging and then start Chaos mode?</p>
+                <p class="subtle chaos-start-log-confirm-help">Verbose logging can slow an exploration and generate large log files.</p>
+                <p class="chaos-start-log-confirm-message" data-chaos-start-log-confirm-message>Continue with logging enabled, or disable logging and then start the exploration?</p>
             </div>
             <div class="modal-actions">
-                <button type="button" data-chaos-start-log-confirm-disable>Disable logging + start chaos</button>
-                <button type="button" data-chaos-start-log-confirm-continue>Start chaos with logging enabled</button>
+                <button type="button" data-chaos-start-log-confirm-disable>Disable logging and start</button>
+                <button type="button" data-chaos-start-log-confirm-continue>Start with logging enabled</button>
                 <button type="button" data-chaos-start-log-confirm-cancel>Cancel</button>
             </div>
         </div>
@@ -1290,31 +1416,48 @@ Select = Enter"></textarea>
         <header class="copilot-panel-header">
             <span class="copilot-panel-title">AI Chat</span>
             <div class="copilot-panel-header-actions">
-                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Toggle auto-run mode" title="Auto Mode: run tools without approval">Auto</button>
+                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto Mode: run typing and key presses without asking" data-tippy-content="Auto Mode: typing and key presses run without asking, on this host only. Destructive actions still ask.">Auto</button>
                 <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
-                <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
-                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of the current AI provider" aria-label="Sign out of the current AI provider" hidden>Sign out</button>
-                <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close AI chat panel">&times;</button>
+                <button type="button" class="copilot-icon-button" data-copilot-menu-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="copilot-panel-menu" aria-label="More chat actions">More</button>
+                <button type="button" class="copilot-icon-button copilot-close-btn" data-copilot-close aria-label="Close AI chat panel"><span aria-hidden="true">&times;</span><span class="copilot-close-label">Close</span></button>
+            </div>
+            <div class="copilot-panel-menu" id="copilot-panel-menu" data-copilot-menu role="menu" aria-label="Chat actions" hidden>
+                <button type="button" role="menuitem" data-copilot-export>Export transcript (Markdown)</button>
+                <button type="button" role="menuitem" data-copilot-clear>Clear chat…</button>
+                <button type="button" role="menuitem" data-copilot-signout hidden>Sign out</button>
             </div>
         </header>
-        <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="polite"></div>
+        <!-- Auto Mode has to be impossible to miss: it is the difference
+             between an assistant that proposes and one that types. -->
+        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto Mode is on for this host.</strong> Typing and key presses run without asking. Destructive actions still wait for you.</p>
+        <!-- Not a live region. A streaming reply rewrites itself many times a
+             second; what is worth announcing goes through the status region
+             below, once. -->
+        <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="off" aria-label="Conversation" tabindex="0"></div>
+        <div class="visually-hidden" data-copilot-announce role="status" aria-live="polite"></div>
         <div class="copilot-connect-prompt" data-copilot-connect-prompt hidden>
             <p class="copilot-connect-text" data-copilot-connect-text>Connect your AI provider to explain screens or help with a workflow.</p>
             <p class="subtle">Terminal and recording work without AI. Use an existing Copilot account, an API key, or a local model. Your provider may charge for usage.</p>
-            <p class="subtle">Once connected, try “Explain this screen and show me the next step.”</p>
-            <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> use your Ollama or compatible endpoint.</li></ul>
+            <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> give the URL of your Ollama or compatible endpoint; most need no key.</li></ul>
+            <p class="subtle">Once connected, try “Explain this screen”.</p>
             <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
         </div>
+        <details class="copilot-context" data-copilot-context hidden>
+            <summary><span data-copilot-knows>Context</span><span class="copilot-context-more">What is sent</span></summary>
+            <div class="copilot-context-body" data-copilot-context-body></div>
+        </details>
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
             <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model"></select>
             <span class="copilot-provider-name" data-copilot-provider-name></span>
         </div>
+        <!-- Asks about what is on the screen now. Beside the composer rather
+             than in the empty state, because an operator with a conversation
+             already going is the one most likely to reach a screen worth
+             asking about. -->
+        <div class="copilot-quick" data-copilot-quick role="group" aria-label="Ask about this screen" hidden></div>
+        <p class="copilot-statusline" data-copilot-statusline hidden></p>
         <form class="copilot-panel-form" data-copilot-form>
-            <!-- The same ask as the Terminal menu's, kept in the composer
-                 because the starter chips only exist on an empty chat, and an
-                 operator with a conversation already going is the one most
-                 likely to reach a screen worth explaining. -->
             <button
                 type="button"
                 class="copilot-explain"
@@ -1329,20 +1472,21 @@ Select = Enter"></textarea>
                 data-copilot-input
                 aria-label="Message the AI assistant"></textarea>
             <button type="submit" class="copilot-send" aria-label="Send message" data-copilot-send>Send</button>
-            <button type="button" class="copilot-stop" aria-label="Stop AI response" data-copilot-stop hidden>Stop</button>
+            <button type="button" class="copilot-stop" aria-label="Stop the assistant" data-copilot-stop hidden>Stop</button>
         </form>
-        <p class="copilot-panel-hint" data-copilot-hint>Each tool call waits for you to click <strong>Run</strong>.</p>
+        <p class="copilot-panel-hint" data-copilot-hint>Reading runs by itself. Typing and key presses wait for you to click <strong>Run</strong>.</p>
     </aside>
     <div class="modal-backdrop" data-copilot-clear-modal hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="copilot-clear-modal-title" aria-describedby="copilot-clear-modal-desc">
             <div class="modal-header">
-                <h3 id="copilot-clear-modal-title">Clear chat history</h3>
+                <h3 id="copilot-clear-modal-title" data-copilot-clear-title>Clear chat</h3>
                 <button type="button" class="modal-close" data-copilot-clear-cancel>Close</button>
             </div>
-            <p id="copilot-clear-modal-desc">Are you sure you want to clear the AI chat history? This cannot be undone.</p>
+            <p id="copilot-clear-modal-desc" data-copilot-clear-desc>Clear this conversation? It cannot be brought back.</p>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
-                <button type="button" class="danger" data-copilot-clear-confirm>Clear history</button>
+                <button type="button" class="danger" data-copilot-clear-alt hidden></button>
+                <button type="button" class="danger" data-copilot-clear-confirm>Clear this chat</button>
             </div>
         </div>
     </div>

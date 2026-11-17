@@ -182,7 +182,109 @@
     if (state.task.name === "New task") {
       state.task.name = "";
     }
-    setTitle(state.origin === "task" ? "Edit task" : "Save recording as a task");
+    setTitle(state.origin === "task"
+      ? "Edit task"
+      : (state.origin === "chaos" ? "Create task from a discovered function" : "Save recording as a task"));
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Starting from an exploration                                     */
+  /* ---------------------------------------------------------------- */
+
+  // An exploration maps an application; a business function names one path
+  // through that map; a task makes the path something a person can run from
+  // a form. The server already knows how to turn the second into a draft of
+  // the third (/chaos/business/task-draft) and nothing in the browser asked
+  // it to. This lists the functions the loaded exploration has catalogued
+  // and hands the chosen one to the same five stages a recording goes
+  // through. It has no outputs yet, for the same reason a recording has
+  // none: which part of the last screen is the answer is not discoverable.
+  function openFromExploration() {
+    if (!modal) {
+      return Promise.resolve();
+    }
+    modal.hidden = false;
+    if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.pushModal) {
+      window.ThreeSeventyWeb.pushModal(modal, close);
+    }
+    state = null;
+    pickers = [];
+    var body = modal.querySelector("[data-wizard-body]");
+    var nav = modal.querySelector("[data-wizard-nav]");
+    body.innerHTML = "";
+    if (nav) {
+      nav.innerHTML = "";
+    }
+    body.appendChild(el("p", "subtle", "Reading the discovered functions…"));
+    setTitle("Create task from a discovered function");
+    renderStepper(0);
+    status("");
+
+    return api("/chaos/business/task-draft").then(
+      function (payload) {
+        renderFunctionChooser(body, (payload && payload.drafts) || []);
+      },
+      function (err) {
+        body.innerHTML = "";
+        var message = (err && err.message) || "";
+        var none = /no business functions/i.test(message) || message === "request failed";
+        body.appendChild(el("p", none ? "subtle" : "task-form-status is-error",
+          none
+            ? "This exploration has no named functions yet."
+            : "The discovered functions could not be read: " + message));
+        body.appendChild(el("p", "subtle",
+          "A function is a named path through the screen map, for example “look up an order”. " +
+          "Run or load an exploration, then ask the assistant to catalogue its business functions; " +
+          "each one it names appears here, ready to be turned into a task."));
+      }
+    );
+  }
+
+  function renderFunctionChooser(body, drafts) {
+    body.innerHTML = "";
+    if (!drafts.length) {
+      body.appendChild(el("p", "subtle", "This exploration has no named functions yet."));
+      return;
+    }
+    body.appendChild(el("p", "subtle",
+      "Choose the function to turn into a task. You will name its inputs, check each step and mark the answer before anything is saved."));
+    var list = el("div", "tasks-list wizard-function-list");
+    list.setAttribute("role", "list");
+    drafts.forEach(function (draft) {
+      var task = (draft && draft.task) || {};
+      var steps = (task.steps || []).length;
+      var params = (task.parameters || []).length;
+      var row = el("button", "task-row");
+      row.type = "button";
+      row.setAttribute("role", "listitem");
+      row.appendChild(el("span", "task-row-name", task.name || "Unnamed function"));
+      if (task.description) {
+        row.appendChild(el("span", "task-row-desc", task.description));
+      }
+      row.appendChild(el("span", "task-row-meta",
+        steps + " step(s) · " + params + " input(s)" + (steps ? "" : " · could not be converted")));
+      if (!steps) {
+        // The server reports a function it could not convert as a draft
+        // with no steps and a note saying why. Show the note; do not offer
+        // an empty task.
+        row.disabled = true;
+        if (draft.notes && draft.notes.length) {
+          row.appendChild(el("span", "task-row-desc", draft.notes[0]));
+        }
+      }
+      row.addEventListener("click", function () {
+        var chosen = clone(draft);
+        chosen.origin = "chaos";
+        adopt(chosen);
+        render();
+      });
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+    var first = list.querySelector("button:not([disabled])");
+    if (first) {
+      first.focus();
+    }
   }
 
   function setTitle(text) {
@@ -1704,6 +1806,7 @@
   window.ThreeSeventyWeb.taskWizard = {
     open: open,
     openTask: function (name) { return open(name); },
+    openFromExploration: openFromExploration,
     close: close,
     isOpen: isOpen
   };

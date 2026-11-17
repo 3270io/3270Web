@@ -167,6 +167,7 @@ func (app *App) registerAPIv1SessionScoped(r *gin.Engine) {
 	g.POST("/cursor", app.ScreenCursorHandler)
 	g.POST("/wait", app.ScreenWaitHandler)
 	g.GET("/context", app.CopilotContextHandler)
+	g.GET("/known-screen", app.KnownScreenHandler)
 
 	// Point-in-time screen copies, and the comparison between two of them.
 	// This is the regression-testing surface: capture the screen a flow is
@@ -435,7 +436,7 @@ func (app *App) APISendKey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized key %q", body.Key)})
 		return
 	}
-	if err := app.sessionHost(s).SendKey(key); err != nil {
+	if err := app.sendRecordedKey(s, app.sessionHost(s), key); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -443,16 +444,22 @@ func (app *App) APISendKey(c *gin.Context) {
 }
 
 // APIWriteField writes text into the input field that contains (row, col).
-// Matches the CR/LF/TAB rejection the Copilot ScreenWriteHandler enforces.
+// Matches the CR/LF/TAB rejection the Copilot ScreenWriteHandler enforces, and
+// goes through the same checked write: a position in a protected field, or
+// text longer than the room left in the field, is refused with 422 and a
+// reason instead of locking the keyboard. "erase": true clears the field from
+// the position to its end first; the default here stays overtype, which is
+// what this route has always done.
 func (app *App) APIWriteField(c *gin.Context) {
 	s, ok := app.apiSessionFromPath(c)
 	if !ok {
 		return
 	}
 	var body struct {
-		Row  int    `json:"row"`
-		Col  int    `json:"col"`
-		Text string `json:"text"`
+		Row   int    `json:"row"`
+		Col   int    `json:"col"`
+		Text  string `json:"text"`
+		Erase bool   `json:"erase"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -466,11 +473,23 @@ func (app *App) APIWriteField(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not contain CR/LF/TAB"})
 		return
 	}
-	if err := app.sessionHost(s).WriteStringAt(body.Row, body.Col, body.Text); err != nil {
+	if body.Text == "" && !body.Erase {
+		// Nothing to type and nothing to clear: the no-op this has always been.
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+		return
+	}
+	result, err := app.writeFieldChecked(s, app.sessionHost(s), fieldWriteRequest{
+		Row: body.Row, Col: body.Col, Text: body.Text, Erase: body.Erase,
+	})
+	if err != nil {
+		if host.IsFieldWriteError(err) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "field": fieldWriteJSON(result)})
 }
 
 // APISubmit submits any modified fields with an Enter (or the AID key
@@ -485,20 +504,18 @@ func (app *App) APISubmit(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&body) // body is optional
 	h := app.sessionHost(s)
-	if err := h.SubmitScreen(); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+	// One implementation, shared with the chat panel's submit_screen — see
+	// submitScreen in copilot.go for why there must be only one.
+	normalizedAID, err := resolveSubmitAID(body.AID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	aid := strings.TrimSpace(body.AID)
 	if aid == "" {
 		aid = "Enter"
 	}
-	normalizedAID, ok := normalizeKey(aid)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unrecognized aid %q", aid)})
-		return
-	}
-	if err := h.SendKey(normalizedAID); err != nil {
+	if err := app.submitScreen(s, h, normalizedAID); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
