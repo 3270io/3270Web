@@ -12,7 +12,7 @@
 //   save(patch)              -> Promise<settings>   (partial update)
 //   forget()                 -> Promise<void>       (clear current credentials)
 //   openSettings()           -> Promise<boolean>    (true if the user saved)
-//   ensureReady()            -> Promise<boolean>    (prompts for whatever is missing)
+//   ensureReady(known?)      -> Promise<boolean>    (prompts for whatever is missing)
 //   onChange(fn)             -> subscribe to provider/model changes
 //
 // All requests are same-origin, so OriginRefererCheckMiddleware accepts them
@@ -333,12 +333,18 @@
     // ensureReady resolves true when the selected provider can answer a chat.
     // Copilot needs an OAuth sign-in; everything else needs a key and/or an
     // endpoint, so each gets the prompt that actually unblocks it.
-    async function ensureReady() {
-        let s;
-        try {
-            s = await status();
-        } catch (_) {
-            return false;
+    //
+    // `known` is a status the caller already holds. The panel reads the status
+    // once per send to render itself; without this the same send asked for it
+    // again here, and a third time afterwards.
+    async function ensureReady(known) {
+        let s = known && typeof known === "object" ? known : null;
+        if (!s) {
+            try {
+                s = await status();
+            } catch (_) {
+                return false;
+            }
         }
         if (s && s.ready) return true;
         if (s && s.needs === "login" && window.CopilotAuth) {

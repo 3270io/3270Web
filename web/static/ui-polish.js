@@ -587,7 +587,7 @@
     handle.className = "copilot-resize-handle";
     handle.setAttribute("role", "separator");
     handle.setAttribute("aria-orientation", "vertical");
-    handle.setAttribute("aria-label", "Resize Copilot panel");
+    handle.setAttribute("aria-label", "Resize the AI chat panel");
     // A focusable separator is a slider, so it has to say where it is.
     handle.setAttribute("aria-valuemin", String(MIN_W));
     handle.setAttribute("aria-valuemax", String(MAX_W));
@@ -689,21 +689,41 @@
     const messages = document.querySelector("[data-copilot-messages]");
     if (!messages) return;
 
+    // The panel names the state itself (data-state on the status element);
+    // the wording is only consulted for a card that does not.
     const sync = (statusEl) => {
       const card = statusEl.closest(".copilot-tool-call");
       if (!card) return;
-      card.setAttribute("data-tool-state", classifyToolStatus(statusEl.textContent));
+      const state = statusEl.dataset.state || classifyToolStatus(statusEl.textContent);
+      if (card.getAttribute("data-tool-state") !== state) card.setAttribute("data-tool-state", state);
     };
 
-    const scan = () => {
-      messages.querySelectorAll(".copilot-tool-call-status").forEach(sync);
-    };
+    messages.querySelectorAll(".copilot-tool-call-status").forEach(sync);
 
-    scan();
-    new MutationObserver(scan).observe(messages, {
+    // Only the cards a mutation touched. This used to rescan every card in
+    // the transcript on every mutation anywhere inside it — and a streaming
+    // reply mutates it on every token.
+    new MutationObserver((records) => {
+      const touched = new Set();
+      for (const record of records) {
+        const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+        const own = target && target.closest ? target.closest(".copilot-tool-call-status") : null;
+        if (own) touched.add(own);
+        record.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          if (node.matches(".copilot-tool-call-status")) touched.add(node);
+          else if (node.matches(".copilot-tool-call")) {
+            node.querySelectorAll(".copilot-tool-call-status").forEach((el) => touched.add(el));
+          }
+        });
+      }
+      touched.forEach(sync);
+    }).observe(messages, {
       childList: true,
       subtree: true,
-      characterData: true
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["data-state"]
     });
   }
 
@@ -720,9 +740,20 @@
         const more = el.scrollHeight - el.clientHeight - el.scrollTop > 12;
         el.classList.toggle("is-scrollable", more);
       };
+      // update() reads layout, and the chat transcript mutates on every
+      // streamed token, so a burst of mutations is answered once per frame.
+      let queued = false;
+      const schedule = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          update();
+        });
+      };
       el.addEventListener("scroll", update, { passive: true });
-      new ResizeObserver(update).observe(el);
-      new MutationObserver(update).observe(el, { childList: true, subtree: true });
+      new ResizeObserver(schedule).observe(el);
+      new MutationObserver(schedule).observe(el, { childList: true, subtree: true });
       update();
     });
   }

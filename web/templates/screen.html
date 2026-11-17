@@ -18,12 +18,12 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=24">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=25">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
          before any per-theme CSS so custom themes still get the last word. -->
-    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=23">
+    <link rel="stylesheet" type="text/css" href="/static/ui-polish.css?v=24">
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=7">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=8">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -43,7 +43,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=18" defer></script>
+    <script src="/static/keyboard.js?v=19" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
@@ -81,13 +81,13 @@
     <script src="/static/menu-bar.js?v=2" defer></script>
     <script src="/static/print-screen.js" defer></script>
     <script src="/static/disconnect-modal.js" defer></script>
-    <script src="/static/copilot-auth.js" defer></script>
+    <script src="/static/copilot-auth.js?v=2" defer></script>
     <!-- Loads before copilot-panel.js: the panel calls window.AIProvider at
          init to render whichever backend is selected. -->
-    <script src="/static/ai-provider.js?v=1" defer></script>
-    <script src="/static/copilot-tools.js?v=3" defer></script>
-    <script src="/static/copilot-panel.js?v=6" defer></script>
-    <script src="/static/ui-polish.js?v=12" defer></script>
+    <script src="/static/ai-provider.js?v=2" defer></script>
+    <script src="/static/copilot-tools.js?v=4" defer></script>
+    <script src="/static/copilot-panel.js?v=7" defer></script>
+    <script src="/static/ui-polish.js?v=13" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
          origin. See web/static/embed.js. -->
@@ -1290,31 +1290,48 @@ Select = Enter"></textarea>
         <header class="copilot-panel-header">
             <span class="copilot-panel-title">AI Chat</span>
             <div class="copilot-panel-header-actions">
-                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Toggle auto-run mode" title="Auto Mode: run tools without approval">Auto</button>
+                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto Mode: run typing and key presses without asking" data-tippy-content="Auto Mode: typing and key presses run without asking, on this host only. Destructive actions still ask.">Auto</button>
                 <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
-                <button type="button" class="copilot-icon-button" data-copilot-clear data-tippy-content="Clear chat" aria-label="Clear chat history">Clear</button>
-                <button type="button" class="copilot-icon-button" data-copilot-signout data-tippy-content="Sign out of the current AI provider" aria-label="Sign out of the current AI provider" hidden>Sign out</button>
-                <button type="button" class="copilot-icon-button" data-copilot-close aria-label="Close AI chat panel">&times;</button>
+                <button type="button" class="copilot-icon-button" data-copilot-menu-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="copilot-panel-menu" aria-label="More chat actions">More</button>
+                <button type="button" class="copilot-icon-button copilot-close-btn" data-copilot-close aria-label="Close AI chat panel"><span aria-hidden="true">&times;</span><span class="copilot-close-label">Close</span></button>
+            </div>
+            <div class="copilot-panel-menu" id="copilot-panel-menu" data-copilot-menu role="menu" aria-label="Chat actions" hidden>
+                <button type="button" role="menuitem" data-copilot-export>Export transcript (Markdown)</button>
+                <button type="button" role="menuitem" data-copilot-clear>Clear chat…</button>
+                <button type="button" role="menuitem" data-copilot-signout hidden>Sign out</button>
             </div>
         </header>
-        <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="polite"></div>
+        <!-- Auto Mode has to be impossible to miss: it is the difference
+             between an assistant that proposes and one that types. -->
+        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto Mode is on for this host.</strong> Typing and key presses run without asking. Destructive actions still wait for you.</p>
+        <!-- Not a live region. A streaming reply rewrites itself many times a
+             second; what is worth announcing goes through the status region
+             below, once. -->
+        <div class="copilot-panel-messages" data-copilot-messages role="log" aria-live="off" aria-label="Conversation" tabindex="0"></div>
+        <div class="visually-hidden" data-copilot-announce role="status" aria-live="polite"></div>
         <div class="copilot-connect-prompt" data-copilot-connect-prompt hidden>
             <p class="copilot-connect-text" data-copilot-connect-text>Connect your AI provider to explain screens or help with a workflow.</p>
             <p class="subtle">Terminal and recording work without AI. Use an existing Copilot account, an API key, or a local model. Your provider may charge for usage.</p>
-            <p class="subtle">Once connected, try “Explain this screen and show me the next step.”</p>
-            <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> use your Ollama or compatible endpoint.</li></ul>
+            <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> give the URL of your Ollama or compatible endpoint; most need no key.</li></ul>
+            <p class="subtle">Once connected, try “Explain this screen”.</p>
             <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
         </div>
+        <details class="copilot-context" data-copilot-context hidden>
+            <summary><span data-copilot-knows>Context</span><span class="copilot-context-more">What is sent</span></summary>
+            <div class="copilot-context-body" data-copilot-context-body></div>
+        </details>
         <div class="copilot-model-bar">
             <label class="copilot-model-label" for="copilot-model-select">Model</label>
             <select id="copilot-model-select" class="copilot-model-select" data-copilot-model aria-label="Select AI model"></select>
             <span class="copilot-provider-name" data-copilot-provider-name></span>
         </div>
+        <!-- Asks about what is on the screen now. Beside the composer rather
+             than in the empty state, because an operator with a conversation
+             already going is the one most likely to reach a screen worth
+             asking about. -->
+        <div class="copilot-quick" data-copilot-quick role="group" aria-label="Ask about this screen" hidden></div>
+        <p class="copilot-statusline" data-copilot-statusline hidden></p>
         <form class="copilot-panel-form" data-copilot-form>
-            <!-- The same ask as the Terminal menu's, kept in the composer
-                 because the starter chips only exist on an empty chat, and an
-                 operator with a conversation already going is the one most
-                 likely to reach a screen worth explaining. -->
             <button
                 type="button"
                 class="copilot-explain"
@@ -1329,20 +1346,21 @@ Select = Enter"></textarea>
                 data-copilot-input
                 aria-label="Message the AI assistant"></textarea>
             <button type="submit" class="copilot-send" aria-label="Send message" data-copilot-send>Send</button>
-            <button type="button" class="copilot-stop" aria-label="Stop AI response" data-copilot-stop hidden>Stop</button>
+            <button type="button" class="copilot-stop" aria-label="Stop the assistant" data-copilot-stop hidden>Stop</button>
         </form>
-        <p class="copilot-panel-hint" data-copilot-hint>Each tool call waits for you to click <strong>Run</strong>.</p>
+        <p class="copilot-panel-hint" data-copilot-hint>Reading runs by itself. Typing and key presses wait for you to click <strong>Run</strong>.</p>
     </aside>
     <div class="modal-backdrop" data-copilot-clear-modal hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="copilot-clear-modal-title" aria-describedby="copilot-clear-modal-desc">
             <div class="modal-header">
-                <h3 id="copilot-clear-modal-title">Clear chat history</h3>
+                <h3 id="copilot-clear-modal-title" data-copilot-clear-title>Clear chat</h3>
                 <button type="button" class="modal-close" data-copilot-clear-cancel>Close</button>
             </div>
-            <p id="copilot-clear-modal-desc">Are you sure you want to clear the AI chat history? This cannot be undone.</p>
+            <p id="copilot-clear-modal-desc" data-copilot-clear-desc>Clear this conversation? It cannot be brought back.</p>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
-                <button type="button" class="danger" data-copilot-clear-confirm>Clear history</button>
+                <button type="button" class="danger" data-copilot-clear-alt hidden></button>
+                <button type="button" class="danger" data-copilot-clear-confirm>Clear this chat</button>
             </div>
         </div>
     </div>

@@ -3355,6 +3355,15 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
   color: var(--fg-muted);
 }
 
+.copilot-msg-info::before {
+  display: block;
+  content: "Note";
+  font-size: 0.6875rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--info);
+}
+
 .copilot-msg-error::before {
   content: "Error";
   color: var(--danger);
@@ -3544,6 +3553,13 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
    only the right-hand furniture has to step aside for the panel. */
 body.copilot-open #h3270-notification-container {
   right: calc(var(--copilot-panel-width) + 20px);
+}
+
+/* On a narrow screen the panel is a sheet across the bottom, not a column
+   down the side, so there is nothing on the right to step clear of. */
+@media (max-width: 900px) {
+  body.copilot-open #h3270-notification-container { right: 20px; }
+  .copilot-panel { animation: none; }
 }
 
 #h3270-notification-container {
