@@ -46,6 +46,10 @@
   const COMMANDS = [
     // Session
     { label: "New session — open another host", group: "Session", sel: "[data-session-new]", icon: "plus", hint: "Alt+N — this one keeps running" },
+    // Both open a dialog of the same name from the Session menu, so the words
+    // here and there are the same ones.
+    { label: "Open a connection…", group: "Session", sel: "[data-profiles-open]", icon: "plus", hint: "Saved hosts, sample apps, or type one" },
+    { label: "Manage connections…", group: "Session", sel: "[data-profiles-manage]", icon: "gear", hint: "Add, edit, import or export saved hosts" },
     { label: "Disconnect session", group: "Session", sel: "[data-disconnect-open]", icon: "power", hint: "End the 3270 connection" },
     { label: "Print screen", group: "Session", sel: "[data-print-screen]", icon: "print" },
     { label: "View logs", group: "Session", sel: "[data-logs-open]", icon: "doc" },
