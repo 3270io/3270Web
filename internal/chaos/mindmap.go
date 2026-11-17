@@ -454,7 +454,10 @@ func (m *MindMap) recordAttempt(attempt Attempt) {
 		if progressed && fw.Success {
 			fd.Progressions++
 			fd.LastWorkedAt = attempt.Time
-			if value != "" {
+			// A value the application has refused in this field does not
+			// become a working one because a function key pressed with it
+			// on the screen happened to go somewhere.
+			if value != "" && !containsString(area.RejectedValues[fieldKey], value) {
 				fd.LastWorkedValue = value
 				area.KnownWorkingValues[fieldKey] = appendUniqueLimited(area.KnownWorkingValues[fieldKey], value, maxKnownValuesPerField)
 			}

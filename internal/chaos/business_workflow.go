@@ -91,6 +91,9 @@ func GenerateBusinessWorkflow(mm *MindMap, name string, paramValues map[string]s
 				return nil, fmt.Errorf("step %d: no known key path from screen %s to %s", i+1, currentHash, stepHash)
 			}
 			for _, edge := range edges {
+				// On a menu the key alone does not say where it leads: type
+				// what was in the fields when this edge was observed.
+				steps = append(steps, edgeInputFillSteps(edge.Inputs)...)
 				steps = append(steps, session.WorkflowStep{Type: aidKeyToStepType(edge.AIDKey)})
 			}
 		}
@@ -241,11 +244,66 @@ type keyPathEdge struct {
 	From   string
 	AIDKey string
 	To     string
+	// Inputs are the field values (field key -> value) recorded with the
+	// edge, if any. Values of non-display fields are masked in the mind map
+	// and are left out here: the mask is not something to type.
+	Inputs map[string]string
+}
+
+// edgeInputFillSteps turns an edge's recorded inputs into fill steps, in
+// field-key order so generation is reproducible.
+func edgeInputFillSteps(inputs map[string]string) []session.WorkflowStep {
+	if len(inputs) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(inputs))
+	for key := range inputs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var steps []session.WorkflowStep
+	for _, key := range keys {
+		row, col, length, ok := parseMindMapFieldKey(key)
+		if !ok || inputs[key] == "" {
+			continue
+		}
+		steps = append(steps, session.WorkflowStep{
+			Type:        "FillString",
+			Coordinates: &session.WorkflowCoordinates{Row: row, Column: col, Length: length},
+			Text:        inputs[key],
+		})
+	}
+	return steps
+}
+
+// recordedEdgeInputs returns the most recent input set recorded for a key
+// press reaching dest, without masked values.
+func recordedEdgeInputs(kp *MindMapKeyPress, dest string) map[string]string {
+	if kp == nil {
+		return nil
+	}
+	sets := kp.Inputs[dest]
+	if len(sets) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(sets[len(sets)-1]))
+	for key, value := range sets[len(sets)-1] {
+		if value == maskedFieldValue {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // findKeyPath runs a breadth-first search over the learned key-press graph
 // (area.KeyPresses[key].Destinations) and returns the shortest key-only
-// navigation path between two screens. Edges are explored in deterministic
+// navigation path between two screens. Each edge carries the field values
+// recorded with it, so an input-dependent destination (a menu option) can be
+// reached and not just a key-only one. Edges are explored in deterministic
 // order (sorted keys/destinations) so generation is reproducible.
 func (m *MindMap) findKeyPath(fromHash, toHash string) ([]keyPathEdge, bool) {
 	if m == nil || len(m.Areas) == 0 {
@@ -273,7 +331,9 @@ func (m *MindMap) findKeyPath(fromHash, toHash string) ([]keyPathEdge, bool) {
 		}
 		keys := make([]string, 0, len(area.KeyPresses))
 		for key, kp := range area.KeyPresses {
-			if kp != nil && len(kp.Destinations) > 0 {
+			// Keys the run blocked on this screen (exit-style, destructive,
+			// session-ending) are not a way to get anywhere.
+			if kp != nil && len(kp.Destinations) > 0 && !containsString(area.AutoBlockedKeys, key) {
 				keys = append(keys, key)
 			}
 		}
@@ -291,7 +351,8 @@ func (m *MindMap) findKeyPath(fromHash, toHash string) ([]keyPathEdge, bool) {
 				seen[dest] = true
 				queue = append(queue, visit{
 					hash: dest,
-					via:  keyPathEdge{From: queue[i].hash, AIDKey: key, To: dest},
+					via: keyPathEdge{From: queue[i].hash, AIDKey: key, To: dest,
+						Inputs: recordedEdgeInputs(area.KeyPresses[key], dest)},
 					prev: i,
 				})
 				if dest == toHash {

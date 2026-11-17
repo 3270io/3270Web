@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // CompareSchemaVersion is the semver of the MindMapDiff JSON shape. Bump the
@@ -191,7 +192,14 @@ func truncatePreview(s string, limit int) string {
 	if limit <= 0 || len(s) <= limit {
 		return s
 	}
-	return s[:limit]
+	// Cut on a rune boundary: slicing at a byte offset can leave half of a
+	// multi-byte character, which is not valid UTF-8 and turns into U+FFFD
+	// (or an encoding error) wherever the preview is sent next.
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 func firstNonEmpty(values ...string) string {
