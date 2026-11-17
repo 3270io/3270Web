@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/png" href="/static/favicon-32.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="stylesheet" type="text/css" href="/static/style.css?v=25">
+    <link rel="stylesheet" type="text/css" href="/static/style.css?v=26">
     <!-- ui-polish.css layers the shared design system (elevation, motion,
          unified modal/toolbar/terminal chrome) on top of style.css. It must
          load after style.css so its overrides win at equal specificity, and
@@ -86,7 +86,7 @@
          init to render whichever backend is selected. -->
     <script src="/static/ai-provider.js?v=2" defer></script>
     <script src="/static/copilot-tools.js?v=4" defer></script>
-    <script src="/static/copilot-panel.js?v=8" defer></script>
+    <script src="/static/copilot-panel.js?v=9" defer></script>
     <script src="/static/ui-polish.js?v=13" defer></script>
     <!-- The postMessage bridge for a terminal in an iframe. Does nothing at
          all unless this page is framed AND EMBED_ORIGINS names the framing
@@ -1440,7 +1440,12 @@ Sign On = Enter"></textarea>
         <header class="copilot-panel-header">
             <span class="copilot-panel-title">AI Chat</span>
             <div class="copilot-panel-header-actions">
-                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto Mode: run typing and key presses without asking" data-tippy-content="Auto Mode: typing and key presses run without asking, on this host only. Destructive actions still ask.">Auto</button>
+                <!-- Says what it is in words, and says when it is on: this is the
+                     switch that lets the assistant type and press keys without
+                     asking, so it cannot be a one-word label explained by a
+                     tooltip. aria-pressed carries the state for assistive
+                     technology; the name stays the same in both states. -->
+                <button type="button" class="copilot-icon-button copilot-automode-btn" data-copilot-automode aria-pressed="false" aria-label="Auto-run: typing and key presses run without asking, on this host only. Reading never asks. PF3, Clear, connecting, starting exploration and running tasks still ask." data-tippy-content="Auto-run: typing and key presses run without asking, on this host only. Reading never asks. PF3, Clear, connecting, starting exploration and running tasks still ask.">Auto-run</button>
                 <button type="button" class="copilot-icon-button" data-copilot-settings data-tippy-content="AI provider settings" aria-label="AI provider settings">Provider</button>
                 <button type="button" class="copilot-icon-button" data-copilot-menu-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="copilot-panel-menu" aria-label="More chat actions">More</button>
                 <button type="button" class="copilot-icon-button copilot-close-btn" data-copilot-close aria-label="Close AI chat panel"><span aria-hidden="true">&times;</span><span class="copilot-close-label">Close</span></button>
@@ -1451,9 +1456,9 @@ Sign On = Enter"></textarea>
                 <button type="button" role="menuitem" data-copilot-signout hidden>Sign out</button>
             </div>
         </header>
-        <!-- Auto Mode has to be impossible to miss: it is the difference
+        <!-- Auto-run has to be impossible to miss: it is the difference
              between an assistant that proposes and one that types. -->
-        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto Mode is on for this host.</strong> Typing and key presses run without asking. Destructive actions still wait for you.</p>
+        <p class="copilot-automode-banner" data-copilot-automode-banner hidden><strong>Auto-run is on for this host.</strong> Typing and key presses run without asking. PF3, Clear and other destructive actions still wait for you.</p>
         <!-- Not a live region. A streaming reply rewrites itself many times a
              second; what is worth announcing goes through the status region
              below, once. -->
@@ -1464,7 +1469,14 @@ Sign On = Enter"></textarea>
             <p class="subtle">Terminal and recording work without AI. Use an existing Copilot account, an API key, or a local model. Your provider may charge for usage.</p>
             <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> give the URL of your Ollama or compatible endpoint; most need no key.</li></ul>
             <p class="subtle">Once connected, try “Explain this screen”.</p>
-            <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+            <div class="copilot-connect-actions">
+                <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+                <!-- For people who have never looked at the Provider button in
+                     the header: GitHub sign-in is the default, and it is not
+                     the only way in. Shown only while the sign-in is what is
+                     being asked for (see applyProviderStatus). -->
+                <button type="button" class="copilot-connect-btn copilot-connect-btn-secondary" data-copilot-connect-provider hidden>Use an API key or local model</button>
+            </div>
         </div>
         <details class="copilot-context" data-copilot-context hidden>
             <summary><span data-copilot-knows>Context</span><span class="copilot-context-more">What is sent</span></summary>
@@ -1506,7 +1518,7 @@ Sign On = Enter"></textarea>
                 <h3 id="copilot-clear-modal-title" data-copilot-clear-title>Clear chat</h3>
                 <button type="button" class="modal-close" data-copilot-clear-cancel>Close</button>
             </div>
-            <p id="copilot-clear-modal-desc" data-copilot-clear-desc>Clear this conversation? It cannot be brought back.</p>
+            <div id="copilot-clear-modal-desc" data-copilot-clear-desc><p>Clear this conversation? It cannot be brought back.</p></div>
             <div class="modal-actions">
                 <button type="button" data-copilot-clear-cancel>Cancel</button>
                 <button type="button" class="danger" data-copilot-clear-alt hidden></button>

@@ -31,6 +31,10 @@
     const LEGACY_HISTORY_KEY_BASE = "copilot.panel.history.v1";
     const OPEN_KEY = "copilot.panel.open";
     const AUTO_MODE_KEY_BASE = "copilot.panel.automode.v2";
+    // Set once the person has read the Auto-run confirmation and accepted it
+    // in this browser, so it is asked the first time and not every time. Not
+    // per host: what it explains is the same on every host.
+    const AUTO_MODE_ACK_KEY = "copilot.panel.automode.ack.v1";
     // Hard safety net on tool-call rounds per user message. The system prompt
     // asks the model to stay within ~30 rounds; this ceiling is a generous
     // backstop so a runaway never burns thousands of API calls. The real
@@ -523,6 +527,13 @@
 
         const promptText = panel.querySelector("[data-copilot-connect-text]");
         const connectBtn = panel.querySelector("[data-copilot-connect]");
+        // A GitHub sign-in is the default, and the only thing the prompt would
+        // otherwise offer. For anyone who has not noticed the Provider button
+        // in the header, say there is another way in. Not shown when the
+        // provider is already one that takes a key or an endpoint: the main
+        // button opens the same dialog then.
+        const otherWay = panel.querySelector("[data-copilot-connect-provider]");
+        if (otherWay) otherWay.hidden = s.needs !== "login";
         if (s.needs === "login") {
             if (promptText) promptText.textContent = "Sign in to " + providerLabel + " to start chatting.";
             if (connectBtn) connectBtn.textContent = "Sign in to " + providerLabel;
@@ -2846,14 +2857,48 @@
         el.insertBefore(tag, el.querySelector(".copilot-msg-actions"));
     }
 
+    // The longest wait the panel will quote. The chat proxy caps what it
+    // repeats at the same five minutes (copilot.MaxRetryAfter); a provider
+    // that asks for an hour is saying "not today", which "about 60 minutes"
+    // does not say any better than the plain message does. This keeps a
+    // server that does not cap from producing "about 86400 seconds".
+    const MAX_RETRY_AFTER_SECONDS = 300;
+
+    // retryAfterSeconds reads Retry-After from a failed response. The chat
+    // proxy always sends whole seconds, whatever form the provider used (it
+    // converts an HTTP date before repeating it), so that is all this reads.
+    // 0 means there was no usable wait: the header is absent or unreadable.
+    function retryAfterSeconds(resp) {
+        let raw = "";
+        try { raw = String(resp.headers.get("Retry-After") || "").trim(); } catch (_) { return 0; }
+        if (!/^\d+$/.test(raw)) return 0;
+        return Math.min(parseInt(raw, 10), MAX_RETRY_AFTER_SECONDS);
+    }
+
+    // describeWait says a wait the way a person would: exact seconds up to a
+    // minute and a half, then whole minutes rounded up. Rounded up because a
+    // retry a little early gets another 429.
+    function describeWait(seconds) {
+        const s = Math.max(1, Math.round(seconds));
+        if (s < 90) return s + (s === 1 ? " second" : " seconds");
+        const m = Math.ceil(s / 60);
+        return m + (m === 1 ? " minute" : " minutes");
+    }
+
     // friendlyChatError converts an upstream error body into a human-readable
     // explanation. Every provider we proxy reports errors in roughly the
     // OpenAI shape —
     //   {"error":{"message":"...","code":"model_not_supported",...}}
     // — sometimes nested inside our own "<provider>: status NNN: <body>", and
     // Anthropic uses {"type":"..."} where OpenAI uses {"code":"..."}.
-    function friendlyChatError(raw) {
+    //
+    // `hint` carries what only the HTTP response knows: its status, and the
+    // wait the provider asked for in Retry-After (whole seconds, 0 if it said
+    // nothing). A mid-stream error arrives as an SSE frame with neither.
+    function friendlyChatError(raw, hint) {
         const text = String(raw || "");
+        const status = hint && hint.status;
+        const retryAfter = (hint && hint.retryAfter) || 0;
         // Try to extract a JSON error object even when wrapped in prose.
         let parsed = null;
         const braceAt = text.indexOf("{");
@@ -2870,12 +2915,22 @@
         if (code === "authentication_error" || code === "invalid_api_key" || code === "permission_error" || /api key|unauthor|forbidden/i.test(message)) {
             return providerLabel + " rejected the credentials. Open AI provider settings and check the key.";
         }
-        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+        const rateLimited = function () {
+            if (retryAfter > 0) {
+                return providerLabel + " rate limit hit. Try again in about " + describeWait(retryAfter) + ".";
+            }
             return providerLabel + " rate limit hit. Wait a moment and try again, or switch to a smaller model.";
+        };
+        if (code === "rate_limit_exceeded" || code === "rate_limit_error" || /rate.?limit/i.test(message)) {
+            return rateLimited();
         }
         if (/premium request|monthly.*limit|quota|exhaust|insufficient_quota|credit balance/i.test(message)) {
             return "Your " + providerLabel + " quota is exhausted. Switch to a cheaper model, or wait for the quota to reset.";
         }
+        // A 429 is a rate limit whatever the body says, but only once the
+        // bodies that say something more specific have had their turn: an
+        // exhausted quota is also a 429, and waiting does not fix it.
+        if (status === 429) return rateLimited();
         if (code === "overloaded_error") {
             return providerLabel + " is overloaded right now. Try again in a moment.";
         }
@@ -2925,17 +2980,17 @@
                 window.AIProvider.ensureReady().then(refreshConnectionState);
                 return { error: msg || (providerLabel + " is not set up yet.") };
             }
-            if (resp.status === 429) {
-                const wait = parseInt(resp.headers.get("Retry-After") || "", 10);
-                if (OWN_RATE_LIMIT.test(msg)) {
-                    return { error: "This 3270Web server is limiting requests from this browser: " + msg };
-                }
-                return {
-                    error: friendlyChatError(msg)
-                        + (wait > 0 ? " " + providerLabel + " asks for about " + wait + " seconds before the next request." : ""),
-                };
+            if (resp.status === 429 && OWN_RATE_LIMIT.test(msg)) {
+                return { error: "This 3270Web server is limiting requests from this browser: " + msg };
             }
-            return { error: friendlyChatError(msg) || ("The server answered " + resp.status + ".") };
+            // The wait the provider asked for travels in Retry-After, which
+            // the chat proxy repeats on the 429 it sends. It goes into the
+            // sentence about the limit rather than after it: the message used
+            // to say "wait a moment" and then, separately, how long.
+            return {
+                error: friendlyChatError(msg, { status: resp.status, retryAfter: retryAfterSeconds(resp) })
+                    || ("The server answered " + resp.status + "."),
+            };
         }
         return { body: resp.body };
     }
@@ -4218,9 +4273,9 @@
         downloadFile(transcriptMarkdown(), "ai-chat-" + slug(target.host, "host") + "-" + stamp + ".md", "text/markdown");
     }
 
-    // -- Auto Mode ---------------------------------------------------------
+    // -- Auto-run ----------------------------------------------------------
 
-    // Auto Mode belongs to one account on one host. It was a single flag for
+    // Auto-run belongs to one account on one host. It was a single flag for
     // the whole browser, so switching it on while exploring a sample
     // application left it on, unannounced, the next time the same browser was
     // pointed at production.
@@ -4242,20 +4297,89 @@
         if (btn) {
             btn.setAttribute("aria-pressed", autoMode ? "true" : "false");
             btn.classList.toggle("active", autoMode);
-            btn.textContent = autoMode ? "Auto: on" : "Auto";
+            // The label says when it is on, because a switch that lets the
+            // assistant type unasked should not rely on a colour. The
+            // accessible name stays put (aria-pressed carries the state).
+            btn.textContent = autoMode ? "Auto-run: on" : "Auto-run";
         }
         if (banner) banner.hidden = !autoMode;
         if (hint) {
             hint.textContent = autoMode
-                ? "Auto Mode is on for this host: typing and key presses run without asking."
+                ? "Auto-run is on for this host: typing and key presses run without asking."
                 : "Reading runs by itself. Typing and key presses wait for you to click Run.";
         }
     }
 
+    function autoRunAcknowledged() {
+        try { return localStorage.getItem(AUTO_MODE_ACK_KEY) === "1"; } catch (_) { return false; }
+    }
+
+    function rememberAutoRunAcknowledged() {
+        try { localStorage.setItem(AUTO_MODE_ACK_KEY, "1"); } catch (_) {}
+    }
+
+    // approvalKeyNames names the keys that still ask in Auto-run, from the
+    // server's list ("PF(3)" reads as PF3). Falls back to a description when
+    // the list has not loaded.
+    function approvalKeyNames() {
+        if (!Array.isArray(dangerousSendKeys) || !dangerousSendKeys.length) {
+            return "keys that can end the session or discard the screen";
+        }
+        const names = dangerousSendKeys.map(displayKey);
+        return names.length > 1
+            ? names.slice(0, -1).join(", ") + " or " + names[names.length - 1]
+            : names[0];
+    }
+
+    // confirmAutoRun asks before Auto-run is switched on for the first time in
+    // this browser, and resolves true only if the person chose to turn it on.
+    // Focus starts on Cancel, the safe answer (see confirmDialog).
+    //
+    // What it says runs unasked and what it says still asks is what the code
+    // does, not a summary of it: gateOf() lets every "write" tool through in
+    // Auto-run, and holds the "destructive" ones and a PF3 or Clear press for
+    // a click whatever the mode. The classes are the server's
+    // (internal/copilot/classes.go); this text has to change with them.
+    async function confirmAutoRun() {
+        // Best effort, and only for the key names: the dialog opens without
+        // them if the tool list cannot be fetched.
+        await ensureToolSchema();
+        return (await confirmDialog({
+            title: "Turn on Auto-run?",
+            blocks: [
+                "With Auto-run on, the assistant does these on this host without asking you first:",
+                [
+                    "types into fields and moves the cursor",
+                    "presses keys and submits screens, Enter included",
+                    "saves hints, notes and snapshots, changes display options, starts print capture, and stops an exploration",
+                ],
+                "These still wait for you to click Run:",
+                [
+                    "pressing " + approvalKeyNames() + ", or connecting to a host",
+                    "starting or resuming an exploration, or running a saved task",
+                    "deleting a snapshot or stopping print capture",
+                ],
+                "Reading the screen never asks, and questions it asks you always wait for your answer. "
+                    + "Auto-run is remembered for this host; turn it off from the same button at any time.",
+            ],
+            confirmLabel: "Turn on Auto-run",
+            danger: false,
+        })) === "confirm";
+    }
+
     // -- Dialogs and the panel menu ----------------------------------------
 
-    // One confirmation dialog for the panel's irreversible actions. Resolves
-    // "confirm", "alt" (the second, optional action) or null.
+    // One confirmation dialog for the panel's confirmations: the irreversible
+    // ones (clear, sign out) and turning Auto-run on. Resolves "confirm", "alt"
+    // (the second, optional action) or null.
+    //
+    // opts.blocks is the body: each string is a paragraph and each array a
+    // bulleted list. opts.message is the one-paragraph form. opts.danger
+    // (default true) styles the confirming button as the destructive one.
+    //
+    // Focus starts on Cancel in every case. It used to start on the confirming
+    // button, which for "Clear this chat" meant an Enter pressed by habit
+    // after clicking Clear wiped the conversation.
     function confirmDialog(opts) {
         const modal = document.querySelector("[data-copilot-clear-modal]");
         if (!modal) return Promise.resolve("confirm");
@@ -4265,9 +4389,31 @@
             const confirmBtn = modal.querySelector("[data-copilot-clear-confirm]");
             const altBtn = modal.querySelector("[data-copilot-clear-alt]");
             const cancelBtns = modal.querySelectorAll("[data-copilot-clear-cancel]");
+            // The Cancel in the actions row, not the Close in the header.
+            const safeBtn = modal.querySelector(".modal-actions [data-copilot-clear-cancel]");
             if (title) title.textContent = opts.title;
-            if (desc) desc.textContent = opts.message;
-            if (confirmBtn) confirmBtn.textContent = opts.confirmLabel;
+            if (desc) {
+                desc.textContent = "";
+                (opts.blocks || [opts.message]).forEach(function (block) {
+                    let el;
+                    if (Array.isArray(block)) {
+                        el = document.createElement("ul");
+                        block.forEach(function (item) {
+                            const li = document.createElement("li");
+                            li.textContent = item;
+                            el.appendChild(li);
+                        });
+                    } else {
+                        el = document.createElement("p");
+                        el.textContent = block;
+                    }
+                    desc.appendChild(el);
+                });
+            }
+            if (confirmBtn) {
+                confirmBtn.textContent = opts.confirmLabel;
+                confirmBtn.classList.toggle("danger", opts.danger !== false);
+            }
             if (altBtn) {
                 altBtn.hidden = !opts.altLabel;
                 altBtn.textContent = opts.altLabel || "";
@@ -4284,8 +4430,12 @@
             modal.hidden = false;
             // Focus, the Tab trap, Escape and the focus restore all belong to
             // pushModal (modal-utils.js).
-            if (utils.pushModal) utils.pushModal(modal, function () { close(null); }, { initialFocus: confirmBtn });
-            else if (confirmBtn) confirmBtn.focus();
+            if (utils.pushModal) utils.pushModal(modal, function () { close(null); }, safeBtn ? { initialFocus: safeBtn } : undefined);
+            else if (safeBtn) safeBtn.focus();
+            // A long body on a short screen scrolls, and focusing the button at
+            // the foot scrolls it there: start at the title instead.
+            const box = modal.querySelector(".modal");
+            if (box) box.scrollTop = 0;
             if (confirmBtn) confirmBtn.onclick = function () { close("confirm"); };
             if (altBtn) altBtn.onclick = function () { close("alt"); };
             cancelBtns.forEach(function (b) { b.onclick = function () { close(null); }; });
@@ -4411,14 +4561,34 @@
         on("[data-copilot-clear]", function () { openClearModal(); });
         on("[data-copilot-export]", exportTranscript);
         on("[data-copilot-signout]", function () { signOut(); });
-        on("[data-copilot-automode]", function () {
-            autoMode = !autoMode;
+        let confirmingAutoRun = false;
+        on("[data-copilot-automode]", async function () {
+            if (confirmingAutoRun) return;
+            const turnOn = !autoMode;
+            // Turning it on is the consequential direction: ask the first time
+            // in this browser. Turning it off never asks.
+            if (turnOn && !autoRunAcknowledged()) {
+                const btn = panel.querySelector("[data-copilot-automode]");
+                confirmingAutoRun = true;
+                let accepted = false;
+                try { accepted = await confirmAutoRun(); } finally { confirmingAutoRun = false; }
+                // Back to the button either way. pushModal restores focus to
+                // what had it, but a click does not focus a button in every
+                // browser, and then there is nothing to restore.
+                if (btn) btn.focus();
+                if (!accepted) return;
+                rememberAutoRunAcknowledged();
+            }
+            autoMode = turnOn;
             try { localStorage.setItem(autoModeKey(), autoMode ? "1" : "0"); } catch (_) {}
             syncAutoModeUI();
             announce(autoMode
-                ? "Auto Mode on for this host. Typing and key presses will run without asking."
-                : "Auto Mode off. Typing and key presses wait for your approval.");
+                ? "Auto-run on for this host. Typing and key presses will run without asking."
+                : "Auto-run off. Typing and key presses wait for your approval.");
         });
+        // The same dialog as the Provider button in the header, reached from
+        // where somebody who has not noticed that button is looking.
+        on("[data-copilot-connect-provider]", function () { window.AIProvider.openSettings(); });
         on("[data-copilot-connect]", async function () {
             const ok = await window.AIProvider.ensureReady();
             if (ok) {

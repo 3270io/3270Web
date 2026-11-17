@@ -20,7 +20,9 @@ workflows.
 ## Choose a provider
 
 1. Open the AI chat panel and click **Provider** in its header — or press
-   ++ctrl+k++ and run *AI provider settings*.
+   ++ctrl+k++ and run *AI provider settings*. Before anything is connected the
+   panel also offers **Use an API key or local model**, beside **Sign in to
+   GitHub Copilot**, which opens the same dialog.
 2. Choose a provider from the dropdown. The dialog reshapes itself to ask for
    what that provider needs.
 3. Click **Save**.
@@ -117,6 +119,10 @@ for most servers that means including the `/v1` suffix:
 Add an API key if the endpoint requires one, and type the model name into
 **Model** — 3270Web asks the endpoint for its model list, but a server that
 does not implement `/models` needs the name entering by hand.
+
+**Endpoint URL** is the one thing this entry cannot work without. Saving it
+empty keeps the dialog open and marks the field, rather than closing the
+dialog and leaving the panel asking for a key.
 
 ## Models
 
@@ -240,6 +246,21 @@ AI_ALLOW_PRIVATE_ENDPOINTS=true
 
 These are in addition to the rate limits (`RATE_LIMIT_AI`,
 `RATE_LIMIT_AICONTROL`) described under [Limits](multi-user.md).
+
+## When a provider says slow down
+
+A provider that rate-limits a request answers with HTTP 429, usually with a
+`Retry-After` header saying how long to wait. 3270Web repeats that header on
+the response it sends the panel, whichever provider it came from, and the
+panel turns it into a sentence: *"Try again in about 20 seconds."* A wait over
+a minute and a half is given in whole minutes, rounded up, and the proxy never
+passes on more than five minutes — a provider that asks for an hour is telling
+you to come back later, and the panel does not pretend to count that down.
+
+When the provider sends no wait, the message is the plain *"Wait a moment and
+try again, or switch to a smaller model."* The limit 3270Web applies itself
+(`RATE_LIMIT_AI`) is reported separately, as coming from 3270Web, with the wait
+and the setting that governs it.
 
 ## GitHub Enterprise
 
