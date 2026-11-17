@@ -289,7 +289,7 @@
     }
     const content = refreshPreview();
     const name = modalName ? modalName.textContent.trim() : 'edited-workflow.json';
-    setStatus(modalMode === 'chaos-workflow' ? 'Loading edited chaos workflow...' : 'Saving...');
+    setStatus(modalMode === 'chaos-workflow' ? 'Loading the edited workflow...' : 'Saving...');
     return fetch('/workflow/load-json', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -466,9 +466,14 @@
   const activeRunRow = document.querySelector('[data-active-run-row]');
   const activeRunChip = document.querySelector('[data-active-run-chip]');
   const activeRunMeta = document.querySelector('[data-active-run-meta]');
+  const activeRunSummary = document.querySelector('[data-active-run-summary]');
+  const activeRunStop = document.querySelector('[data-active-run-stop]');
   const activeRunExtend = document.querySelector('[data-active-run-extend]');
   const activeRunClose = document.querySelector('[data-active-run-close]');
-  const chaosExtendButton = document.querySelector('[data-chaos-extend]');
+  const chaosRunPanel = document.querySelector('[data-chaos-run-panel]');
+  // The exploration half of the strip belongs to ui.js: this module shows it,
+  // that one knows how a run ended and what can be done with it.
+  const chaosUI = () => (typeof window.ChaosUI === 'object' && window.ChaosUI ? window.ChaosUI : null);
   const playbackDebugControls = document.querySelector('[data-playback-debug-controls]');
   const playbackPlayControls = document.querySelector('[data-playback-play-controls]');
   const playbackStatusText = document.querySelector('[data-playback-status-text]');
@@ -541,6 +546,7 @@
   };
 
   const hideActiveRunRow = () => {
+    setHidden(activeRunStop, true);
     setHidden(activeRunExtend, true);
     setHidden(activeRunClose, true);
     setHidden(activeRunRow, true);
@@ -819,6 +825,19 @@
       chaosTimeRemaining ? `${chaosTimeRemaining} left` : '',
       chaosMaxSteps > 0 ? `${chaosStepsRemaining} steps left` : '',
     ]);
+    // One wording for the count, shared with the screen map: "4 screens (7
+    // variants)" once the layouts have been counted, "7 screen variants"
+    // until then.
+    const chaosScreensLabel = (() => {
+      if (chaosUniqueScreens <= 0) {
+        return '';
+      }
+      if (chaosUI() && typeof chaosUI().screenCountLabel === 'function') {
+        return chaosUI().screenCountLabel(chaosUniqueScreens);
+      }
+      return `${chaosUniqueScreens} screen variant${chaosUniqueScreens === 1 ? '' : 's'}`;
+    })();
+    let chaosOutcome = null;
 
     // Priority order: active recording, active playback, active chaos, then completed/ready states.
     if (recordingActive) {
@@ -845,12 +864,12 @@
       ]);
     } else if (chaosActive) {
       mode = 'chaos';
-      chip = 'CHAOS';
+      chip = 'EXPLORE';
       metadata = joinParts([
         'running',
-        `${chaosStepsRun} attempts`,
-        chaosUniqueScreens > 0 ? `${chaosUniqueScreens} screens` : '',
-        chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
+        `${chaosStepsRun} step${chaosStepsRun === 1 ? '' : 's'}`,
+        chaosScreensLabel,
+        chaosTransitions > 0 ? `${chaosTransitions} transition${chaosTransitions === 1 ? '' : 's'}` : '',
         chaosRemainingLabel,
         formatElapsed(payload.chaosStartedAt),
       ]);
@@ -867,12 +886,15 @@
     } else if (chaosHasData) {
       const stoppedAt = formatStoppedAt(payload.chaosStoppedAt);
       mode = 'chaos';
-      chip = 'CHAOS';
+      chip = 'EXPLORE';
+      // "complete" said the same thing for a run that hit its limit, one
+      // somebody stopped and one that failed. Say which.
+      chaosOutcome = chaosUI() && typeof chaosUI().outcome === 'function' ? chaosUI().outcome() : null;
       metadata = joinParts([
-        chaosCompleted ? 'complete' : 'loaded',
-        chaosStepsRun > 0 ? `${chaosStepsRun} attempts` : '',
-        chaosUniqueScreens > 0 ? `${chaosUniqueScreens} screens` : '',
-        chaosTransitions > 0 ? `${chaosTransitions} transitions` : '',
+        (chaosOutcome && chaosOutcome.label) || (chaosCompleted ? 'finished' : 'loaded'),
+        chaosStepsRun > 0 ? `${chaosStepsRun} step${chaosStepsRun === 1 ? '' : 's'}` : '',
+        chaosScreensLabel,
+        chaosTransitions > 0 ? `${chaosTransitions} transition${chaosTransitions === 1 ? '' : 's'}` : '',
         payload.chaosLoadedRunID ? `run ${payload.chaosLoadedRunID}` : '',
         stoppedAt ? `ended ${stoppedAt}` : '',
       ]);
@@ -882,11 +904,18 @@
       metadata = '';
     }
 
+    if (activeRunContainer) {
+      // ui.js keys the exploration's progress line and results panel off these.
+      activeRunContainer.dataset.runMode = mode || 'idle';
+      activeRunContainer.dataset.runLive = recordingActive || playbackActive || chaosActive ? 'true' : 'false';
+    }
+
     if (!mode || !metadata) {
       dismissedActiveRunKey = '';
       if (activeRunRow) {
         delete activeRunRow.dataset.dismissKey;
       }
+      setHidden(activeRunStop, true);
       setHidden(activeRunExtend, true);
       setHidden(activeRunClose, true);
       setHidden(activeRunRow, true);
@@ -900,6 +929,7 @@
       activeRunRow.dataset.dismissKey = dismissKey;
     }
     if (dismissedActiveRunKey && dismissKey && dismissedActiveRunKey === dismissKey) {
+      setHidden(activeRunStop, true);
       setHidden(activeRunExtend, true);
       setHidden(activeRunClose, true);
       setHidden(activeRunRow, true);
@@ -916,8 +946,9 @@
       !chaosActive &&
       !!payload.chaosLoadedRunID &&
       !!activeRunExtend &&
-      !!chaosExtendButton &&
-      !chaosExtendButton.hidden;
+      !!chaosUI() &&
+      // The results panel under the strip carries the same action; one is enough.
+      !(chaosRunPanel && !chaosRunPanel.hidden);
     const showCloseButton = !recordingActive && !playbackActive && !chaosActive && !!dismissKey;
     const displayText = metadata;
     // The widget tracks whether a run is genuinely RUNNING, not merely whether
@@ -931,20 +962,33 @@
     setWidgetPresent(recordingActive || playbackActive || chaosActive);
     setHidden(activeRunContainer, false);
     setHidden(activeRunRow, false);
+    // Stop is on the strip itself while an exploration runs. It used to be
+    // only in the Automation menu, two clicks away from a run that is typing
+    // into a live host.
+    setHidden(activeRunStop, !(mode === 'chaos' && chaosActive && !!chaosUI()));
     setHidden(activeRunExtend, !canExtendChaosFromRow);
-    if (activeRunExtend && chaosExtendButton) {
-      activeRunExtend.disabled = !!chaosExtendButton.disabled;
+    if (activeRunExtend && canExtendChaosFromRow && typeof chaosUI().canContinue === 'function') {
+      activeRunExtend.disabled = !chaosUI().canContinue();
     }
     setHidden(activeRunClose, !showCloseButton);
     activeRunChip.dataset.runMode = mode;
+    if (mode === 'chaos' && chaosOutcome && chaosOutcome.tone) {
+      activeRunChip.dataset.runOutcome = chaosOutcome.tone;
+    } else {
+      delete activeRunChip.dataset.runOutcome;
+    }
     activeRunChip.textContent = chip;
     activeRunMeta.textContent = displayText;
     activeRunMeta.removeAttribute('title');
-    activeRunRow.setAttribute('aria-label', `${chip}: ${metadata}`);
-    activeRunRow.removeAttribute('title');
-    activeRunRow.setAttribute('data-tippy-content', `${chip}: ${metadata}`);
-    if (activeRunRow._tippy) {
-      activeRunRow._tippy.setContent(`${chip}: ${metadata}`);
+    // The summary button is what opens the run status, so it carries the
+    // name; the group around it only says what the strip is.
+    const summaryTarget = activeRunSummary || activeRunRow;
+    const summaryLabel = `${chip}: ${metadata}`;
+    summaryTarget.setAttribute('aria-label', `${summaryLabel}. Open run status`);
+    summaryTarget.removeAttribute('title');
+    summaryTarget.setAttribute('data-tippy-content', summaryLabel);
+    if (summaryTarget._tippy) {
+      summaryTarget._tippy.setContent(summaryLabel);
     }
   };
 
@@ -1004,6 +1048,12 @@
 
     updatePlaybackControls(payload);
     updateLoadedWorkflowTooltips(payload);
+    // This poll already knows whether an exploration is running. Passing it
+    // on is what keeps the Automation menu right when the run was started by
+    // the assistant or from another tab, without a second poll to find out.
+    if (chaosUI() && typeof chaosUI().syncFromWorkflowStatus === 'function') {
+      chaosUI().syncFromWorkflowStatus(payload);
+    }
     updateActiveRunRow(payload);
     if (!trackingEnabled) {
       return;
@@ -1034,14 +1084,16 @@
     }
 
     if (preferChaosStatus) {
-      stepLabel =
-        payload.chaosStepLabel ||
-        (chaosCompleted
-          ? `Chaos completed after ${chaosStepsRun} attempts`
-          : `Chaos attempt ${chaosStepsRun}`);
+      stepLabel = payload.chaosStepLabel
+        ? String(payload.chaosStepLabel)
+          .replace(/^chaos completed after (\d+) attempts?/i, 'Exploration finished after $1 steps')
+          .replace(/^chaos attempt/i, 'Exploration step')
+        : (chaosCompleted
+          ? `Exploration finished after ${chaosStepsRun} steps`
+          : `Exploration step ${chaosStepsRun}`);
       if (chaosCompleted) {
         const stoppedAt = formatStoppedAt(payload.chaosStoppedAt);
-        typeText = stoppedAt ? `Status: Complete at ${stoppedAt}` : 'Status: Complete';
+        typeText = stoppedAt ? `Status: Ended at ${stoppedAt}` : 'Status: Ended';
       } else if (chaosLastAttempt && chaosLastAttempt.aidKey) {
         typeText = `AID: ${chaosLastAttempt.aidKey}`;
       } else {
@@ -1328,30 +1380,28 @@
   if (activeRunClose) {
     activeRunClose.addEventListener('click', (event) => {
       event.preventDefault();
-      event.stopPropagation();
       dismissedActiveRunKey = (activeRunRow && activeRunRow.dataset.dismissKey) || 'manual';
       hideActiveRunRow();
-    });
-    activeRunClose.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.stopPropagation();
-      }
     });
   }
 
   if (activeRunExtend) {
     activeRunExtend.addEventListener('click', (event) => {
       event.preventDefault();
-      event.stopPropagation();
-      if (!chaosExtendButton || chaosExtendButton.hidden || chaosExtendButton.disabled) {
+      if (activeRunExtend.disabled || !chaosUI() || typeof chaosUI().openStartDialog !== 'function') {
         return;
       }
-      chaosExtendButton.click();
+      chaosUI().openStartDialog('continue');
     });
-    activeRunExtend.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.stopPropagation();
+  }
+
+  if (activeRunStop) {
+    activeRunStop.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (activeRunStop.disabled || !chaosUI() || typeof chaosUI().stop !== 'function') {
+        return;
       }
+      chaosUI().stop();
     });
   }
 
@@ -1434,11 +1484,22 @@
           return;
         }
         lastScreenHtml = payload.html;
+        // Redrawing the terminal re-installs its key handler, which puts
+        // focus in the terminal. During a run that happens every poll, so
+        // anybody working in a dialog over the terminal (typing a hint into
+        // the screen map, say) had focus pulled out from under them mid-word.
+        // Whatever held focus inside a dialog gets it back.
+        const focused = document.activeElement;
+        const focusedInDialog = focused instanceof HTMLElement
+          && !!focused.closest('[aria-modal="true"]');
         container.innerHTML = payload.html;
         if (typeof window.installKeyHandler === 'function') {
           const form = container.querySelector('form.renderer-form');
           const formId = form ? (form.id || form.getAttribute('name')) : null;
           window.installKeyHandler(formId);
+        }
+        if (focusedInDialog && focused.isConnected && document.activeElement !== focused) {
+          focused.focus({ preventScroll: true });
         }
         if (typeof window.sizeScreenContainer === 'function') {
           window.sizeScreenContainer();

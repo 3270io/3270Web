@@ -854,7 +854,8 @@ body.terminal-fit-active .card {
 
 .modal-chaos-flow-screen-hints {
   width: min(1180px, 100%);
-  min-width: 640px;
+  /* No min-width: 640px of it pushed the dialog off both edges of a phone. */
+  min-width: 0;
   max-width: calc(100vw - 32px);
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
@@ -884,6 +885,640 @@ body.terminal-fit-active .card {
 .modal-backdrop[data-chaos-flow-screen-hints-modal].is-maximized .modal-chaos-flow-screen-hints {
   width: min(1200px, 98vw);
   max-height: min(96vh, 1400px);
+}
+
+/* ---------------------------------------------------------------------
+   Exploration (chaos mode): run strip, results panel, start dialog,
+   saved runs, compare, status lines
+   --------------------------------------------------------------------- */
+
+/* The strip is a group that holds buttons. The summary button is the part
+   that opens the run status, and takes whatever width the rest leaves. */
+.active-run-row {
+  flex-wrap: wrap;
+  cursor: default;
+}
+
+.active-run-summary {
+  flex: 1 1 220px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.active-run-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.active-run-momentum {
+  flex: 0 1 auto;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.active-run-momentum[hidden],
+[data-active-run-container]:not([data-run-mode="chaos"]) .active-run-momentum,
+[data-active-run-container]:not([data-run-live="true"]) .active-run-momentum {
+  display: none;
+}
+
+.active-run-stop,
+.active-run-extend {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  order: 1;
+}
+
+.active-run-stop {
+  border: 1px solid #cc5b5b;
+  background: rgba(204, 91, 91, 0.1);
+  color: #ff8a8a;
+}
+
+.active-run-stop:hover:not(:disabled) {
+  background: #cc5b5b;
+  color: #fff;
+}
+
+.active-run-stop svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  display: block;
+}
+
+.active-run-stop[hidden],
+.active-run-extend[hidden] {
+  display: none;
+}
+
+.active-run-close {
+  margin-left: 0;
+}
+
+.active-run-chip[data-run-outcome="error"] {
+  color: #ff8a8a;
+  border-color: color-mix(in srgb, #ff8a8a 45%, var(--border));
+}
+
+.active-run-chip[data-run-outcome="warning"] {
+  color: #f5c451;
+  border-color: color-mix(in srgb, #f5c451 45%, var(--border));
+}
+
+.chaos-run-panel {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel-2);
+  display: grid;
+  gap: 10px;
+}
+
+.chaos-run-panel[hidden],
+[data-active-run-container]:not([data-run-mode="chaos"]) .chaos-run-panel,
+[data-active-run-container][data-run-live="true"] .chaos-run-panel {
+  display: none;
+}
+
+.chaos-run-panel[data-tone="info"] {
+  border-left-color: var(--fg-muted);
+}
+
+.chaos-run-panel[data-tone="warning"] {
+  border-left-color: #f5c451;
+}
+
+.chaos-run-panel[data-tone="error"] {
+  border-left-color: #ff8a8a;
+}
+
+.chaos-run-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.chaos-run-panel-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.chaos-run-panel[data-tone="info"] .chaos-run-panel-icon {
+  color: var(--fg-muted);
+}
+
+.chaos-run-panel[data-tone="warning"] .chaos-run-panel-icon {
+  color: #f5c451;
+}
+
+.chaos-run-panel[data-tone="error"] .chaos-run-panel-icon {
+  color: #ff8a8a;
+}
+
+.chaos-run-panel-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  display: block;
+}
+
+.chaos-run-panel-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chaos-run-panel-text h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.chaos-run-panel-text p {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.chaos-run-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chaos-run-panel-actions > button:first-child {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.chaos-run-panel-next h4 {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.chaos-run-panel-next ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+/* Status lines: an error is marked with a glyph and the word, not only by
+   its colour. */
+.chaos-status-line {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  overflow-wrap: anywhere;
+}
+
+.chaos-status-line:empty {
+  min-height: 0;
+}
+
+.chaos-status-line.is-error {
+  color: #ff9a5a;
+  font-weight: 600;
+}
+
+.chaos-status-line.is-error::before {
+  content: "\26A0\FE0E\00A0";
+}
+
+.chaos-inline-error {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #ff9a5a 55%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, #ff9a5a 8%, transparent);
+}
+
+.chaos-inline-error svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  fill: #ff9a5a;
+}
+
+.chaos-inline-error p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.chaos-report-flow-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.chaos-report-flow-callout p {
+  margin: 0;
+  flex: 1 1 260px;
+}
+
+/* A dialog opened over another sits above it whatever their order in the
+   page: the one underneath steps back a layer while it waits. Without this a
+   confirmation raised from a dialog later in the markup came up underneath
+   it, visible and unclickable. */
+.modal-backdrop.is-backgrounded {
+  z-index: 949;
+}
+
+/* Start dialog */
+.modal-chaos-start {
+  width: min(600px, 100%);
+  margin: 0;
+}
+
+.modal-chaos-start .stack {
+  gap: 14px;
+}
+
+.chaos-start-statement {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.chaos-start-facts {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+
+.chaos-start-facts > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.chaos-start-facts > div[hidden] {
+  display: none;
+}
+
+.chaos-start-facts dt {
+  color: var(--fg-muted);
+}
+
+.chaos-start-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.chaos-start-facts [data-chaos-start-host] {
+  font-family: var(--mono);
+}
+
+.chaos-start-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modal-chaos-start .chaos-hint-field input[type="number"],
+.modal-chaos-start .chaos-hint-field textarea {
+  width: 100%;
+  margin: 0;
+}
+
+.modal-chaos-start .chaos-hint-field textarea {
+  min-height: 64px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.modal-chaos-start [aria-invalid="true"] {
+  border-color: #ff9a5a;
+}
+
+.chaos-start-help {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.chaos-start-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f5c451;
+  border-radius: 10px;
+  background: color-mix(in srgb, #f5c451 10%, transparent);
+  color: var(--fg);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.chaos-start-warning[hidden] {
+  display: none;
+}
+
+.chaos-start-warning svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  fill: #f5c451;
+}
+
+.chaos-start-keys {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chaos-start-keys > legend {
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.chaos-start-keys-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chaos-start-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chaos-start-key input {
+  margin: 0;
+}
+
+.chaos-start-key:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.chaos-start-key:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chaos-start-keys-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.chaos-start-keys-tools button {
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+
+.chaos-start-keys-tools .subtle {
+  flex: 1 1 240px;
+}
+
+.tasks-list-more {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* Saved runs and compare */
+.modal-chaos-runs {
+  width: min(680px, 100%);
+}
+
+.chaos-runs-help {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.chaos-runs-list {
+  max-height: min(48vh, 420px);
+}
+
+.chaos-run-item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.chaos-run-loaded-chip {
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+
+.chaos-run-end {
+  font-size: 0.8em;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chaos-run-end.is-error {
+  color: #ff9a5a;
+}
+
+.chaos-run-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chaos-run-label-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+
+.chaos-run-load-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-chaos-confirm {
+  width: min(460px, 100%);
+}
+
+.modal-chaos-compare {
+  width: min(760px, 100%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.modal-chaos-compare .stack {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chaos-compare-body {
+  font-size: 0.88rem;
+}
+
+.chaos-compare-body h4 {
+  margin: 14px 0 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.chaos-compare-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.chaos-compare-body p {
+  margin: 0;
+}
+
+.chaos-compare-line {
+  margin-top: 8px !important;
+}
+
+.chaos-compare-summary {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.chaos-compare-summary th,
+.chaos-compare-summary td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.chaos-compare-summary thead th {
+  font-weight: 600;
+}
+
+.chaos-compare-area {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.chaos-compare-area summary {
+  cursor: pointer;
+}
+
+/* A toast must not sit on a dialog's action row. While any of these dialogs
+   is open the toasts move to the top of the window, where no dialog keeps
+   its buttons. */
+body:has(.modal-backdrop:not([hidden])) #h3270-notification-container {
+  top: 16px;
+  bottom: auto;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .chaos-start-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chaos-start-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .active-run-summary {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+
+  .active-run-meta {
+    white-space: normal;
+  }
+
+  .active-run-momentum {
+    white-space: normal;
+    flex-basis: 100%;
+  }
+
+  .chaos-run-panel-actions > button {
+    flex: 1 1 140px;
+  }
+
+  /* On a phone the suggestions must not push the terminal off the screen. */
+  .chaos-run-panel-next ol {
+    max-height: 8.5em;
+    overflow-y: auto;
+  }
+
+  .modal-chaos-flow-screen-hints,
+  .modal-chaos-flow,
+  .modal-chaos-report {
+    max-width: 100%;
+  }
+
+  .modal-actions > button {
+    flex: 1 1 auto;
+  }
 }
 
 button.danger {

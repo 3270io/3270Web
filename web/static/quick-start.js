@@ -18,7 +18,11 @@
         document.querySelector("[data-menu-automation] [data-app-menu-trigger]")?.click();
         document.querySelector("[data-recording-start] button")?.focus();
       } else if (goal === "explore") {
-        document.querySelector("[data-menu-automation] [data-app-menu-trigger]")?.click();
+        // Straight to the start dialog, which says what an exploration does
+        // and waits for a yes. The menu on its own left the user to guess
+        // which item they had just been promised.
+        if (typeof window.ChaosUI?.openStartDialog === "function") window.ChaosUI.openStartDialog("start");
+        else document.querySelector("[data-menu-automation] [data-app-menu-trigger]")?.click();
       } else document.querySelector(".renderer-form input, .renderer-form textarea")?.focus();
     }));
     const show = document.querySelector("[data-show-automation]");

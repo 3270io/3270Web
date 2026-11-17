@@ -73,17 +73,18 @@
     { label: "Stop playback", group: "Playback", sel: "[data-playback-play-controls] form[action='/workflow/stop'] button", icon: "stop" },
 
     // Chaos
-    { label: "Start chaos exploration", group: "Chaos", sel: "[data-chaos-start]", icon: "chaos" },
-    { label: "Stop chaos exploration", group: "Chaos", sel: "[data-chaos-stop]", icon: "stop" },
-    { label: "Load previous chaos run", group: "Chaos", sel: "[data-chaos-load]", icon: "upload" },
-    { label: "Load recording into chaos", group: "Chaos", sel: "[data-chaos-load-recording]", icon: "upload" },
-    { label: "Resume chaos run", group: "Chaos", sel: "[data-chaos-resume]", icon: "play" },
-    { label: "Extend chaos run", group: "Chaos", sel: "[data-chaos-extend]", icon: "chaos" },
-    { label: "Edit chaos hints", group: "Chaos", sel: "[data-chaos-hints-open]", icon: "bulb" },
-    { label: "Open chaos map", group: "Chaos", sel: "[data-chaos-map-open]", icon: "map" },
-    { label: "View chaos discovery report", group: "Chaos", sel: "[data-chaos-report]", icon: "doc" },
-    { label: "Export chaos workflow JSON", group: "Chaos", sel: "[data-chaos-export]", icon: "download" },
-    { label: "Remove chaos run", group: "Chaos", sel: "[data-chaos-remove]", icon: "trash" },
+    { label: "Start exploration", group: "Exploration", sel: "[data-chaos-start]", icon: "chaos" },
+    { label: "Stop exploration", group: "Exploration", sel: "[data-chaos-stop]", icon: "stop" },
+    { label: "Continue exploring", group: "Exploration", sel: "[data-chaos-resume]", icon: "play" },
+    { label: "Saved exploration runs", group: "Exploration", sel: "[data-chaos-load]", icon: "upload" },
+    { label: "Load recording into exploration", group: "Exploration", sel: "[data-chaos-load-recording]", icon: "upload" },
+    { label: "Edit exploration hints", group: "Exploration", sel: "[data-chaos-hints-open]", icon: "bulb" },
+    { label: "Open screen map", group: "Exploration", sel: "[data-chaos-map-open]", icon: "map" },
+    { label: "Open flow diagram", group: "Exploration", sel: "[data-chaos-flow-menu-open]", icon: "map" },
+    { label: "View discovery report", group: "Exploration", sel: "[data-chaos-report]", icon: "doc" },
+    { label: "Download exploration workflow JSON", group: "Exploration", sel: "[data-chaos-export]", icon: "download" },
+    { label: "Create task from a discovered function", group: "Exploration", sel: "[data-chaos-task-open]", icon: "doc" },
+    { label: "Remove exploration run", group: "Exploration", sel: "[data-chaos-remove]", icon: "trash" },
 
     // Tasks — the business-user surface, so it leads its own group rather
     // than sitting among the terminal tools.

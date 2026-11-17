@@ -54,6 +54,28 @@
   /* Chooser                                                          */
   /* ---------------------------------------------------------------- */
 
+  // The second way into the catalogue. A task can be made from a recording
+  // (Automation menu) or from a function an exploration discovered; this is
+  // where somebody looking at the list of tasks finds the latter.
+  function appendFromExploration() {
+    var wizard = window.ThreeSeventyWeb && window.ThreeSeventyWeb.taskWizard;
+    if (!wizard || typeof wizard.openFromExploration !== "function") {
+      return;
+    }
+    var wrap = document.createElement("div");
+    wrap.className = "tasks-list-more";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("data-tasks-from-exploration", "");
+    btn.textContent = "Create task from a discovered function…";
+    btn.addEventListener("click", function () {
+      close();
+      wizard.openFromExploration();
+    });
+    wrap.appendChild(btn);
+    listEl.appendChild(wrap);
+  }
+
   function renderList() {
     listEl.innerHTML = "";
     if (!tasks.length) {
@@ -63,8 +85,10 @@
       empty.className = "subtle task-empty";
       empty.textContent =
         "No tasks yet. A task is a recorded screen flow with named inputs and " +
-        "a named answer — record a flow, then save it as a task.";
+        "a named answer — record a flow, then save it as a task, or make one " +
+        "from a function an exploration discovered.";
       listEl.appendChild(empty);
+      appendFromExploration();
       return;
     }
     tasks.forEach(function (task) {
@@ -94,6 +118,7 @@
       row.addEventListener("click", function () { showForm(task); });
       listEl.appendChild(row);
     });
+    appendFromExploration();
   }
 
   /* ---------------------------------------------------------------- */
