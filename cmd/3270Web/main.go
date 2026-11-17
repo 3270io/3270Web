@@ -1821,6 +1821,7 @@ func (app *App) ScreenHandler(c *gin.Context) {
 		"TargetHost":     snap.TargetHost,
 		"TargetPort":     snap.TargetPort,
 		"Version":        appVersion,
+		"IsSampleApp":    isSampleAppSession(h), // chaos starts without asking only here
 	})
 }
 

@@ -52,9 +52,40 @@ A run from start to stop — exploration, the live map, and where it ends up:
    a run something to map — see
    [Bundled Sample Applications](sample-apps.md).
 2. Click **Automation → Start exploration**.
-3. Watch run activity in:
+3. Unless the host is one of the bundled sample apps, 3270Web first asks you to
+   confirm. See [Confirmation before a run](#confirmation-before-a-run).
+4. Watch run activity in:
    - the active-run strip under the menu bar, and
    - the Workflow Status widget (attempts, writes, transitions, and errors).
+
+## Confirmation before a run
+
+Exploration fills fields with generated values and presses keys, so on a real
+host it can create or change data. **Start exploration**, **Resume the loaded
+run** and **Extend the completed run** therefore open a confirmation first:
+
+- It names the host that will be explored.
+- It says that exploration can create or change data on that host.
+- It points to **Edit hints → Blocked keys**, where you list the keys
+  exploration must never press, and shows the keys blocked on every screen when
+  there are any.
+- **Cancel** is the default button, so pressing Enter or Space as the dialog
+  appears does not start a run. **Escape** also cancels. Focus returns to the
+  control that opened the dialog, or to the **Automation** menu when it was one
+  of the menu's own items.
+
+The bundled sample apps (the ones you reach with `sampleapp:...`, `mock` or
+`demo`) are demonstration screens with nothing behind them, so they start with
+one click and no confirmation. An application served by a separate
+`3270Web sampleapp` process is an ordinary host as far as the browser is
+concerned and does get the confirmation.
+
+If verbose logging is on, the existing "Verbose Logging Is Enabled" question
+follows this one. Only the browser's own controls ask (the menu, the command
+palette and the **Extend** button in the active-run strip all lead to the same
+dialog). The AI panel's approval card for `chaos_start` is its own confirmation
+and names the host it will run against, and the REST API and the MCP tools
+behave as before.
 
 ## During the Run
 
@@ -64,6 +95,13 @@ Chaos mode continuously:
 - Writes generated values into unprotected fields
 - Sends an AID key
 - Records transition and attempt metadata
+
+Exploration drives the same connection as the terminal you are looking at, so
+the terminal follows the run: each screen the engine reaches is shown as it
+happens. The terminal does not repaint for a moment after you type into it, so
+text you are typing is not wiped out — but keys you send during a run go to the
+same host session the run is using, so stop the run first if you want to work
+in the terminal.
 
 You can stop the run at any time with **Stop chaos exploration**.
 
@@ -76,6 +114,34 @@ When chaos mode ends, the UI shows completed state:
 - Completion details in the Workflow Status widget
 
 This gives immediate confirmation that the run finished and data is ready for export.
+
+As soon as a run has stopped — whether it finished, you stopped it, or it was
+started from the AI panel or the API rather than the menu — the Automation menu
+offers **Discovery report**, **Download workflow JSON**, **Extend the completed
+run** and **Remove the run**. They do not wait for you to load a saved run.
+
+### What the counts mean
+
+The same run is described in the active-run strip, the Chaos map, the Discovery
+Flow and the Discovery report, and they use the same terms:
+
+| Term | What it counts |
+|---|---|
+| **Attempts** | Each time the engine filled fields and pressed a key. |
+| **Unique screens** | The distinct screens the run recorded, **including the screen it started on**. Screens that differ only in values the host echoes back are one screen (Dedup mode `structural`, the default). |
+| **Transitions** | Distinct moves from one screen to another by a particular key. The same two screens reached by Enter and by PF8 are two transitions. |
+| **Primary flow edges** (Discovery Flow) | The discovery path drawn on the canvas: for each screen after the first, the link that most directly led to it. Every other link between screens, and any key that leaves a screen and returns to it, is listed under the canvas as an additional transition. |
+
+The flow counts links, not keys: Enter and PF8 between the same two screens are
+two transitions in the strip and the report but one link in the flow, so the flow
+can show fewer edges than there are transitions.
+
+The Chaos map and the Discovery Flow always show every screen counted as
+unique, the starting screen included (it is marked **Starting screen** on its
+card). With Dedup mode set to `exact` the run counts each exact screen
+separately, while the map and flow still draw screens that share a layout as
+one; they then say how many variants they merged, for example
+"5 unique screens (2 variants merged)".
 
 ## Download the JSON Output
 
@@ -151,6 +217,22 @@ env vars (also exposed in **Settings -> Chaos**) tune that bias:
 | `CHAOS_EXPORT_SUCCESS_BALANCE` | `1.0` | When exporting the chaos workflow JSON, balances steps drawn from successful transitions against exploratory steps. `1.0` is the neutral default; higher values favour reliability, lower values keep more discovery noise in the export. |
 
 Use small limits first when testing new host flows, then increase limits for broader exploration.
+
+## Screen Captures
+
+The Chaos map, the Discovery Flow and the screen-hints editor show one captured
+example of each screen. A capture is taken every time the run visits a screen,
+so a screen that has been visited has one. A screen that shows
+"No captured screen preview" says why:
+
+- *Run or extend chaos to capture one* — nothing was captured for this screen;
+  a run that visits it captures it.
+- *Built from a recording, which keeps no capture* — the screen came from
+  **Load the recording into chaos**, not from a terminal. A recording has no
+  screens to capture.
+
+The map and flow ask the server for the full map when they open. If you see
+captures missing right after a run, press **Refresh**.
 
 ## Discovery Report
 
@@ -238,7 +320,7 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
    - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
    - Starts and monitors the run with `chaos_start` / `chaos_status`.
    - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
-4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing.
+4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
 
 ### Combining both approaches
 

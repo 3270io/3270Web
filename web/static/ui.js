@@ -2045,6 +2045,12 @@
     const startLogConfirmContinueBtn = document.querySelector('[data-chaos-start-log-confirm-continue]');
     const startLogConfirmDisableBtn = document.querySelector('[data-chaos-start-log-confirm-disable]');
     const startLogConfirmMessage = document.querySelector('[data-chaos-start-log-confirm-message]');
+    const hostConfirmModal = document.querySelector('[data-chaos-host-confirm-modal]');
+    const hostConfirmCancelButtons = document.querySelectorAll('[data-chaos-host-confirm-cancel]');
+    const hostConfirmOkBtn = document.querySelector('[data-chaos-host-confirm-ok]');
+    const hostConfirmTitle = document.querySelector('[data-chaos-host-confirm-title]');
+    const hostConfirmHost = document.querySelector('[data-chaos-host-confirm-host]');
+    const hostConfirmBlocked = document.querySelector('[data-chaos-host-confirm-blocked]');
     const chaosSections = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-section]')) : [];
     const chaosDividers = chaosControls ? Array.from(chaosControls.querySelectorAll('[data-chaos-divider]')) : [];
     const recordingIndicator = document.querySelector('[data-recording-indicator]');
@@ -2076,6 +2082,11 @@
     let reportRawMarkdownMode = false;
     let hintRowSequence = 0;
     let latestMindMap = null;
+    // True while latestMindMap is the summary /chaos/status sends by default:
+    // hash, label and counts, with no screen capture and no key-press
+    // destinations. The map, the flow and the screen-hints editor need the full
+    // one, so they ask for it (see pollStatus).
+    let latestMindMapIsSummary = false;
     let latestFirstScreenHash = '';
     let screenHintsByHash = {};
     let screenHintDrafts = {};
@@ -2085,6 +2096,7 @@
     const chaosModalParentStack = [];
     const chaosModalReturnFocusStack = [];
     let pendingStartLogConfirmResolve = null;
+    let settlePendingHostConfirm = null;
     let pendingChaosConfirmResolve = null;
     let currentRuns = [];
     let selectedChaosRunIDs = new Set();
@@ -2593,6 +2605,89 @@
         const nextEnabled = data && typeof data.enabled === 'boolean' ? !!data.enabled : !!enabled;
         syncVerboseLoggingUIState(nextEnabled);
         return { ok: true, enabled: nextEnabled };
+    };
+
+    // Exploration fills fields with generated values and presses keys, so
+    // against a real host it can create or change data. It is asked about
+    // before it starts, resumes or extends, and not for the bundled sample
+    // apps, which are demonstration screens with nothing behind them.
+    //
+    // Whether the host is a sample app is the server's call
+    // (data-chaos-sample-app, from isSampleAppSession in Go) and anything but an
+    // explicit "true" is asked about: a page that did not say is not one that
+    // gets to skip the question.
+    const chaosHostNeedsConfirmation = () => !(chaosControls && chaosControls.dataset.chaosSampleApp === 'true');
+
+    // verb is "Start", "Resume" or "Extend": the title and the confirming
+    // button repeat what the operator asked for, so the dialog is never
+    // answering a question about something else.
+    const confirmChaosHostStart = (verb = 'Start') => {
+        if (!chaosHostNeedsConfirmation()) {
+            return Promise.resolve(true);
+        }
+        const targetHost = String((body && body.dataset.targetHost) || '').trim() || 'this host';
+        const action = `${verb} exploration`;
+        const modalApi = window.ThreeSeventyWeb || {};
+        if (!hostConfirmModal || !hostConfirmOkBtn || typeof modalApi.pushModal !== 'function') {
+            // Without the dialog the question is still asked: a safety prompt
+            // that quietly vanishes when its markup does is not a prompt.
+            return Promise.resolve(window.confirm(
+                `${action} on ${targetHost}?\n\nIt fills fields with generated values and presses keys, so it can create or change data on that host.`
+            ));
+        }
+        if (settlePendingHostConfirm) {
+            settlePendingHostConfirm(false);
+        }
+        if (hostConfirmTitle) {
+            hostConfirmTitle.textContent = `${action}?`;
+        }
+        if (hostConfirmHost) {
+            hostConfirmHost.textContent = targetHost;
+        }
+        hostConfirmOkBtn.textContent = action;
+        if (hostConfirmBlocked) {
+            // Only said when there is something to say. An empty list could
+            // just as well be hints that have not loaded yet, and "no keys are
+            // blocked" is not a thing to claim on that evidence.
+            const blocked = Array.isArray(chaosKeyBlacklist) ? chaosKeyBlacklist.filter(Boolean) : [];
+            hostConfirmBlocked.hidden = blocked.length === 0;
+            hostConfirmBlocked.textContent = blocked.length
+                ? `Blocked on every screen right now: ${blocked.map((key) => String(key).replace(/[()]/g, '')).join(', ')}.`
+                : '';
+        }
+        const cancelButton = hostConfirmModal.querySelector('.modal-actions [data-chaos-host-confirm-cancel]');
+        const trigger = document.activeElement;
+        return new Promise((resolve) => {
+            const settle = (answer) => {
+                if (settlePendingHostConfirm !== settle) {
+                    return;
+                }
+                settlePendingHostConfirm = null;
+                hostConfirmModal.hidden = true;
+                // Focus back to whatever had it, the same way every other
+                // dialog does. The menu item that opened this has gone by now
+                // (the menu closes when an item is chosen), so when that
+                // leaves focus nowhere it goes to the menu's own button.
+                if (typeof modalApi.popModal === 'function') {
+                    modalApi.popModal(hostConfirmModal);
+                }
+                const usable = (el) => !!(el && typeof el.focus === 'function' && document.contains(el)
+                    && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+                if (!usable(document.activeElement) || document.activeElement === document.body) {
+                    const menuButton = document.querySelector('[data-menu-automation] [data-app-menu-trigger]');
+                    const target = usable(trigger) ? trigger : menuButton;
+                    if (usable(target)) {
+                        target.focus();
+                    }
+                }
+                resolve(!!answer);
+            };
+            settlePendingHostConfirm = settle;
+            hostConfirmModal.hidden = false;
+            // Cancel takes the focus, so an Enter or Space pressed by reflex as
+            // the dialog appears declines instead of starting a run.
+            modalApi.pushModal(hostConfirmModal, () => settle(false), { initialFocus: cancelButton || undefined });
+        });
     };
 
     const confirmLoggingBeforeChaosStart = async () => {
@@ -3425,6 +3520,21 @@
         syncRunsSelectionUI();
     };
 
+    // Why a screen has no capture, and how to get one. Captures are taken every
+    // time a run visits a screen, so the usual answer is another run; the two
+    // exceptions have their own: a screen built from a recording was never
+    // seen on a terminal, and the summary the status poll sends carries no
+    // captures at all (the map asks for the full one when it opens).
+    const missingChaosPreviewReason = (area) => {
+        if (latestMindMapIsSummary) {
+            return 'Captures load with the full map. Press Refresh.';
+        }
+        if (String((area && area.hash) || '').indexOf('recording:') === 0) {
+            return 'Built from a recording, which keeps no capture.';
+        }
+        return 'Run or extend chaos to capture one'.padEnd(30, ' ');
+    };
+
     const chaosMapCardScreenPreviewMarkup = (area) => {
         if (!area || typeof area !== 'object') {
             return `
@@ -3445,7 +3555,7 @@
             placeholder = true;
             lines = [
                 'No captured screen preview'.padEnd(24, ' '),
-                'Run or extend chaos to capture one'.padEnd(30, ' '),
+                missingChaosPreviewReason(area),
             ];
         }
 
@@ -4535,10 +4645,23 @@
         return areas;
     };
 
-    const getChaosMapCardAreas = () => getChaosMapAreas({ includeFirstScreen: false });
+    // Every surface that draws the run's screens uses this one set: all of the
+    // screens it recorded, the starting screen included. The map used to leave
+    // the starting screen out of its cards and its count, so it said 2 where the
+    // flow beside it, the strip and the report said 3 for the same run.
     const getChaosFlowAreas = () => getChaosMapAreas({ includeFirstScreen: true });
 
-    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosMapCardAreas()).groups.length;
+    const getChaosMapUniqueScreenCount = () => buildChaosMapTemplateGroups(getChaosFlowAreas()).groups.length;
+
+    // "3 unique screens", or "3 unique screens (2 variants merged)" when screens
+    // that share a layout were drawn as one — as they are with Dedup mode set to
+    // exact, where the run itself counts each exact screen separately.
+    const chaosMapScreenCountLabel = () => {
+        const unique = getChaosMapUniqueScreenCount();
+        const merged = Math.max(0, getChaosFlowAreas().length - unique);
+        return `${unique} unique screen${unique === 1 ? '' : 's'}`
+            + (merged > 0 ? ` (${merged} variant${merged === 1 ? '' : 's'} merged)` : '');
+    };
     const chaosFlowNodePositionOverrides = {
         inline: new Map(),
         modal: new Map(),
@@ -5569,7 +5692,7 @@
         if (!mapList) {
             return;
         }
-        const areas = getChaosMapCardAreas();
+        const areas = getChaosFlowAreas();
         if (!areas.length) {
             if (mapViewBtn) {
                 mapViewBtn.disabled = true;
@@ -5617,6 +5740,7 @@
             edgeRows.sort();
 
             const titleLabel = String(group.label || hash || 'Screen').trim() || 'Screen';
+            const isStartingScreen = !!latestFirstScreenHash && memberHashes.includes(latestFirstScreenHash);
             const hashMeta = group.memberHashes.length > 1
                 ? `${group.memberHashes.length} variants merged`
                 : (hash || 'unknown-hash');
@@ -5635,6 +5759,7 @@
                 </div>
                 ${chaosMapCardScreenPreviewMarkup(group.representativeArea)}
                 <div class="chaos-map-chip-row">
+                    ${isStartingScreen ? '<span class="chaos-map-chip">Starting screen</span>' : ''}
                     <span class="chaos-map-chip">${Number(group.fieldCount) || 0} fields</span>
                     <span class="chaos-map-chip">${Number(group.inputFieldCount) || 0} inputs</span>
                     <span class="chaos-map-chip">${Number(group.numericFieldCount) || 0} numeric</span>
@@ -6006,7 +6131,15 @@
     const openChaosFlowFromMap = () => {
         openChaosModal(flowModal, '[data-chaos-flow-refresh], [data-chaos-flow-close]', { keepPrevious: true });
         setFlowStatus('Loading discovery flow...');
-        window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(async () => {
+            if (!flowModal || flowModal.hidden) {
+                return;
+            }
+            // The flow is drawn from the full mind map (captures, and the keys
+            // that lead from one screen to the next). Now that this dialog is
+            // open the poll asks for it, so a flow opened by the AI panel, or
+            // before the map was, is not drawn from the summary.
+            await pollStatus();
             if (!flowModal || flowModal.hidden) {
                 return;
             }
@@ -6016,7 +6149,7 @@
             }
             const areaCount = getChaosMapUniqueScreenCount();
             {
-                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
                 setFlowStatus(msg);
                 notifyUi(msg, areaCount ? 'info' : 'info');
             }
@@ -6102,8 +6235,10 @@
     const updateChaosMapFromStatus = (status) => {
         if (status && status.mindMap && typeof status.mindMap === 'object') {
             latestMindMap = status.mindMap;
+            latestMindMapIsSummary = typeof status.mindMap.areaCount === 'number';
         } else if (status && !status.active && !(status.loadedRunID) && (Number(status.stepsRun) || 0) === 0) {
             latestMindMap = null;
+            latestMindMapIsSummary = false;
         }
         if (status && status.screenHints && typeof status.screenHints === 'object') {
             screenHintsByHash = normalizeScreenHintsMap(status.screenHints);
@@ -6232,10 +6367,18 @@
         }
     };
 
+    // The default /chaos/status carries a summary of the mind map to stay cheap
+    // to poll. The map, the flow and the screen-hints editor draw captured
+    // screens and the keys that lead between them, which the summary leaves
+    // out — so while any of them is open the poll asks for the whole map.
+    // Without this every card said "No captured screen preview" and the flow
+    // drew no edges, for a run that had just finished.
+    const chaosMapDialogOpen = () => [mapModal, flowModal, flowScreenHintsModal].some((m) => m && !m.hidden);
+
     const pollStatus = async () => {
         clearTimeout(pollTimer);
         try {
-            const resp = await fetch('/chaos/status');
+            const resp = await fetch(chaosMapDialogOpen() ? '/chaos/status?verbose=true' : '/chaos/status');
             if (resp.status === 401 || resp.status === 403) {
                 if (window.ThreeSeventyWeb && typeof window.ThreeSeventyWeb.notifySessionExpired === 'function') {
                     window.ThreeSeventyWeb.notifySessionExpired();
@@ -6574,7 +6717,7 @@
                 }
             }
             const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
             focusModalElement(mapModal, chaosMapTopFocusSelector);
         });
     }
@@ -6631,6 +6774,27 @@
         hintsModal.addEventListener('click', (event) => {
             if (event.target === hintsModal) {
                 closeChaosModal(hintsModal);
+            }
+        });
+    }
+    if (hostConfirmModal) {
+        hostConfirmCancelButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (settlePendingHostConfirm) {
+                    settlePendingHostConfirm(false);
+                }
+            });
+        });
+        if (hostConfirmOkBtn) {
+            hostConfirmOkBtn.addEventListener('click', () => {
+                if (settlePendingHostConfirm) {
+                    settlePendingHostConfirm(true);
+                }
+            });
+        }
+        hostConfirmModal.addEventListener('click', (event) => {
+            if (event.target === hostConfirmModal && settlePendingHostConfirm) {
+                settlePendingHostConfirm(false);
             }
         });
     }
@@ -6700,7 +6864,7 @@
             setChaosMapStatus('Refreshing chaos mapâ€¦');
             await refreshChaosMapView();
             const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
         });
     }
     if (mapMaximizeBtn) {
@@ -6725,7 +6889,7 @@
             }
             const areaCount = getChaosMapUniqueScreenCount();
             {
-                const msg = areaCount ? `Showing discovery flow for ${areaCount} unique screen(s).` : 'No chaos map data yet.';
+                const msg = areaCount ? `Showing discovery flow for ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.';
                 setFlowStatus(msg);
                 notifyUi(msg, 'info');
             }
@@ -7056,6 +7220,35 @@
         }
     };
 
+    // Keep the menu's chaos entries in step with the run, whoever started it.
+    // pollStatus only keeps going while it knows of an active run, so a run
+    // begun from the AI panel, another tab or the API never showed Stop, and
+    // when it ended nothing here noticed: "Discovery report" stayed out of the
+    // menu until something else (loading a saved run) made it look again.
+    // workflow.js polls the run's state all the time and announces it; when
+    // that disagrees with what the menu shows, look again.
+    let lastRunStateSyncAt = 0;
+    document.addEventListener('3270web:workflow-status', (event) => {
+        const payload = event && event.detail;
+        if (!payload) {
+            return;
+        }
+        const runningElsewhere = !!payload.chaosActive;
+        const runningHere = !!(lastStatus && lastStatus.active);
+        const finishedWithData = !runningElsewhere && (Number(payload.chaosStepsRun) || 0) > 0 && !hasData;
+        if (runningElsewhere === runningHere && !finishedWithData) {
+            return;
+        }
+        // The two reports can disagree for a moment either side of a start or
+        // a stop, so one look is enough per second or so.
+        const now = Date.now();
+        if (now - lastRunStateSyncAt < 1500) {
+            return;
+        }
+        lastRunStateSyncAt = now;
+        pollStatus();
+    });
+
     // Initial status check on page load.
     try {
         setHintsModalMaximized(window.localStorage.getItem('h3270ChaosHintsModalMaximized') === '1');
@@ -7090,6 +7283,12 @@
     if (startBtn) {
         startBtn.addEventListener('click', async () => {
             if (startBtn.disabled || startBtn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
+            // First, and before anything is awaited: the dialog is on screen
+            // before the menu has finished closing behind the click.
+            if (!(await confirmChaosHostStart('Start'))) {
+                applyChaosInterlocks();
                 return;
             }
             const proceed = await confirmLoggingBeforeChaosStart();
@@ -7177,6 +7376,10 @@
             if (resumeBtn.disabled || resumeBtn.getAttribute('aria-busy') === 'true') {
                 return;
             }
+            if (!(await confirmChaosHostStart('Resume'))) {
+                applyChaosInterlocks();
+                return;
+            }
             const proceed = await confirmLoggingBeforeChaosStart();
             if (!proceed) {
                 applyChaosInterlocks();
@@ -7209,6 +7412,10 @@
                 return;
             }
             if (extendBtn.disabled || extendBtn.getAttribute('aria-busy') === 'true') {
+                return;
+            }
+            if (!(await confirmChaosHostStart('Extend'))) {
+                applyChaosInterlocks();
                 return;
             }
             const proceed = await confirmLoggingBeforeChaosStart();
@@ -7360,9 +7567,15 @@
         openChaosMap: function () {
             if (!mapModal) return false;
             openChaosModal(mapModal, chaosMapTopFocusSelector);
-            renderChaosMap();
-            const areaCount = getChaosMapUniqueScreenCount();
-            setChaosMapStatus(areaCount ? `Showing ${areaCount} unique screen(s).` : 'No chaos map data yet.');
+            const draw = () => {
+                renderChaosMap();
+                const areaCount = getChaosMapUniqueScreenCount();
+                setChaosMapStatus(areaCount ? `Showing ${chaosMapScreenCountLabel()}.` : 'No chaos map data yet.');
+            };
+            draw();
+            // Drawn at once from what is already known, then again from the full
+            // mind map, which the poll asks for now that the dialog is open.
+            pollStatus().then(draw);
             return true;
         },
         openChaosFlow: function () {

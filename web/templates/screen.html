@@ -365,7 +365,11 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="chaos-controls" data-chaos-controls>
+                            <!-- data-chaos-sample-app is decided on the server (see
+                                 isSampleAppSession): "true" only for the bundled
+                                 sample apps, which start without asking. Anything
+                                 else, including a missing attribute, is asked about. -->
+                            <div class="chaos-controls" data-chaos-controls data-chaos-sample-app="{{ if .IsSampleApp }}true{{ else }}false{{ end }}">
                                 <div class="appmenu-heading" role="presentation">Chaos exploration</div>
                                 <div class="chaos-controls-section" data-chaos-section="run" role="none">
                                     <button type="button" class="appmenu-item" role="menuitem" data-chaos-start>
@@ -933,6 +937,27 @@
             <div class="modal-actions">
                 <button type="button" data-chaos-confirm-cancel>Cancel</button>
                 <button type="button" class="danger" data-chaos-confirm-ok>Confirm</button>
+            </div>
+        </div>
+    </div>
+    <!-- Asked before a chaos exploration starts, resumes or extends on a host
+         that is not one of the bundled sample apps. Opened with the shared
+         pushModal helper (ui.js, confirmChaosHostStart), with focus on Cancel. -->
+    <div class="modal-backdrop" data-chaos-host-confirm-modal hidden>
+        <div class="modal modal-chaos-host-confirm" role="dialog" aria-modal="true" aria-labelledby="chaos-host-confirm-title" aria-describedby="chaos-host-confirm-desc">
+            <div class="modal-header">
+                <h3 id="chaos-host-confirm-title" data-chaos-host-confirm-title>Start exploration?</h3>
+                <button type="button" class="modal-close" data-chaos-host-confirm-cancel>Close</button>
+            </div>
+            <div class="stack" id="chaos-host-confirm-desc">
+                <p>Exploration will run against <strong data-chaos-host-confirm-host>this host</strong>.</p>
+                <p>It fills fields with generated values and presses keys, so it can create or change data on that host.</p>
+                <p class="subtle">To keep it away from keys it must never press, list them under <strong>Edit hints</strong> &rarr; <strong>Blocked keys</strong> before you start.</p>
+                <p class="subtle" data-chaos-host-confirm-blocked hidden></p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-chaos-host-confirm-cancel>Cancel</button>
+                <button type="button" class="danger" data-chaos-host-confirm-ok>Start exploration</button>
             </div>
         </div>
     </div>
