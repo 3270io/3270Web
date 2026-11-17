@@ -70,7 +70,7 @@ still BSD 3-Clause. Do not describe it as AGPL, and do not fold it into
 ## Tech Stack
 
 - **Backend:** Go 1.22+ (targeting 1.25), Gin 1.11.0, go3270 v0.9.13
-- **Frontend:** Vanilla JS (21 modules), custom 3270 fonts, Tippy.js/Popper.js
+- **Frontend:** Vanilla JS (one module per feature in `web/static/`), custom 3270 fonts, Tippy.js/Popper.js
 - **3270 Runtime:** `s3270` binary (embedded on Windows, apt-installed in Docker)
 - **Docs:** MkDocs → GitHub Pages at 3270Web.3270.io
 - **CI/CD:** GitHub Actions → GHCR Docker, gh-pages
@@ -167,7 +167,7 @@ REST endpoints live under `/api/v1/`. See `docs/rest-api.md` for full reference.
 
 ## Testing
 
-30 test files across packages. No Makefile; use `go test` directly:
+Tests sit beside the code in every package (`*_test.go`). No Makefile; use `go test` directly:
 
 ```bash
 go test ./...                      # all packages
