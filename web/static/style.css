@@ -1504,6 +1504,12 @@ body:has(.modal-backdrop:not([hidden])) #h3270-notification-container {
     flex: 1 1 140px;
   }
 
+  /* On a phone the suggestions must not push the terminal off the screen. */
+  .chaos-run-panel-next ol {
+    max-height: 8.5em;
+    overflow-y: auto;
+  }
+
   .modal-chaos-flow-screen-hints,
   .modal-chaos-flow,
   .modal-chaos-report {

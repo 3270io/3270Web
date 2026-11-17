@@ -6696,7 +6696,7 @@
             && (String(next.loadedRunID || '') === String(previous.loadedRunID || '')
                 || (!String(previous.loadedRunID || '') && (Number(previous.stepsRun) || 0) > 0
                     && (Number(next.stepsRun) || 0) === (Number(previous.stepsRun) || 0)));
-        ['terminationReason', 'targetHost', 'label', 'coverageStats'].forEach((key) => {
+        ['terminationReason', 'targetHost', 'label', 'coverageStats', 'error'].forEach((key) => {
             if ((next[key] == null || next[key] === '') && previous[key] != null && sameRun) {
                 next[key] = previous[key];
             }
