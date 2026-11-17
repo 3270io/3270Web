@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Host represents a connection to a 3270 host.
@@ -41,6 +42,12 @@ type Host interface {
 
 // MockHost is a mock implementation of Host for testing.
 type MockHost struct {
+	// mu makes the double safe to drive from two goroutines. A test that
+	// starts an exploration and then calls a handler has the run and the
+	// request both pressing keys on it; the real terminal serialises those,
+	// and a double that did not reported a race that was only its own.
+	mu sync.Mutex
+
 	Screen    *Screen
 	DumpFile  string
 	Connected bool
@@ -98,20 +105,28 @@ func (m *MockHost) loadDump() error {
 }
 
 func (m *MockHost) Start() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Connected = true
 	return nil
 }
 
 func (m *MockHost) Stop() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Connected = false
 	return nil
 }
 
 func (m *MockHost) IsConnected() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.Connected
 }
 
 func (m *MockHost) UpdateScreen() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	// In a real mock, maybe rotate through dumps?
 	// For now, just reload the same dump or do nothing.
 	if m.DumpFile != "" {
@@ -128,6 +143,8 @@ func (m *MockHost) GetScreen() *Screen {
 }
 
 func (m *MockHost) GetScreenSnapshot() *Screen {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.Screen == nil {
 		return nil
 	}
@@ -135,11 +152,15 @@ func (m *MockHost) GetScreenSnapshot() *Screen {
 }
 
 func (m *MockHost) SendKey(key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "key:"+key)
 	return nil
 }
 
 func (m *MockHost) MoveCursor(row, col int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "movecursor")
 	if m.Screen != nil {
 		m.Screen.CursorY = row
@@ -149,6 +170,12 @@ func (m *MockHost) MoveCursor(row, col int) error {
 }
 
 func (m *MockHost) WriteStringAt(row, col int, text string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.writeStringAtLocked(row, col, text)
+}
+
+func (m *MockHost) writeStringAtLocked(row, col int, text string) error {
 	m.Commands = append(m.Commands, "write")
 	if m.Screen == nil {
 		m.Screen = &Screen{Width: 80, Height: 24, IsFormatted: true}
@@ -190,6 +217,12 @@ func (m *MockHost) WriteStringAt(row, col int, text string) error {
 }
 
 func (m *MockHost) SubmitScreen() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.submitScreenLocked()
+}
+
+func (m *MockHost) submitScreenLocked() error {
 	m.Commands = append(m.Commands, "submit")
 	// Reset changed flags
 	for _, f := range m.Screen.Fields {
@@ -204,17 +237,25 @@ func (m *MockHost) SubmitScreen() error {
 // it the way the real thing decides: marked fields when the screen is
 // formatted, the returned text when it is not.
 func (m *MockHost) SubmitOperatorInput(edit func(*Screen) string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	text := ""
 	if edit != nil && m.Screen != nil {
 		text = edit(m.Screen)
 	}
 	if m.Screen != nil && !m.Screen.IsFormatted {
-		return m.SubmitUnformatted(text)
+		return m.submitUnformattedLocked(text)
 	}
-	return m.SubmitScreen()
+	return m.submitScreenLocked()
 }
 
 func (m *MockHost) SubmitUnformatted(data string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.submitUnformattedLocked(data)
+}
+
+func (m *MockHost) submitUnformattedLocked(data string) error {
 	m.Commands = append(m.Commands, "submit-unformatted")
 	if m.Screen != nil {
 		m.Screen.UpdateFromText(data)
@@ -223,6 +264,8 @@ func (m *MockHost) SubmitUnformatted(data string) error {
 }
 
 func (m *MockHost) PrintText(format string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "printtext:"+format)
 	if m.Screen == nil {
 		return "", nil
@@ -231,6 +274,8 @@ func (m *MockHost) PrintText(format string) (string, error) {
 }
 
 func (m *MockHost) Query(arg string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "query:"+arg)
 	if m.QueryErr != nil {
 		return "", m.QueryErr
@@ -246,6 +291,8 @@ func (m *MockHost) Query(arg string) (string, error) {
 // simply reports what is on it, which is what a caller comparing two
 // snapshots is testing against anyway.
 func (m *MockHost) Snap() (*Snapshot, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "snap")
 	if m.SnapErr != nil {
 		return nil, m.SnapErr
@@ -270,6 +317,8 @@ func (m *MockHost) Snap() (*Snapshot, error) {
 // asserting on a particular byte here is asserting about this function rather
 // than about a terminal.
 func (m *MockHost) ReadRegion(row, col, length int, enc RegionEncoding) (*RegionRead, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, fmt.Sprintf("readregion:%d,%d,%d", row, col, length))
 	if m.ReadBufferErr != nil {
 		return nil, m.ReadBufferErr
@@ -307,6 +356,8 @@ func (m *MockHost) ReadRegion(row, col, length int, enc RegionEncoding) (*Region
 // field in that; both answer the same question about the same screen, which is
 // what a handler test needs.
 func (m *MockHost) ReadFieldAt(row, col int) (*BufferField, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, fmt.Sprintf("readfield:%d,%d", row, col))
 	if m.ReadBufferErr != nil {
 		return nil, m.ReadBufferErr
@@ -345,6 +396,8 @@ func (m *MockHost) ReadFieldAt(row, col int) (*BufferField, error) {
 // answers with every allowlisted toggle off, so a test that only cares that
 // the list comes back does not have to populate one.
 func (m *MockHost) Toggles() ([]Toggle, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "toggles")
 	if m.ToggleErr != nil {
 		return nil, m.ToggleErr
@@ -360,6 +413,8 @@ func (m *MockHost) Toggles() ([]Toggle, error) {
 // exactly as the real wrapper does — that refusal is the security-relevant
 // behaviour, so the double must not be more permissive than the thing.
 func (m *MockHost) SetToggle(name string, value bool) (*Toggle, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "settoggle:"+name)
 	if m.ToggleErr != nil {
 		return nil, m.ToggleErr
@@ -379,6 +434,8 @@ func (m *MockHost) SetToggle(name string, value bool) (*Toggle, error) {
 // too, empty, so that a test covering the download path has something to
 // read where the server said it would be.
 func (m *MockHost) StartScreenTrace(path string, format ScreenTraceFormat) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "screentrace:on:"+path)
 	if m.ScreenTraceErr != nil {
 		return m.ScreenTraceErr
@@ -395,6 +452,8 @@ func (m *MockHost) StartScreenTrace(path string, format ScreenTraceFormat) error
 // StopScreenTrace ends a capture. Stopping one that was never started
 // succeeds, matching the real wrapper.
 func (m *MockHost) StopScreenTrace() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Commands = append(m.Commands, "screentrace:off")
 	if m.ScreenTraceErr != nil {
 		return m.ScreenTraceErr
