@@ -527,6 +527,13 @@
 
         const promptText = panel.querySelector("[data-copilot-connect-text]");
         const connectBtn = panel.querySelector("[data-copilot-connect]");
+        // A GitHub sign-in is the default, and the only thing the prompt would
+        // otherwise offer. For anyone who has not noticed the Provider button
+        // in the header, say there is another way in. Not shown when the
+        // provider is already one that takes a key or an endpoint: the main
+        // button opens the same dialog then.
+        const otherWay = panel.querySelector("[data-copilot-connect-provider]");
+        if (otherWay) otherWay.hidden = s.needs !== "login";
         if (s.needs === "login") {
             if (promptText) promptText.textContent = "Sign in to " + providerLabel + " to start chatting.";
             if (connectBtn) connectBtn.textContent = "Sign in to " + providerLabel;
@@ -4579,6 +4586,9 @@
                 ? "Auto-run on for this host. Typing and key presses will run without asking."
                 : "Auto-run off. Typing and key presses wait for your approval.");
         });
+        // The same dialog as the Provider button in the header, reached from
+        // where somebody who has not noticed that button is looking.
+        on("[data-copilot-connect-provider]", function () { window.AIProvider.openSettings(); });
         on("[data-copilot-connect]", async function () {
             const ok = await window.AIProvider.ensureReady();
             if (ok) {

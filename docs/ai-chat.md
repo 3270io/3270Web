@@ -41,7 +41,9 @@ either a Copilot sign-in or an API key for a different provider — the
 panel prompts for whichever the selected provider needs.
 
 1. Click **Provider** in the panel header (or press ++ctrl+k++ and run
-   *AI provider settings*).
+   *AI provider settings*). While the panel is waiting for a Copilot
+   sign-in, **Use an API key or local model** beside **Sign in to GitHub
+   Copilot** opens the same dialog.
 2. Pick a provider, fill in whatever it asks for, and click **Save**.
 3. The panel header shows the provider you are talking to, and the model
    dropdown reloads with that provider's models.

@@ -6461,6 +6461,22 @@ body.copilot-open .page-wrap {
 .copilot-connect-prompt .ai-prerequisites { margin: 0; padding-left: 18px; }
 .copilot-connect-prompt .ai-prerequisites li { margin: 3px 0; }
 .copilot-connect-btn { align-self: flex-start; }
+/* The connect button, and beside it the other way in: an API key or a local
+   model, for anyone who has not noticed Provider in the header. It wraps
+   under the main button rather than shrinking either of them. */
+.copilot-connect-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.copilot-connect-prompt .copilot-connect-btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  padding-block: 9px;
+  padding-inline: 17px;
+}
+.copilot-connect-prompt .copilot-connect-btn-secondary:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  filter: none;
+}
+.copilot-connect-btn-secondary[hidden] { display: none; }
 .copilot-modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
 .copilot-modal-footer button[hidden] { display: none; }
 .copilot-modal-footer .copilot-modal-restart { border-color: var(--accent); color: var(--accent); }

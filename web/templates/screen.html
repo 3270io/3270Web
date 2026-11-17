@@ -1466,7 +1466,14 @@ Sign On = Enter"></textarea>
             <p class="subtle">Terminal and recording work without AI. Use an existing Copilot account, an API key, or a local model. Your provider may charge for usage.</p>
             <ul class="ai-prerequisites"><li><strong>Copilot:</strong> sign in with an eligible GitHub account.</li><li><strong>API provider:</strong> supply your key; usage is billed by the provider.</li><li><strong>Local model:</strong> give the URL of your Ollama or compatible endpoint; most need no key.</li></ul>
             <p class="subtle">Once connected, try “Explain this screen”.</p>
-            <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+            <div class="copilot-connect-actions">
+                <button type="button" class="copilot-connect-btn" data-copilot-connect>Set up AI Chat</button>
+                <!-- For people who have never looked at the Provider button in
+                     the header: GitHub sign-in is the default, and it is not
+                     the only way in. Shown only while the sign-in is what is
+                     being asked for (see applyProviderStatus). -->
+                <button type="button" class="copilot-connect-btn copilot-connect-btn-secondary" data-copilot-connect-provider hidden>Use an API key or local model</button>
+            </div>
         </div>
         <details class="copilot-context" data-copilot-context hidden>
             <summary><span data-copilot-knows>Context</span><span class="copilot-context-more">What is sent</span></summary>

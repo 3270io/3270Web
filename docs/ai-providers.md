@@ -20,7 +20,9 @@ workflows.
 ## Choose a provider
 
 1. Open the AI chat panel and click **Provider** in its header — or press
-   ++ctrl+k++ and run *AI provider settings*.
+   ++ctrl+k++ and run *AI provider settings*. Before anything is connected the
+   panel also offers **Use an API key or local model**, beside **Sign in to
+   GitHub Copilot**, which opens the same dialog.
 2. Choose a provider from the dropdown. The dialog reshapes itself to ask for
    what that provider needs.
 3. Click **Save**.
@@ -117,6 +119,10 @@ for most servers that means including the `/v1` suffix:
 Add an API key if the endpoint requires one, and type the model name into
 **Model** — 3270Web asks the endpoint for its model list, but a server that
 does not implement `/models` needs the name entering by hand.
+
+**Endpoint URL** is the one thing this entry cannot work without. Saving it
+empty keeps the dialog open and marks the field, rather than closing the
+dialog and leaving the panel asking for a key.
 
 ## Models
 
