@@ -213,3 +213,36 @@ func TestPlayWorkflow_ContinuesAfterFailedStep(t *testing.T) {
 		t.Fatalf("expected playback completion event")
 	}
 }
+
+// A recorded empty fill is a field somebody cleared. Replaying it used to type
+// nothing, which left the host's own value in the field to be submitted.
+func TestPlaybackOfAnEmptyFillClearsTheField(t *testing.T) {
+	mockHost, err := host.NewMockHost("")
+	if err != nil {
+		t.Fatalf("NewMockHost: %v", err)
+	}
+	screen := mockHost.GetScreen()
+	screen.Width, screen.Height, screen.IsFormatted = 80, 24, true
+	input := &host.Field{Screen: screen, StartX: 10, StartY: 2, EndX: 17, EndY: 2, Value: "DEFAULT"}
+	label := &host.Field{Screen: screen, StartX: 0, StartY: 2, EndX: 8, EndY: 2, FieldCode: host.AttrProtected, Value: "Region"}
+	screen.Fields = []*host.Field{label, input}
+
+	sess := &session.Session{Host: mockHost, Playback: &session.WorkflowPlayback{Active: true}}
+	app := &App{}
+	clear := session.WorkflowStep{Type: "FillString", Coordinates: &session.WorkflowCoordinates{Row: 3, Column: 11}}
+	if err := app.applyWorkflowFill(sess, clear); err != nil {
+		t.Fatalf("applyWorkflowFill: %v", err)
+	}
+	if got := strings.TrimSpace(input.GetValue()); got != "" {
+		t.Errorf("the field still holds %q after an empty fill", got)
+	}
+
+	// On a protected position it stays what it was: nothing typed, no error.
+	onLabel := session.WorkflowStep{Type: "FillString", Coordinates: &session.WorkflowCoordinates{Row: 3, Column: 2}}
+	if err := app.applyWorkflowFill(sess, onLabel); err != nil {
+		t.Errorf("an empty fill on a protected position should be a no-op, got %v", err)
+	}
+	if got := strings.TrimSpace(label.GetValue()); got != "Region" {
+		t.Errorf("the protected field was changed to %q", got)
+	}
+}
