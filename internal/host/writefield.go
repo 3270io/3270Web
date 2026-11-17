@@ -271,6 +271,8 @@ func (h *GoSampleAppHost) WriteField(row, col int, text string, erase bool) (*Fi
 // WriteField applies the same rules to the mock's own screen, so a handler
 // test exercises the refusal paths without a terminal.
 func (m *MockHost) WriteField(row, col int, text string, erase bool) (*FieldWrite, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if ContainsForbiddenFieldText(text) {
 		return nil, &FieldWriteError{Reason: "text must not contain CR/LF/TAB"}
 	}
@@ -279,7 +281,7 @@ func (m *MockHost) WriteField(row, col int, text string, erase bool) (*FieldWrit
 	}
 	if m.Screen == nil || len(m.Screen.Fields) == 0 {
 		// No field structure: the bare buffer, as on an unformatted screen.
-		if err := m.WriteStringAt(row, col, text); err != nil {
+		if err := m.writeStringAtLocked(row, col, text); err != nil {
 			return nil, err
 		}
 		return &FieldWrite{Row: row, Col: col, Length: len([]rune(text)), Value: text}, nil

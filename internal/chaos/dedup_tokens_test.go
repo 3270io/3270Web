@@ -42,3 +42,19 @@ func TestCrossSizeTokenScore(t *testing.T) {
 		t.Errorf("screens with different titles scored %.2f", got)
 	}
 }
+
+func TestCollapseDigitRuns(t *testing.T) {
+	for in, want := range map[string]string{
+		"Aaa 99.99":            "Aaa 9.9",
+		"Aaa 9.99":             "Aaa 9.9",
+		"99":                   "9",
+		"9":                    "9",
+		"AAA-9999-9-A AA9 aaa": "AAA-9-9-A AA9 aaa",
+		"Aaaa aaa":             "Aaaa aaa",
+		"":                     "",
+	} {
+		if got := collapseDigitRuns(in); got != want {
+			t.Errorf("collapseDigitRuns(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

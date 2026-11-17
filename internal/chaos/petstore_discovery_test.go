@@ -301,3 +301,77 @@ func TestPetStoreHelpIsOneAreaAtBothScreenSizes(t *testing.T) {
 		t.Errorf("the help screen at %dx%d and %dx%d was counted as two areas", help.Height, help.Width, resized.Height, resized.Width)
 	}
 }
+
+// Order entry with an order in progress, then the same screen at the other
+// size. The application redraws it with different figures — totals of 33.00
+// and 0.00, line numbers that run to 12 or to 8 — and those lengths used to
+// be enough for the two to fall just short of matching.
+func TestPetStoreOrderEntryIsOneAreaAtBothScreenSizes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("drives a real s3270")
+	}
+	h := startPetStoreHost(t)
+	read := func() *host.Screen {
+		t.Helper()
+		if err := h.UpdateScreen(); err != nil {
+			t.Fatalf("UpdateScreen: %v", err)
+		}
+		s := h.GetScreenSnapshot()
+		if s == nil {
+			t.Fatal("no screen")
+		}
+		return s
+	}
+	write := func(f *host.Field, text string) {
+		t.Helper()
+		if err := h.WriteStringAt(f.StartY, f.StartX, text); err != nil {
+			t.Fatalf("write %q: %v", text, err)
+		}
+	}
+	enter := func() {
+		t.Helper()
+		if err := h.SendKey("Enter"); err != nil {
+			t.Fatalf("Enter: %v", err)
+		}
+	}
+	for _, f := range unprotectedFields(read()) {
+		write(f, "TESTER")
+	}
+	enter()
+	write(unprotectedFields(read())[0], "3")
+	enter()
+	write(unprotectedFields(read())[0], "C0001")
+	enter()
+	fields := unprotectedFields(read())
+	if len(fields) < 3 {
+		t.Skipf("order entry has %d input fields; the screen is not what this test expects", len(fields))
+	}
+	write(fields[1], "ACC-0001")
+	write(fields[2], "2")
+	enter()
+
+	e := New(h, DefaultConfig())
+	e.mindMap = newMindMap()
+	order := read()
+	if !strings.Contains(order.Text(), "ORDER ENTRY") || !strings.Contains(order.Text(), "ACC-0001") {
+		t.Skipf("no order in progress to compare:\n%s", order.Text())
+	}
+	first := e.canonicalizeScreenHash(hashScreen(order), order)
+	e.mu.Lock()
+	e.observeMindMapAreaLocked(first, order, time.Now())
+	e.mu.Unlock()
+
+	if err := h.SendKey("PF(9)"); err != nil {
+		t.Fatalf("PF9: %v", err)
+	}
+	resized := read()
+	if resized.Height == order.Height {
+		t.Skipf("PF9 did not change the screen size (still %dx%d)", resized.Height, resized.Width)
+	}
+	if !strings.Contains(resized.Text(), "ORDER ENTRY") {
+		t.Skipf("PF9 left order entry:\n%s", resized.Text())
+	}
+	if got := e.canonicalizeScreenHash(hashScreen(resized), resized); got != first {
+		t.Errorf("order entry at %dx%d and %dx%d was counted as two areas", order.Height, order.Width, resized.Height, resized.Width)
+	}
+}

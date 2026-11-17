@@ -278,12 +278,40 @@ func contentRowsFromSignature(sig string) []string {
 	}
 	var rows []string
 	for _, line := range strings.Split(body, "\n") {
-		collapsed := strings.Join(strings.Fields(line), " ")
+		collapsed := collapseDigitRuns(strings.Join(strings.Fields(line), " "))
 		if collapsed != "" {
 			rows = append(rows, collapsed)
 		}
 	}
 	return rows
+}
+
+// collapseDigitRuns reduces every run of the signature's digit class to one.
+//
+// The signature keeps a number's length, which is right when two screens of
+// one size are compared cell for cell and wrong here: a total of 0.00 and one
+// of 33.00, or line 9 and line 10, are the same row of the same screen. Left
+// as they were, a form with a few figures on it fell just short of matching
+// itself at another size.
+func collapseDigitRuns(row string) string {
+	if !strings.Contains(row, "99") {
+		return row
+	}
+	var b strings.Builder
+	b.Grow(len(row))
+	prevDigit := false
+	for _, r := range row {
+		if r == '9' {
+			if !prevDigit {
+				b.WriteRune(r)
+			}
+			prevDigit = true
+			continue
+		}
+		prevDigit = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // crossSizeRowScore scores two screens of different sizes by the share of
