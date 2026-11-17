@@ -23,7 +23,7 @@ the right, and the session tabs beneath.
 
 | Menu | Holds |
 |---|---|
-| **Session** | Connection profiles, connection details, reconnect, print screen, disconnect |
+| **Session** | Open a connection, manage connections, connection details, reconnect, print screen, disconnect |
 | **Terminal** | Find on screen, copy screen, screen history, file transfer, keyboard mapping |
 | **View** | Focus mode, hotspots, virtual keypad, theme |
 | **Automation** | Recording, playback and exploration (shown while Automation tools is on) |
@@ -166,20 +166,42 @@ A profile holds a name, host, port, optional TLS (with or without
 certificate verification), optional LU name, terminal model and code page,
 and a description.
 
-- **Profiles** on the connect page picks one and connects.
-- **Profiles** in the terminal header manages the list.
-- The **+ New session** button in the tab bar opens the same picker.
+Two dialogs, because there are two jobs:
 
-When it is picking a session to open rather than managing the list, the
-picker also offers the [bundled sample apps](sample-apps.md) and a box to
-type an address into, so there is always something to connect to — including
-on an instance that has no profiles yet and no mainframe to reach.
+| Dialog | For | Opened by |
+|---|---|---|
+| **Open a connection** | Starting a session | **Open a connection…** on the connect page; **Session → Open a connection…**; the **+ New session** button in the tab bar; **Alt+N** |
+| **Manage connections** | Keeping the list: add, edit, delete, import, export | **Session → Manage connections…**; **Manage connections…** at the bottom of the Open dialog; **Save this connection…** under *Connection options* on the connect page |
+
+Both are in the [command palette](#command-palette) as **Open a connection…**
+and **Manage connections…**, and each has one title, whichever way it was
+opened.
+
+**Open a connection** lists your saved connections, each with an **Open**
+button, then the [bundled sample apps](sample-apps.md) with the port each
+listens on, then a box labelled **Or connect to a host** that takes
+`hostname:port`. There is always something to connect to — including on an
+instance that has no saved connections yet and no mainframe to reach, where it
+says "No saved connections yet." and still lists the sample apps. **Manage
+connections…** at the bottom closes it and opens the other dialog.
+
+**Manage connections** holds the profile editor, the list of what is saved
+with **Edit** and **Delete** on each row, and **Import connections** and
+**Export connections**. **Delete** asks first, and the confirmation opens on
+**Cancel**.
 
 **Bundled sample app** at the top of the editor points a profile at one of
-those apps. Choosing it fills in the host and port and clears TLS, which the
-sample apps do not speak; typing over the host afterwards puts the list back
-to "a mainframe on the network". A profile pointing at a sample app is listed
-by the app's name rather than by the `sampleapp:` address it is dialled with.
+those apps. It is in the editor only; the Open dialog lists the same apps as
+things to start. Choosing one fills in the host and port and clears TLS, which
+the sample apps do not speak; typing over the host afterwards puts the list
+back to "a mainframe on the network". A profile pointing at a sample app is
+listed by the app's name rather than by the `sampleapp:` address it is dialled
+with.
+
+Both dialogs scroll inside themselves when the window is short, with the title
+and **Close** always in view (and, in Manage, **Save profile**). Keyboard focus
+stays inside until the dialog is closed, and **Esc** closes it and puts focus
+back where it was.
 
 Each profile shows the target exactly as s3270 will see it — for example
 `L:Y:LU01@mainframe:992` — so what you check is what actually gets dialled.
@@ -245,9 +267,10 @@ session you have and a **+ New session** button at the end of the row.
 - **+ New session** opens another one. Where you sign in to a
   [selection screen](session-manager.md), it opens another selection screen —
   that is the host list you were given, and a second one beside it would only
-  disagree with it. Otherwise it asks in the same picker
-  **Session → Connection profiles** uses: your connection profiles, the
-  bundled sample apps, or an address you type.
+  disagree with it. Otherwise it opens **Open a connection**: your saved
+  connections, the bundled sample apps, or an address you type.
+  **Session → Open a connection…** opens that same dialog directly, even where
+  you sign in to a selection screen.
 - Click a tab to switch to it.
 - The **×** on a tab closes that session; the others keep running. A single
   tab has no **×** — closing your only session is a disconnect, and
@@ -264,7 +287,7 @@ session you have and a **+ New session** button at the end of the row.
 
 | Shortcut | Does |
 |---|---|
-| ++alt+n++ | Open another session |
+| ++alt+n++ | Open another session — the [Open a connection](#connection-profiles) dialog |
 | ++alt+w++ | Close the current session (when more than one is open) |
 | ++alt+1++ … ++alt+9++ | Switch to that session in the bar |
 

@@ -25,6 +25,7 @@ func TestEveryControlSurvivedTheMoveIntoTheMenus(t *testing.T) {
 	controls := []string{
 		// Session
 		"data-profiles-open",
+		"data-profiles-manage",
 		"data-host-details-open",
 		"data-reconnect",
 		"data-print-screen",

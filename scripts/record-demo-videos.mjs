@@ -730,7 +730,7 @@ const scenarios = {
     await d.click('[data-session-new]');
     await page.waitForSelector('[data-profiles-modal]:not([hidden])', { timeout: 8000 });
     await d.caption('Step 2', 'Pick any bundled sample app — or type a host address.', 1800);
-    await d.click('[data-profiles-modal] button:has-text("Game - Word Guess")');
+    await d.click('[data-profiles-modal] button[aria-label="Open a session to the Game - Word Guess sample app"]');
     await waitForScreen(page);
     await page.waitForFunction(
       () => document.querySelectorAll('.session-tab').length >= 2,
@@ -963,7 +963,7 @@ const scenarios = {
     await d.click('[data-session-new]');
     await page.waitForSelector('[data-profiles-modal]:not([hidden])', { timeout: 8000 });
     await d.pause(600);
-    await d.click('[data-profiles-modal] button:has-text("Game - Snake")');
+    await d.click('[data-profiles-modal] button[aria-label="Open a session to the Game - Snake sample app"]');
     await waitForScreen(page);
     await page.waitForFunction(
       () => document.querySelectorAll('.session-tab').length >= 2,

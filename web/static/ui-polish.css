@@ -2161,19 +2161,35 @@ body[data-focus="on"] .sample-status {
   background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
+/* The frame does not scroll; the body inside it does. The title, Close and the
+   footer stay put however long the lists grow, which on a 768px-high window is
+   the difference between a dialog and a page that happens to be floating. The
+   delete confirmation is positioned against this frame, so it also covers the
+   whole dialog rather than only whatever part of it had been scrolled to. */
 .profiles-modal-content {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: min(96vw, 760px);
-  max-height: 88vh;
-  overflow: auto;
-  padding: 20px;
+  gap: 0;
+  width: min(96vw, 560px);
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+  padding: 0;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   box-shadow: var(--elev-3);
+}
+
+/* Manage holds a form with three fields to a row, so it is the wider of the
+   two. Open is a list and a box, and reads better narrow. */
+.profiles-modal-content.is-wide {
+  width: min(96vw, 760px);
+}
+
+.profiles-modal-content:focus {
+  outline: none;
 }
 
 .profiles-modal-header {
@@ -2185,10 +2201,97 @@ body[data-focus="on"] .sample-status {
 
 .profiles-modal-header h3 { margin: 0; font-size: 1.02rem; }
 
-.profiles-list {
+/* More specific than the shared header rule further down, which gives every
+   dialog header a margin that would push the body away from its hairline. */
+.profiles-modal-content .profiles-modal-header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 20px 12px;
+}
+
+.profiles-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Reaching the end must not start scrolling the page behind the backdrop. */
+  overscroll-behavior: contain;
+}
+
+/* Manage ends in its own bar of buttons, which carries the bottom padding. */
+.profiles-modal-content.is-wide .profiles-modal-body {
+  padding-bottom: 0;
+}
+
+/* The way to the other dialog is always in reach, not at the end of a scroll. */
+.profiles-modal-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--hairline-soft);
+}
+
+.profiles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profiles-section h4,
+.profiles-form > h4 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--fg-muted);
+}
+
+.profiles-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.profiles-io {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profiles-io button {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.profiles-empty {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.profiles-empty[hidden] {
+  display: none;
+}
+
+.profiles-list,
+.profiles-sample-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profiles-list[hidden] {
+  display: none;
 }
 
 .profile-row {
@@ -2203,6 +2306,10 @@ body[data-focus="on"] .sample-status {
 
 .profile-row:hover { border-color: var(--border); }
 
+/* The row's text is not a control — the buttons beside it are — but a click
+   anywhere on it still runs its main action, for the pointer. */
+.profile-row.is-clickable { cursor: pointer; }
+
 .profile-row-main {
   flex: 1 1 auto;
   min-width: 0;
@@ -2211,10 +2318,6 @@ body[data-focus="on"] .sample-status {
   grid-template-areas: "name target" "desc desc";
   gap: 2px 12px;
   text-align: left;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
   color: inherit;
 }
 
@@ -2267,58 +2370,61 @@ body[data-focus="on"] .sample-status {
 
 .profile-row-action {
   flex: 0 0 auto;
-  padding: 3px 9px;
-  font-size: 0.72rem;
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
 }
 
 .profile-row-action.danger { color: var(--danger); }
 
-/* The bundled sample apps, and the typed-address box beside them. Both belong
-   to picking a session to open, so both are drawn only in that mode — see
-   renderSamples() in connection-profiles.js. */
+/* The one thing a row in the Open dialog is for, so it is the filled button. */
+.profile-row-open {
+  border-color: var(--accent-line);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* The bundled sample apps, and the typed-address box beside them: the two
+   other ways to start a session, in the Open dialog and nowhere else. */
 .profiles-samples,
 .profiles-direct {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
+  gap: 8px;
+  padding-top: 14px;
   border-top: 1px solid var(--hairline-soft);
 }
 
 /* [hidden] has to win: both blocks above set display, which would otherwise
-   override it and leave them on in the manage view. */
+   override it and leave them on where they do not apply. */
 .profiles-samples[hidden],
 .profiles-direct[hidden] {
   display: none;
 }
 
-.profiles-samples h4 {
-  margin: 0;
-  font-size: 0.82rem;
-  letter-spacing: 0.01em;
-  color: var(--fg-muted);
-}
-
 .profiles-samples p { margin: 0; font-size: 0.74rem; }
-
-.profiles-sample-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 
 /* Wider name column than a profile row: a sample app's name is the whole of
    what identifies it, and the port beside it is three digits. */
-.profile-sample-row {
+.profile-sample-row .profile-row-main {
   grid-template-columns: 1fr auto;
+  grid-template-areas: "name target";
   align-items: baseline;
-  padding: 8px 10px;
-  border: 1px solid var(--hairline-soft);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
 }
 
-.profile-sample-row:hover { border-color: var(--border); }
+/* Eight of them in a column: a little less air per row is what lets the whole
+   dialog fit a 768px-high window without scrolling. */
+.profile-sample-row {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* The disclosure that hides the optional terminal fields is a full-width
+   target, and at its natural 20px was under the 24px minimum. */
+.profiles-advanced summary {
+  padding: 6px 0;
+  cursor: pointer;
+}
 
 .profiles-direct-row {
   display: flex;
@@ -2368,6 +2474,14 @@ body[data-focus="on"] .sample-status {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+
+/* The rule above loses to `.profiles-form label`, which is more specific and
+   stacks its children, so inside the editor a checkbox sat centred above its
+   own words. */
+.profiles-form .profiles-check {
+  flex-direction: row;
+  align-items: center;
 }
 
 /* "Use TLS" and "Use these options for this connection" were a bare 18px box
@@ -2435,11 +2549,22 @@ body[data-focus="on"] .sample-status {
   line-height: 1.45;
 }
 
+/* Sticks to the bottom of the scrolling body, so Save and the line that says
+   whether it worked stay in view however far down the form someone has
+   scrolled. Solid, so the fields passing under it are hidden rather than shown
+   through it. */
 .profiles-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
   justify-content: flex-end;
+  margin: 0 -20px;
+  padding: 10px 20px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--hairline-soft);
 }
 
 .profiles-status {
@@ -2450,10 +2575,96 @@ body[data-focus="on"] .sample-status {
 
 .profiles-status.is-error { color: var(--danger); }
 
-/* In "pick a profile and connect" mode the editor is out of the way — you
-   came here to connect, not to administer. */
-.profiles-modal[data-profile-mode="pick"] .profiles-form {
-  opacity: 0.72;
+/* Open's own status line sits under the saved list and is empty unless the
+   list could not be loaded. It stays in the page, so what is written into it
+   is announced, but takes no room while it says nothing. */
+.profiles-section > .profiles-status {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Narrow windows: the frame nearly fills the screen, rows stack their text
+   above their buttons, and the dialog keeps a small margin rather than none. */
+@media (max-width: 560px) {
+  .profiles-modal {
+    padding: 8px;
+  }
+
+  .profiles-modal-content {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .profiles-modal-content .profiles-modal-header,
+  .profiles-modal-body,
+  .profiles-modal-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .profiles-form-actions {
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .profile-row {
+    flex-wrap: wrap;
+  }
+
+  .profile-row-main {
+    flex: 1 1 100%;
+    grid-template-columns: 1fr;
+    grid-template-areas: "name" "target" "desc";
+  }
+
+  /* A sample app's row is a name and a port; the Open button stays beside
+     them rather than wrapping onto a line of its own. */
+  .profile-sample-row {
+    flex-wrap: nowrap;
+  }
+
+  .profile-sample-row .profile-row-main {
+    flex: 1 1 auto;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "name target";
+  }
+
+  .profile-row-name {
+    white-space: normal;
+  }
+
+  .profiles-direct-row {
+    flex-wrap: wrap;
+  }
+}
+
+/* A fingertip is bigger than a pointer: every button in either dialog is at
+   least 44px each way, as on the rest of the page. */
+@media (pointer: coarse) {
+  .profile-row-action {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .profiles-direct-row input {
+    min-height: 44px;
+  }
+
+  .profiles-form select,
+  .profiles-form input[type="text"],
+  .profiles-form input[type="number"] {
+    min-height: 44px;
+  }
+}
+
+/* touch.css gives every dialog button a 40px floor, with a selector specific
+   enough that the plain rule above cannot raise it. These two dialogs are the
+   ones a person on a phone uses to start a session, so they take the full
+   44px. */
+body.touch-device .profiles-modal .profiles-modal-content button:not([class*="chip"]):not([class*="copy"]),
+body.touch-device .profiles-modal .profiles-modal-content summary {
+  min-height: 44px;
 }
 
 /* ---------------------------------------------------------------- */

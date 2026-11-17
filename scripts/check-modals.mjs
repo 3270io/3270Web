@@ -42,7 +42,8 @@ const DIALOGS = [
   ['File transfer', '[data-transfer-open]'],
   ['Keyboard mapping', '[data-keymap-open]'],
   ['Tasks', '[data-tasks-open]'],
-  ['Connection profiles', '[data-profiles-open]'],
+  ['Open a connection', '[data-profiles-open]'],
+  ['Manage connections', '[data-profiles-manage]'],
   ['Disconnect', '[data-disconnect-open]'],
 ];
 

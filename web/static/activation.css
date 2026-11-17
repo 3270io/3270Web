@@ -91,7 +91,7 @@ body[data-focus="on"] .quick-start, body[data-focus="on"] .terminal-view-bar { d
  .quick-start p { font-size: .82rem; line-height: 1.4; }
  .quick-start-actions { gap: 6px; }
  .terminal-view-bar { gap: 6px; }
- .profiles-sample-row .profile-row-name { white-space: normal; }
+ .profile-sample-row .profile-row-name { white-space: normal; }
 }
 
 [data-connection-diagnostic] { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
