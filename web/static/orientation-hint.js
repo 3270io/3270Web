@@ -75,7 +75,10 @@
   }
 
   function shouldOffer() {
-    if (document.body.dataset.terminalView === "readable") return false;
+    // Readable and Custom are sizes the person picked; telling them to turn
+    // the phone for a size they did not pick would be nagging.
+    var view = document.body.dataset.terminalView;
+    if (view === "readable" || view === "custom") return false;
     if (retiredForThisPage || dismissedForGood()) {
       return false;
     }

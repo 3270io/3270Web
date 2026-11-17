@@ -27,13 +27,13 @@
     <link rel="stylesheet" type="text/css" href="/static/auth.css?v=9">
     <!-- The unified top menu bar. After ui-polish.css so it can build on the
          same design tokens and win at equal specificity. -->
-    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=5">
+    <link rel="stylesheet" type="text/css" href="/static/menu-bar.css?v=6">
     <!-- Embedded mode. Every rule is scoped to body.embedded, so this is inert
          unless the page was asked for with ?embed=1. See docs/embedding.md. -->
     <link rel="stylesheet" type="text/css" href="/static/embed.css?v=1">
     <!-- Touch support. Every rule is behind body.touch-device, which touch.js
          adds only on a coarse pointer, so a desktop renders unchanged. -->
-    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=8">
+    <link rel="stylesheet" type="text/css" href="/static/touch.css?v=9">
     {{ if .ThemeCSS }}<style>{{ .ThemeCSS }}</style>{{ end }}
     <script src="/static/screen-workflow-status-init.js"></script>
     <link rel="stylesheet" href="/static/lib/tippy.css">
@@ -43,7 +43,7 @@
          every keystroke to see whether the operator has rebound that key.
          Both are `defer`, so this order is their execution order. -->
     <script src="/static/keymap.js?v=2" defer></script>
-    <script src="/static/keyboard.js?v=19" defer></script>
+    <script src="/static/keyboard.js?v=20" defer></script>
     <script src="/static/initial-focus.js" defer></script>
     <script src="/static/theme.js?v=10" defer></script>
     <script src="/static/background.js?v=2" defer></script>
@@ -64,7 +64,7 @@
     <script src="/static/screen-find.js" defer></script>
     <script src="/static/screen-history.js" defer></script>
     <script src="/static/session-tabs.js" defer></script>
-    <script src="/static/focus-mode.js?v=2" defer></script>
+    <script src="/static/focus-mode.js?v=3" defer></script>
     <script src="/static/connection-profiles.js?v=2" defer></script>
     <script src="/static/file-transfer.js" defer></script>
     <script src="/static/keymap-editor.js" defer></script>
@@ -74,7 +74,7 @@
     <script src="/static/workspace-mode.js?v=2" defer></script>
     <script src="/static/quick-start.js?v=2" defer></script>
     <script src="/static/screen-size.js" defer></script>
-    <script src="/static/terminal-controls.js?v=6" defer></script>
+    <script src="/static/terminal-controls.js?v=7" defer></script>
     <!-- The menu bar: drop-downs, the collapse control and the theme
          picker inside the View menu. Loads after ui.js so the controls it
          hosts are already bound. -->
@@ -98,8 +98,8 @@
     <!-- Suggests landscape on a phone holding an 80-column screen upright.
          Also after screen-grid.js: whether to suggest anything is decided by
          measuring the character cell, not by guessing from the device. -->
-    <script src="/static/orientation-hint.js?v=2" defer></script>
-    <link rel="stylesheet" href="/static/activation.css?v=2">
+    <script src="/static/orientation-hint.js?v=3" defer></script>
+    <link rel="stylesheet" href="/static/activation.css?v=3">
 </head>
 <body {{ if .Embedded }}class="embedded" data-embedded="true"{{ end }} data-session-id="{{ .SessionID }}" data-embed-origins="{{ .EmbedOrigins }}" data-playback-active="{{ .PlaybackActive }}" data-playback-paused="{{ .PlaybackPaused }}" data-playback-completed="{{ .PlaybackCompleted }}" data-target-host="{{ .TargetHost }}:{{ .TargetPort }}" data-account="{{ .Auth.UserID }}" data-saved-workspace="{{ .UIPreferences.WorkspaceMode }}" data-quickstart-dismissed="{{ .UIPreferences.QuickStartDismissed }}" data-terminal-view="{{ .UIPreferences.TerminalView }}">
     <script src="/static/early-theme-init.js"></script>
@@ -243,30 +243,6 @@
                                 <svg class="appmenu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm1 3v2h2V9H5zm3 0v2h2V9H8zm3 0v2h2V9h-2zm3 0v2h2V9h-2zm3 0v2h2V9h-2zM5 12v2h11v-2H5zm12 0v2h2v-2h-2z"/></svg>
                                 <span class="appmenu-label">Virtual keypad<span class="appmenu-sub">On-screen PF and AID keys</span></span>
                             </button>
-                            <div class="appmenu-sep" role="separator"></div>
-                            <!-- Terminal size. The zoom controls used to live in
-                                 a floating panel pinned over the top-right of
-                                 the terminal; they are ordinary View-menu
-                                 furniture now. data-terminal-controls stays on
-                                 the wrapper: terminal-controls.js binds to it,
-                                 and keyboard.js's focus lock knows it by name. -->
-                            <div class="appmenu-row" role="none">
-                                <span class="appmenu-row-label" id="appmenu-size-label">Terminal size</span>
-                                <div class="terminal-controls appmenu-size" data-terminal-controls role="group" aria-labelledby="appmenu-size-label">
-                                    <button type="button" class="icon-button terminal-size-step" data-terminal-size-down aria-label="Decrease terminal size">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 11h14v2H5z"/></svg>
-                                    </button>
-                                    <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
-                                    <button type="button" class="icon-button terminal-size-step" data-terminal-size-up aria-label="Increase terminal size">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
-                                    </button>
-                                    <span class="terminal-size-label" data-terminal-size-label>100%</span>
-                                </div>
-                            </div>
-                            <div class="appmenu-row appmenu-row-buttons" role="none">
-                                <button type="button" class="appmenu-chip" data-terminal-fit aria-label="Fit terminal to available space">Fit to window</button>
-                                <button type="button" class="appmenu-chip" data-terminal-zoom-reset aria-label="Reset terminal size">Reset</button>
-                            </div>
                             <div class="appmenu-sep" role="separator"></div>
                             <!-- Theme. The picker in Settings is
                                  administrator-only; the colour of your own
@@ -598,8 +574,31 @@
                         </div>
                     </section>
                     <div class="terminal-view-bar" aria-label="Terminal view">
-                        <button type="button" data-terminal-view-choice="readable" aria-pressed="false">Readable terminal</button>
-                        <button type="button" data-terminal-view-choice="overview" aria-pressed="false">Fit overview</button>
+                        <!-- The terminal's size, in one place. Fit, Readable and
+                             Custom are exclusive, so they are radios; the
+                             stepper and slider belong to Custom and appear
+                             only with it. terminal-controls.js binds to
+                             data-terminal-controls, keyboard.js's focus lock
+                             knows it and the slider by name, and focus-mode.js
+                             refits through data-terminal-fit. "overview" is
+                             what a Fit choice has always been saved as. -->
+                        <div class="terminal-size-picker" data-terminal-controls>
+                            <div class="terminal-size-modes" role="radiogroup" aria-label="Terminal size">
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="overview" data-terminal-fit title="Fit the whole screen in the space available">Fit</button>
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="readable" data-terminal-zoom-reset title="Full-size text; pan sideways where the screen is wider than the window">Readable</button>
+                                <button type="button" role="radio" aria-checked="false" data-terminal-view-choice="custom" title="Set the size yourself">Custom</button>
+                            </div>
+                            <div class="terminal-size-custom" data-terminal-custom role="group" aria-label="Custom terminal size" hidden>
+                                <button type="button" class="icon-button terminal-size-step" data-terminal-size-down aria-label="Decrease terminal size">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 11h14v2H5z"/></svg>
+                                </button>
+                                <input id="terminal-size-slider" type="range" class="terminal-size-slider" data-terminal-size-slider min="12" max="36" step="1" aria-label="Terminal size">
+                                <button type="button" class="icon-button terminal-size-step" data-terminal-size-up aria-label="Increase terminal size">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
+                                </button>
+                                <span class="terminal-size-label" data-terminal-size-label aria-live="polite">100%</span>
+                            </div>
+                        </div>
                         <button type="button" data-show-automation>Show automation</button>
                         <span class="subtle" data-terminal-position aria-live="polite"></span>
                     </div>
