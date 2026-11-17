@@ -35,7 +35,7 @@ func (app *App) UIPreferencesHandler(c *gin.Context) {
 		return
 	}
 
-	if (patch.WorkspaceMode != nil && *patch.WorkspaceMode != "" && *patch.WorkspaceMode != "business" && *patch.WorkspaceMode != "engineering") || (patch.TerminalView != nil && *patch.TerminalView != "" && *patch.TerminalView != "readable" && *patch.TerminalView != "overview") {
+	if (patch.WorkspaceMode != nil && *patch.WorkspaceMode != "" && *patch.WorkspaceMode != "business" && *patch.WorkspaceMode != "engineering") || (patch.TerminalView != nil && !users.ValidTerminalView(*patch.TerminalView)) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unknown presentation choice."})
 		return
 	}

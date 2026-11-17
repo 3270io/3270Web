@@ -18,6 +18,18 @@ type UIPreferencesPatch struct {
 	TerminalView        *string `json:"terminalView"`
 }
 
+// ValidTerminalView reports whether v is a terminal-size choice the page can
+// act on. The size control offers Fit, Readable and Custom; Fit is stored as
+// "overview" because that is what accounts saved before the control had a
+// third choice already say. Empty means "never chose" and is always allowed.
+func ValidTerminalView(v string) bool {
+	switch v {
+	case "", "overview", "readable", "custom":
+		return true
+	}
+	return false
+}
+
 func (s *Store) PatchUIPreferences(id string, patch UIPreferencesPatch) (UIPreferences, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -42,7 +54,7 @@ func (s *Store) PatchUIPreferences(id string, patch UIPreferencesPatch) (UIPrefe
 		if prefs.WorkspaceMode != "" && prefs.WorkspaceMode != "business" && prefs.WorkspaceMode != "engineering" {
 			return UIPreferences{}, fmt.Errorf("invalid workspace mode")
 		}
-		if prefs.TerminalView != "" && prefs.TerminalView != "readable" && prefs.TerminalView != "overview" {
+		if !ValidTerminalView(prefs.TerminalView) {
 			return UIPreferences{}, fmt.Errorf("invalid terminal view")
 		}
 		f.Users[i].UIPreferences = prefs
