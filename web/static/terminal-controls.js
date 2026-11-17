@@ -94,6 +94,12 @@
     }
     var pct = Math.round((current / baseline) * 100);
     label.textContent = pct + "%";
+    // The slider's own value is a size in pixels, which means nothing to
+    // whoever hears it read out. Say the percentage instead.
+    var slider = label.parentElement && label.parentElement.querySelector('input[type="range"]');
+    if (slider) {
+      slider.setAttribute("aria-valuetext", pct + "%");
+    }
   }
 
   function updateSlider(slider, current) {
