@@ -18,3 +18,11 @@
     <a href="/admin/logs" {{ if eq . "logs" }}aria-current="page"{{ end }}>Logs</a>
 </nav>
 {{ end }}
+{{ define "admin-skip" }}
+{{/*
+  The first focusable element on every admin page: a way past the header and
+  the six-link navigation to the page's own content, which is the <main> that
+  follows the navigation. Hidden until it takes focus; see admin.css.
+*/}}
+<a class="admin-skip" href="#main">Skip to content</a>
+{{ end }}

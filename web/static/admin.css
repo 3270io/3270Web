@@ -1,0 +1,314 @@
+/* The administration area.
+   -------------------------------------------------------------------------
+   Loaded after auth.css, which still holds the first draft of the area's
+   styles (it shares a file with sign-in and setup). What lives here is what
+   the area needed once it was used on more than a wide desktop:
+
+     1. a skip link and the landmark it lands on
+     2. dialogs that fit the screen they are opened on
+     3. tables that stay usable on a phone
+     4. the cue that tells a refusal from a success without colour
+
+   Only admin pages link this file. */
+
+/* ---------------------------------------------------------------------
+   1. Skip link and the main landmark
+   --------------------------------------------------------------------- */
+
+/* The first focusable thing on every admin page. Each page opens with a
+   header and a six-link navigation strip, so reaching the page's own content
+   by keyboard took eight Tab presses every time. Out of sight until it takes
+   focus, then pinned to the corner rather than put in the flow, so showing it
+   does not push the page down under the person who has just pressed Tab. */
+.admin-skip {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--fg);
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: var(--r-sm, 8px);
+  box-shadow: var(--elev-4, var(--shadow));
+  transform: translateY(-200%);
+}
+
+.admin-skip:focus {
+  transform: none;
+}
+
+/* The landmark takes focus when the skip link is followed, so the next Tab
+   starts from the content rather than from the top of the page. It is not a
+   control, and a ring around the whole page body would say nothing. */
+.admin-page main:focus {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------
+   2. Dialogs
+   --------------------------------------------------------------------- */
+
+/* A dialog is never taller than the screen it opens on.
+
+   The panels used to grow to fit their form, which for the preset and group
+   dialogs is a thousand pixels or more. On a 768px-high laptop that left the
+   Save button below the fold, and the only way to reach it was to scroll the
+   backdrop — which carried the title and the close button off the top. The
+   panel now stops at the viewport and the part that can be long scrolls inside
+   it. The title row and the action row are outside that part, so "what is
+   this" and "how do I get out" are on screen however far the form has been
+   scrolled.
+
+   min-height is reset because auth.css asks the panel to be at least as tall
+   as its content, which would win over the cap. dvh is the height of the
+   visible area on a phone whose address bar is showing; vh is the fallback
+   for a browser that does not know it. The 40px and the safe-area inset are
+   the backdrop's own padding. */
+.admin-dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 40px - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 40px - env(safe-area-inset-bottom, 0px));
+  /* A panel with no scrolling region of its own (a confirmation) scrolls as a
+     whole rather than running off the screen on a very short viewport. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-dialog-content > .admin-dialog-head,
+.admin-dialog-content > .admin-dialog-desc,
+.admin-dialog-content .admin-dialog-actions {
+  flex: none;
+}
+
+/* The form sits between the title and the page's edge, and is what shares out
+   the height: the fields in .admin-dialog-body take what is left and the
+   action row keeps its own. */
+.admin-dialog-content > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The scrolling part of a dialog. The padding and the matching negative margin
+   give the focus ring of a control at the edge somewhere to be drawn: a scroll
+   container clips anything that spills outside it, and a field whose outline
+   is cut off on one side is one whose focus cannot be seen. */
+.admin-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 6px;
+  margin: 0 -6px;
+}
+
+/* In a form the fields were spaced by the form's own gap, which they have just
+   been moved out from under. */
+.auth-form > .admin-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The action row is pinned below the scrolling part, so it is set off from it:
+   without a rule, the last visible line of the form looks as if it were the
+   end of the dialog. */
+.admin-dialog-body + .admin-dialog-actions {
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.auth-form > .admin-dialog-body + .admin-dialog-actions {
+  margin-top: 0;
+}
+
+.admin-dialog-content > .admin-dialog-body + .admin-dialog-actions {
+  margin-top: 16px;
+}
+
+/* A flex column that is short of room squeezes anything that can scroll down
+   to nothing — the member and host pickers are such lists — instead of
+   scrolling itself. Its children keep their size and the body scrolls. */
+.admin-dialog-body > * {
+  flex-shrink: 0;
+}
+
+/* The group-roles list had a ceiling of its own. It is now one of the things
+   the body scrolls, and two nested scrollers are worse than one. */
+.admin-dialog-body .group-roles-list {
+  max-height: none;
+  overflow: visible;
+}
+
+/* ---------------------------------------------------------------------
+   3. Tables
+   --------------------------------------------------------------------- */
+
+/* A table wider than its box scrolls sideways, and nothing said so: the right
+   hand columns — which on most of these pages are the buttons — were simply
+   not there. These are the usual scroll shadows. Each end gets a soft edge
+   that appears only while there is more to scroll to in that direction: the
+   two "local" layers are panel-coloured covers that travel with the content
+   and sit over the "scroll" layers, which stay put, whenever the content is
+   already at that end. Nothing is drawn on a table that fits. */
+.admin-table-scroll {
+  background:
+    linear-gradient(to right, var(--panel), var(--panel)) left center / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--panel), var(--panel)) right center / 28px 100% no-repeat local,
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 30%, transparent), transparent) left center / 16px 100% no-repeat scroll,
+    linear-gradient(to left, color-mix(in srgb, var(--accent) 30%, transparent), transparent) right center / 16px 100% no-repeat scroll;
+}
+
+/* On a phone a table is the wrong shape. Five columns do not fit in 350px,
+   and the scroller that stood in for fitting them hid the Offer, Edit and
+   Remove buttons off the right edge. Below this width every row is a card:
+   the first cell is its title, each other cell sits under its column's name,
+   and the buttons come last. The names come from data-label, which
+   admin-tables.js copies from the column headings so that the pages' own
+   render code does not have to know about this.
+
+   The column headings are not removed — they go out of sight but stay in the
+   accessibility tree — and admin-tables.js gives the table elements explicit
+   roles, because a table whose cells are display:block stops being one for
+   some screen readers. */
+@media (max-width: 720px) {
+  .admin-table-wrap {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .admin-table-scroll {
+    overflow-x: visible;
+    background: none;
+  }
+
+  table.admin-table,
+  .admin-table thead,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td,
+  .admin-table caption {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .admin-table tbody tr {
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md, 12px);
+    background: var(--panel);
+    box-shadow: var(--elev-2, none);
+  }
+
+  .admin-table tbody tr.admin-skeleton {
+    padding: 14px;
+  }
+
+  .admin-table td,
+  .admin-table td:nth-child(n) {
+    padding: 5px 0;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: none;
+  }
+
+  .admin-table td:first-child {
+    min-width: 0;
+    padding-top: 0;
+  }
+
+  .admin-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  /* The first cell is the card's title and says what it is without a label. */
+  .admin-table td:first-child::before {
+    display: none;
+  }
+
+  /* A cell with nothing to say ("—", or no buttons) is left out rather than
+     shown under a label that introduces nothing. */
+  .admin-table td[data-empty] {
+    display: none;
+  }
+
+  .admin-table td.admin-empty {
+    padding: 28px 12px;
+  }
+
+  .admin-table td.admin-actions-cell {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    text-align: left;
+  }
+
+  .admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  /* A finger, not a pointer. */
+  .admin-actions button {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+
+  .library-report caption {
+    padding: 10px 0;
+    border-bottom: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   4. Audit outcomes
+   --------------------------------------------------------------------- */
+
+/* A refusal is marked with a symbol as well as a colour, so it reads the same
+   to somebody who cannot tell red from green and in a printed copy. The ring
+   is drawn rather than typed because a character's shape depends on whichever
+   font the page falls back to. */
+.audit-event-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.45em;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -0.1em;
+}

@@ -129,6 +129,41 @@ into it — administering the instance is not the same power as sitting at
 somebody's authenticated mainframe terminal. Every administrative disconnect
 is written to the audit trail: who did it, whose session, and the host.
 
+### Keyboard, screen readers and phones
+
+Every page in the area opens with a **Skip to content** link, which is the
+first thing `Tab` reaches. It is out of sight until it has focus; following it
+moves past the header and the navigation to the page's own content, which is
+the page's `main` landmark.
+
+The buttons in a table row say whose they are to a screen reader, because a
+page of rows is otherwise a page of identical buttons: *Edit Game - Snake*,
+*Delete alice*, *Edit group payments*, *Disconnect admin's session*. The visible
+text is unchanged and is where each name begins.
+
+Dialogs on these pages behave like the rest of 3270Web's. Keyboard focus stays
+inside the open dialog, `Esc` closes the one on top, and focus goes back to the
+button that opened it. A dialog is never taller than the window: a long form,
+such as adding a preset or a group, scrolls inside the dialog while its title,
+its close button and its **Cancel** and **Save** buttons stay in view.
+Confirmations start with focus on **Cancel**.
+
+Below 720 px wide — a phone, held either way up — each table becomes a list of cards
+rather than a table with hidden columns. The first column is the card's
+heading, each other column sits under its name, and the row's buttons come
+last. Wider than that, a table that is still too wide for its space scrolls
+sideways, and a soft edge on the side that has more to show says so.
+
+### Reading the audit trail
+
+The **Audit trail** page and the overview's recent activity name an entry by
+what happened, and an entry that was refused or failed is named for that
+instead. A setup attempt with the wrong code appears as **First administrator
+setup refused**, not as the event it was attempting. Such entries are marked
+with a `!` as well as the red the page already gave them, so they can still be
+told apart without colour. The [audit trail](multi-user.md#the-audit-trail)
+page describes what is recorded.
+
 ## Managing accounts
 
 The **Accounts** page, at `/admin/users`, is where you add accounts, change

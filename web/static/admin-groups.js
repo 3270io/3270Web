@@ -84,9 +84,14 @@
     return el('span', 'pill ' + className, text);
   }
 
-  function actionButton(label, className, handler) {
+  // name is what a screen reader announces. Every row carries the same two
+  // buttons, so "Edit" on its own is a list of identical controls; the name
+  // says which group. It starts with the visible text, which is what somebody
+  // operating the page by voice says to press it.
+  function actionButton(label, className, handler, name) {
     var button = el('button', className || '', label);
     button.type = 'button';
+    if (name) button.setAttribute('aria-label', name);
     button.addEventListener('click', handler);
     return button;
   }
@@ -124,6 +129,9 @@
     // A dialog re-opened after being scrolled through keeps its old scroll
     // offset, which on a phone means opening onto the middle of the form.
     dialog.scrollTop = 0;
+    dialog.querySelectorAll('.admin-dialog-body').forEach(function (part) {
+      part.scrollTop = 0;
+    });
     // The first thing to fill in, not the first thing in the markup — the
     // close button leads the panel, and opening a dialog with focus on its
     // dismiss control reads as "are you sure you meant to do that".
@@ -272,7 +280,8 @@
 
     var actionsCell = el('td', 'admin-actions-cell');
     var actions = el('div', 'admin-actions');
-    actions.appendChild(actionButton('Edit', '', function () { openGroup(group); }));
+    actions.appendChild(actionButton('Edit', '', function () { openGroup(group); },
+      'Edit group ' + group.name));
     var remove = actionButton('Delete', 'danger', function () {
       confirmThen('Delete the group ' + group.name + '?',
         'It is removed from every account in it, from every host preset that offers it, ' +
@@ -290,7 +299,7 @@
             })
             .catch(function (error) { setStatus(error.message, 'error'); });
         });
-    });
+    }, 'Delete group ' + group.name);
     if (group.providerManaged) {
       // The server refuses this, so the control says so rather than offering a
       // deletion that the next sign-in would undo.

@@ -88,8 +88,10 @@ state, a completed step or a failure is announced without moving focus.
 
 **Bypass blocks (2.4.1).** Every page carries a `main` landmark. On the
 terminal, focus starts inside it on page load — the menu bar and session tabs are
-already behind you. There is deliberately no skip link; see
-[Design decisions](#design-decisions).
+already behind you. There is deliberately no skip link on the terminal; see
+[Design decisions](#design-decisions). The administration pages have no
+terminal to be trapped in, so each of them opens with a **Skip to content**
+link that lands on its `main` landmark.
 
 **Resize text (1.4.4).** At 200% text, no control is pushed off screen and the
 page does not scroll horizontally.
@@ -171,7 +173,7 @@ the grid scrolls inside its own region rather than reflowing, and the page
 around it does not scroll. Use the zoom control in the terminal tools for a
 size that suits the device: it scales the grid, which keeps it a grid.
 
-**There is no skip link.** A link at the top of the document could not be
+**There is no skip link on the terminal.** A link at the top of the document could not be
 reached in practice. `Tab` and `Shift+Tab` inside the terminal are 3270 field
 navigation, and leaving through the `Ctrl+Tab` escape hatch puts focus *after*
 the terminal, not before it — so the link would sit somewhere a keyboard user
