@@ -511,14 +511,14 @@ You can drive chaos exploration entirely through the [AI Chat side panel](ai-cha
    - Asks you to choose run mode (full auto vs. guided) via `ask_user`.
    - Starts and monitors the run with `chaos_start` / `chaos_status`.
    - Exports results with `chaos_export_workflow` and summarises findings with `chaos_report`.
-4. Approve each tool call with **Run**, or enable **Auto Mode** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
+4. Approve each tool call with **Run**, or turn on **Auto-run** in the panel header to let the AI proceed without pausing. The card for `chaos_start` names the host the run will press keys on.
 
 ### Combining both approaches
 
 Manual and AI-driven chaos use the same run state, so you can mix the two freely:
 
 - Start a run from the Automation menu, then ask the AI: *"What screens have been found so far?"* — the AI calls `chaos_status` against the active run.
-- Let the AI start a run in Auto Mode overnight, then use the Automation menu to review and export results the next morning.
+- Let the AI start a run in Auto-run overnight, then use the Automation menu to review and export results the next morning.
 - Add hints through the dialog, then tell the AI to continue the run and push further.
 
 ## API Field Naming

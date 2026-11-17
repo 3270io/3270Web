@@ -1320,7 +1320,7 @@
         {
             label: "Explore this app automatically",
             note: "Types into the live host and presses keys. Use a test system.",
-            text: "Run chaos monkey to explore this app",
+            text: "Start an exploration of this app",
         },
     ];
 
@@ -2834,7 +2834,7 @@
                     content: JSON.stringify({ skipped: true, reason: "stopped: the same call was repeated without progress" }),
                 });
             }
-            appendMessage("error", "Stopped: the assistant repeated the same action " + (MAX_REPEATED_TOOL_ROUNDS + 1) + " times without making progress. Adjust your request, update chaos hints, or try a different approach.");
+            appendMessage("error", "Stopped: the assistant repeated the same action " + (MAX_REPEATED_TOOL_ROUNDS + 1) + " times without making progress. Adjust your request, update exploration hints, or try a different approach.");
             return "failed";
         }
 
@@ -3813,7 +3813,7 @@
         const workflowBtn = document.createElement("button");
         workflowBtn.type = "button";
         workflowBtn.className = "copilot-tool-extra-btn";
-        workflowBtn.textContent = "Save these steps as a workflow";
+        workflowBtn.textContent = "Download these steps as workflow JSON";
         workflowBtn.addEventListener("click", function () {
             const name = nameInput.value.trim() || "Assistant steps";
             const workflow = stepsToWorkflow(steps, name);

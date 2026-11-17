@@ -341,7 +341,7 @@ AI Chat mode is a side panel that lets you drive a 3270 session through conversa
 2. Click the **Open AI chat** toolbar button.
 3. Click **Provider** in the panel header and pick your AI: sign in to GitHub Copilot, or paste an API key for Claude, OpenAI, Google AI or Ollama Cloud, or point 3270Web at a local Ollama / OpenAI-compatible endpoint.
 4. Type a message, for example: *"Read the current screen and tell me what options are available."*
-5. Click **Run** to approve each proposed tool call, or enable **Auto Mode** to let the AI proceed automatically.
+5. Click **Run** to approve each proposed tool call, or turn on **Auto-run** to let the AI proceed automatically.
 
 ### What the AI can do
 

@@ -87,7 +87,7 @@ several hosts at once — live on the
 
     ---
 
-    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto Mode** to let it run hands-free. Bring your own AI: GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint.
+    Drive any 3270 session by typing plain English. The AI reads the current screen, proposes field fills and key presses, and waits for your approval before acting. Toggle **Auto-run** to let it run hands-free. Bring your own AI: GitHub Copilot, Claude, OpenAI, Google AI, Ollama, or any OpenAI-compatible endpoint.
 
     [:octicons-arrow-right-24: AI Chat Mode](ai-chat.md)
 

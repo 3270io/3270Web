@@ -149,8 +149,8 @@ exploration run is not.
 Two keys need a person whatever the tier: **PF3** commonly logs the session
 off and **Clear** discards what is on the screen. In the AI Chat panel the
 server itself refuses either — in any spelling, `F3` included — until someone
-has clicked Run, Auto Mode or not; see
-[What still asks in Auto Mode](ai-chat.md#what-still-asks-in-auto-mode).
+has clicked Run, Auto-run or not; see
+[What still asks in Auto-run](ai-chat.md#what-still-asks-in-auto-mode).
 `send_key`'s own description says so, so a model knows before it builds a
 plan around one. Over MCP there is no panel to click in, so `send_key`
 refuses either key until the call carries `"confirmed": true`. The model is
