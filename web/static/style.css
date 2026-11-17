@@ -4651,8 +4651,11 @@ body.theme-io-daylight #h3270-notification-container .h3270-notification {
   position: fixed;
   top: 0;
   right: 0;
-  width: var(--copilot-panel-width);
+  /* Never wider than the screen it is on. A fixed 380px on a 390px phone
+     left the terminal ten pixels. */
+  width: min(var(--copilot-panel-width), 100vw);
   height: 100vh;
+  height: 100dvh;
   background: var(--panel);
   color: var(--fg);
   border-left: 1px solid var(--border);
@@ -4665,7 +4668,7 @@ body.theme-io-daylight #h3270-notification-container .h3270-notification {
 }
 
 body.copilot-open .page-wrap {
-  padding-right: var(--copilot-panel-width);
+  padding-right: min(var(--copilot-panel-width), 100vw);
   transition: padding-right 0.2s ease;
 }
 
@@ -5430,6 +5433,362 @@ body.copilot-open .page-wrap {
 .copilot-panel-form button[data-copilot-send]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------
+   AI chat panel: header menu, Auto Mode, status, cards, plans, context
+   --------------------------------------------------------------------- */
+.copilot-panel-header { position: relative; gap: 8px; }
+.copilot-panel-header-actions { flex-wrap: nowrap; align-items: center; }
+.copilot-close-btn { display: inline-flex; align-items: center; gap: 4px; }
+.copilot-close-label { display: none; }
+
+.copilot-panel-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 10px;
+  z-index: 6;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.copilot-panel-menu[hidden] { display: none; }
+.copilot-panel-menu [role="menuitem"] {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.copilot-panel-menu [role="menuitem"][hidden] { display: none; }
+.copilot-panel-menu [role="menuitem"]:hover,
+.copilot-panel-menu [role="menuitem"]:focus-visible {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+
+/* Auto Mode on: a strip that cannot be mistaken for decoration. */
+.copilot-automode-banner {
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--warn, #f5b544) 18%, var(--panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--warn, #f5b544) 55%, var(--border));
+}
+.copilot-automode-banner[hidden] { display: none; }
+.copilot-panel.copilot-automode-on { border-left-color: var(--warn, #f5b544); }
+.copilot-panel .copilot-automode-btn[aria-pressed="true"] {
+  background: var(--warn, #f5b544);
+  border-color: var(--warn, #f5b544);
+  color: #1a1206;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+/* The transcript is a flex column, and flex items shrink by default: once it
+   overflowed, every card gave up a little height and clipped its own
+   content instead of the list scrolling. */
+.copilot-panel-messages > * { flex-shrink: 0; }
+.copilot-panel.copilot-has-history:not(.copilot-automode-on) .copilot-panel-hint { display: none; }
+.copilot-panel-messages:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* What the user typed is shown as typed. */
+.copilot-msg-user .copilot-msg-body,
+.copilot-msg-info .copilot-msg-body,
+.copilot-msg-error .copilot-msg-body { white-space: pre-wrap; }
+
+/* A notice, as opposed to a failure. */
+.copilot-msg-info {
+  background: color-mix(in srgb, var(--info, #4aa8ff) 8%, var(--panel-2));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--info, #4aa8ff);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.copilot-msg-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.copilot-msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+.copilot-msg:hover .copilot-msg-actions,
+.copilot-msg:focus-within .copilot-msg-actions { opacity: 1; }
+.copilot-msg-user .copilot-msg-actions { justify-content: flex-end; }
+.copilot-msg-action {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.copilot-msg-action:hover,
+.copilot-msg-action:focus-visible {
+  color: var(--fg);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.copilot-link-host { color: var(--fg-muted); font-size: 0.9em; }
+
+/* Tool cards: a sentence, a status, and the detail behind a disclosure. */
+.copilot-tool-call-head { align-items: flex-start; gap: 8px; }
+.copilot-tool-call-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.copilot-tool-call-step { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.copilot-tool-call-status { flex: 0 0 auto; }
+.copilot-tool-call-warning {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--warn, #f5b544) 14%, transparent);
+  border-left: 3px solid var(--warn, #f5b544);
+  border-radius: 3px;
+}
+.copilot-tool-call-warning[hidden],
+.copilot-tool-call-actions[hidden] { display: none; }
+.copilot-tool-call-actions { flex-wrap: wrap; align-items: center; }
+.copilot-btn-always {
+  background: transparent;
+  border: 0;
+  padding: 4px 2px;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.copilot-btn-always[hidden] { display: none; }
+.copilot-btn-always:hover { color: var(--fg); }
+.copilot-tool-call-details { margin-top: 6px; }
+.copilot-tool-call-details > summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--fg-muted);
+  width: fit-content;
+}
+.copilot-tool-call-details > summary:hover { color: var(--fg); }
+.copilot-tool-call-details .copilot-tool-call-name { display: block; margin: 6px 0 2px; }
+.copilot-tool-call[data-tool-class="destructive"][data-tool-state="pending"] {
+  border-left-color: var(--danger, #ff7474);
+}
+.copilot-tool-call[data-tool-state="queued"],
+.copilot-tool-call[data-tool-state="interrupted"] { border-left-color: var(--fg-muted); }
+/* Screen text, the way the terminal shows it: fixed pitch, never wrapped. */
+.copilot-screen-block {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.25;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre;
+  color: var(--fg);
+}
+.copilot-screen-block[hidden] { display: none; }
+
+.copilot-plan,
+.copilot-save-steps {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 8px 10px;
+}
+.copilot-plan-title { font-weight: 600; font-size: 13px; color: var(--fg); }
+.copilot-plan-note,
+.copilot-save-steps-text { margin: 4px 0 0; font-size: 12px; line-height: 1.4; color: var(--fg-muted); }
+.copilot-save-steps-row { display: flex; margin-top: 8px; }
+.copilot-save-steps-status { margin: 8px 0 0; font-size: 12px; color: var(--fg-muted); }
+.copilot-save-steps-status.is-error { color: var(--danger, #ff7474); }
+.copilot-save-steps-status[hidden] { display: none; }
+
+/* Chips: follow-ups under an answer, quick asks above the composer. */
+.copilot-followups { display: flex; flex-wrap: wrap; gap: 6px; }
+.copilot-followup-chip,
+.copilot-quick-chip {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: transparent;
+  color: var(--fg);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.copilot-followup-chip { white-space: normal; text-align: left; }
+.copilot-followup-chip:hover,
+.copilot-quick-chip:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+}
+.copilot-quick {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  flex-shrink: 0;
+}
+.copilot-quick::-webkit-scrollbar { display: none; }
+.copilot-quick[hidden] { display: none; }
+.copilot-example-chip { display: flex; flex-direction: column; gap: 2px; }
+.copilot-chip-note { font-size: 11px; color: var(--fg-muted); }
+.copilot-chip-caution { border-color: color-mix(in srgb, var(--warn, #f5b544) 60%, var(--border)); }
+
+.copilot-statusline {
+  margin: 0;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--fg-muted);
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.copilot-statusline[hidden] { display: none; }
+.copilot-statusline-action {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+/* "Knows 14 screens…" and, behind it, what is sent and where. */
+.copilot-context {
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 11px;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+.copilot-context[hidden] { display: none; }
+.copilot-context > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.copilot-context > summary::-webkit-details-marker { display: none; }
+.copilot-context-more { text-decoration: underline; white-space: nowrap; }
+.copilot-context > summary:hover .copilot-context-more { color: var(--fg); }
+.copilot-context-body {
+  padding: 2px 12px 10px;
+  max-height: 40vh;
+  overflow-y: auto;
+  line-height: 1.45;
+}
+.copilot-context-heading { margin: 8px 0 2px; font-weight: 600; color: var(--fg); }
+.copilot-context-body ul { margin: 0; padding-left: 16px; }
+.copilot-context-body li { margin: 2px 0; overflow-wrap: anywhere; }
+.copilot-context-shortcuts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* The connect prompt reads as one left-aligned block. Its list used to hang
+   left-aligned bullets under centred paragraphs. */
+.copilot-connect-prompt { align-items: stretch; text-align: left; overflow-y: auto; }
+.copilot-connect-prompt p { margin: 0; }
+.copilot-connect-prompt .subtle,
+.copilot-connect-prompt .ai-prerequisites { font-size: 13px; line-height: 1.45; }
+.copilot-connect-prompt .ai-prerequisites { margin: 0; padding-left: 18px; }
+.copilot-connect-prompt .ai-prerequisites li { margin: 3px 0; }
+.copilot-connect-btn { align-self: flex-start; }
+.copilot-modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+.copilot-modal-footer button[hidden] { display: none; }
+.copilot-modal-footer .copilot-modal-restart { border-color: var(--accent); color: var(--accent); }
+
+/* "Latest" floats over the foot of the transcript. It used to be pinned a
+   fixed distance above the bottom of the panel, which put it on top of
+   whatever sat between the transcript and the composer. */
+.copilot-jump-btn {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  align-self: flex-end;
+  flex-shrink: 0;
+  margin: -34px 16px 8px 0;
+}
+
+/* Below ~900px there is no room for a terminal and a side panel, so the
+   panel becomes a sheet over the lower part of the screen: full width, the
+   top of the terminal still in view above it, and a Close that says Close. */
+@media (max-width: 900px) {
+  .copilot-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: min(72dvh, 100dvh);
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  }
+  body.copilot-open .page-wrap { padding-right: 0; }
+  .copilot-resize-handle { display: none; }
+  .copilot-close-label { display: inline; }
+  .copilot-panel-title { font-size: 12px; }
+}
+/* A sheet has little height to spare: while a turn is running the transcript
+   and the approval cards get the room the context line and quick asks had. */
+@media (max-width: 900px) {
+  .copilot-panel.copilot-running .copilot-context,
+  .copilot-panel.copilot-running .copilot-quick,
+  .copilot-panel.copilot-running .copilot-model-bar { display: none; }
+}
+@media (max-width: 900px) and (max-height: 560px) {
+  .copilot-panel { height: 100dvh; border-radius: 0; }
 }
 
 /* Who a published host profile is for. Grouped in a fieldset rather than
