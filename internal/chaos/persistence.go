@@ -51,6 +51,13 @@ type SavedRun struct {
 	UniqueInputValues map[string]bool        `json:"uniqueInputValues,omitempty"`
 	Attempts          []Attempt              `json:"attempts,omitempty"`
 	MindMap           *MindMap               `json:"mindMap,omitempty"`
+	// Seed is the random seed the run used: the configured one, or the one
+	// drawn from the clock when none was configured. Resume continues from
+	// it when the resuming engine has no seed of its own.
+	Seed int64 `json:"seed,omitempty"`
+	// Config is the configuration the run was using, less its hints (which
+	// may hold credentials and are not written to disk).
+	Config *Config `json:"config,omitempty"`
 }
 
 // CloneRun returns a copy of run with a deep-cloned MindMap, safe to read
@@ -303,6 +310,9 @@ func LoadRun(dir, runID string) (*SavedRun, error) {
 	// Upgrade signatures written by older versions so resume/compare keep
 	// matching screens observed with the current signature format.
 	normalizeMindMapSignatures(run.MindMap)
+	// Likewise field keys written when a field write was keyed by the length
+	// of the text typed rather than of the field.
+	normalizeMindMapFieldKeys(run.MindMap)
 	return &run, nil
 }
 
