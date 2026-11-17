@@ -78,7 +78,7 @@ they are read once, when 3270Web starts, so a change to one needs a restart.
 ![Menu bar screenshot](images/toolbar-real.png){: .doc-medal }
 {: .doc-medal-wrap }
 
-1. **Session** — profiles, connection details, reconnect, print, disconnect
+1. **Session** — open a connection, manage connections, connection details, reconnect, print, disconnect
 2. **Terminal** — find, copy, screen history, file transfer, keyboard mapping
 3. **View** — focus mode, hotspots, virtual keypad, terminal size, theme
 4. **Automation** — recording, playback and chaos exploration
@@ -347,6 +347,6 @@ field.
 
 ## Connection choices
 
-**Connect** opens an unsaved connection. **Connection options** enables TLS and per-connection LU, model and code page overrides. **Save this connection** opens the named personal connection editor. **Saved connections** distinguishes personal hosts from shared presets and can import/export connections. Importing old browser-saved hosts keeps the original list and does not publish hosts to other users.
+**Connect** opens an unsaved connection. **Connection options** enables TLS and per-connection LU, model and code page overrides. **Save this connection** opens the named personal connection editor (the **Manage connections** dialog) with the form already filled in. **Open a connection…** lists your saved connections, the bundled sample apps and a box for a typed host, and starts a session from whichever you pick. **Manage connections** distinguishes personal hosts from shared presets and can import and export connections. Importing old browser-saved hosts keeps the original list and does not publish hosts to other users.
 
 If `TargetHost.Value` is configured, the raw address is read-only and identifies the enforced destination. Saved profile permissions continue to apply independently; arbitrary raw addresses and the quick sample are not offered in that form.
