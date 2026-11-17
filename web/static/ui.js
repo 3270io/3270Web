@@ -7220,6 +7220,35 @@
         }
     };
 
+    // Keep the menu's chaos entries in step with the run, whoever started it.
+    // pollStatus only keeps going while it knows of an active run, so a run
+    // begun from the AI panel, another tab or the API never showed Stop, and
+    // when it ended nothing here noticed: "Discovery report" stayed out of the
+    // menu until something else (loading a saved run) made it look again.
+    // workflow.js polls the run's state all the time and announces it; when
+    // that disagrees with what the menu shows, look again.
+    let lastRunStateSyncAt = 0;
+    document.addEventListener('3270web:workflow-status', (event) => {
+        const payload = event && event.detail;
+        if (!payload) {
+            return;
+        }
+        const runningElsewhere = !!payload.chaosActive;
+        const runningHere = !!(lastStatus && lastStatus.active);
+        const finishedWithData = !runningElsewhere && (Number(payload.chaosStepsRun) || 0) > 0 && !hasData;
+        if (runningElsewhere === runningHere && !finishedWithData) {
+            return;
+        }
+        // The two reports can disagree for a moment either side of a start or
+        // a stop, so one look is enough per second or so.
+        const now = Date.now();
+        if (now - lastRunStateSyncAt < 1500) {
+            return;
+        }
+        lastRunStateSyncAt = now;
+        pollStatus();
+    });
+
     // Initial status check on page load.
     try {
         setHintsModalMaximized(window.localStorage.getItem('h3270ChaosHintsModalMaximized') === '1');

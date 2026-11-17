@@ -968,6 +968,10 @@
     body.dataset.playbackCompleted = payload.playbackCompleted ? 'true' : 'false';
     body.dataset.recordingActive = lastRecordingActive ? 'true' : 'false';
     body.dataset.chaosActive = lastChaosActive ? 'true' : 'false';
+    // The Automation menu's chaos entries are kept by ui.js, which only polls
+    // while it knows of a run. A run that began somewhere else (the AI panel,
+    // another tab, the API) or ended on its own is seen here first, so say so.
+    document.dispatchEvent(new CustomEvent('3270web:workflow-status', { detail: payload }));
 
     // Fire transition notifications
     if (window.ThreeSeventyWeb && window.ThreeSeventyWeb.notify) {

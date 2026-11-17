@@ -108,6 +108,11 @@ When chaos mode ends, the UI shows completed state:
 
 This gives immediate confirmation that the run finished and data is ready for export.
 
+As soon as a run has stopped — whether it finished, you stopped it, or it was
+started from the AI panel or the API rather than the menu — the Automation menu
+offers **Discovery report**, **Download workflow JSON**, **Extend the completed
+run** and **Remove the run**. They do not wait for you to load a saved run.
+
 ### What the counts mean
 
 The same run is described in the active-run strip, the Chaos map, the Discovery
