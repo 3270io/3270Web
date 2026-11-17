@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A name is not an address, which is the whole reason this package exists: a
@@ -131,5 +132,55 @@ func fixedLookup(table map[string][]string) func(context.Context, string) ([]net
 			out = append(out, net.ParseIP(a))
 		}
 		return out, nil
+	}
+}
+
+// A request carrying a credential is not followed off the host it was sent to,
+// even to an address the policy would otherwise allow.
+func TestCrossHostRedirectsAreRefusedWhenAsked(t *testing.T) {
+	reached := false
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
+	defer elsewhere.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/away", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/", http.StatusFound)
+	})
+	mux.HandleFunc("/local", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/landed", http.StatusFound)
+	})
+	mux.HandleFunc("/landed", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	origin := httptest.NewServer(mux)
+	defer origin.Close()
+
+	strict := Policy{DenyCrossHostRedirects: true}.HTTPClient(5 * time.Second)
+
+	_, err := strict.Get(origin.URL + "/away")
+	var blocked *ErrBlocked
+	if !errors.As(err, &blocked) {
+		t.Fatalf("a redirect to another host returned %v, want a refusal", err)
+	}
+	if reached {
+		t.Fatal("the redirect target was contacted")
+	}
+
+	// A redirect that stays on the host is an ordinary redirect.
+	resp, err := strict.Get(origin.URL + "/local")
+	if err != nil {
+		t.Fatalf("a same-host redirect was refused: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("same-host redirect landed on %d", resp.StatusCode)
+	}
+
+	// Without the flag the behaviour is what it was.
+	resp, err = Policy{}.HTTPClient(5 * time.Second).Get(origin.URL + "/away")
+	if err != nil {
+		t.Fatalf("the default policy refused a redirect: %v", err)
+	}
+	resp.Body.Close()
+	if !reached {
+		t.Error("the default policy did not follow the redirect")
 	}
 }

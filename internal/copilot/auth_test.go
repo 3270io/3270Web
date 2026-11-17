@@ -91,7 +91,7 @@ func TestCopilotTokenRefresh(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"token":      "COPILOT_TOKEN",
 			"expires_at": time.Now().Add(30 * time.Minute).Unix(),
-			"endpoints":  map[string]string{"api": "https://api.example.test"},
+			"endpoints":  map[string]string{"api": "https://api.individual.githubcopilot.com"},
 		})
 	}))
 	defer srv.Close()
@@ -104,8 +104,8 @@ func TestCopilotTokenRefresh(t *testing.T) {
 	if tok != "COPILOT_TOKEN" {
 		t.Fatalf("token = %q, want COPILOT_TOKEN", tok)
 	}
-	if endpoint != "https://api.example.test" {
-		t.Fatalf("endpoint = %q, want https://api.example.test", endpoint)
+	if endpoint != "https://api.individual.githubcopilot.com" {
+		t.Fatalf("endpoint = %q, want https://api.individual.githubcopilot.com", endpoint)
 	}
 
 	// Second call within the expiry window must not re-hit the server.
@@ -132,7 +132,7 @@ func TestCopilotTokenMissingExpiryIsNotInstantlyStale(t *testing.T) {
 		// and re-fetched on every call.
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"token":     "COPILOT_TOKEN",
-			"endpoints": map[string]string{"api": "https://api.example.test"},
+			"endpoints": map[string]string{"api": "https://api.individual.githubcopilot.com"},
 		})
 	}))
 	defer srv.Close()
