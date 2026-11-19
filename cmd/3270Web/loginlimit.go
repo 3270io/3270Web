@@ -3,6 +3,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -145,8 +146,23 @@ func (l *loginLimiter) pruneLocked(now time.Time) {
 	}
 }
 
+// loginLimitKeys returns the buckets a failed attempt counts against, dropping
+// the half whose value is empty.
+//
+// "user:" and "ip:" alone — the prefix without a value — are non-empty keys,
+// so the limiter would accept them and create a bucket shared by every caller
+// who presented the same empty half. One attacker repeatedly submitting an
+// empty username (or arriving with no resolvable address) could then exhaust
+// that shared bucket and lock out every other caller landing in it.
 func loginLimitKeys(username, clientIP string) []string {
-	return []string{"user:" + normaliseUsernameKey(username), "ip:" + clientIP}
+	var keys []string
+	if u := normaliseUsernameKey(username); u != "" {
+		keys = append(keys, "user:"+u)
+	}
+	if ip := strings.TrimSpace(clientIP); ip != "" {
+		keys = append(keys, "ip:"+ip)
+	}
+	return keys
 }
 
 // normaliseUsernameKey folds case so "Alice" and "alice" share one bucket;
