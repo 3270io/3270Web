@@ -118,6 +118,35 @@ func TestLimiterFoldsUsernameCase(t *testing.T) {
 	}
 }
 
+// A missing username or address must not fall into a shared bucket: without
+// this, two unrelated callers whose IP resolution failed would share a
+// lockout, and one attacker spamming failed logins with no username could lock
+// every other such caller out of the sign-in form.
+func TestLoginLimitKeysDropEmptyHalves(t *testing.T) {
+	cases := map[string]struct {
+		username, ip string
+		want         []string
+	}{
+		"both":        {"alice", "10.0.0.1", []string{"user:alice", "ip:10.0.0.1"}},
+		"no username": {"", "10.0.0.1", []string{"ip:10.0.0.1"}},
+		"no ip":       {"alice", "  ", []string{"user:alice"}},
+		"neither":     {"", "", nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := loginLimitKeys(tc.username, tc.ip)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d keys (%v), want %d (%v)", len(got), got, len(tc.want), tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("got[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestLimiterIgnoresEmptyKeys(t *testing.T) {
 	l, _ := newTestLimiter()
 	if ok, _ := l.Allow("", ""); !ok {
