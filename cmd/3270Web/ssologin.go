@@ -40,6 +40,16 @@ const pendingLoginTTL = 10 * time.Minute
 // cannot hold a request handler open indefinitely.
 const ssoExchangeTimeout = 30 * time.Second
 
+// ssoDiscoveryTimeout bounds the call that asks the identity provider for its
+// metadata (authorization endpoint) before redirecting the browser, so an
+// unreachable provider fails the sign-in page quickly instead of hanging it.
+const ssoDiscoveryTimeout = 20 * time.Second
+
+// ssoLogoutLookupTimeout bounds the provider lookup made while signing out.
+// It is short because the local session is already gone and the user is
+// waiting on a redirect.
+const ssoLogoutLookupTimeout = 5 * time.Second
+
 // maxPendingLogins bounds what an unauthenticated caller can make this server
 // remember. /auth/sso is reachable without credentials by design, so without a
 // ceiling it is a way to fill memory one redirect at a time.
@@ -227,7 +237,7 @@ func (app *App) SSOStartHandler(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), ssoDiscoveryTimeout)
 	defer cancel()
 	target, err := app.oidcProvider.AuthCodeURL(ctx, state, nonce, verifier)
 	if err != nil {
@@ -496,7 +506,7 @@ func (app *App) ssoLogoutURL(c *gin.Context) string {
 	if !app.ssoEnabled() || !app.sso.EndSessionOnLogout {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), ssoLogoutLookupTimeout)
 	defer cancel()
 	return app.oidcProvider.EndSessionURL(ctx, "", absoluteURL(c, loginPath))
 }
