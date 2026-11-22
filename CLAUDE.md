@@ -69,7 +69,7 @@ still BSD 3-Clause. Do not describe it as AGPL, and do not fold it into
 
 ## Tech Stack
 
-- **Backend:** Go 1.22+ (targeting 1.25), Gin 1.11.0, go3270 v0.9.13
+- **Backend:** Go 1.25 (see `go.mod`), Gin 1.11.0, go3270 v0.9.13
 - **Frontend:** Vanilla JS (one module per feature in `web/static/`), custom 3270 fonts, Tippy.js/Popper.js
 - **3270 Runtime:** `s3270` binary (embedded on Windows, apt-installed in Docker)
 - **Docs:** MkDocs → GitHub Pages at 3270Web.3270.io
@@ -115,6 +115,7 @@ internal/
   render/             # Renderer interface (HTML output abstraction)
   session/            # Session state, workflow replay structures
   sampleapps/         # Local Go-based 3270 test servers
+  ...                 # more packages (agent, egress, task, users, ...): `ls internal/` is the full list
 web/
   static/             # JS modules, fonts, images, tooltip libs
   templates/          # connect.html, screen.html (main UI), error.html
@@ -148,7 +149,7 @@ Browser (web/static/*.js + web/templates/)
 ```
 
 **Key files:**
-- `cmd/3270Web/main.go` — routing, all HTTP handlers
+- `cmd/3270Web/main.go` — routing; handlers are spread across the other files in `cmd/3270Web/`
 - `cmd/3270Web/api_v1.go` — REST API (`/api/v1/*`)
 - `internal/host/s3270.go` — s3270 binary protocol
 - `internal/chaos/engine.go` — chaos exploration logic

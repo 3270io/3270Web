@@ -41,8 +41,8 @@ this reason; see `aid-key-safety.instructions.md`.
 
 ## Phase 3 — run
 
-7. `chaos_start`. In guided mode, poll `chaos_status` every 20 steps or so and
-   tell the user what is happening. In full auto, set `max_steps` to 200 and
+7. `chaos_start`. In guided mode, poll `chaos_status` and tell the user what is
+   happening wherever they have a decision to make. In full auto, set `max_steps` to 200 and
    let it finish, then check status.
 
 ## Phase 4 — adapt

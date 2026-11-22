@@ -2,8 +2,8 @@
 
 ## Architecture
 
-- **Entry point / HTTP server:** `cmd/3270Web/main.go` — Gin routes and handlers. All new routes go here.
-- **Internal packages** (one concern each):
+- **Entry point / HTTP server:** `cmd/3270Web/main.go` — Gin routes and handlers. The package is split across many files (the REST API is in `api_v1.go`), so find the neighbouring handler before adding one.
+- **Internal packages** (one concern each; not exhaustive, see `internal/`):
   - `internal/host` — s3270 subprocess lifecycle, command execution, screen parsing (`host.S3270`)
   - `internal/session` — session state, preferences, workflow recording structs (`session.Manager`, `session.Session`)
   - `internal/render` — Go-side HTML renderer that converts 3270 fields into `<input>` elements (`render.Renderer`)
@@ -11,7 +11,7 @@
   - `internal/chaos` — chaos-mode engine and persistence
   - `internal/sampleapps` — built-in demo 3270 applications
 - **UI layer:** server-rendered Go templates in `web/templates/`; JS/CSS in `web/static/`. Runtime behaviour is driven by client JS calling JSON endpoints. Do **not** move field rendering into templates.
-- **Module:** `github.com/jnnngs/3270Web` — Go 1.22+, Gin HTTP framework.
+- **Module:** `github.com/jnnngs/3270Web` — Go version in `go.mod`, Gin HTTP framework.
 
 ## Commands
 

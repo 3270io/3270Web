@@ -1,8 +1,8 @@
-# h3270 Repo Guidance
+# 3270Web Repo Guidance
 
 ## Purpose
 
-Repo-specific instructions so installed Codex skills are used consistently in `h3270`.
+Repo-specific instructions so installed Codex skills are used consistently in `3270Web`.
 
 ## Skills To Use In This Repo
 
