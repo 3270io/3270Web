@@ -210,7 +210,7 @@ func (app *App) SSOStartHandler(c *gin.Context) {
 	// Throttled on the same limiter as the password form. Each start costs a
 	// remembered pending login and a call to the provider, so it is a cost an
 	// anonymous caller can impose.
-	if ok, retryIn := app.loginLimiter.Allow("sso:" + clientIP); !ok {
+	if ok, retryIn := app.loginLimiter.Allow(ssoLimitKey(clientIP)); !ok {
 		c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(retryIn)))
 		app.renderLogin(c, http.StatusTooManyRequests, "Too many sign-in attempts. Try again in "+retryAfterText(retryIn)+".")
 		return
@@ -340,7 +340,7 @@ func (app *App) SSOCallbackHandler(c *gin.Context) {
 		app.failSSO(c, clientIP, "session creation failed", "Could not start a session. Try again.")
 		return
 	}
-	app.loginLimiter.Reset("sso:" + clientIP)
+	app.loginLimiter.Reset(ssoLimitKey(clientIP))
 	app.setAuthCookie(c, sess.ID)
 
 	log.Printf("auth: %s signed in through the identity provider from %s", user.Username, clientIP)
@@ -357,7 +357,7 @@ func (app *App) SSOCallbackHandler(c *gin.Context) {
 
 // failSSO records a refused sign-in and shows the login page saying why.
 func (app *App) failSSO(c *gin.Context, clientIP, reason, message string) {
-	app.loginLimiter.RecordFailure("sso:" + clientIP)
+	app.loginLimiter.RecordFailure(ssoLimitKey(clientIP))
 	app.auditRecorder().Log(audit.Entry{
 		Event:    audit.EventLoginFailed,
 		Outcome:  audit.Failure,
@@ -483,6 +483,22 @@ func intersects(have, want []string) bool {
 		}
 	}
 	return false
+}
+
+// ssoLimitKey is the bucket an SSO attempt counts against, or "" when the
+// address is unknown.
+//
+// "sso:" alone — the prefix without a value — is a non-empty key, so the
+// limiter would accept it and create a bucket shared by every caller arriving
+// without a resolvable address. One attacker repeatedly starting SSO sign-ins
+// from such a point could then exhaust that shared bucket and lock every
+// other anonymous caller out of the identity provider.
+func ssoLimitKey(clientIP string) string {
+	ip := strings.TrimSpace(clientIP)
+	if ip == "" {
+		return ""
+	}
+	return "sso:" + ip
 }
 
 // safeReturnPath keeps a "next" parameter pointing at this server.

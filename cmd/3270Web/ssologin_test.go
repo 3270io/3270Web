@@ -67,6 +67,23 @@ func TestReturnPathStaysOnThisServer(t *testing.T) {
 	}
 }
 
+// An unknown client address must drop the bucket, not fall into a shared one:
+// without this, every caller arriving without a resolvable address would share
+// a lockout and one attacker from such a point could lock every other out of
+// the identity-provider sign-in.
+func TestSSOLimitKeyDropsAnEmptyAddress(t *testing.T) {
+	for in, want := range map[string]string{
+		"10.0.0.1":    "sso:10.0.0.1",
+		"  10.0.0.2 ": "sso:10.0.0.2",
+		"":            "",
+		"   ":         "",
+	} {
+		if got := ssoLimitKey(in); got != want {
+			t.Errorf("ssoLimitKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // State is what ties a callback to a sign-in this server started. It has to be
 // good for exactly one use, or a callback URL out of a browser's history is a
 // second login.
