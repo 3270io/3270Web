@@ -39,14 +39,7 @@ func OriginRefererCheckMiddleware() gin.HandlerFunc {
 			// is the /api/v1 surface with CORS (see embedding.go), which is
 			// bearer-authenticated and carries no cookie — so widening this
 			// check would buy nothing and cost the guarantee it exists for.
-			u, err := url.Parse(origin)
-			if err != nil {
-				log.Printf("CSRF protection: Invalid Origin header: %q", origin)
-				c.AbortWithStatus(403)
-				return
-			}
-			if !isValidHost(u.Host, c.Request.Host) {
-				log.Printf("CSRF protection: Origin mismatch. Got %q, want %q", u.Host, c.Request.Host)
+			if !headerHostMatches(c, "Origin", origin) {
 				c.AbortWithStatus(403)
 				return
 			}
@@ -57,14 +50,7 @@ func OriginRefererCheckMiddleware() gin.HandlerFunc {
 		// Check Referer header if Origin is missing
 		referer := c.Request.Header.Get("Referer")
 		if referer != "" {
-			u, err := url.Parse(referer)
-			if err != nil {
-				log.Printf("CSRF protection: Invalid Referer header: %q", referer)
-				c.AbortWithStatus(403)
-				return
-			}
-			if !isValidHost(u.Host, c.Request.Host) {
-				log.Printf("CSRF protection: Referer mismatch. Got %q, want %q", u.Host, c.Request.Host)
+			if !headerHostMatches(c, "Referer", referer) {
 				c.AbortWithStatus(403)
 				return
 			}
@@ -78,6 +64,21 @@ func OriginRefererCheckMiddleware() gin.HandlerFunc {
 		log.Printf("CSRF protection: Missing Origin and Referer headers for %s request", c.Request.Method)
 		c.AbortWithStatus(403)
 	}
+}
+
+// headerHostMatches reports whether the URL in an Origin or Referer header
+// names the host the request was sent to, logging why when it does not.
+func headerHostMatches(c *gin.Context, name, value string) bool {
+	u, err := url.Parse(value)
+	if err != nil {
+		log.Printf("CSRF protection: Invalid %s header: %q", name, value)
+		return false
+	}
+	if !isValidHost(u.Host, c.Request.Host) {
+		log.Printf("CSRF protection: %s mismatch. Got %q, want %q", name, u.Host, c.Request.Host)
+		return false
+	}
+	return true
 }
 
 func isSafeMethod(method string) bool {
