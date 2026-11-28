@@ -307,12 +307,30 @@
     }
   }
 
+  function relativeLuminance(color) {
+    var hex = colorToHex(color);
+    if (!hex) {
+      return null;
+    }
+    var match = hex.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!match) {
+      return null;
+    }
+    var channel = function (value) {
+      var v = parseInt(value, 10) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(match[1]) + 0.7152 * channel(match[2]) + 0.0722 * channel(match[3]);
+  }
+
   function applyCustomThemeCss(theme) {
     var root = document.documentElement;
     for (var i = 0; i < customFields.length; i++) {
       var field = customFields[i];
       root.style.setProperty(field.cssVar, theme[field.key]);
     }
+    var luminance = relativeLuminance(theme.bg);
+    document.body.dataset.customTone = luminance !== null && luminance > 0.4 ? "light" : "dark";
   }
 
   function clearCustomThemeCss() {
@@ -320,6 +338,7 @@
     for (var i = 0; i < customFields.length; i++) {
       root.style.removeProperty(customFields[i].cssVar);
     }
+    delete document.body.dataset.customTone;
   }
 
   function applyTheme(themeId) {
