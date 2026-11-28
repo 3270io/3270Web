@@ -20,6 +20,9 @@ func (r *HtmlRenderer) Render(s *host.Screen, actionURL, id string) string {
 	var sb strings.Builder
 	formName := r.getFormName(id)
 	rows, cols := r.screenDimensions(s)
+	// Pre-size the output (grid attribute + text + ~256 bytes of markup per
+	// field) so the builder does not regrow and copy it dozens of times.
+	sb.Grow(2*rows*(cols+1) + 512 + 256*len(s.Fields))
 
 	sb.WriteString(`<form id="`)
 	sb.WriteString(formName)
