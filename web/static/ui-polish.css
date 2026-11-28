@@ -159,7 +159,6 @@ button,
     box-shadow var(--dur-2) var(--ease-out),
     background-color var(--dur-2) var(--ease-out),
     color var(--dur-2) var(--ease-out);
-  will-change: transform;
 }
 
 button:hover:not(:disabled),
