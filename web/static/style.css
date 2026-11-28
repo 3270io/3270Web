@@ -5122,6 +5122,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
 
 .settings-confirm-content :is(h3, h4) {
   margin: 0;
+  font-size: 1em;
   color: var(--accent);
 }
 
