@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-28T10:04:56Z",
+  "title": "Design System: 3270Web",
+  "extensions": {
+    "colorMeta": {
+      "phosphor-green": {
+        "role": "primary",
+        "displayName": "Phosphor Green",
+        "canonical": "#39ff14",
+        "tonalRamp": [
+          "color-mix(in srgb, #39ff14 12%, #000000)",
+          "color-mix(in srgb, #39ff14 28%, #000000)",
+          "color-mix(in srgb, #39ff14 45%, #000000)",
+          "color-mix(in srgb, #39ff14 62%, #000000)",
+          "color-mix(in srgb, #39ff14 80%, #000000)",
+          "#39ff14",
+          "color-mix(in srgb, #39ff14 80%, #ffffff)",
+          "color-mix(in srgb, #39ff14 60%, #ffffff)"
+        ]
+      },
+      "phosphor-bright": {
+        "role": "primary",
+        "displayName": "Phosphor Bright",
+        "canonical": "#7cff3b",
+        "tonalRamp": [
+          "color-mix(in srgb, #7cff3b 12%, #000000)",
+          "color-mix(in srgb, #7cff3b 28%, #000000)",
+          "color-mix(in srgb, #7cff3b 45%, #000000)",
+          "color-mix(in srgb, #7cff3b 62%, #000000)",
+          "color-mix(in srgb, #7cff3b 80%, #000000)",
+          "#7cff3b",
+          "color-mix(in srgb, #7cff3b 80%, #ffffff)",
+          "color-mix(in srgb, #7cff3b 60%, #ffffff)"
+        ]
+      },
+      "phosphor-muted": {
+        "role": "neutral",
+        "displayName": "Phosphor Muted",
+        "canonical": "#8bdc79",
+        "tonalRamp": [
+          "color-mix(in srgb, #8bdc79 12%, #000000)",
+          "color-mix(in srgb, #8bdc79 28%, #000000)",
+          "color-mix(in srgb, #8bdc79 45%, #000000)",
+          "color-mix(in srgb, #8bdc79 62%, #000000)",
+          "color-mix(in srgb, #8bdc79 80%, #000000)",
+          "#8bdc79",
+          "color-mix(in srgb, #8bdc79 80%, #ffffff)",
+          "color-mix(in srgb, #8bdc79 60%, #ffffff)"
+        ]
+      },
+      "forest-bg": {
+        "role": "neutral",
+        "displayName": "Forest Background",
+        "canonical": "#0b1a0b",
+        "tonalRamp": [
+          "color-mix(in srgb, #0b1a0b 12%, #000000)",
+          "color-mix(in srgb, #0b1a0b 28%, #000000)",
+          "color-mix(in srgb, #0b1a0b 45%, #000000)",
+          "color-mix(in srgb, #0b1a0b 62%, #000000)",
+          "color-mix(in srgb, #0b1a0b 80%, #000000)",
+          "#0b1a0b",
+          "color-mix(in srgb, #0b1a0b 80%, #ffffff)",
+          "color-mix(in srgb, #0b1a0b 60%, #ffffff)"
+        ]
+      },
+      "forest-panel": {
+        "role": "neutral",
+        "displayName": "Forest Panel",
+        "canonical": "#0f260f",
+        "tonalRamp": [
+          "color-mix(in srgb, #0f260f 12%, #000000)",
+          "color-mix(in srgb, #0f260f 28%, #000000)",
+          "color-mix(in srgb, #0f260f 45%, #000000)",
+          "color-mix(in srgb, #0f260f 62%, #000000)",
+          "color-mix(in srgb, #0f260f 80%, #000000)",
+          "#0f260f",
+          "color-mix(in srgb, #0f260f 80%, #ffffff)",
+          "color-mix(in srgb, #0f260f 60%, #ffffff)"
+        ]
+      },
+      "forest-panel-raised": {
+        "role": "neutral",
+        "displayName": "Forest Panel Raised",
+        "canonical": "#123012",
+        "tonalRamp": [
+          "color-mix(in srgb, #123012 12%, #000000)",
+          "color-mix(in srgb, #123012 28%, #000000)",
+          "color-mix(in srgb, #123012 45%, #000000)",
+          "color-mix(in srgb, #123012 62%, #000000)",
+          "color-mix(in srgb, #123012 80%, #000000)",
+          "#123012",
+          "color-mix(in srgb, #123012 80%, #ffffff)",
+          "color-mix(in srgb, #123012 60%, #ffffff)"
+        ]
+      },
+      "forest-border": {
+        "role": "neutral",
+        "displayName": "Forest Border",
+        "canonical": "#1f3b1f",
+        "tonalRamp": [
+          "color-mix(in srgb, #1f3b1f 12%, #000000)",
+          "color-mix(in srgb, #1f3b1f 28%, #000000)",
+          "color-mix(in srgb, #1f3b1f 45%, #000000)",
+          "color-mix(in srgb, #1f3b1f 62%, #000000)",
+          "color-mix(in srgb, #1f3b1f 80%, #000000)",
+          "#1f3b1f",
+          "color-mix(in srgb, #1f3b1f 80%, #ffffff)",
+          "color-mix(in srgb, #1f3b1f 60%, #ffffff)"
+        ]
+      },
+      "accent-contrast": {
+        "role": "neutral",
+        "displayName": "Accent Contrast",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#1a1a1a",
+          "#333333",
+          "#4d4d4d",
+          "#666666",
+          "#808080",
+          "#b3b3b3",
+          "#e6e6e6"
+        ]
+      },
+      "terminal-blue": {
+        "role": "secondary",
+        "displayName": "Lifted Host Blue",
+        "canonical": "#5c7cff",
+        "tonalRamp": [
+          "color-mix(in srgb, #5c7cff 12%, #000000)",
+          "color-mix(in srgb, #5c7cff 28%, #000000)",
+          "color-mix(in srgb, #5c7cff 45%, #000000)",
+          "color-mix(in srgb, #5c7cff 62%, #000000)",
+          "color-mix(in srgb, #5c7cff 80%, #000000)",
+          "#5c7cff",
+          "color-mix(in srgb, #5c7cff 80%, #ffffff)",
+          "color-mix(in srgb, #5c7cff 60%, #ffffff)"
+        ]
+      },
+      "status-ok": {
+        "role": "tertiary",
+        "displayName": "Status OK",
+        "canonical": "#35d07f",
+        "tonalRamp": [
+          "color-mix(in srgb, #35d07f 12%, #000000)",
+          "color-mix(in srgb, #35d07f 28%, #000000)",
+          "color-mix(in srgb, #35d07f 45%, #000000)",
+          "color-mix(in srgb, #35d07f 62%, #000000)",
+          "color-mix(in srgb, #35d07f 80%, #000000)",
+          "#35d07f",
+          "color-mix(in srgb, #35d07f 80%, #ffffff)",
+          "color-mix(in srgb, #35d07f 60%, #ffffff)"
+        ]
+      },
+      "status-warn": {
+        "role": "tertiary",
+        "displayName": "Status Warn",
+        "canonical": "#f5b544",
+        "tonalRamp": [
+          "color-mix(in srgb, #f5b544 12%, #000000)",
+          "color-mix(in srgb, #f5b544 28%, #000000)",
+          "color-mix(in srgb, #f5b544 45%, #000000)",
+          "color-mix(in srgb, #f5b544 62%, #000000)",
+          "color-mix(in srgb, #f5b544 80%, #000000)",
+          "#f5b544",
+          "color-mix(in srgb, #f5b544 80%, #ffffff)",
+          "color-mix(in srgb, #f5b544 60%, #ffffff)"
+        ]
+      },
+      "status-danger": {
+        "role": "tertiary",
+        "displayName": "Status Danger",
+        "canonical": "#ff7474",
+        "tonalRamp": [
+          "color-mix(in srgb, #ff7474 12%, #000000)",
+          "color-mix(in srgb, #ff7474 28%, #000000)",
+          "color-mix(in srgb, #ff7474 45%, #000000)",
+          "color-mix(in srgb, #ff7474 62%, #000000)",
+          "color-mix(in srgb, #ff7474 80%, #000000)",
+          "#ff7474",
+          "color-mix(in srgb, #ff7474 80%, #ffffff)",
+          "color-mix(in srgb, #ff7474 60%, #ffffff)"
+        ]
+      },
+      "status-info": {
+        "role": "tertiary",
+        "displayName": "Status Info",
+        "canonical": "#4aa8ff",
+        "tonalRamp": [
+          "color-mix(in srgb, #4aa8ff 12%, #000000)",
+          "color-mix(in srgb, #4aa8ff 28%, #000000)",
+          "color-mix(in srgb, #4aa8ff 45%, #000000)",
+          "color-mix(in srgb, #4aa8ff 62%, #000000)",
+          "color-mix(in srgb, #4aa8ff 80%, #000000)",
+          "#4aa8ff",
+          "color-mix(in srgb, #4aa8ff 80%, #ffffff)",
+          "color-mix(in srgb, #4aa8ff 60%, #ffffff)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Card and brand heading."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Modal and dialog titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default interface text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Menu headings, chips, micro-labels."
+      },
+      "terminal": {
+        "displayName": "Terminal",
+        "purpose": "The 3270 character grid only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "elev-1",
+        "value": "0 1px 2px rgba(0,0,0,0.3), 0 1px 1px rgba(0,0,0,0.18)",
+        "purpose": "App bar, active-run rows, resting raised controls."
+      },
+      {
+        "name": "elev-2",
+        "value": "0 4px 12px -2px rgba(0,0,0,0.42), 0 2px 5px -2px rgba(0,0,0,0.28)",
+        "purpose": "Hover elevation and small popovers."
+      },
+      {
+        "name": "elev-3",
+        "value": "0 14px 32px -8px rgba(0,0,0,0.52), 0 6px 14px -8px rgba(0,0,0,0.34)",
+        "purpose": "Menu panels."
+      },
+      {
+        "name": "elev-4",
+        "value": "0 32px 68px -16px rgba(0,0,0,0.66), 0 14px 28px -14px rgba(0,0,0,0.45)",
+        "purpose": "Cards, modals and the command palette."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default easing for state transitions and entrances."
+      },
+      {
+        "name": "dur-1",
+        "value": "120ms",
+        "purpose": "Hover, pressed and small state changes."
+      },
+      {
+        "name": "dur-2",
+        "value": "200ms",
+        "purpose": "Borders, colours and background transitions."
+      },
+      {
+        "name": "dur-3",
+        "value": "320ms",
+        "purpose": "Modal and panel entrances."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "480px"
+      },
+      {
+        "name": "md",
+        "value": "560px"
+      },
+      {
+        "name": "tablet",
+        "value": "720px"
+      },
+      {
+        "name": "panel",
+        "value": "820px"
+      },
+      {
+        "name": "nav",
+        "value": "900px"
+      },
+      {
+        "name": "bar",
+        "value": "1080px"
+      },
+      {
+        "name": "wide",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default raised control for any action.",
+      "html": "<button class=\"ds-btn\">CONNECT</button>",
+      "css": ".ds-btn{background:var(--surface-raised);color:var(--fg);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 10px;font:inherit;cursor:pointer;transition:transform var(--dur-1) var(--ease-out),border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}.ds-btn:hover{border-color:var(--accent-line);box-shadow:var(--edge-accent);transform:translateY(-1px)}.ds-btn:focus-visible{outline:none;box-shadow:var(--ring)}.ds-btn:active{transform:scale(.975)}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "primary-button",
+      "description": "Filled accent action, e.g. confirm or send.",
+      "html": "<button class=\"ds-btn-primary\">SAVE</button>",
+      "css": ".ds-btn-primary{background:var(--accent);color:var(--accent-contrast);border:1px solid var(--accent);border-radius:var(--r-sm);padding:7px 12px;font:inherit;font-weight:600;cursor:pointer;transition:filter var(--dur-2) var(--ease-out),transform var(--dur-1) var(--ease-out)}.ds-btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}.ds-btn-primary:focus-visible{outline:none;box-shadow:var(--ring)}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "danger-button",
+      "description": "Destructive action; red-tinted at rest, filled on hover.",
+      "html": "<button class=\"ds-btn-danger\">DISCONNECT</button>",
+      "css": ".ds-btn-danger{background:color-mix(in srgb,var(--danger) 10%,var(--panel-2));color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 45%,var(--border));border-radius:var(--r-sm);padding:8px 10px;font:inherit;cursor:pointer;transition:background var(--dur-2) var(--ease-out),color var(--dur-2) var(--ease-out)}.ds-btn-danger:hover{background:var(--danger);color:var(--bg)}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 2px var(--bg),0 0 0 4px color-mix(in srgb,var(--danger) 78%,transparent)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "text-input",
+      "description": "Sunken field for a single line of input.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Host name\">",
+      "css": ".ds-input{background:var(--surface-sunken);color:var(--fg);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 10px;font:inherit;transition:border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}.ds-input::placeholder{color:var(--fg-muted)}.ds-input:hover{border-color:color-mix(in srgb,var(--accent) 28%,var(--border))}.ds-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The page's primary container around a wide work surface.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-card-title\">3270Web</h2><p class=\"ds-card-sub\">Connected session</p></section>",
+      "css": ".ds-card{background:var(--panel);color:var(--fg);border:1px solid var(--hairline);border-radius:var(--r-xl);padding:28px;box-shadow:var(--elev-4),0 0 0 1px var(--hairline-soft)}.ds-card-title{margin:0;font-size:1.5rem;font-weight:600}.ds-card-sub{margin:4px 0 0;color:var(--fg-muted);font-size:.95rem}"
+    },
+    {
+      "name": "Menu Item",
+      "kind": "nav",
+      "refersTo": "menu-item",
+      "description": "A row inside an app-bar drop-down panel.",
+      "html": "<button class=\"ds-menu-item\" role=\"menuitem\"><svg class=\"ds-menu-icon\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\"><path fill=\"currentColor\" d=\"M4 4h16v16H4z\" opacity=\".2\"/></svg><span>Record workflow</span><span class=\"ds-menu-key\">R</span></button>",
+      "css": ".ds-menu-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;border:none;border-radius:var(--r-sm);background:transparent;color:var(--fg);font:inherit;font-size:.82rem;font-weight:500;text-align:left;cursor:pointer;transition:background var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out)}.ds-menu-item:hover,.ds-menu-item:focus-visible{outline:none;background:color-mix(in srgb,var(--accent) 15%,transparent)}.ds-menu-icon{flex:none;color:var(--fg-muted)}.ds-menu-item:hover .ds-menu-icon{color:var(--accent)}.ds-menu-key{margin-left:auto;padding:1px 6px;border:1px solid var(--hairline);border-radius:var(--r-xs);background:color-mix(in srgb,var(--bg) 50%,transparent);color:var(--fg-muted);font-family:var(--mono);font-size:.6875rem}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Pill that names a live run mode: recording, playback or chaos.",
+      "html": "<span class=\"ds-chip\" data-mode=\"recording\">REC</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb,var(--danger) 45%,var(--border));background:var(--panel);color:var(--danger);font-size:.6875rem;font-weight:600;letter-spacing:.08em;line-height:1}"
+    },
+    {
+      "name": "Terminal Screen",
+      "kind": "custom",
+      "refersTo": "terminal-screen",
+      "description": "The 3270 character grid with its OIA status strip beneath.",
+      "html": "<div class=\"ds-term\"><div class=\"ds-term-screen\"><span>WELCOME TO 3270WEB</span><br><span>==&gt; </span><input class=\"ds-term-field\" value=\"COMMAND\" size=\"12\"></div><div class=\"ds-term-oia\">X SYSTEM  RUNNING</div></div>",
+      "css": ".ds-term{width:fit-content;font-family:var(--mono);font-size:12pt;line-height:12pt}.ds-term-screen{background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:4px 8px;overflow:hidden;white-space:nowrap}.ds-term-field{background:transparent;color:var(--accent);border:none;border-bottom:1px solid var(--accent);border-radius:0;padding:0;font:inherit;outline:none;caret-color:var(--accent)}.ds-term-oia{background:var(--fg);color:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:0 8px;font:inherit;white-space:nowrap}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Phosphor Cockpit",
+    "overview": "3270Web is a modern operator console that borrows the trust and legibility of a 3270 tube without imitating one literally. It is an Operate surface: the visitor is mid-task, often in a live host session, so the system favours scanability, predictable controls and honest state over expression. Personality comes from the phosphor palette, the monospace terminal face and precise hairline chrome. The visual system is a semantic token layer re-skinned by theme: colours, surfaces, borders and accents are declared once and overridden per theme, and components consume the tokens rather than hardcoding a palette.",
+    "keyCharacteristics": [
+      "Semantic CSS custom properties per theme; no per-theme component CSS.",
+      "Phosphor accent used as an interaction signal, not as a large fill.",
+      "Inter for the interface, IBM 3270 for the character grid; tabular numerals.",
+      "Hairline borders and a four-step elevation ramp instead of heavy dividers.",
+      "A centred page shell around a wide, fixed-geometry terminal card.",
+      "State is always visible (recording, playback, chaos, live status)."
+    ],
+    "rules": [
+      {
+        "name": "The Token Rule",
+        "body": "New UI never writes a colour literal. Declare or consume a custom property; override the property on body.theme-* for a theme, never the component rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Rarity Rule",
+        "body": "The accent is an interaction signal — focus, active, selected, live. It does not flood backgrounds or headings.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lifted-Ink Rule",
+        "body": "Host blue text uses --term-color-blue, never pure blue, except in theme-authentic.",
+        "section": "colors"
+      },
+      {
+        "name": "The Weight Ceiling Rule",
+        "body": "Strong text and headings top out at 600; the browser's 700 default is never used for emphasis.",
+        "section": "typography"
+      },
+      {
+        "name": "The Grid Rule",
+        "body": "Terminal text never uses the UI font stack. It uses the mono faces with tabular numerals and no ligatures.",
+        "section": "typography"
+      },
+      {
+        "name": "The Terminal-Geometry Rule",
+        "body": "Never add horizontal padding, flex shrink or responsive reflow to .screen-container. Chrome belongs on .terminal-shell.",
+        "section": "layout"
+      },
+      {
+        "name": "The One-Bar Rule",
+        "body": "Session controls live in the app bar and its menus. Do not reintroduce floating panels over the terminal or a second toolbar row.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Surfaces are flat at rest. Shadows lift real layers or respond to state.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Dividers are 1px translucent lines, not heavy borders and not extra shadows.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square-Again Rule",
+        "body": "Where a theme asks for authenticity, radius goes to 0 for the terminal and card.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do consume semantic custom properties and declare anything new on body so it resolves against the active theme.",
+      "Do keep the terminal on its fixed character grid and put chrome on the parent shell.",
+      "Do use --fg-muted for secondary text and reserve --accent for interaction and live state.",
+      "Do keep focus visible with the shared --ring and respect prefers-reduced-motion.",
+      "Do keep destructive actions danger-coloured and non-destructive closes neutral."
+    ],
+    "donts": [
+      "Don't hardcode hex values, shadows or radii in a component; that breaks every theme.",
+      "Don't use font weights above 600 for emphasis.",
+      "Don't add horizontal padding or flex shrink to .screen-container, or reflow the terminal for small screens.",
+      "Don't reintroduce floating toolbars over the terminal or a second control row beside the app bar.",
+      "Don't fill large areas with the accent; its rarity is what makes state legible.",
+      "Don't round the corners of the authentic/custom terminal or card themes."
+    ]
+  }
+}
