@@ -99,6 +99,12 @@ body.theme-io-daylight {
   --info: #0b6aa8;
 }
 
+/* Operator-authored light themes get the darkened danger ink too. theme.js
+   sets data-custom-tone from the luminance of the custom background. */
+body.theme-custom[data-custom-tone="light"] {
+  --danger: #a81c1f;
+}
+
 /* ---------------------------------------------------------------------
    2. Typography + base
    --------------------------------------------------------------------- */

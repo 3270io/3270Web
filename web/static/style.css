@@ -1931,6 +1931,14 @@ label, select, button, input {
   padding: 8px 10px;
 }
 
+/* --fg-muted clears 4.5:1 on the sunken field surface in every built-in
+   theme, so the in-field example is readable without lightening the field. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--fg-muted);
+  opacity: 1;
+}
+
 button {
   cursor: pointer;
   background: var(--panel-2);
