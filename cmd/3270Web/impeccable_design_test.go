@@ -23,3 +23,37 @@ func TestConnectConfirmHeadingsDoNotSkipALevel(t *testing.T) {
 		}
 	}
 }
+
+func cssRule(t *testing.T, src, marker string) string {
+	t.Helper()
+	start := strings.Index(src, marker)
+	if start < 0 {
+		t.Fatalf("rule %q is gone", marker)
+	}
+	end := strings.Index(src[start:], "}")
+	if end < 0 {
+		t.Fatalf("unterminated rule %q", marker)
+	}
+	return src[start : start+end]
+}
+
+// Finding 4: 11px stays for labels and chips, but helper and status prose is
+// read as a sentence, so it uses the 0.75rem step.
+func TestCopilotProseIsNotElevenPixels(t *testing.T) {
+	src := staticSource(t, "style.css")
+	for _, selector := range []string{
+		".copilot-panel-hint",
+		".copilot-statusline",
+		".copilot-statusline-action",
+		".copilot-context",
+		".copilot-chip-note",
+	} {
+		block := cssRule(t, src, selector+" {")
+		if !strings.Contains(block, "font-size: 0.75rem") {
+			t.Errorf("%s: prose is not 0.75rem (finding 4)", selector)
+		}
+		if strings.Contains(block, "font-size: 11px") {
+			t.Errorf("%s: prose is still 11px (finding 4)", selector)
+		}
+	}
+}

@@ -275,6 +275,8 @@ stays a grid.
   `--fg-muted` at 0.82–0.95rem.
 - **Label** (600, 0.6875rem, 0.01em): menu headings, panel titles, chips and
   micro-labels. Uppercase is a component choice, not a global rule.
+  Sentence-length helper and status prose uses the 0.75rem step instead;
+  0.6875rem is reserved for labels, chips and controls.
 - **Metric** (600, 1.65rem, 1.15, tabular): the one figure an admin status
   card exists to show, set in the mono face so digits do not jitter.
 - **Terminal** (400, 12pt, tracked to the cell grid): the 3270 character grid.

@@ -5831,7 +5831,7 @@ body.copilot-open .page-wrap {
 .copilot-panel-hint {
   margin: 0;
   padding: 6px 12px 10px;
-  font-size: 11px;
+  font-size: 0.75rem;
   color: var(--fg-muted);
   background: var(--panel-2);
   border-top: 1px solid var(--border);
@@ -6401,7 +6401,7 @@ body.copilot-open .page-wrap {
 .copilot-quick::-webkit-scrollbar { display: none; }
 .copilot-quick[hidden] { display: none; }
 .copilot-example-chip { display: flex; flex-direction: column; gap: 2px; }
-.copilot-chip-note { font-size: 11px; color: var(--fg-muted); }
+.copilot-chip-note { font-size: 0.75rem; color: var(--fg-muted); }
 .copilot-chip-caution { border-color: color-mix(in srgb, var(--warn, #f5b544) 60%, var(--border)); }
 
 .copilot-statusline {
@@ -6411,7 +6411,7 @@ body.copilot-open .page-wrap {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.35;
   color: var(--fg-muted);
   background: var(--panel-2);
@@ -6426,7 +6426,7 @@ body.copilot-open .page-wrap {
   border-radius: 4px;
   color: var(--fg);
   font: inherit;
-  font-size: 11px;
+  font-size: 0.75rem;
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -6435,7 +6435,7 @@ body.copilot-open .page-wrap {
 .copilot-context {
   border-top: 1px solid var(--border);
   background: var(--panel-2);
-  font-size: 11px;
+  font-size: 0.75rem;
   color: var(--fg-muted);
   flex-shrink: 0;
 }
