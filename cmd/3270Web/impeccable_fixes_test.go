@@ -101,6 +101,14 @@ func TestCustomThemeGetsToneAwareDanger(t *testing.T) {
 	}
 }
 
+// Decision 1 follow-up: canvas fillStyle returns #rrggbb for opaque colours,
+// so the custom-tone luminance parser must read the hex form, not only rgb().
+func TestCustomToneLuminanceParsesHex(t *testing.T) {
+	if !strings.Contains(staticSource(t, "theme.js"), `match(/^#([0-9a-f]{6})$/i)`) {
+		t.Error("theme.js: custom-tone luminance does not parse hex colours (decision 1)")
+	}
+}
+
 // Finding 8: the interface face is the system UI stack, not an unshipped Inter.
 func TestInterfaceUsesSystemFontStack(t *testing.T) {
 	for _, name := range []string{"style.css", "ui-polish.css"} {

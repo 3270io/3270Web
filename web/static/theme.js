@@ -308,19 +308,32 @@
   }
 
   function relativeLuminance(color) {
-    var hex = colorToHex(color);
-    if (!hex) {
+    // Canvas fillStyle normalises opaque colours to #rrggbb and translucent
+    // ones to rgba(...), so both forms must be parsed.
+    var normalized = colorToHex(color);
+    if (!normalized) {
       return null;
     }
-    var match = hex.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (!match) {
-      return null;
+    var r, g, b;
+    var hex = normalized.match(/^#([0-9a-f]{6})$/i);
+    if (hex) {
+      r = parseInt(hex[1].slice(0, 2), 16);
+      g = parseInt(hex[1].slice(2, 4), 16);
+      b = parseInt(hex[1].slice(4, 6), 16);
+    } else {
+      var rgb = normalized.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!rgb) {
+        return null;
+      }
+      r = parseInt(rgb[1], 10);
+      g = parseInt(rgb[2], 10);
+      b = parseInt(rgb[3], 10);
     }
     var channel = function (value) {
-      var v = parseInt(value, 10) / 255;
+      var v = value / 255;
       return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     };
-    return 0.2126 * channel(match[1]) + 0.7152 * channel(match[2]) + 0.0722 * channel(match[3]);
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
   }
 
   function applyCustomThemeCss(theme) {
