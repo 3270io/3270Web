@@ -3452,9 +3452,11 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .modal-header h3,
+.modal-header h2,
 .workflow-modal-header h3,
 .logs-modal-header h3,
 .settings-modal-header h3,
+.settings-modal-header h2,
 .history-modal-header h3,
 .profiles-modal-header h3,
 .transfer-modal-header h3,

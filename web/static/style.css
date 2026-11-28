@@ -3043,7 +3043,8 @@ pre, pre input, textarea {
   gap: 12px;
 }
 
-.modal-header h3 {
+.modal-header h3,
+.modal-header h2 {
   margin: 0;
   font-weight: 600;
 }
@@ -4518,7 +4519,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-shrink: 0;
 }
 
-.settings-modal-header h3 {
+.settings-modal-header h3,
+.settings-modal-header h2 {
   margin: 0;
   font-weight: 600;
   color: var(--accent);
