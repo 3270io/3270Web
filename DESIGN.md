@@ -452,6 +452,8 @@ soft fill and accent hairline.
   interaction and live state.
 - **Do** keep focus visible with the shared `--ring` and respect
   `prefers-reduced-motion` (motion collapses to ~0ms there).
+- **Do** use the shared `--ease-out` for entrances and state transitions; the
+  toast slide-in is the reference, with no overshoot on primary UI motion.
 - **Do** keep destructive actions danger-coloured and non-destructive closes
   neutral.
 

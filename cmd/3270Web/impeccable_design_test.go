@@ -57,3 +57,15 @@ func TestCopilotProseIsNotElevenPixels(t *testing.T) {
 		}
 	}
 }
+
+// Finding 6: the toast entrance uses the shared ease-out curve rather than an
+// overshoot, matching the rest of the motion system.
+func TestNotificationUsesSharedEaseOut(t *testing.T) {
+	block := cssRule(t, staticSource(t, "style.css"), ".h3270-notification {")
+	if !strings.Contains(block, "var(--ease-out") {
+		t.Error(".h3270-notification: entrance does not use --ease-out (finding 6)")
+	}
+	if strings.Contains(block, "cubic-bezier(0.34, 1.42, 0.64, 1)") {
+		t.Error(".h3270-notification: still has the overshoot curve (finding 6)")
+	}
+}
