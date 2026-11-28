@@ -266,6 +266,49 @@
         "monoHostChip": "SF Mono on macOS, with ui-monospace, Cascadia Mono and Consolas as documented fallbacks."
       }
     },
+    "roundedMeta": {
+      "xs": {
+        "displayName": "Extra small",
+        "purpose": "Inline controls and small chips."
+      },
+      "sm": {
+        "displayName": "Small",
+        "purpose": "Buttons, inputs and menus."
+      },
+      "md": {
+        "displayName": "Medium",
+        "purpose": "Terminal screen and mid-size surfaces."
+      },
+      "lg": {
+        "displayName": "Large",
+        "purpose": "Raised panels."
+      },
+      "xl": {
+        "displayName": "Extra large",
+        "purpose": "Cards and modal frames."
+      },
+      "pill": {
+        "displayName": "Pill",
+        "purpose": "Chips, badges and fully rounded controls."
+      },
+      "scale": [
+        "1px",
+        "2px",
+        "3px",
+        "4px",
+        "5px",
+        "6px",
+        "7px",
+        "8px",
+        "9px",
+        "10px",
+        "12px",
+        "14px",
+        "16px",
+        "22px",
+        "999px"
+      ]
+    },
     "shadows": [
       {
         "name": "elev-1",
@@ -426,7 +469,7 @@
       },
       {
         "name": "The Rarity Rule",
-        "body": "The accent is an interaction signal — focus, active, selected, live. It does not flood backgrounds or headings.",
+        "body": "The accent is an interaction signal \u2014 focus, active, selected, live. It does not flood backgrounds or headings.",
         "section": "colors"
       },
       {
