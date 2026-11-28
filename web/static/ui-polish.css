@@ -122,8 +122,8 @@ h6 {
 }
 
 body {
-  font-family: "Inter", "Inter var", "Segoe UI Variable Text", "Segoe UI",
-    system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

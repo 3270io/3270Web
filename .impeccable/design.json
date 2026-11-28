@@ -220,6 +220,50 @@
       "terminal": {
         "displayName": "Terminal",
         "purpose": "The 3270 character grid only."
+      },
+      "metric": {
+        "displayName": "Metric",
+        "purpose": "The one figure an admin status card exists to show; mono, tabular, 1.65rem."
+      },
+      "scale": [
+        "0.6rem",
+        "0.62rem",
+        "0.66rem",
+        "0.68rem",
+        "0.6875rem",
+        "0.7rem",
+        "0.72rem",
+        "0.73rem",
+        "0.74rem",
+        "0.75rem",
+        "0.76rem",
+        "0.78rem",
+        "0.8rem",
+        "0.82rem",
+        "0.84rem",
+        "0.85rem",
+        "0.86rem",
+        "0.88rem",
+        "0.9rem",
+        "0.92rem",
+        "0.94rem",
+        "0.95rem",
+        "0.98rem",
+        "1rem",
+        "1.02rem",
+        "1.05rem",
+        "1.0625rem",
+        "1.08rem",
+        "1.1rem",
+        "1.25rem",
+        "1.3rem",
+        "1.35rem",
+        "1.5rem",
+        "1.65rem"
+      ],
+      "variants": {
+        "condensed": "IBM 3270 Semi-Condensed and IBM 3270 Condensed ship in web/static/fonts/ for narrower cells.",
+        "monoHostChip": "SF Mono on macOS, with ui-monospace, Cascadia Mono and Consolas as documented fallbacks."
       }
     },
     "shadows": [
@@ -369,7 +413,7 @@
     "keyCharacteristics": [
       "Semantic CSS custom properties per theme; no per-theme component CSS.",
       "Phosphor accent used as an interaction signal, not as a large fill.",
-      "Inter for the interface, IBM 3270 for the character grid; tabular numerals.",
+      "The system UI face for the interface and IBM 3270 for the character grid; tabular numerals.",
       "Hairline borders and a four-step elevation ramp instead of heavy dividers.",
       "A centred page shell around a wide, fixed-geometry terminal card.",
       "State is always visible (recording, playback, chaos, live status)."

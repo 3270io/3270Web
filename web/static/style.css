@@ -39,7 +39,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .bg-overlay,
@@ -5225,7 +5225,7 @@ html.workflow-status-minimized .workflow-status-widget-header {
   background: color-mix(in srgb, var(--panel) 96%, transparent);
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--fg);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13.5px;
   line-height: 1.45;
   pointer-events: auto;
