@@ -39,7 +39,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .bg-overlay,
@@ -1931,6 +1931,14 @@ label, select, button, input {
   padding: 8px 10px;
 }
 
+/* --fg-muted clears 4.5:1 on the sunken field surface in every built-in
+   theme, so the in-field example is readable without lightening the field. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--fg-muted);
+  opacity: 1;
+}
+
 button {
   cursor: pointer;
   background: var(--panel-2);
@@ -3035,7 +3043,8 @@ pre, pre input, textarea {
   gap: 12px;
 }
 
-.modal-header h3 {
+.modal-header h3,
+.modal-header h2 {
   margin: 0;
   font-weight: 600;
 }
@@ -4510,7 +4519,8 @@ html.workflow-status-minimized .workflow-status-widget-header {
   flex-shrink: 0;
 }
 
-.settings-modal-header h3 {
+.settings-modal-header h3,
+.settings-modal-header h2 {
   margin: 0;
   font-weight: 600;
   color: var(--accent);
@@ -5110,8 +5120,9 @@ html.workflow-status-minimized .workflow-status-widget-header {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
-.settings-confirm-content h4 {
+.settings-confirm-content :is(h3, h4) {
   margin: 0;
+  font-size: 1em;
   color: var(--accent);
 }
 
@@ -5215,14 +5226,14 @@ html.workflow-status-minimized .workflow-status-widget-header {
   background: color-mix(in srgb, var(--panel) 96%, transparent);
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--fg);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13.5px;
   line-height: 1.45;
   pointer-events: auto;
   cursor: default;
   transform: translateX(calc(100% + 32px));
   opacity: 0;
-  transition: transform 0.3s cubic-bezier(0.34, 1.42, 0.64, 1), opacity 0.25s ease;
+  transition: transform 0.3s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)), opacity 0.25s ease;
   will-change: transform, opacity;
   min-width: 220px;
 }
@@ -5821,7 +5832,7 @@ body.copilot-open .page-wrap {
 .copilot-panel-hint {
   margin: 0;
   padding: 6px 12px 10px;
-  font-size: 11px;
+  font-size: 0.75rem;
   color: var(--fg-muted);
   background: var(--panel-2);
   border-top: 1px solid var(--border);
@@ -6391,7 +6402,7 @@ body.copilot-open .page-wrap {
 .copilot-quick::-webkit-scrollbar { display: none; }
 .copilot-quick[hidden] { display: none; }
 .copilot-example-chip { display: flex; flex-direction: column; gap: 2px; }
-.copilot-chip-note { font-size: 11px; color: var(--fg-muted); }
+.copilot-chip-note { font-size: 0.75rem; color: var(--fg-muted); }
 .copilot-chip-caution { border-color: color-mix(in srgb, var(--warn, #f5b544) 60%, var(--border)); }
 
 .copilot-statusline {
@@ -6401,7 +6412,7 @@ body.copilot-open .page-wrap {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.35;
   color: var(--fg-muted);
   background: var(--panel-2);
@@ -6416,7 +6427,7 @@ body.copilot-open .page-wrap {
   border-radius: 4px;
   color: var(--fg);
   font: inherit;
-  font-size: 11px;
+  font-size: 0.75rem;
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -6425,7 +6436,7 @@ body.copilot-open .page-wrap {
 .copilot-context {
   border-top: 1px solid var(--border);
   background: var(--panel-2);
-  font-size: 11px;
+  font-size: 0.75rem;
   color: var(--fg-muted);
   flex-shrink: 0;
 }

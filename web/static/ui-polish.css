@@ -99,6 +99,12 @@ body.theme-io-daylight {
   --info: #0b6aa8;
 }
 
+/* Operator-authored light themes get the darkened danger ink too. theme.js
+   sets data-custom-tone from the luminance of the custom background. */
+body.theme-custom[data-custom-tone="light"] {
+  --danger: #a81c1f;
+}
+
 /* ---------------------------------------------------------------------
    2. Typography + base
    --------------------------------------------------------------------- */
@@ -116,8 +122,8 @@ h6 {
 }
 
 body {
-  font-family: "Inter", "Inter var", "Segoe UI Variable Text", "Segoe UI",
-    system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -153,7 +159,6 @@ button,
     box-shadow var(--dur-2) var(--ease-out),
     background-color var(--dur-2) var(--ease-out),
     color var(--dur-2) var(--ease-out);
-  will-change: transform;
 }
 
 button:hover:not(:disabled),
@@ -3447,9 +3452,11 @@ html.workflow-status-minimized .workflow-status-widget-header strong {
 }
 
 .modal-header h3,
+.modal-header h2,
 .workflow-modal-header h3,
 .logs-modal-header h3,
 .settings-modal-header h3,
+.settings-modal-header h2,
 .history-modal-header h3,
 .profiles-modal-header h3,
 .transfer-modal-header h3,

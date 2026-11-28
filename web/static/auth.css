@@ -266,9 +266,11 @@
 }
 
 .auth-alert--error {
-  color: var(--term-color-red, #ff6b6b);
-  border-color: color-mix(in srgb, var(--term-color-red, #ff6b6b) 45%, var(--border));
-  background: color-mix(in srgb, var(--term-color-red, #ff6b6b) 12%, var(--panel));
+  /* --danger is the documented danger ink and clears 4.5:1 on the tinted
+     alert surface. The terminal's own red stays on terminal cells. */
+  color: var(--danger, #ff7474);
+  border-color: color-mix(in srgb, var(--danger, #ff7474) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger, #ff7474) 12%, var(--panel));
 }
 
 .auth-alert--error::before {

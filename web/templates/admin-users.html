@@ -208,14 +208,14 @@
         <div class="admin-dialog-content" role="dialog" aria-modal="true" aria-labelledby="groups-title">
             <h2 id="groups-title">Groups</h2>
             <p class="admin-dialog-desc">
-                Which teams <strong data-groups-name></strong> belongs to. Groups
-                decide which mainframes an account is offered, not what it may do
-                here — that is the role.
+                Membership decides which mainframes an account is offered, not
+                what it may do here — that is the role. These are the groups
+                <strong data-groups-name></strong> belongs to.
             </p>
             <form class="auth-form" data-groups-form>
                 <div class="admin-dialog-body">
                 <div class="field">
-                    <label for="groups-input">Groups</label>
+                    <label for="groups-input">Group names</label>
                     <input type="text" id="groups-input" name="groups"
                            autocapitalize="none" autocorrect="off" spellcheck="false"
                            list="known-groups" aria-describedby="groups-hint">
@@ -223,7 +223,7 @@
                     <div class="field-hint" id="groups-hint">
                         Separated by commas. A name that is not yet a group becomes
                         one. To make a group, name it, fill it and assign it hosts
-                        in one place, use the <a href="/admin/groups">Groups</a> page.
+                        in one place, use <a href="/admin/groups">manage groups</a>.
                     </div>
                 </div>
                 <div class="auth-alert auth-alert--info" data-groups-provider hidden>

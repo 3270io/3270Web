@@ -17,24 +17,24 @@ colors:
   status-info: "#4aa8ff"
 typography:
   display:
-    fontFamily: "Inter, Inter var, Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif'
     fontSize: "1.5rem"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "0em"
   title:
-    fontFamily: "Inter, Inter var, Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif'
     fontSize: "1.0625rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0em"
   body:
-    fontFamily: "Inter, Inter var, Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif'
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: "Inter, Inter var, Segoe UI Variable Text, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif'
     fontSize: "0.6875rem"
     fontWeight: 600
     lineHeight: 1.3
@@ -45,6 +45,47 @@ typography:
     fontWeight: 400
     lineHeight: "12pt"
     letterSpacing: "0em"
+  metric:
+    fontFamily: "IBM 3270, Cascadia Mono, Consolas, Courier New, monospace"
+    fontSize: "1.65rem"
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: "0em"
+  scale:
+    - "0.6rem"
+    - "0.62rem"
+    - "0.66rem"
+    - "0.68rem"
+    - "0.6875rem"
+    - "0.7rem"
+    - "0.72rem"
+    - "0.73rem"
+    - "0.74rem"
+    - "0.75rem"
+    - "0.76rem"
+    - "0.78rem"
+    - "0.8rem"
+    - "0.82rem"
+    - "0.84rem"
+    - "0.85rem"
+    - "0.86rem"
+    - "0.88rem"
+    - "0.9rem"
+    - "0.92rem"
+    - "0.94rem"
+    - "0.95rem"
+    - "0.98rem"
+    - "1rem"
+    - "1.02rem"
+    - "1.05rem"
+    - "1.0625rem"
+    - "1.08rem"
+    - "1.1rem"
+    - "1.25rem"
+    - "1.3rem"
+    - "1.35rem"
+    - "1.5rem"
+    - "1.65rem"
 rounded:
   xs: "6px"
   sm: "9px"
@@ -52,6 +93,22 @@ rounded:
   lg: "16px"
   xl: "22px"
   pill: "999px"
+  scale:
+    - "1px"
+    - "2px"
+    - "3px"
+    - "4px"
+    - "5px"
+    - "6px"
+    - "7px"
+    - "8px"
+    - "9px"
+    - "10px"
+    - "12px"
+    - "14px"
+    - "16px"
+    - "22px"
+    - "999px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -133,7 +190,7 @@ at rest.
 **Key Characteristics:**
 - Semantic CSS custom properties per theme; no per-theme component CSS.
 - Phosphor accent used as an interaction signal, not as a large fill.
-- Inter for the interface, IBM 3270 for the character grid; tabular numerals.
+- The system UI face (Segoe UI / system-ui) for the interface and IBM 3270 for the character grid; tabular numerals.
 - Hairline borders and a four-step elevation ramp instead of heavy dividers.
 - A centred page shell around a wide, fixed-geometry terminal card.
 - State is always visible (recording, playback, chaos, live status). Automation
@@ -180,6 +237,11 @@ single bright accent and muted secondary text.
 custom property; if a theme needs a different value, override the property on
 `body.theme-*`, never the component rule.
 
+**The Per-Theme Palette Rule.** Per-theme `body.theme-*` colour declarations
+and the literal fallbacks in the account stylesheets are intentional, not
+drift: each theme tunes its own palette, and the fallback is what renders
+before a theme token resolves.
+
 **The Rarity Rule.** The accent is an interaction signal — focus, active,
 selected, live. It fills small primary buttons and status pills; it does not
 flood backgrounds or headings.
@@ -190,9 +252,15 @@ palette.
 
 ## Typography
 
-**Display Font:** Inter (with Inter var, Segoe UI, system-ui)
-**Body Font:** Inter (with Segoe UI, system-ui, -apple-system)
+**Display Font:** system-ui (Segoe UI on Windows, San Francisco on macOS)
+**Body Font:** system-ui (Segoe UI, -apple-system on macOS)
 **Terminal Font:** IBM 3270 (with Cascadia Mono, Consolas, Courier New)
+
+**Intentional variants:** the terminal also ships IBM 3270 Semi-Condensed and
+IBM 3270 Condensed (`web/static/fonts/`), used where a narrower cell is
+wanted. The host chip uses SF Mono on macOS, with ui-monospace, Cascadia Mono
+and Consolas as documented fallbacks elsewhere. These are not drift; they are
+the real faces the CSS loads.
 
 **Character:** A neutral, high-legibility interface face set against a strict
 monospace character grid. The contrast between proportional chrome and fixed
@@ -207,6 +275,10 @@ stays a grid.
   `--fg-muted` at 0.82–0.95rem.
 - **Label** (600, 0.6875rem, 0.01em): menu headings, panel titles, chips and
   micro-labels. Uppercase is a component choice, not a global rule.
+  Sentence-length helper and status prose uses the 0.75rem step instead;
+  0.6875rem is reserved for labels, chips and controls.
+- **Metric** (600, 1.65rem, 1.15, tabular): the one figure an admin status
+  card exists to show, set in the mono face so digits do not jitter.
 - **Terminal** (400, 12pt, tracked to the cell grid): the 3270 character grid.
   `--terminal-cell-size` defaults to 12pt and is user-adjustable; ligatures,
   kerning and optical sizing are explicitly disabled so column position holds.
@@ -380,6 +452,8 @@ soft fill and accent hairline.
   interaction and live state.
 - **Do** keep focus visible with the shared `--ring` and respect
   `prefers-reduced-motion` (motion collapses to ~0ms there).
+- **Do** use the shared `--ease-out` for entrances and state transitions; the
+  toast slide-in is the reference, with no overshoot on primary UI motion.
 - **Do** keep destructive actions danger-coloured and non-destructive closes
   neutral.
 
